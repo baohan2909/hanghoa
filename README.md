@@ -7,7 +7,7 @@ thích từng dòng), điều phối **kiểm soát ngược & can thiệp khi c
 duyệt từng đơn), kho tổng xử lý theo nhịp ngày làm việc, file Odoo sinh tự động, theo
 dõi GHTK đến khi cửa hàng xác nhận nhận.
 **SLA cứng: gửi hôm nay — kho bàn giao vận chuyển trong ngày làm việc kế tiếp**
-(T6 → trưa T7 · T7/CN → gom xử lý T2).
+(T6 → trưa T7 · T7/CN → gom xử lý T2)..
 
 ## Kiến trúc
 ```
