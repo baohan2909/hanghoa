@@ -1,0 +1,9 @@
+{
+  "name": "NS FLOW — Chia hàng & Điều phối",
+  "short_name": "NS FLOW",
+  "start_url": "/hanghoa/",
+  "display": "standalone",
+  "background_color": "#F7F5F1",
+  "theme_color": "#14213A",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
