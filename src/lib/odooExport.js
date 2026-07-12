@@ -15,7 +15,7 @@ export async function xuatFileOdoo(don, lines) {
       const o = {};
       mapping.forEach((m) => {
         o[m.header] = m.field === 'ma_ch' ? don.ma_ch
-          : m.field === 'ghi_chu' ? `NSFLOW-${don.id}`
+          : m.field === 'ghi_chu' ? `NS-${don.id}`
           : (l[m.field] ?? l.sl_xin ?? '');
       });
       return o;

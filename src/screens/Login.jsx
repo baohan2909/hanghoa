@@ -18,7 +18,7 @@ export default function Login({ onOk }) {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <h1>NS FLOW</h1>
+        <h1>ĐIỀU PHỐI HÀNG HÓA</h1>
         <div style={{ color: 'var(--ink-2)', fontSize: 13, marginTop: 4 }}>
           Đề nghị & điều chuyển hàng hóa — Nón Sơn
         </div>

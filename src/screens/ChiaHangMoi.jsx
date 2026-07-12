@@ -47,7 +47,7 @@ export default function ChiaHangMoi() {
     const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(ct.filter((r) => r.sl_chot > 0).map((r) => ({
       'Mã kho nhận': r.ma_ch, 'Barcode': barcode, 'Số lượng': r.sl_chot,
-      'Ghi chú': `NSFLOW-MOI-${batchId}` })));
+      'Ghi chú': `NS-MOI-${batchId}` })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'ChiaHangMoi');
     XLSX.writeFile(wb, `ODOO_CHIAMOI_${batchId}.xlsx`);
