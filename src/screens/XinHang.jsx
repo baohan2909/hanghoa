@@ -125,6 +125,7 @@ export default function XinHang() {
   const [lich, setLich] = useState(null);
   const [tuNgay, setTuNgay] = useState('');          // mốc thời gian từ (mục 9)
   const [denNgay, setDenNgay] = useState('');        // mốc thời gian đến (mục 3)
+  const [soNgayCan, setSoNgayCan] = useState('');    // tính đủ hàng cho N ngày (mặc định theo nhóm)
   const [gioiHan, setGioiHan] = useState(200);
   const [xemAnh, setXemAnh] = useState(null);
   const [hoverAnh, setHoverAnh] = useState(null);   // {url, x, y} hover phóng gấp 4
@@ -148,6 +149,7 @@ export default function XinHang() {
       const { data: ch } = await sb.from('cua_hang')
         .select('nhom_ch, chu_ky_ngay, ten').eq('ma_ch', maCH).single();
       setLich(ch || null);
+      if (ch) setSoNgayCan(String(ch.chu_ky_ngay || (ch.nhom_ch === 1 ? 4 : ch.nhom_ch === 3 ? 11 : 7)));
       try {
         const raw = localStorage.getItem(KEY(maCH));
         if (raw) { const d = JSON.parse(raw); setRows(d.rows); setTuNgay(d.tuNgay || ''); baoToast('Đã khôi phục bản nháp đang làm dở'); }
@@ -172,6 +174,7 @@ export default function XinHang() {
     const args = { p_ma_ch: maCH };
     if (tuNgay) args.p_tu_ngay = tuNgay;
     if (denNgay) args.p_den_ngay = denNgay;
+    if (soNgayCan) args.p_so_ngay_can = parseInt(soNgayCan);
     // Chạy engine + hiệu ứng song song, chờ CẢ HAI (hiệu ứng tối thiểu 3.8s để không qua loa)
     const toiThieu = new Promise((res) => setTimeout(res, 3800));
     const [{ data, error }] = await Promise.all([
@@ -284,6 +287,12 @@ export default function XinHang() {
           ]} />
           <DateBox label="Từ" value={tuNgay} onChange={setTuNgay} />
           <DateBox label="Đến" value={denNgay} onChange={setDenNgay} />
+          <label className="songay-box" title="Tính đủ hàng cho bao nhiêu ngày tới — mặc định theo nhóm cửa hàng, sửa được khi có lễ/chương trình">
+            <span>Tính đủ cho</span>
+            <input type="number" min="1" max="90" value={soNgayCan}
+              onChange={(e) => setSoNgayCan(e.target.value)} />
+            <span>ngày</span>
+          </label>
           <button className={'btn btn-ai' + (busy ? ' dang-chay' : '')} onClick={goiY} disabled={busy || !maCH}>
             <IcSpark /> {busy ? 'Đang phân tích…' : 'AI gợi ý đề nghị'}
           </button>
