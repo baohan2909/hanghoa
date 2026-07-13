@@ -180,8 +180,8 @@ export default function XinHang() {
         gia: (r) => r.la_hang_sale ? r.gia_sale : r.gia_niem_yet,
         ton: (r) => r.ton_truoc, kho: (r) => r.kho_tong ?? 0,
         ban: (r) => r.sl_ban_ky ?? 0, ai: (r) => r.sl_ai,
-        sl: (r) => r.sl_xin, tong: (r) => (r.ton_du_tinh ?? 0) + (r.sl_xin || 0),
-        ngay: (r) => (r.toc_do > 0) ? (((r.ton_du_tinh ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 1e9,
+        sl: (r) => r.sl_xin, tong: (r) => (r.ton_truoc ?? 0) + (r.sl_xin || 0),
+        ngay: (r) => (r.toc_do > 0) ? (((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 1e9,
       }[sortBy.col];
       v = [...v].sort((a, b) => {
         const x = get(a), y = get(b);
@@ -359,10 +359,10 @@ export default function XinHang() {
                           value={r.sl_xin} onChange={(e) => sua(r.barcode, e.target.value)} />
                         {vuotKho && <div style={{ fontSize: 10, color: 'var(--magenta)', marginTop: 2 }}>Vượt kho tổng {r.kho_tong}</div>}
                       </td>
-                      <td className="num" style={{ fontWeight: 600 }}>{(r.ton_du_tinh ?? 0) + (r.sl_xin || 0)}</td>
+                      <td className="num" style={{ fontWeight: 600 }}>{(r.ton_truoc ?? 0) + (r.sl_xin || 0)}</td>
                       <td className="num">
                         {r.toc_do > 0
-                          ? <b style={{ color: 'var(--ink)' }}>{Math.round(((r.ton_du_tinh ?? 0) + (r.sl_xin || 0)) / r.toc_do)}d</b>
+                          ? <b style={{ color: 'var(--ink)' }}>{Math.round(((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do)}d</b>
                           : <span style={{ color: 'var(--ink-2)' }}>—</span>}
                       </td>
                     </tr>
