@@ -54,24 +54,88 @@ input, select { font-family: inherit; font-size: 14px; }
 .cmdbar .sub { opacity: .82; font-size: 12.5px; margin-top: 2px; position: relative; z-index: 1; }
 .cmdbar .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; position: relative; z-index: 5; }
 
-/* ---------- SHELL ---------- */
-.shell { max-width: 1320px; margin: 0 auto; padding: 14px 14px 90px; }
-.topnav {
-  display: flex; gap: 4px; overflow-x: auto; padding: 6px;
-  background: var(--surface); border-radius: var(--r);
-  box-shadow: var(--shadow); margin-bottom: 16px;
-  position: sticky; top: 8px; z-index: 40;
+/* ---------- LAYOUT BÀN LÀM VIỆC: sidebar trái + vùng nội dung ---------- */
+.ws { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 232px; flex-shrink: 0; position: sticky; top: 0; height: 100vh;
+  background: var(--surface); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; padding: 14px 10px;
+  overflow-y: auto; z-index: 60;
 }
-.topnav button {
-  display: flex; align-items: center; gap: 7px; white-space: nowrap;
+.side-logo { padding: 6px 12px 16px; }
+.side-logo .t { font-family: var(--font-disp); font-weight: 700; font-size: 15px;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; letter-spacing: .3px; }
+.side-logo .s { font-size: 10.5px; color: var(--ink-2); margin-top: 1px; }
+.side-group { font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
+  color: var(--ink-2); opacity: .7; padding: 14px 12px 6px; }
+.side-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
   border: 0; background: transparent; color: var(--ink-2);
-  padding: 9px 14px; border-radius: 10px; font-size: 13.5px; font-weight: 500;
+  padding: 9px 12px; border-radius: 10px; font-size: 13.5px; font-weight: 500;
+  text-align: left; margin-bottom: 2px; transition: background .15s, color .15s;
 }
-.topnav button.on { background: var(--ink); color: #fff; }
-.topnav button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.side-item:hover { background: var(--bg); color: var(--ink); }
+/* QUY TẮC: thẻ đang chọn = gradient chủ đạo + bóng mờ glow */
+.side-item.on {
+  background: var(--grad); color: #fff;
+  box-shadow: 0 6px 18px rgba(30,95,99,.38), 0 2px 6px rgba(20,33,58,.22);
+}
+.side-user { margin-top: auto; border-top: 1px solid var(--line); padding: 12px 12px 4px; }
+.side-user .n { font-weight: 600; font-size: 13px; }
+.side-user .r { font-size: 11px; color: var(--ink-2); }
+.side-out { margin-top: 8px; width: 100%; border: 1.5px solid var(--line); background: #fff;
+  color: var(--ink-2); border-radius: 10px; padding: 7px; font-size: 12.5px; font-weight: 600; }
+.side-out:hover { border-color: var(--magenta); color: var(--magenta); }
+
+.main { flex: 1; min-width: 0; padding: 16px 18px 90px; max-width: 1280px; }
+
+/* Thanh trên cho mobile */
+.mtop { display: none; }
 .badge-dot { min-width: 18px; height: 18px; border-radius: 9px; background: var(--magenta);
   color: #fff; font-size: 11px; font-weight: 700; display: inline-flex;
-  align-items: center; justify-content: center; padding: 0 5px; }
+  align-items: center; justify-content: center; padding: 0 5px; margin-left: auto; }
+
+@media (max-width: 900px) {
+  .sidebar { position: fixed; left: 0; top: 0; transform: translateX(-105%);
+    transition: transform .22s ease; box-shadow: var(--shadow-lg); width: 250px; }
+  .sidebar.open { transform: translateX(0); }
+  .mtop { display: flex; align-items: center; gap: 10px; position: sticky; top: 0;
+    z-index: 50; background: var(--surface); padding: 10px 14px;
+    border-bottom: 1px solid var(--line); }
+  .mtop .t { font-family: var(--font-disp); font-weight: 700; font-size: 14px; }
+  .mtop-btn { border: 1.5px solid var(--line); background: #fff; border-radius: 10px;
+    padding: 7px 10px; display: flex; align-items: center; }
+  .main { padding: 12px 12px 90px; }
+  .m-cover { position: fixed; inset: 0; background: rgba(20,33,58,.4); z-index: 55; }
+}
+
+/* ---------- Ô CHỌN TỰ DỰNG (Sel) — quy tắc: cấm select mặc định ---------- */
+.sel { position: relative; }
+.sel-btn { display: flex; align-items: center; gap: 8px; min-width: 150px;
+  padding: 9px 12px; border: 0; border-radius: 10px; background: #fff;
+  color: var(--ink); font-size: 13.5px; font-weight: 500; text-align: left; width: 100%; }
+.sel-btn:focus-visible { outline: 2px solid var(--teal); }
+.sel-btn span:first-child { flex: 1; }
+.sel-pop { position: absolute; z-index: 200; top: calc(100% + 6px); left: 0;
+  min-width: 100%; background: #fff; border-radius: 12px;
+  box-shadow: var(--shadow-lg); border: 1px solid var(--line); overflow: hidden;
+  max-height: 300px; overflow-y: auto; }
+.sel-item { display: block; width: 100%; text-align: left; padding: 9px 14px; border: 0;
+  background: #fff; font-size: 13.5px; cursor: pointer; border-top: 1px solid var(--line); }
+.sel-item:first-child { border-top: 0; }
+.sel-item:hover { background: var(--bg); }
+.sel-item.on { background: var(--grad); color: #fff; }
+.sel-item:disabled { opacity: .4; cursor: not-allowed; }
+.sel-sub { font-size: 11px; opacity: .65; }
+
+/* ---------- Ô NGÀY (DateBox) — đồng bộ form trắng bo 10px ---------- */
+.datebox { display: inline-flex; align-items: center; gap: 7px; background: #fff;
+  border-radius: 10px; padding: 5px 12px; }
+.datebox-l { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+.datebox input { border: 0; font-size: 13px; color: var(--ink); font-family: var(--font-mono);
+  background: transparent; padding: 4px 0; }
+.datebox input:focus { outline: none; }
 
 /* ---------- CARD / KPI ---------- */
 .card { background: var(--surface); border-radius: var(--r);
@@ -195,7 +259,8 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .nhom-tab { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px;
   border: 1.5px solid var(--line); background: #fff; border-radius: 10px;
   font-size: 13px; font-weight: 600; color: var(--ink-2); }
-.nhom-tab.on { border-color: var(--teal-deep); background: var(--teal-deep); color: #fff; }
+.nhom-tab.on { border-color: transparent; background: var(--grad); color: #fff;
+  box-shadow: 0 6px 18px rgba(30,95,99,.38), 0 2px 6px rgba(20,33,58,.22); }
 .nhom-badge { display: inline-flex; align-items: center; justify-content: center;
   min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
   background: var(--gold); color: #3a2c0a; font-size: 11px; font-weight: 700;

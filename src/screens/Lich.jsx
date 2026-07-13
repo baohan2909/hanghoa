@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcClock, IcRefresh, IcGear } from '../lib/icons.jsx';
+import { DateBox } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
 // Màn LỊCH ĐỀ NGHỊ — điều phối/admin xem lịch cố định theo ngày, sửa lịch từng cửa hàng.
@@ -57,8 +58,7 @@ export default function Lich() {
         <h1>Lịch đề nghị hàng hóa</h1>
         <div className="sub">Lịch cố định, lặp theo chu kỳ — chỉ đổi khi cửa hàng chuyển nhóm sức bán.</div>
         <div className="row">
-          <input className="qty-input" style={{ width: 150, textAlign: 'left' }} type="date"
-            value={ngay} onChange={(e) => setNgay(e.target.value)} />
+          <DateBox label="Ngày" value={ngay} onChange={setNgay} />
           <span className="sla-chip"><IcClock /> {tenThu}{ngay === homNay ? ' · hôm nay' : ''}</span>
           <button className="btn" style={{ background: 'rgba(255,255,255,.16)', color: '#fff' }}
             onClick={taiNgay} disabled={busy}><IcRefresh /> {busy ? 'Đang tải…' : 'Xem'}</button>

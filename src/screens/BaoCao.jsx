@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { sb, fmtDT } from '../lib/supabase.js';
 import { IcRefresh, IcClock } from '../lib/icons.jsx';
+import { DateBox } from '../lib/ui.jsx';
 
 const iso = (d) => d.toISOString().slice(0, 10);
 
@@ -35,11 +36,8 @@ export default function BaoCao() {
         <h1>Báo cáo tốc độ xử lý</h1>
         <div className="sub">Đo toàn bộ thời gian từ lúc cửa hàng xin đến lúc nhận hàng — tiêu chí cốt lõi của dự án.</div>
         <div className="row">
-          <input className="qty-input" style={{ width: 140, textAlign: 'left' }} type="date"
-            value={tu} onChange={(e) => setTu(e.target.value)} />
-          <span style={{ color: '#fff', opacity: .8 }}>→</span>
-          <input className="qty-input" style={{ width: 140, textAlign: 'left' }} type="date"
-            value={den} onChange={(e) => setDen(e.target.value)} />
+          <DateBox label="Từ" value={tu} onChange={setTu} />
+          <DateBox label="Đến" value={den} onChange={setDen} />
           <button className="btn" disabled={busy}
             style={{ background: 'rgba(255,255,255,.16)', color: '#fff' }}
             onClick={tai}><IcRefresh /> {busy ? 'Đang tải…' : 'Xem'}</button>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb, fmtVND, LY_DO } from '../lib/supabase.js';
 import { IcSpark, IcSearch, IcBox, IcClock, IcAlert, IcDown, IcCheck } from '../lib/icons.jsx';
+import { Sel, DateBox } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
 // ===== Màn ĐỀ NGHỊ HÀNG HÓA (10 mục hoàn thiện) =====
@@ -215,15 +216,11 @@ export default function XinHang() {
                 : (kyTiepTxt ? `Kỳ tới: ${kyTiepTxt}` : 'Chưa được phân lịch')}
             </span>
           )}
-          <select value={loai} onChange={(e) => setLoai(e.target.value)}
-            style={{ padding: '9px 12px', borderRadius: 10, border: 0 }}>
-            <option value="DINH_KY" disabled={lich && !lich.den_lich}>Định kỳ (đúng lịch)</option>
-            <option value="KHAN_CAP">Khẩn cấp</option>
-          </select>
-          <label className="date-inline" title="Tính từ ngày (bỏ trống = từ kỳ đề nghị gần nhất)">
-            <span>Từ</span>
-            <input type="date" value={tuNgay} onChange={(e) => setTuNgay(e.target.value)} />
-          </label>
+          <Sel value={loai} onChange={setLoai} options={[
+            { value: 'DINH_KY', label: 'Định kỳ (đúng lịch)', disabled: lich && !lich.den_lich },
+            { value: 'KHAN_CAP', label: 'Khẩn cấp' },
+          ]} />
+          <DateBox label="Từ" value={tuNgay} onChange={setTuNgay} />
           <button className="btn btn-ai" onClick={goiY} disabled={busy || !maCH}>
             <IcSpark /> {busy ? 'Đang tính…' : 'AI gợi ý đề nghị'}
           </button>

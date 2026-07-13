@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcSplit, IcDown } from '../lib/icons.jsx';
+import { Sel } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
 export default function ChiaHangMoi() {
@@ -65,11 +66,9 @@ export default function ChiaHangMoi() {
           <input className="mono" placeholder="Barcode hàng mới" value={barcode}
             onChange={(e) => timSP(e.target.value.trim())}
             style={{ padding: '9px 12px', borderRadius: 10, border: 0, width: 170 }} />
-          <select value={nganh3} onChange={(e) => setNganh3(e.target.value)}
-            style={{ padding: '9px 12px', borderRadius: 10, border: 0, maxWidth: 230 }}>
-            <option value="">Ngành cấp 3 căn cứ…</option>
-            {dsNganh3.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
+          <Sel value={nganh3} onChange={setNganh3} placeholder="Ngành cấp 3 căn cứ…"
+            options={dsNganh3.map((n) => ({ value: n, label: n }))}
+            style={{ maxWidth: 240 }} />
           <input type="number" min="1" placeholder="Tổng SL" value={tong}
             onChange={(e) => setTong(e.target.value)}
             style={{ padding: '9px 12px', borderRadius: 10, border: 0, width: 100 }} />
