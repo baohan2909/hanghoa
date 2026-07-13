@@ -62,29 +62,50 @@ function ChonCH({ ds, value, onChange }) {
   );
 }
 
-// Hiệu ứng AI phân tích: các bước chạy tuần tự, xong bước nào tích xanh bước đó (mục 2)
+// Màn AI phân tích: dòng log trượt lên LIÊN TỤC như AI đang làm việc thật
+const AI_LOG = [
+  'Kết nối kho dữ liệu chiahang',
+  'Đọc lịch sử bán ròng theo từng ngày',
+  'Gom giao dịch theo mã vạch, loại bỏ nhiễu',
+  'Ước lượng tốc độ bán từng mã',
+  'Làm mượt theo nhóm ngành cấp 3',
+  'Phát hiện các ngày hết hàng giữa kỳ',
+  'Đối chiếu tồn cửa hàng hiện tại',
+  'Đọc tồn 4 kho tổng TP05006 · SA05001 · TP05002 · SA05002',
+  'Trừ lượng hàng đang được giữ chỗ',
+  'Phân loại chính / sale theo danh mục',
+  'Tính mức tồn mục tiêu tới kỳ kế tiếp',
+  'Cộng đệm an toàn cho hàng bán chạy',
+  'Đối chiếu định mức min–max từng ngành',
+  'Phát hiện mã bán hết chưa được cấp',
+  'Xếp ưu tiên: sắp hết + bán nhanh lên đầu',
+  'Chia 4 nhóm bảo hiểm / nón vải, chính / sale',
+  'Soát lại lần cuối, kiểm tra vượt kho tổng',
+  'Hoàn thiện bảng đề xuất',
+];
 function AiSteps() {
-  const buoc = [
-    'Đọc lịch sử bán ròng theo từng ngày',
-    'Ước lượng tốc độ bán, làm mượt theo nhóm ngành',
-    'Đối chiếu tồn cửa hàng với tồn 4 kho tổng',
-    'Tính mức tồn mục tiêu tới kỳ đề nghị kế tiếp',
-    'Chặn theo định mức, phân 4 nhóm bảo hiểm / nón vải',
-    'Xếp ưu tiên: hàng bán chạy sắp hết lên trước',
-  ];
-  const [i, setI] = useState(0);
+  const [logs, setLogs] = useState([{ t: AI_LOG[0], done: false }]);
+  const boxRef = useRef(null);
   useEffect(() => {
-    const t = setInterval(() => setI((v) => Math.min(v + 1, buoc.length)), 620);
+    let i = 1;
+    const t = setInterval(() => {
+      setLogs((ls) => {
+        const moi = ls.map((l, k) => k === ls.length - 1 ? { ...l, done: true } : l);
+        if (i < AI_LOG.length) { moi.push({ t: AI_LOG[i], done: false }); i++; }
+        return moi.slice(-30);
+      });
+    }, 210);
     return () => clearInterval(t);
   }, []);
+  useEffect(() => {
+    if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight;
+  }, [logs]);
   return (
-    <div className="ai-steps">
-      {buoc.map((b, k) => (
-        <div key={k} className={'ai-step' + (k < i ? ' xong' : k === i ? ' dang' : '')}>
-          <span className="ai-step-ic">
-            {k < i ? '✓' : k === i ? <span className="ai-dot" /> : ''}
-          </span>
-          {b}
+    <div className="ai-log" ref={boxRef}>
+      {logs.map((l, k) => (
+        <div key={k} className={'ai-line' + (l.done ? ' done' : '')}>
+          <span className="ai-line-ic">{l.done ? '✓' : <span className="ai-dot" />}</span>
+          {l.t}{!l.done && <span className="ai-cursor">▌</span>}
         </div>
       ))}
     </div>
@@ -107,6 +128,7 @@ export default function XinHang() {
   const [gioiHan, setGioiHan] = useState(200);
   const [xemAnh, setXemAnh] = useState(null);
   const [hoverAnh, setHoverAnh] = useState(null);   // {url, x, y} hover phóng gấp 4
+  const [giuInfo, setGiuInfo] = useState(null);     // {het_han, phut} — đang giữ hàng
   const [sortBy, setSortBy] = useState(null);        // {col, dir} — sort cột (mục 7)
   const doiSort = (col) => setSortBy((s) =>
     s && s.col === col ? (s.dir === 'asc' ? { col, dir: 'desc' } : null) : { col, dir: 'asc' });
@@ -216,12 +238,29 @@ export default function XinHang() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, khoMa);
     XLSX.writeFile(wb, `DENGHI_${maCH}_${khoMa}.xlsx`);
-    baoToast(`Đã xuất ${dsN.length} dòng — kho ${khoMa}`);
+    // GIỮ HÀNG: xuất = giữ chỗ trong DB, người khác thấy kho khả dụng đã trừ
+    try {
+      const { data: kq } = await sb.rpc('fn_giu_hang', {
+        p_token: user.token, p_ma_ch: maCH, p_kho_ma: khoMa,
+        p_lines: dsN.map((r) => ({ barcode: r.barcode, so_luong: r.sl_xin })),
+      });
+      if (kq?.het_han) {
+        const gio = new Date(kq.het_han).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        setGiuInfo({ het_han: kq.het_han, phut: kq.phut });
+        baoToast(`Đã xuất ${dsN.length} dòng — GIỮ HÀNG đến ${gio} (${kq.phut} phút)`);
+      } else baoToast(`Đã xuất ${dsN.length} dòng — kho ${khoMa}`);
+    } catch { baoToast(`Đã xuất ${dsN.length} dòng — kho ${khoMa}`); }
   };
   const xuatTatCa = async () => {
     const conNhom = NHOM.filter((n) => demNhom[n.id] > 0);
     if (!conNhom.length) { baoToast('Chưa có số lượng nào để xuất'); return; }
     for (const n of conNhom) await xuatNhom(n.id);
+  };
+  const giaiPhong = async () => {
+    const { data, error } = await sb.rpc('fn_giai_phong', { p_token: user.token, p_ma_ch: maCH });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    setGiuInfo(null);
+    baoToast(`Đã giải phóng ${data} mã đang giữ — tồn khả dụng trả lại cho mọi người`);
   };
 
   const sortIc = (col) => sortBy?.col === col
@@ -300,6 +339,13 @@ export default function XinHang() {
                 baoToast('Đã xóa toàn bộ — làm lại từ đầu');
               }
             }}>Xóa toàn bộ</button>
+            {giuInfo && (
+              <span className="chip gold" title="Hàng đã giữ chỗ khi xuất file — người khác thấy kho khả dụng đã trừ">
+                Đang giữ hàng đến {new Date(giuInfo.het_han).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                <button onClick={giaiPhong} style={{ marginLeft: 8, border: 0, background: 'transparent',
+                  color: 'var(--magenta)', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>Giải phóng</button>
+              </span>
+            )}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               {nhomXem !== 'ALL' &&
                 <button className="btn btn-ghost" onClick={() => xuatNhom(nhomXem)}><IcDown /> Xuất nhóm này</button>}
@@ -351,7 +397,10 @@ export default function XinHang() {
                       <td className="num">{r.ton_truoc}</td>
                       <td className="num" style={r.kho_tong <= 0
                         ? { color: 'var(--magenta)', fontWeight: 700 }
-                        : { color: 'var(--teal-deep)', fontWeight: 600 }}>{r.kho_tong}</td>
+                        : { color: 'var(--teal-deep)', fontWeight: 600 }}>
+                        {r.kho_tong}
+                        {r.dang_giu > 0 && <div style={{ fontSize: 10, color: 'var(--gold)', fontWeight: 700 }}>giữ {r.dang_giu}</div>}
+                      </td>
                       <td className="num" style={{ fontWeight: 600 }}>{r.sl_ban_ky ?? 0}</td>
                       <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.sl_ai}</td>
                       <td className="num">
