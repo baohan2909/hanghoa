@@ -17,42 +17,45 @@ const NHOM = [
 const nhomCua = (r) => (r.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (r.la_hang_sale ? 'S' : 'C');
 const KEY = (ma) => 'nsflow_draft_' + ma;
 
-// Ô chọn cửa hàng: gõ trực tiếp để lọc, danh sách xổ ngay dưới (mục 1)
+// Ô chọn cửa hàng: gõ trực tiếp để lọc; dropdown render FIXED nên không bị đè/cắt (lỗi 1)
 function ChonCH({ ds, value, onChange }) {
   const [mo, setMo] = useState(false);
   const [q, setQ] = useState('');
-  const ref = useRef(null);
+  const [pos, setPos] = useState(null);
+  const wrapRef = useRef(null);
   useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setMo(false); };
+    const h = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setMo(false); };
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h);
   }, []);
+  const dinhVi = () => {
+    if (!wrapRef.current) return;
+    const r = wrapRef.current.getBoundingClientRect();
+    setPos({ left: r.left, top: r.bottom + 6, width: r.width });
+  };
+  const batMo = () => { dinhVi(); setMo(true); setQ(''); };
   const chon = ds.find((c) => c.ma_ch === value);
-  // Khi chưa mở: hiện tên CH đã chọn. Khi mở: gõ để lọc.
   const text = mo ? q : (chon ? `${chon.ten} (${chon.ma_ch})` : '');
   const loc = (mo && q)
-    ? ds.filter((c) => (c.ten + ' ' + c.ma_ch).toLowerCase().includes(q.toLowerCase())).slice(0, 50)
-    : ds.slice(0, 50);
+    ? ds.filter((c) => (c.ten + ' ' + c.ma_ch).toLowerCase().includes(q.toLowerCase())).slice(0, 60)
+    : ds.slice(0, 60);
   return (
-    <div ref={ref} style={{ position: 'relative', minWidth: 280 }}>
+    <div ref={wrapRef} style={{ position: 'relative', minWidth: 280 }}>
       <div style={{ position: 'relative' }}>
         <IcSearch style={{ position: 'absolute', left: 12, top: 11, opacity: .45, pointerEvents: 'none' }} />
         <input className="ch-input" placeholder="Gõ tên hoặc mã cửa hàng…"
-          value={text}
-          onFocus={() => { setMo(true); setQ(''); }}
-          onChange={(e) => { setMo(true); setQ(e.target.value); }} />
+          value={text} onFocus={batMo}
+          onChange={(e) => { if (!mo) dinhVi(); setMo(true); setQ(e.target.value); }} />
       </div>
-      {mo && (
-        <div className="ch-pop">
-          <div className="ch-list">
-            {loc.map((c) => (
-              <button key={c.ma_ch} className={'ch-item' + (c.ma_ch === value ? ' on' : '')}
-                onMouseDown={() => { onChange(c.ma_ch); setMo(false); setQ(''); }}>
-                <div style={{ fontWeight: 600 }}>{c.ten}</div>
-                <div className="mono" style={{ fontSize: 11, color: 'var(--ink-2)' }}>{c.ma_ch}</div>
-              </button>
-            ))}
-            {!loc.length && <div style={{ padding: 14, color: 'var(--ink-2)', fontSize: 13 }}>Không tìm thấy cửa hàng</div>}
-          </div>
+      {mo && pos && (
+        <div className="ch-pop-fixed" style={{ left: pos.left, top: pos.top, width: pos.width }}>
+          {loc.map((c) => (
+            <button key={c.ma_ch} className={'ch-item' + (c.ma_ch === value ? ' on' : '')}
+              onMouseDown={() => { onChange(c.ma_ch); setMo(false); setQ(''); }}>
+              <div>{c.ten}</div>
+              <div className="mono" style={{ fontSize: 11, color: 'var(--ink-2)' }}>{c.ma_ch}</div>
+            </button>
+          ))}
+          {!loc.length && <div style={{ padding: 14, color: 'var(--ink-2)', fontSize: 13 }}>Không tìm thấy cửa hàng</div>}
         </div>
       )}
     </div>
@@ -83,6 +86,7 @@ export default function XinHang() {
   const [tuNgay, setTuNgay] = useState('');          // mốc thời gian từ (mục 9)
   const [denNgay, setDenNgay] = useState('');        // mốc thời gian đến (mục 3)
   const [gioiHan, setGioiHan] = useState(200);
+  const [xemAnh, setXemAnh] = useState(null);
   const [sortBy, setSortBy] = useState(null);        // {col, dir} — sort cột (mục 7)
   const doiSort = (col) => setSortBy((s) =>
     s && s.col === col ? (s.dir === 'asc' ? { col, dir: 'desc' } : null) : { col, dir: 'asc' });
@@ -202,18 +206,14 @@ export default function XinHang() {
     <>
       <div className="cmdbar">
         <h1>Đề nghị hàng hóa</h1>
-        <div className="sub">Cửa hàng chủ động lập phiếu theo lịch — gửi trước {lich?.gio_chot || '15:30'}, hai trưởng ca cùng xác nhận.</div>
+        <div className="sub">
+          Cửa hàng chủ động lập phiếu — chọn cửa hàng để xem đề xuất.
+          {lich?.nhom_ch && <span className="tag-nhom">Nhóm {lich.nhom_ch} · chu kỳ {lich.chu_ky_ngay || (lich.nhom_ch === 1 ? 4 : lich.nhom_ch === 3 ? 11 : 7)} ngày/lần</span>}
+        </div>
         <div className="row">
           {user.vai_tro !== 'CH'
             ? <ChonCH ds={dsCH} value={maCH} onChange={(v) => setMaCH(v)} />
             : null}
-          {lich && (
-            <span className="sla-chip">
-              <IcClock /> {lich.nhom_ch
-                ? `Nhóm ${lich.nhom_ch} · chu kỳ ${lich.chu_ky_ngay || (lich.nhom_ch === 1 ? 4 : lich.nhom_ch === 3 ? 11 : 7)} ngày/lần`
-                : 'Chưa gán nhóm cửa hàng'}
-            </span>
-          )}
           <Sel value={loai} onChange={setLoai} options={[
             { value: 'DINH_KY', label: 'Định kỳ' },
             { value: 'KHAN_CAP', label: 'Khẩn cấp' },
@@ -298,7 +298,8 @@ export default function XinHang() {
                       <td>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                           {r.hinh_url
-                            ? <img className="sp" src={r.hinh_url} alt="" loading="lazy" />
+                            ? <img className="sp" src={r.hinh_url} alt="" loading="lazy"
+                                onClick={() => setXemAnh(r.hinh_url)} />
                             : <div className="noimg"><IcBox /></div>}
                           <div>
                             <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
@@ -364,6 +365,11 @@ export default function XinHang() {
         </div>
       )}
 
+      {xemAnh && (
+        <div className="img-lightbox" onClick={() => setXemAnh(null)}>
+          <img src={xemAnh} alt="Ảnh sản phẩm" />
+        </div>
+      )}
     </>
   );
 }

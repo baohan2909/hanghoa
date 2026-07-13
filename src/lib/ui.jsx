@@ -11,21 +11,29 @@ import { IcDown } from './icons.jsx';
 
 export function Sel({ value, onChange, options, style, placeholder = 'Chọn…' }) {
   const [mo, setMo] = useState(false);
+  const [pos, setPos] = useState(null);
   const ref = useRef(null);
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setMo(false); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
+  const toggle = () => {
+    if (!mo && ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      setPos({ left: r.left, top: r.bottom + 6, width: Math.max(r.width, 160) });
+    }
+    setMo((v) => !v);
+  };
   const chon = options.find((o) => o.value === value);
   return (
     <div ref={ref} className="sel" style={style}>
-      <button type="button" className="sel-btn" onClick={() => setMo((v) => !v)}>
+      <button type="button" className="sel-btn" onClick={toggle}>
         <span>{chon ? chon.label : <span style={{ opacity: .55 }}>{placeholder}</span>}</span>
         <IcDown style={{ flexShrink: 0, opacity: .5 }} />
       </button>
-      {mo && (
-        <div className="sel-pop">
+      {mo && pos && (
+        <div className="sel-pop-fixed" style={{ left: pos.left, top: pos.top, minWidth: pos.width }}>
           {options.map((o) => (
             <button key={o.value} type="button" disabled={o.disabled}
               className={'sel-item' + (o.value === value ? ' on' : '')}
