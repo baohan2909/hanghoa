@@ -49,14 +49,20 @@ export function Sel({ value, onChange, options, style, placeholder = 'Chọn…'
 }
 
 export function DateBox({ value, onChange, label, style }) {
+  const ref = useRef(null);
   const hienThi = value
     ? value.split('-').reverse().join('/')   // yyyy-mm-dd -> dd/mm/yyyy
     : 'dd/mm/yyyy';
+  const moLich = () => {
+    const el = ref.current; if (!el) return;
+    if (el.showPicker) { try { el.showPicker(); return; } catch {} }
+    el.focus(); el.click();
+  };
   return (
-    <label className="datebox" style={style}>
+    <label className="datebox" style={style} onClick={moLich}>
       {label && <span className="datebox-l">{label}</span>}
       <span className="datebox-txt" style={!value ? { opacity: .5 } : undefined}>{hienThi}</span>
-      <input type="date" value={value} onChange={(e) => onChange(e.target.value)} />
+      <input ref={ref} type="date" value={value} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }
