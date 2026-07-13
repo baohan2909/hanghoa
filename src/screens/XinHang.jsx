@@ -62,52 +62,37 @@ function ChonCH({ ds, value, onChange }) {
   );
 }
 
-// Màn AI phân tích: dòng log trượt lên LIÊN TỤC như AI đang làm việc thật
+// Màn AI: danh sách trượt lên LIÊN TỤC bằng CSS animation (mượt, không giật DOM)
 const AI_LOG = [
   'Kết nối kho dữ liệu chiahang',
   'Đọc lịch sử bán ròng theo từng ngày',
-  'Gom giao dịch theo mã vạch, loại bỏ nhiễu',
+  'Gom giao dịch theo mã vạch, loại nhiễu',
   'Ước lượng tốc độ bán từng mã',
   'Làm mượt theo nhóm ngành cấp 3',
-  'Phát hiện các ngày hết hàng giữa kỳ',
+  'Phát hiện ngày hết hàng giữa kỳ',
   'Đối chiếu tồn cửa hàng hiện tại',
-  'Đọc tồn 4 kho tổng TP05006 · SA05001 · TP05002 · SA05002',
+  'Đọc tồn 4 kho tổng',
   'Trừ lượng hàng đang được giữ chỗ',
   'Phân loại chính / sale theo danh mục',
-  'Tính mức tồn mục tiêu tới kỳ kế tiếp',
-  'Cộng đệm an toàn cho hàng bán chạy',
+  'Tính mức tồn mục tiêu theo số ngày cần',
   'Đối chiếu định mức min–max từng ngành',
   'Phát hiện mã bán hết chưa được cấp',
   'Xếp ưu tiên: sắp hết + bán nhanh lên đầu',
-  'Chia 4 nhóm bảo hiểm / nón vải, chính / sale',
-  'Soát lại lần cuối, kiểm tra vượt kho tổng',
-  'Hoàn thiện bảng đề xuất',
+  'Chia 4 nhóm bảo hiểm / nón vải',
+  'Soát vượt kho tổng, hoàn thiện bảng',
 ];
 function AiSteps() {
-  const [logs, setLogs] = useState([{ t: AI_LOG[0], done: false }]);
-  const boxRef = useRef(null);
-  useEffect(() => {
-    let i = 1;
-    const t = setInterval(() => {
-      setLogs((ls) => {
-        const moi = ls.map((l, k) => k === ls.length - 1 ? { ...l, done: true } : l);
-        if (i < AI_LOG.length) { moi.push({ t: AI_LOG[i], done: false }); i++; }
-        return moi.slice(-30);
-      });
-    }, 210);
-    return () => clearInterval(t);
-  }, []);
-  useEffect(() => {
-    if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight;
-  }, [logs]);
+  // nhân đôi danh sách để cuộn vòng lặp liền mạch
+  const list = [...AI_LOG, ...AI_LOG];
   return (
-    <div className="ai-log" ref={boxRef}>
-      {logs.map((l, k) => (
-        <div key={k} className={'ai-line' + (l.done ? ' done' : '')}>
-          <span className="ai-line-ic">{l.done ? '✓' : <span className="ai-dot" />}</span>
-          {l.t}{!l.done && <span className="ai-cursor">▌</span>}
-        </div>
-      ))}
+    <div className="ai-log">
+      <div className="ai-track">
+        {list.map((t, k) => (
+          <div key={k} className="ai-line">
+            <span className="ai-line-ic">✓</span>{t}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -287,8 +272,7 @@ export default function XinHang() {
           ]} />
           <DateBox label="Từ" value={tuNgay} onChange={setTuNgay} />
           <DateBox label="Đến" value={denNgay} onChange={setDenNgay} />
-          <label className="songay-box" title="Tính đủ hàng cho bao nhiêu ngày tới — mặc định theo nhóm cửa hàng, sửa được khi có lễ/chương trình">
-            <span>Tính đủ cho</span>
+          <label className="songay-box" title="Số ngày cần đủ hàng — mặc định theo nhóm, sửa khi có lễ/chương trình">
             <input type="number" min="1" max="90" value={soNgayCan}
               onChange={(e) => setSoNgayCan(e.target.value)} />
             <span>ngày</span>

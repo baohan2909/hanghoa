@@ -114,7 +114,7 @@ input, select { font-family: inherit; font-size: 14px; }
 /* ---------- Ô CHỌN TỰ DỰNG (Sel) — quy tắc: cấm select mặc định ---------- */
 .sel { position: relative; }
 .sel-btn { display: flex; align-items: center; gap: 8px; min-width: 150px;
-  padding: 9px 12px; border: 0; border-radius: 10px; background: #fff;
+  padding: 0 12px; height: 40px; border: 0; border-radius: 10px; background: #fff;
   color: var(--ink); font-size: 13.5px; font-weight: 500; text-align: left; width: 100%; }
 .sel-btn:focus-visible { outline: 2px solid var(--teal); }
 .sel-btn span:first-child { flex: 1; }
@@ -134,7 +134,7 @@ input, select { font-family: inherit; font-size: 14px; }
 
 /* ---------- Ô NGÀY (DateBox) — hiển thị dd/mm/yyyy, bấm cả ô ---------- */
 .datebox { position: relative; display: inline-flex; align-items: center; gap: 7px; background: #fff;
-  border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+  border-radius: 10px; padding: 0 12px; height: 40px; cursor: pointer; }
 .datebox-l { font-size: 12px; color: var(--ink-2); font-weight: 600; pointer-events: none; }
 .datebox-txt { font-size: 13px; color: var(--ink); font-weight: 500; min-width: 82px; pointer-events: none; }
 /* input phủ toàn bộ ô, trong suốt — bấm đâu cũng mở lịch */
@@ -247,7 +247,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
   border-radius: 20px; padding: 5px 12px; font-size: 12.5px; font-weight: 600;
   font-family: var(--font-mono); }
 /* ---------- Ô chọn cửa hàng (gõ trực tiếp để tìm) ---------- */
-.ch-input { width: 100%; padding: 9px 12px 9px 34px; border: 0; border-radius: 10px;
+.ch-input { width: 100%; height: 40px; padding: 0 12px 0 34px; border: 0; border-radius: 10px;
   background: #fff; color: var(--ink); font-size: 13.5px; }
 .ch-input:focus { outline: 2px solid var(--teal); }
 .ch-pop { position: absolute; z-index: 200; top: calc(100% + 6px); left: 0; right: 0;
@@ -321,25 +321,28 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
   70% { box-shadow: 0 0 0 20px rgba(63,182,168,0); }
   100% { box-shadow: 0 0 0 0 rgba(63,182,168,0); }
 }
-.ai-log { width: min(440px, 90%); max-height: 240px; overflow: hidden;
-  display: flex; flex-direction: column; gap: 7px;
-  mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 100%);
-  scroll-behavior: smooth; }
+.ai-log { width: min(440px, 90%); height: 210px; overflow: hidden; position: relative;
+  mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent); }
+.ai-track { display: flex; flex-direction: column; gap: 11px;
+  animation: ai-scroll 9s linear infinite; will-change: transform; }
+@keyframes ai-scroll { from { transform: translateY(0); } to { transform: translateY(-50%); } }
 .ai-line { display: flex; align-items: center; gap: 9px; font-size: 13px;
-  color: var(--teal-deep); font-weight: 600; flex-shrink: 0;
-  animation: ai-up .28s ease both; }
-.ai-line.done { color: var(--ink-2); font-weight: 400; }
-@keyframes ai-up { from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); } }
+  color: var(--ink-2); font-weight: 500; flex-shrink: 0; height: 20px; }
 .ai-line-ic { width: 18px; height: 18px; flex-shrink: 0; display: inline-flex;
   align-items: center; justify-content: center; border-radius: 50%;
-  font-size: 11px; font-weight: 700; }
-.ai-line.done .ai-line-ic { background: #DCEFE9; color: var(--teal-deep); }
-.ai-cursor { margin-left: 3px; color: var(--teal); animation: ai-blink .6s step-end infinite; }
-.ai-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal-deep);
-  animation: ai-blink .7s ease-in-out infinite; }
-@keyframes ai-blink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  font-size: 11px; font-weight: 700; background: #DCEFE9; color: var(--teal-deep); }
+.ai-orb { width: 58px; height: 58px; border-radius: 50%; background: var(--grad);
+  box-shadow: 0 0 0 0 rgba(63,182,168,.5); animation: ai-pulse 1.5s ease-out infinite; position: relative; }
+.ai-orb::after { content: ''; position: absolute; inset: 6px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.55); border-top-color: transparent;
+  animation: ai-spin .9s linear infinite; }
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+@keyframes ai-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(63,182,168,.5); }
+  70% { box-shadow: 0 0 0 20px rgba(63,182,168,0); }
+  100% { box-shadow: 0 0 0 0 rgba(63,182,168,0); }
+}
 
 /* ---------- Popup FIXED: nổi tuyệt đối trên mọi thứ (lỗi đè) ---------- */
 .ch-pop-fixed, .sel-pop-fixed {
@@ -365,11 +368,16 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
   background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.28);
   border-radius: 20px; padding: 2px 12px; font-size: 12px; font-weight: 600; }
 
-/* ---------- Ô "tính đủ cho N ngày" ---------- */
-.songay-box { display: inline-flex; align-items: center; gap: 6px; background: #fff;
-  border-radius: 10px; padding: 7px 12px; font-size: 12.5px; color: var(--ink-2); font-weight: 600; }
-.songay-box input { width: 46px; border: 0; text-align: center; font-size: 14px;
-  font-weight: 700; color: var(--teal-deep); background: #F0F7F5; border-radius: 6px; padding: 4px; }
-.songay-box input:focus { outline: 2px solid var(--teal); }
+/* ---------- Ô số ngày cần (gọn, cân chiều cao với DateBox/Sel) ---------- */
+.songay-box { display: inline-flex; align-items: center; gap: 5px; background: #fff;
+  border-radius: 10px; padding: 0 12px; height: 40px; font-size: 12.5px;
+  color: var(--ink-2); font-weight: 600; }
+.songay-box input { width: 40px; border: 0; text-align: center; font-size: 15px;
+  font-weight: 700; color: var(--teal-deep); background: transparent; padding: 0;
+  -moz-appearance: textfield; }
+.songay-box input::-webkit-outer-spin-button,
+.songay-box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.songay-box input:focus { outline: none; }
+.songay-box:focus-within { outline: 2px solid var(--teal); }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
