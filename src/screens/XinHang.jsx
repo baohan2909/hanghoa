@@ -320,7 +320,7 @@ export default function XinHang() {
                         </div>
                       </td>
                       <td>
-                        {r.la_hang_sale
+                        {r.la_hang_sale && r.gia_sale > 0
                           ? <><span className="price-sale">{fmtVND(r.gia_sale)}</span>
                               <span className="price-old">{fmtVND(r.gia_niem_yet)}</span></>
                           : <span style={{ fontWeight: 600 }}>{fmtVND(r.gia_niem_yet)}</span>}
