@@ -62,14 +62,33 @@ function ChonCH({ ds, value, onChange }) {
   );
 }
 
-// Chạy chữ các bước phân tích cho hiệu ứng AI (mục 10)
+// Hiệu ứng AI phân tích: các bước chạy tuần tự, xong bước nào tích xanh bước đó (mục 2)
 function AiSteps() {
-  const buoc = ['Đọc lịch sử bán ròng theo ngày…', 'Ước lượng tốc độ bán, làm mượt theo nhóm ngành…',
-    'Đối chiếu tồn cửa hàng và tồn kho tổng…', 'Tính nhu cầu tới kỳ đề nghị kế tiếp…',
-    'Chặn theo định mức min–max, xếp 4 nhóm hàng…'];
+  const buoc = [
+    'Đọc lịch sử bán ròng theo từng ngày',
+    'Ước lượng tốc độ bán, làm mượt theo nhóm ngành',
+    'Đối chiếu tồn cửa hàng với tồn 4 kho tổng',
+    'Tính mức tồn mục tiêu tới kỳ đề nghị kế tiếp',
+    'Chặn theo định mức, phân 4 nhóm bảo hiểm / nón vải',
+    'Xếp ưu tiên: hàng bán chạy sắp hết lên trước',
+  ];
   const [i, setI] = useState(0);
-  useEffect(() => { const t = setInterval(() => setI((v) => (v + 1) % buoc.length), 900); return () => clearInterval(t); }, []);
-  return <div className="ai-steps">{buoc[i]}</div>;
+  useEffect(() => {
+    const t = setInterval(() => setI((v) => Math.min(v + 1, buoc.length)), 620);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="ai-steps">
+      {buoc.map((b, k) => (
+        <div key={k} className={'ai-step' + (k < i ? ' xong' : k === i ? ' dang' : '')}>
+          <span className="ai-step-ic">
+            {k < i ? '✓' : k === i ? <span className="ai-dot" /> : ''}
+          </span>
+          {b}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function XinHang() {
