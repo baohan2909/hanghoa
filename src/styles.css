@@ -37,21 +37,22 @@ input, select { font-family: inherit; font-size: 14px; }
 
 /* ---------- COMMAND BAR (signature) ---------- */
 .cmdbar {
-  position: relative; overflow: hidden;
+  position: relative;
   background: var(--grad); color: #fff;
   border-radius: var(--r); padding: 18px 20px;
   box-shadow: var(--shadow-lg); margin-bottom: 16px;
 }
+/* lớp phủ bong bóng riêng, có overflow hidden để không che dropdown của cmdbar */
 .cmdbar::before, .cmdbar::after {          /* 2 bong bóng theo yêu cầu */
   content: ''; position: absolute; border-radius: 50%;
-  background: rgba(255,255,255,.09); pointer-events: none;
+  background: rgba(255,255,255,.09); pointer-events: none; z-index: 0;
 }
-.cmdbar::before { width: 190px; height: 190px; right: -50px; top: -90px; }
-.cmdbar::after  { width: 110px; height: 110px; right: 130px; bottom: -60px;
+.cmdbar::before { width: 190px; height: 190px; right: 24px; top: 8px; }
+.cmdbar::after  { width: 110px; height: 110px; right: 150px; bottom: 10px;
   background: rgba(203,164,90,.22); }
-.cmdbar h1 { font-size: 19px; font-weight: 600; letter-spacing: .2px; }
-.cmdbar .sub { opacity: .82; font-size: 12.5px; margin-top: 2px; }
-.cmdbar .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.cmdbar h1 { font-size: 19px; font-weight: 600; letter-spacing: .2px; position: relative; z-index: 1; }
+.cmdbar .sub { opacity: .82; font-size: 12.5px; margin-top: 2px; position: relative; z-index: 1; }
+.cmdbar .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; position: relative; z-index: 5; }
 
 /* ---------- SHELL ---------- */
 .shell { max-width: 1320px; margin: 0 auto; padding: 14px 14px 90px; }
@@ -175,19 +176,17 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
   background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25);
   border-radius: 20px; padding: 5px 12px; font-size: 12.5px; font-weight: 600;
   font-family: var(--font-mono); }
-/* ---------- Combobox chọn cửa hàng (có tìm kiếm) ---------- */
-.ch-select { display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 9px 12px; border: 0; border-radius: 10px; background: #fff;
-  color: var(--ink); font-size: 13.5px; text-align: left; }
-.ch-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; right: 0;
+/* ---------- Ô chọn cửa hàng (gõ trực tiếp để tìm) ---------- */
+.ch-input { width: 100%; padding: 9px 12px 9px 34px; border: 0; border-radius: 10px;
+  background: #fff; color: var(--ink); font-size: 13.5px; }
+.ch-input:focus { outline: 2px solid var(--teal); }
+.ch-pop { position: absolute; z-index: 200; top: calc(100% + 6px); left: 0; right: 0;
   min-width: 300px; background: #fff; border-radius: 12px; box-shadow: var(--shadow-lg);
   border: 1px solid var(--line); overflow: hidden; }
-.ch-search { width: 100%; padding: 8px 10px 8px 32px; border: 1.5px solid var(--line);
-  border-radius: 9px; font-size: 13.5px; }
-.ch-search:focus { outline: none; border-color: var(--teal); }
-.ch-list { max-height: 320px; overflow-y: auto; }
+.ch-list { max-height: 340px; overflow-y: auto; }
 .ch-item { display: block; width: 100%; text-align: left; padding: 8px 14px; border: 0;
-  background: #fff; border-top: 1px solid var(--line); }
+  background: #fff; border-top: 1px solid var(--line); cursor: pointer; }
+.ch-item:first-child { border-top: 0; }
 .ch-item:hover { background: var(--bg); }
 .ch-item.on { background: #E4F3F0; }
 

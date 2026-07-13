@@ -16,7 +16,7 @@ const NHOM = [
 const nhomCua = (r) => (r.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (r.la_hang_sale ? 'S' : 'C');
 const KEY = (ma) => 'nsflow_draft_' + ma;
 
-// Combobox chọn cửa hàng có tìm kiếm (mục 1)
+// Ô chọn cửa hàng: gõ trực tiếp để lọc, danh sách xổ ngay dưới (mục 1)
 function ChonCH({ ds, value, onChange }) {
   const [mo, setMo] = useState(false);
   const [q, setQ] = useState('');
@@ -26,28 +26,26 @@ function ChonCH({ ds, value, onChange }) {
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h);
   }, []);
   const chon = ds.find((c) => c.ma_ch === value);
-  const loc = q
-    ? ds.filter((c) => (c.ten + ' ' + c.ma_ch).toLowerCase().includes(q.toLowerCase())).slice(0, 40)
-    : ds.slice(0, 40);
+  // Khi chưa mở: hiện tên CH đã chọn. Khi mở: gõ để lọc.
+  const text = mo ? q : (chon ? `${chon.ten} (${chon.ma_ch})` : '');
+  const loc = (mo && q)
+    ? ds.filter((c) => (c.ten + ' ' + c.ma_ch).toLowerCase().includes(q.toLowerCase())).slice(0, 50)
+    : ds.slice(0, 50);
   return (
-    <div ref={ref} style={{ position: 'relative', minWidth: 260 }}>
-      <button className="ch-select" onClick={() => setMo((v) => !v)}>
-        {chon
-          ? <span><b>{chon.ten}</b> <span className="mono" style={{ opacity: .6, fontSize: 11 }}>{chon.ma_ch}</span></span>
-          : <span style={{ opacity: .6 }}>Chọn cửa hàng…</span>}
-        <IcDown style={{ marginLeft: 'auto', flexShrink: 0 }} />
-      </button>
+    <div ref={ref} style={{ position: 'relative', minWidth: 280 }}>
+      <div style={{ position: 'relative' }}>
+        <IcSearch style={{ position: 'absolute', left: 12, top: 11, opacity: .45, pointerEvents: 'none' }} />
+        <input className="ch-input" placeholder="Gõ tên hoặc mã cửa hàng…"
+          value={text}
+          onFocus={() => { setMo(true); setQ(''); }}
+          onChange={(e) => { setMo(true); setQ(e.target.value); }} />
+      </div>
       {mo && (
         <div className="ch-pop">
-          <div style={{ position: 'relative', padding: 8 }}>
-            <IcSearch style={{ position: 'absolute', left: 16, top: 16, opacity: .4 }} />
-            <input autoFocus className="ch-search" placeholder="Gõ tên hoặc mã cửa hàng…"
-              value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
           <div className="ch-list">
             {loc.map((c) => (
               <button key={c.ma_ch} className={'ch-item' + (c.ma_ch === value ? ' on' : '')}
-                onClick={() => { onChange(c.ma_ch); setMo(false); setQ(''); }}>
+                onMouseDown={() => { onChange(c.ma_ch); setMo(false); setQ(''); }}>
                 <div style={{ fontWeight: 600 }}>{c.ten}</div>
                 <div className="mono" style={{ fontSize: 11, color: 'var(--ink-2)' }}>{c.ma_ch}</div>
               </button>
