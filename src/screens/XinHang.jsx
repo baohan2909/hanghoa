@@ -72,6 +72,7 @@ export default function XinHang() {
   const [lich, setLich] = useState(null);
   const [tuNgay, setTuNgay] = useState('');          // mốc thời gian (mục 9)
   const [xacNhan, setXacNhan] = useState(null);
+  const [gioiHan, setGioiHan] = useState(200);
   const luuTimer = useRef(null);
 
   useEffect(() => {
@@ -131,7 +132,7 @@ export default function XinHang() {
     return d;
   }, [rows]);
 
-  const hien = useMemo(() => {
+  const hienAll = useMemo(() => {
     if (!rows) return [];
     let v = nhomXem === 'ALL' ? rows : rows.filter((r) => nhomCua(r) === nhomXem);
     if (q) {
@@ -140,6 +141,8 @@ export default function XinHang() {
     }
     return v;
   }, [rows, nhomXem, q]);
+  const hien = useMemo(() => hienAll.slice(0, gioiHan), [hienAll, gioiHan]);
+  useEffect(() => { setGioiHan(200); }, [nhomXem, q]);
 
   const tongXin = useMemo(() => (rows || []).reduce((s, r) => s + (r.sl_xin || 0), 0), [rows]);
   const boSot = useMemo(() => (rows || []).filter((r) =>
@@ -217,7 +220,9 @@ export default function XinHang() {
             </span>
           )}
           <Sel value={loai} onChange={setLoai} options={[
-            { value: 'DINH_KY', label: 'Định kỳ (đúng lịch)', disabled: lich && !lich.den_lich },
+            { value: 'DINH_KY', label: 'Định kỳ (đúng lịch)',
+              sub: lich && !lich.den_lich ? 'Hôm nay chưa đến lịch' : null,
+              disabled: lich && !lich.den_lich },
             { value: 'KHAN_CAP', label: 'Khẩn cấp' },
           ]} />
           <DateBox label="Từ" value={tuNgay} onChange={setTuNgay} />
@@ -292,8 +297,10 @@ export default function XinHang() {
               <tbody>
                 {hien.map((r) => {
                   const vuot = r.ton_du_tinh + r.sl_xin > r.muc_max;
+                  const vuotKho = r.sl_xin > (r.kho_tong ?? 0);
                   return (
-                    <tr key={r.barcode}>
+                    <tr key={r.barcode}
+                      style={r.nguon === 'KHO' ? { background: '#F4FAF8' } : undefined}>
                       <td>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                           {r.hinh_url
@@ -319,7 +326,7 @@ export default function XinHang() {
                       <td className="num">{r.chu_ky_ban != null ? r.chu_ky_ban + 'd' : '—'}</td>
                       <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.sl_ai}</td>
                       <td className="num">
-                        <input className={'qty-input' + (vuot ? ' over' : '')} type="number" min="0"
+                        <input className={'qty-input' + (vuot || vuotKho ? ' over' : '')} type="number" min="0"
                           value={r.sl_xin} onChange={(e) => sua(r.barcode, e.target.value)} />
                       </td>
                       <td style={{ maxWidth: 220 }}>
@@ -329,6 +336,7 @@ export default function XinHang() {
                             : c === 'DU_TON_KHONG_CAP' ? ' dim' : '')}>{LY_DO[c] || c}</span>
                         ))}
                         {vuot && <span className="chip warn">Vượt max ({r.muc_max})</span>}
+                        {vuotKho && <span className="chip warn">Vượt tồn kho tổng ({r.kho_tong})</span>}
                       </td>
                     </tr>
                   );
@@ -339,6 +347,13 @@ export default function XinHang() {
               <div className="t">Nhóm này chưa có mã nào</div>
               Chuyển tab nhóm khác hoặc "Xem tất cả".
             </div>}
+            {hienAll.length > gioiHan && (
+              <div style={{ textAlign: 'center', padding: 12 }}>
+                <button className="btn btn-ghost" onClick={() => setGioiHan((g) => g + 200)}>
+                  Hiện thêm ({hienAll.length - gioiHan} mã còn lại — gồm tồn kho tổng xếp từ nhiều đến ít)
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
