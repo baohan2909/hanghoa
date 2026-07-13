@@ -19,9 +19,9 @@
   --shadow: 0 1px 2px rgba(20,33,58,.06), 0 8px 24px rgba(20,33,58,.08);
   --shadow-lg: 0 2px 6px rgba(20,33,58,.08), 0 16px 48px rgba(20,33,58,.14);
   --r: 14px;
-  --font-body: 'Be Vietnam Pro', system-ui, sans-serif;
-  --font-disp: 'Chakra Petch', var(--font-body);
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-body: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  --font-disp: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-mono: 'Be Vietnam Pro', ui-monospace, monospace;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -52,7 +52,8 @@ input, select { font-family: inherit; font-size: 14px; }
   background: rgba(203,164,90,.22); }
 .cmdbar h1 { font-size: 19px; font-weight: 600; letter-spacing: .2px; position: relative; z-index: 1; }
 .cmdbar .sub { opacity: .82; font-size: 12.5px; margin-top: 2px; position: relative; z-index: 1; }
-.cmdbar .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; position: relative; z-index: 5; }
+.cmdbar .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; position: relative; z-index: 1; }
+.cmdbar .row:first-of-type { z-index: 20; }   /* hàng có ô chọn cửa hàng nổi trên hàng lý do */
 
 /* ---------- LAYOUT BÀN LÀM VIỆC: sidebar trái + vùng nội dung ---------- */
 .ws { display: flex; min-height: 100vh; }
@@ -254,7 +255,8 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
   background: #fff; border-top: 1px solid var(--line); cursor: pointer; }
 .ch-item:first-child { border-top: 0; }
 .ch-item:hover { background: var(--bg); }
-.ch-item.on { background: #E4F3F0; }
+.ch-item.on { background: #E9F5F2; }
+.ch-item > div:first-child { color: var(--teal-deep); font-weight: 600; }
 
 /* ---------- Tab nhóm hàng (BH/NV × chính/sale) ---------- */
 .nhom-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }

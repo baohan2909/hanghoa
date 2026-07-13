@@ -95,18 +95,13 @@ export default function XinHang() {
     }
   }, []);
 
-  // Lịch + khôi phục nháp auto-save khi đổi cửa hàng (mục 6)
+  // Thông tin nhóm cửa hàng để biết chu kỳ (không cần lịch cụ thể) - lỗi 13
   useEffect(() => {
     if (!maCH) { setLich(null); setRows(null); return; }
     (async () => {
-      const homNay = new Date().toISOString().slice(0, 10);
-      const [{ data: hn }, { data: kt }, { data: ts }] = await Promise.all([
-        sb.rpc('fn_den_lich', { p_ma_ch: maCH, p_ngay: homNay }),
-        sb.rpc('fn_ky_tiep', { p_ma_ch: maCH, p_tu: homNay }),
-        sb.from('tham_so').select('gia_tri').eq('key', 'gio_chot_de_nghi').eq('pham_vi', 'GLOBAL').single(),
-      ]);
-      setLich({ den_lich: !!hn, ky_tiep: kt, gio_chot: (typeof ts?.gia_tri === 'string' ? ts.gia_tri : '15:30') });
-      // khôi phục nháp
+      const { data: ch } = await sb.from('cua_hang')
+        .select('nhom_ch, chu_ky_ngay, ten').eq('ma_ch', maCH).single();
+      setLich(ch || null);
       try {
         const raw = localStorage.getItem(KEY(maCH));
         if (raw) { const d = JSON.parse(raw); setRows(d.rows); setTuNgay(d.tuNgay || ''); baoToast('Đã khôi phục bản nháp đang làm dở'); }
@@ -200,11 +195,8 @@ export default function XinHang() {
     for (const n of conNhom) await xuatNhom(n.id);
   };
 
-  const thu = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
   const sortIc = (col) => sortBy?.col === col
     ? <span className="sort-ar">{sortBy.dir === 'asc' ? ' ↑' : ' ↓'}</span> : <span className="sort-ar dim"> ↕</span>;
-  const kyTiepTxt = lich?.ky_tiep
-    ? `${thu[new Date(lich.ky_tiep + 'T00:00').getDay()]} ${new Date(lich.ky_tiep + 'T00:00').toLocaleDateString('vi-VN')}` : null;
 
   return (
     <>
@@ -217,9 +209,9 @@ export default function XinHang() {
             : null}
           {lich && (
             <span className="sla-chip">
-              <IcClock /> {lich.den_lich
-                ? `Hôm nay là lịch gửi — nên gửi trước ${lich.gio_chot}`
-                : (kyTiepTxt ? `Lịch gửi kế tiếp: ${kyTiepTxt}` : 'Chưa gán lịch gửi — vẫn gửi được bất kỳ lúc nào')}
+              <IcClock /> {lich.nhom_ch
+                ? `Nhóm ${lich.nhom_ch} · chu kỳ ${lich.chu_ky_ngay || (lich.nhom_ch === 1 ? 4 : lich.nhom_ch === 3 ? 11 : 7)} ngày/lần`
+                : 'Chưa gán nhóm cửa hàng'}
             </span>
           )}
           <Sel value={loai} onChange={setLoai} options={[
