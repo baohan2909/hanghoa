@@ -87,6 +87,7 @@ export default function XinHang() {
   const [denNgay, setDenNgay] = useState('');        // mốc thời gian đến (mục 3)
   const [gioiHan, setGioiHan] = useState(200);
   const [xemAnh, setXemAnh] = useState(null);
+  const [hoverAnh, setHoverAnh] = useState(null);   // {url, x, y} hover phóng gấp 4
   const [sortBy, setSortBy] = useState(null);        // {col, dir} — sort cột (mục 7)
   const doiSort = (col) => setSortBy((s) =>
     s && s.col === col ? (s.dir === 'asc' ? { col, dir: 'desc' } : null) : { col, dir: 'asc' });
@@ -129,6 +130,7 @@ export default function XinHang() {
     setBusy(true);
     const args = { p_ma_ch: maCH };
     if (tuNgay) args.p_tu_ngay = tuNgay;
+    if (denNgay) args.p_den_ngay = denNgay;
     const { data, error } = await sb.rpc('fn_goi_y_chia_hang', args);
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
@@ -154,9 +156,9 @@ export default function XinHang() {
         sp: (r) => r.ma_tham_chieu || r.sku || '',
         gia: (r) => r.la_hang_sale ? r.gia_sale : r.gia_niem_yet,
         ton: (r) => r.ton_truoc, kho: (r) => r.kho_tong ?? 0,
-        ck: (r) => r.chu_ky_ban ?? 1e9, ai: (r) => r.sl_ai,
+        ban: (r) => r.sl_ban_ky ?? 0, ai: (r) => r.sl_ai,
         sl: (r) => r.sl_xin, tong: (r) => (r.ton_du_tinh ?? 0) + (r.sl_xin || 0),
-        ngay: (r) => r.chu_ky_ban ? ((r.ton_du_tinh + (r.sl_xin || 0)) * r.chu_ky_ban) : 1e9,
+        ngay: (r) => (r.toc_do > 0) ? (((r.ton_du_tinh ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 1e9,
       }[sortBy.col];
       v = [...v].sort((a, b) => {
         const x = get(a), y = get(b);
@@ -268,6 +270,13 @@ export default function XinHang() {
               <span style={{ position: 'absolute', left: 10, top: 10, color: 'var(--ink-2)' }}><IcSearch /></span>
             </div>
             <span className="chip dim">Tự động lưu nháp</span>
+            <button className="btn btn-ghost" onClick={() => {
+              if (window.confirm('Xóa toàn bộ số lượng đề nghị và bản nháp đang lưu của cửa hàng này?')) {
+                localStorage.removeItem(KEY(maCH));
+                setRows((rs) => rs ? rs.map((r) => ({ ...r, sl_xin: 0 })) : rs);
+                baoToast('Đã xóa toàn bộ — làm lại từ đầu');
+              }
+            }}>Xóa toàn bộ</button>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               {nhomXem !== 'ALL' &&
                 <button className="btn btn-ghost" onClick={() => xuatNhom(nhomXem)}><IcDown /> Xuất nhóm này</button>}
@@ -282,7 +291,7 @@ export default function XinHang() {
                 <th className="sortable" onClick={() => doiSort('gia')}>Giá{sortIc('gia')}</th>
                 <th className="num sortable" onClick={() => doiSort('ton')}>Tồn CH{sortIc('ton')}</th>
                 <th className="num sortable" onClick={() => doiSort('kho')}>Kho tổng{sortIc('kho')}</th>
-                <th className="num sortable" onClick={() => doiSort('ck')}>Chu kỳ bán{sortIc('ck')}</th>
+                <th className="num sortable" onClick={() => doiSort('ban')}>SL bán{sortIc('ban')}</th>
                 <th className="num sortable" onClick={() => doiSort('ai')}>AI đề xuất{sortIc('ai')}</th>
                 <th className="num sortable" onClick={() => doiSort('sl')}>SL đề nghị{sortIc('sl')}</th>
                 <th className="num sortable" onClick={() => doiSort('tong')}>Tổng tồn{sortIc('tong')}</th>
@@ -299,7 +308,10 @@ export default function XinHang() {
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                           {r.hinh_url
                             ? <img className="sp" src={r.hinh_url} alt="" loading="lazy"
-                                onClick={() => setXemAnh(r.hinh_url)} />
+                                onClick={() => setXemAnh(r.hinh_url)}
+                                onMouseEnter={(e) => { const b = e.target.getBoundingClientRect();
+                                  setHoverAnh({ url: r.hinh_url, x: b.right + 12, y: Math.max(8, b.top - 70) }); }}
+                                onMouseLeave={() => setHoverAnh(null)} />
                             : <div className="noimg"><IcBox /></div>}
                           <div>
                             <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
@@ -317,7 +329,7 @@ export default function XinHang() {
                       <td className="num" style={r.kho_tong <= 0
                         ? { color: 'var(--magenta)', fontWeight: 700 }
                         : { color: 'var(--teal-deep)', fontWeight: 600 }}>{r.kho_tong}</td>
-                      <td className="num">{r.chu_ky_ban != null ? r.chu_ky_ban + 'd' : '—'}</td>
+                      <td className="num" style={{ fontWeight: 600 }}>{r.sl_ban_ky ?? 0}</td>
                       <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.sl_ai}</td>
                       <td className="num">
                         <input className={'qty-input' + (vuot || vuotKho ? ' over' : '')} type="number" min="0"
@@ -326,8 +338,8 @@ export default function XinHang() {
                       </td>
                       <td className="num" style={{ fontWeight: 600 }}>{(r.ton_du_tinh ?? 0) + (r.sl_xin || 0)}</td>
                       <td className="num">
-                        {r.chu_ky_ban != null
-                          ? <b style={{ color: 'var(--ink)' }}>{Math.round(((r.ton_du_tinh ?? 0) + (r.sl_xin || 0)) * r.chu_ky_ban)}d</b>
+                        {r.toc_do > 0
+                          ? <b style={{ color: 'var(--ink)' }}>{Math.round(((r.ton_du_tinh ?? 0) + (r.sl_xin || 0)) / r.toc_do)}d</b>
                           : <span style={{ color: 'var(--ink-2)' }}>—</span>}
                       </td>
                     </tr>
@@ -365,6 +377,10 @@ export default function XinHang() {
         </div>
       )}
 
+      {hoverAnh && (
+        <img className="sp-zoom" src={hoverAnh.url} alt=""
+          style={{ left: Math.min(hoverAnh.x, window.innerWidth - 210), top: hoverAnh.y }} />
+      )}
       {xemAnh && (
         <div className="img-lightbox" onClick={() => setXemAnh(null)}>
           <img src={xemAnh} alt="Ảnh sản phẩm" />

@@ -49,9 +49,13 @@ export function Sel({ value, onChange, options, style, placeholder = 'Chọn…'
 }
 
 export function DateBox({ value, onChange, label, style }) {
+  const hienThi = value
+    ? value.split('-').reverse().join('/')   // yyyy-mm-dd -> dd/mm/yyyy
+    : 'dd/mm/yyyy';
   return (
     <label className="datebox" style={style}>
       {label && <span className="datebox-l">{label}</span>}
+      <span className="datebox-txt" style={!value ? { opacity: .5 } : undefined}>{hienThi}</span>
       <input type="date" value={value} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
