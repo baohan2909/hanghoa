@@ -150,7 +150,11 @@ export default function XinHang() {
     const args = { p_ma_ch: maCH };
     if (tuNgay) args.p_tu_ngay = tuNgay;
     if (denNgay) args.p_den_ngay = denNgay;
-    const { data, error } = await sb.rpc('fn_goi_y_chia_hang', args);
+    // Chạy engine + hiệu ứng song song, chờ CẢ HAI (hiệu ứng tối thiểu 3.8s để không qua loa)
+    const toiThieu = new Promise((res) => setTimeout(res, 3800));
+    const [{ data, error }] = await Promise.all([
+      sb.rpc('fn_goi_y_chia_hang', args), toiThieu,
+    ]);
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setRows((data || []).map((r) => ({ ...r, sl_xin: r.sl_ai })));
