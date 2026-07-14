@@ -143,7 +143,7 @@ function ThanhDinhMuc({ ten, d }) {
       <div className="dm-so">
         <b style={{ color: mau }}>{sau}</b>
         {xin > 0 && <span className="dm-delta">({ton}+{xin})</span>}
-        {coDinhMuc && <span className="dm-range">/ {min}–{max}</span>}
+        {coDinhMuc && <span className="dm-range">{min}–{max}</span>}
       </div>
       {coDinhMuc && (
         <div className="dm-bar">
