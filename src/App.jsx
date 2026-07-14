@@ -65,6 +65,9 @@ export default function App() {
     return () => sb.removeChannel(ch);
   }, [user]);
 
+  const [gon, setGon] = useState(() => localStorage.getItem('nsflow_side_gon') === '1');
+  const doiGon = () => setGon((v) => { localStorage.setItem('nsflow_side_gon', v ? '0' : '1'); return !v; });
+
   if (!user) return <Login onOk={(u) => { localStorage.setItem('nsflow_user', JSON.stringify(u)); setUser(u); }} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich,
@@ -74,20 +77,28 @@ export default function App() {
   const chonTab = (id) => { setTab(id); setMoMenu(false); };
 
   const sidebar = (
-    <aside className={'sidebar' + (moMenu ? ' open' : '')} aria-label="Menu">
+    <aside className={'sidebar' + (moMenu ? ' open' : '') + (gon ? ' gon' : '')} aria-label="Menu">
+      <button className="side-toggle" onClick={doiGon}
+        title={gon ? 'Mở rộng menu' : 'Thu gọn menu'} aria-label="Thu gọn / mở rộng menu">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transform: gon ? 'rotate(180deg)' : 'none', transition: 'transform .25s' }}>
+          <path d="M15 18l-6-6 6-6" /></svg>
+      </button>
       <div className="side-logo">
-        <div className="t">ĐIỀU PHỐI HÀNG HÓA</div>
-        <div className="s">Nón Sơn · đề nghị & điều chuyển</div>
+        <div className="t">{gon ? 'ĐP' : 'ĐIỀU PHỐI HÀNG HÓA'}</div>
+        {!gon && <div className="s">Nón Sơn · đề nghị & điều chuyển</div>}
       </div>
       {MENU.map((g) => {
         const items = g.items.filter((t) => t.roles.includes(user.vai_tro));
         if (!items.length) return null;
         return (
           <div key={g.nhom}>
-            <div className="side-group">{g.nhom}</div>
+            <div className="side-group">{gon ? '·' : g.nhom}</div>
             {items.map(({ id, ten, Ic }) => (
-              <button key={id} className={'side-item' + (tab === id ? ' on' : '')} onClick={() => chonTab(id)}>
-                <Ic /> {ten}
+              <button key={id} className={'side-item' + (tab === id ? ' on' : '')}
+                onClick={() => chonTab(id)} title={gon ? ten : undefined}>
+                <Ic /><span className="side-txt">{ten}</span>
                 {id === tabDem && choXuLy > 0 && <span className="badge-dot">{choXuLy}</span>}
               </button>
             ))}
@@ -95,9 +106,10 @@ export default function App() {
         );
       })}
       <div className="side-user">
-        <div className="n">{user.ten}</div>
-        <div className="r mono">{user.ma_dang_nhap} · {VAI_TRO_TEN[user.vai_tro] || user.vai_tro}</div>
-        <button className="side-out" onClick={dangXuat}><IcOut style={{ verticalAlign: -3 }} /> Đăng xuất</button>
+        {!gon && <><div className="n">{user.ten}</div>
+        <div className="r mono">{user.ma_dang_nhap} · {VAI_TRO_TEN[user.vai_tro] || user.vai_tro}</div></>}
+        <button className="side-out" onClick={dangXuat} title={gon ? 'Đăng xuất' : undefined}>
+          <IcOut style={{ verticalAlign: -3 }} />{!gon && ' Đăng xuất'}</button>
       </div>
     </aside>
   );
