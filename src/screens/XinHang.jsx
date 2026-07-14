@@ -346,6 +346,11 @@ export default function XinHang() {
             </div>
           </div>
 
+          <div className="legend">
+            <span><i className="lg-can" /> Cần bổ sung (AI tính từ dữ liệu bán)</span>
+            <span><i className="lg-thuong" /> Đang bán, còn đủ / hàng chậm</span>
+            <span><i className="lg-kho" /> Kho tổng còn — cân nhắc xin thêm</span>
+          </div>
           <div className="tbl-wrap">
             <table className="tbl">
               <thead><tr>
@@ -363,9 +368,12 @@ export default function XinHang() {
                 {hien.map((r) => {
                   const vuot = r.ton_du_tinh + r.sl_xin > r.muc_max;
                   const vuotKho = r.sl_xin > (r.kho_tong ?? 0);
+                  // Phân bậc thị giác: 'can-chia' = AI đề xuất > 0 (việc cần làm),
+                  // 'nguon-kho' = gợi ý xin thêm (tham khảo, chìm nhẹ)
+                  const bac = r.nguon === 'KHO' ? 'nguon-kho'
+                    : r.sl_ai > 0 ? 'can-chia' : '';
                   return (
-                    <tr key={r.barcode}
-                      style={r.nguon === 'KHO' ? { background: '#F4FAF8' } : undefined}>
+                    <tr key={r.barcode} className={'row-' + (bac || 'thuong')}>
                       <td>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                           {r.hinh_url

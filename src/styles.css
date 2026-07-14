@@ -380,4 +380,24 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .songay-box input:focus { outline: none; }
 .songay-box:focus-within { outline: 2px solid var(--teal); }
 
+/* ---------- Phân bậc thị giác trong bảng đề nghị ---------- */
+/* Hàng CẦN CHIA (AI đề xuất > 0): vạch teal bên trái + nền teal cực nhạt — việc cần làm nổi lên */
+.tbl tr.row-can-chia td:first-child { box-shadow: inset 3px 0 0 var(--teal); }
+.tbl tr.row-can-chia { background: #F3FAF8; }
+.tbl tr.row-can-chia:hover { background: #E9F5F2; }
+/* Hàng NGUỒN KHO (gợi ý xin thêm): nền xám nhạt, chữ lùi nhẹ — tham khảo, không lấn */
+.tbl tr.row-nguon-kho { background: #FAFAF8; }
+.tbl tr.row-nguon-kho td { color: var(--ink-2); }
+.tbl tr.row-nguon-kho:hover { background: #F4F4F0; }
+/* Hàng thường (đang bán còn đủ / hàng ế): trắng sạch, không tô */
+
+/* ---------- Chú giải màu bảng ---------- */
+.legend { display: flex; flex-wrap: wrap; gap: 16px; padding: 8px 4px 10px;
+  font-size: 11.5px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 22px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.legend .lg-can { background: #F3FAF8; box-shadow: inset 3px 0 0 var(--teal); }
+.legend .lg-thuong { background: #fff; border: 1px solid var(--line); }
+.legend .lg-kho { background: #FAFAF8; border: 1px solid #EDEDE7; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
