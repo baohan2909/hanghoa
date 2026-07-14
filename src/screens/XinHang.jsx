@@ -169,7 +169,8 @@ export default function XinHang() {
   const [lyDoKhan, setLyDoKhan] = useState('');
   const [lich, setLich] = useState(null);
   const [tuNgay, setTuNgay] = useState('');          // mốc thời gian từ (mục 9)
-  const [denNgay, setDenNgay] = useState('');        // mốc thời gian đến (mục 3)
+  const homQua = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+  const [denNgay, setDenNgay] = useState(homQua);    // Ngày đến — mặc định HÔM QUA
   const [soNgayCan, setSoNgayCan] = useState('');    // tính đủ hàng cho N ngày (mặc định theo nhóm)
   const [gioiHan, setGioiHan] = useState(200);
   const [xemAnh, setXemAnh] = useState(null);
@@ -356,8 +357,8 @@ export default function XinHang() {
             { value: 'DINH_KY', label: 'Định kỳ' },
             { value: 'KHAN_CAP', label: 'Khẩn cấp' },
           ]} />
-          <DateBox label="Từ" value={tuNgay} onChange={setTuNgay} />
-          <DateBox label="Đến" value={denNgay} onChange={setDenNgay} />
+          <DateBox label="Ngày từ" value={tuNgay} onChange={setTuNgay} />
+          <DateBox label="Ngày đến" value={denNgay} onChange={setDenNgay} />
           <label className="songay-box" title="Số ngày cần đủ hàng — mặc định theo nhóm, sửa khi có lễ/chương trình">
             <input type="number" min="1" max="90" value={soNgayCan}
               onChange={(e) => setSoNgayCan(e.target.value)} />
