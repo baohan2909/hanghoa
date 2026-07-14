@@ -121,6 +121,42 @@ function AiSteps() {
   );
 }
 
+// Thẻ định mức ngành: tồn hiện tại + min-max, thanh đo trực quan
+function ThanhDinhMuc({ ten, d }) {
+  const { ton, min, max, xin } = d;
+  const sau = ton + xin;                         // tồn sau khi chia
+  const coDinhMuc = max > 0;
+  const thangMax = coDinhMuc ? max * 1.15 : Math.max(ton, sau, 10);
+  const pct = (v) => Math.min(100, Math.max(0, (v / thangMax) * 100));
+  const pMin = coDinhMuc ? pct(min) : 0;
+  const pMax = coDinhMuc ? pct(max) : 0;
+  const tt = !coDinhMuc ? 'none'
+    : sau < min ? 'thieu' : sau > max ? 'du' : 'ok';
+  const mau = { thieu: 'var(--magenta)', ok: 'var(--teal)', du: 'var(--gold)', none: 'var(--ink-2)' }[tt];
+  const nhan = { thieu: 'Dưới định mức', ok: 'Trong định mức', du: 'Vượt định mức', none: 'Chưa đặt định mức' }[tt];
+  return (
+    <div className="dm-card">
+      <div className="dm-head">
+        <span className="dm-ten">{ten}</span>
+        {coDinhMuc && <span className="dm-badge" style={{ color: mau, borderColor: mau }}>{nhan}</span>}
+      </div>
+      <div className="dm-so">
+        <b style={{ color: mau }}>{sau}</b>
+        {xin > 0 && <span className="dm-delta">({ton}+{xin})</span>}
+        {coDinhMuc && <span className="dm-range">/ {min}–{max}</span>}
+      </div>
+      {coDinhMuc && (
+        <div className="dm-bar">
+          <div className="dm-zone" style={{ left: pMin + '%', width: (pMax - pMin) + '%' }} />
+          <div className="dm-tick" style={{ left: pMin + '%' }} />
+          <div className="dm-tick" style={{ left: pMax + '%' }} />
+          <div className="dm-cursor" style={{ left: pct(sau) + '%', background: mau }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function XinHang() {
   const { user, baoToast } = useApp();
   const [dsCH, setDsCH] = useState([]);
@@ -229,6 +265,18 @@ export default function XinHang() {
   useEffect(() => { setGioiHan(200); }, [nhomXem, q]);
 
   const tongXin = useMemo(() => (rows || []).reduce((s, r) => s + (r.sl_xin || 0), 0), [rows]);
+  // Định mức tồn 2 ngành (BH / NV): tồn hiện tại toàn ngành + min-max của cửa hàng
+  const dinhMuc = useMemo(() => {
+    const g = { BH: { ton: 0, min: 0, max: 0, xin: 0 }, NV: { ton: 0, min: 0, max: 0, xin: 0 } };
+    (rows || []).forEach((r) => {
+      if (r.nguon === 'KHO') return;                 // chỉ tính hàng cửa hàng đang có
+      const k = r.nhom_hang === 'BH' ? 'BH' : 'NV';
+      g[k].ton += r.ton_truoc || 0;
+      g[k].xin += r.sl_xin || 0;
+      if (r.muc_max > 0) { g[k].min = r.muc_min || 0; g[k].max = r.muc_max || 0; }
+    });
+    return g;
+  }, [rows]);
   const boSot = useMemo(() => (rows || []).filter((r) =>
     r.sl_ai > 0 && (r.sl_xin || 0) === 0 && r.toc_do >= 0.5 && r.ton_truoc <= 2), [rows]);
 
@@ -320,6 +368,12 @@ export default function XinHang() {
           </button>
           {rows && <span className="sla-chip">{tongXin} sp · {rows.filter((r) => r.sl_xin > 0).length} mã</span>}
         </div>
+        {rows && (
+          <div className="dm-row">
+            <ThanhDinhMuc ten="Bảo hiểm" d={dinhMuc.BH} />
+            <ThanhDinhMuc ten="Nón vải" d={dinhMuc.NV} />
+          </div>
+        )}
         {loai === 'KHAN_CAP' && (
           <div className="row">
             <input value={lyDoKhan} onChange={(e) => setLyDoKhan(e.target.value)}
