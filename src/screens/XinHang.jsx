@@ -405,6 +405,7 @@ export default function XinHang() {
                 <th className="num sortable" onClick={() => doiSort('sl')}>SL đề nghị{sortIc('sl')}</th>
                 <th className="num sortable" onClick={() => doiSort('tong')}>Tổng tồn{sortIc('tong')}</th>
                 <th className="num sortable" onClick={() => doiSort('ngay')}>Số ngày bán{sortIc('ngay')}</th>
+                <th>Tình trạng</th>
               </tr></thead>
               <tbody>
                 {hien.map((r, idx) => {
@@ -471,6 +472,17 @@ export default function XinHang() {
                         {r.toc_do > 0
                           ? <b style={{ color: 'var(--ink)' }}>{Math.round(((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do)}d</b>
                           : <span style={{ color: 'var(--ink-2)' }}>—</span>}
+                      </td>
+                      <td>
+                        {r.tinh_trang && (
+                          <span className={'tt ' + (
+                            r.tinh_trang.startsWith('Hết hàng') ? 'tt-het'
+                            : r.tinh_trang === 'Đang bán tốt' ? 'tt-tot'
+                            : r.tinh_trang === 'Bán chậm' || r.tinh_trang === 'Không bán gần đây' ? 'tt-cham'
+                            : 'tt-thuong')}>
+                            {r.tinh_trang}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
