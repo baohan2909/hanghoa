@@ -21,6 +21,29 @@ export default function GiamSat() {
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState('');
+  const [canSX, setCanSX] = useState(null);         // danh sách cần sản xuất/tái bản
+  const [moSX, setMoSX] = useState(false);
+
+  const taiCanSX = async () => {
+    const { data, error } = await sb.rpc('fn_can_san_xuat', { p_so_ngay: 30 });
+    if (!error) { setCanSX(data || []); setMoSX(true); }
+    else baoToast('Lỗi: ' + error.message);
+  };
+  const xuatCanSX = async () => {
+    if (!canSX?.length) return;
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.json_to_sheet(canSX.map((r) => ({
+      'Barcode': r.barcode, 'Mã tham chiếu': r.ma_tham_chieu || '', 'SKU': r.sku || '',
+      'Ngành': r.nganh_1 || '', 'Nhóm': r.nganh_3 || '',
+      'Bán 30 ngày (toàn HT)': r.ban_toan_ht, 'Số CH có bán': r.so_ch_ban,
+      'Tồn còn ở CH': r.ton_con_o_ch, 'Kho tổng': r.kho_tong,
+      'Bán gần nhất': r.ngay_ban_cuoi,
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'CAN_SAN_XUAT');
+    XLSX.writeFile(wb, `CAN_SAN_XUAT_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    baoToast(`Đã xuất ${canSX.length} mã cần sản xuất`);
+  };
 
   useEffect(() => {
     if (user.vai_tro !== 'CH') {
@@ -159,6 +182,52 @@ export default function GiamSat() {
           <div className="t">Không có mã nào thiếu theo bộ lọc</div>
           Cửa hàng đang được cấp hàng đầy đủ trong khoảng ngày này.
         </div>}
+      </div>
+
+      {/* ===== CẦN SẢN XUẤT / TÁI BẢN — toàn hệ thống ===== */}
+      <div className="card" style={{ marginTop: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>Cần sản xuất / tái bản</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>
+              Mã có bán trong 30 ngày (toàn hệ thống) nhưng kho tổng đã cạn — tín hiệu sản xuất lại, xếp theo mức bán giảm dần.
+            </div>
+          </div>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            {!moSX && <button className="btn btn-primary" onClick={taiCanSX}>Quét toàn hệ thống</button>}
+            {moSX && canSX?.length > 0 && <button className="btn btn-gold" onClick={xuatCanSX}>Xuất Excel ({canSX.length} mã)</button>}
+          </div>
+        </div>
+        {moSX && (
+          canSX?.length > 0 ? (
+            <div className="tbl-wrap" style={{ marginTop: 10, maxHeight: 420 }}>
+              <table className="tbl">
+                <thead><tr>
+                  <th>Sản phẩm</th><th className="num">Bán 30 ngày</th><th className="num">Số CH bán</th>
+                  <th className="num">Tồn còn ở CH</th><th className="num">Kho tổng</th><th>Bán gần nhất</th>
+                </tr></thead>
+                <tbody>
+                  {canSX.slice(0, 200).map((r) => (
+                    <tr key={r.barcode}>
+                      <td>
+                        <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}{r.la_hang_sale ? ' · sale' : ''}</div>
+                      </td>
+                      <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.ban_toan_ht}</td>
+                      <td className="num">{r.so_ch_ban}</td>
+                      <td className="num">{r.ton_con_o_ch}</td>
+                      <td className="num" style={{ color: 'var(--magenta)', fontWeight: 700 }}>{r.kho_tong}</td>
+                      <td className="mono" style={{ fontSize: 12 }}>{r.ngay_ban_cuoi ? String(r.ngay_ban_cuoi).split('-').reverse().join('/') : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <div className="empty" style={{ marginTop: 10 }}>
+            <div className="t">Không có mã nào cần sản xuất</div>
+            Mọi mã đang bán đều còn nguồn ở kho tổng.
+          </div>
+        )}
       </div>
     </>
   );

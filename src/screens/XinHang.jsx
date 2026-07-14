@@ -121,10 +121,10 @@ function AiSteps() {
   );
 }
 
-// Thẻ định mức ngành: tồn hiện tại + min-max, thanh đo trực quan
+// Thẻ định mức ngành: tồn hiện tại + min-max, thanh đo trực quan (bản redesign)
 function ThanhDinhMuc({ ten, d }) {
   const { ton, min, max, xin } = d;
-  const sau = ton + xin;                         // tồn sau khi chia
+  const sau = ton + xin;
   const coDinhMuc = max > 0;
   const thangMax = coDinhMuc ? max * 1.15 : Math.max(ton, sau, 10);
   const pct = (v) => Math.min(100, Math.max(0, (v / thangMax) * 100));
@@ -132,27 +132,30 @@ function ThanhDinhMuc({ ten, d }) {
   const pMax = coDinhMuc ? pct(max) : 0;
   const tt = !coDinhMuc ? 'none'
     : sau < min ? 'thieu' : sau > max ? 'du' : 'ok';
-  const mau = { thieu: 'var(--magenta)', ok: 'var(--teal)', du: 'var(--gold)', none: 'var(--ink-2)' }[tt];
-  const nhan = { thieu: 'Dưới định mức', ok: 'Trong định mức', du: 'Vượt định mức', none: 'Chưa đặt định mức' }[tt];
+  const mau = { thieu: '#FF6FA5', ok: '#4ED3C2', du: '#E8C377', none: 'rgba(255,255,255,.5)' }[tt];
+  const mauBadge = { thieu: '#D6006C', ok: '#1E5F63', du: '#9A7B2E', none: 'transparent' }[tt];
+  const nhan = { thieu: 'Dưới định mức', ok: 'Trong định mức', du: 'Vượt định mức', none: '' }[tt];
   return (
     <div className="dm-card">
       <div className="dm-head">
         <span className="dm-ten">{ten}</span>
-        {coDinhMuc && <span className="dm-badge" style={{ color: mau, borderColor: mau }}>{nhan}</span>}
+        {coDinhMuc && <span className="dm-badge2" style={{ background: mauBadge }}>{nhan}</span>}
+        <span className="dm-range">{coDinhMuc ? `${min}–${max}` : 'Chưa đặt định mức'}</span>
       </div>
-      <div className="dm-so">
-        <b style={{ color: mau }}>{sau}</b>
-        {xin > 0 && <span className="dm-delta">({ton}+{xin})</span>}
-        {coDinhMuc && <span className="dm-range">{min}–{max}</span>}
-      </div>
-      {coDinhMuc && (
-        <div className="dm-bar">
-          <div className="dm-zone" style={{ left: pMin + '%', width: (pMax - pMin) + '%' }} />
-          <div className="dm-tick" style={{ left: pMin + '%' }} />
-          <div className="dm-tick" style={{ left: pMax + '%' }} />
-          <div className="dm-cursor" style={{ left: pct(sau) + '%', background: mau }} />
+      <div className="dm-body">
+        <div className="dm-so">
+          <b style={{ color: mau }}>{sau}</b>
+          {xin > 0 && <span className="dm-delta">{ton}+{xin}</span>}
         </div>
-      )}
+        {coDinhMuc && (
+          <div className="dm-bar">
+            <div className="dm-zone" style={{ left: pMin + '%', width: (pMax - pMin) + '%' }} />
+            <div className="dm-tick" style={{ left: pMin + '%' }} />
+            <div className="dm-tick" style={{ left: pMax + '%' }} />
+            <div className="dm-cursor" style={{ left: pct(sau) + '%', background: mau }} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
