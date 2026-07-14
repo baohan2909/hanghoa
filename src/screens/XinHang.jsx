@@ -436,8 +436,14 @@ export default function XinHang() {
       )}
 
       {busy && (
-        <div className="card ai-overlay">
-          <div className="ai-orb" />
+        <div className="card ai-stage">
+          <div className="ai-grid" />
+          <div className="ai-core">
+            <span className="ai-ring r1" /><span className="ai-ring r2" /><span className="ai-ring r3" />
+            <span className="ai-nucleus" />
+            <span className="ai-scan" />
+          </div>
+          <div className="ai-title">AI đang phân tích dữ liệu bán</div>
           <AiSteps />
         </div>
       )}

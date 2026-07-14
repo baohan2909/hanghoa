@@ -321,28 +321,56 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
   70% { box-shadow: 0 0 0 20px rgba(63,182,168,0); }
   100% { box-shadow: 0 0 0 0 rgba(63,182,168,0); }
 }
-.ai-log { width: min(440px, 90%); height: 210px; overflow: hidden; position: relative;
-  mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent); }
-.ai-track { display: flex; flex-direction: column; gap: 11px;
-  animation: ai-scroll 9s linear infinite; will-change: transform; }
-@keyframes ai-scroll { from { transform: translateY(0); } to { transform: translateY(-50%); } }
-.ai-line { display: flex; align-items: center; gap: 9px; font-size: 13px;
-  color: var(--ink-2); font-weight: 500; flex-shrink: 0; height: 20px; }
-.ai-line-ic { width: 18px; height: 18px; flex-shrink: 0; display: inline-flex;
-  align-items: center; justify-content: center; border-radius: 50%;
-  font-size: 11px; font-weight: 700; background: #DCEFE9; color: var(--teal-deep); }
-.ai-orb { width: 58px; height: 58px; border-radius: 50%; background: var(--grad);
-  box-shadow: 0 0 0 0 rgba(63,182,168,.5); animation: ai-pulse 1.5s ease-out infinite; position: relative; }
-.ai-orb::after { content: ''; position: absolute; inset: 6px; border-radius: 50%;
-  border: 2px solid rgba(255,255,255,.55); border-top-color: transparent;
-  animation: ai-spin .9s linear infinite; }
+/* ================= MÀN AI PHÂN TÍCH — phong cách công nghệ ================= */
+.ai-stage { position: relative; overflow: hidden; display: flex; flex-direction: column;
+  align-items: center; padding: 40px 20px 34px; gap: 20px;
+  background: radial-gradient(120% 90% at 50% 0%, #16324A 0%, #0E2233 55%, #0B1B29 100%); }
+/* lưới nền chuyển động */
+.ai-grid { position: absolute; inset: 0; opacity: .5;
+  background-image: linear-gradient(rgba(63,182,168,.12) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(63,182,168,.12) 1px, transparent 1px);
+  background-size: 34px 34px; mask-image: radial-gradient(70% 70% at 50% 30%, #000, transparent);
+  -webkit-mask-image: radial-gradient(70% 70% at 50% 30%, #000, transparent);
+  animation: ai-grid-move 6s linear infinite; }
+@keyframes ai-grid-move { to { background-position: 0 34px, 34px 0; } }
+
+/* lõi năng lượng + vòng quỹ đạo */
+.ai-core { position: relative; width: 120px; height: 120px; display: grid; place-items: center; }
+.ai-nucleus { position: absolute; width: 40px; height: 40px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #7FE9DA, var(--teal) 55%, var(--teal-deep));
+  box-shadow: 0 0 26px 6px rgba(63,182,168,.65); animation: ai-breathe 1.6s ease-in-out infinite; }
+@keyframes ai-breathe { 0%,100% { transform: scale(.9); } 50% { transform: scale(1.12); } }
+.ai-ring { position: absolute; border-radius: 50%; border: 1.5px solid transparent; }
+.ai-ring.r1 { width: 70px; height: 70px; border-top-color: var(--teal);
+  border-right-color: rgba(63,182,168,.4); animation: ai-spin 1.5s linear infinite; }
+.ai-ring.r2 { width: 96px; height: 96px; border-bottom-color: var(--gold);
+  border-left-color: rgba(203,164,90,.4); animation: ai-spin 2.4s linear infinite reverse; }
+.ai-ring.r3 { width: 120px; height: 120px; border-top-color: rgba(255,255,255,.35);
+  animation: ai-spin 3.6s linear infinite; }
 @keyframes ai-spin { to { transform: rotate(360deg); } }
-@keyframes ai-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(63,182,168,.5); }
-  70% { box-shadow: 0 0 0 20px rgba(63,182,168,0); }
-  100% { box-shadow: 0 0 0 0 rgba(63,182,168,0); }
-}
+/* tia quét ngang chạy qua lõi */
+.ai-scan { position: absolute; width: 120px; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--teal), transparent);
+  box-shadow: 0 0 10px var(--teal); animation: ai-scan-move 2s ease-in-out infinite; }
+@keyframes ai-scan-move { 0%,100% { transform: translateY(-52px); opacity: 0; }
+  50% { transform: translateY(52px); opacity: 1; } }
+
+.ai-title { color: #E8F6F3; font-weight: 600; font-size: 14px; letter-spacing: .3px;
+  position: relative; z-index: 1; }
+
+/* log trượt trên nền tối */
+.ai-log { width: min(460px, 92%); height: 168px; overflow: hidden; position: relative; z-index: 1;
+  mask-image: linear-gradient(to bottom, transparent, #000 26%, #000 74%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 26%, #000 74%, transparent); }
+.ai-track { display: flex; flex-direction: column; gap: 10px;
+  animation: ai-scroll 10s linear infinite; will-change: transform; }
+@keyframes ai-scroll { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+.ai-line { display: flex; align-items: center; gap: 9px; font-size: 12.5px;
+  color: rgba(210,232,228,.72); font-weight: 500; flex-shrink: 0; height: 18px;
+  font-family: var(--font-mono); }
+.ai-line-ic { width: 16px; height: 16px; flex-shrink: 0; display: inline-flex;
+  align-items: center; justify-content: center; border-radius: 50%;
+  font-size: 10px; font-weight: 700; background: rgba(63,182,168,.22); color: #7FE9DA; }
 
 /* ---------- Popup FIXED: nổi tuyệt đối trên mọi thứ (lỗi đè) ---------- */
 .ch-pop-fixed, .sel-pop-fixed {
@@ -380,24 +408,28 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .songay-box input:focus { outline: none; }
 .songay-box:focus-within { outline: 2px solid var(--teal); }
 
-/* ---------- Phân bậc thị giác trong bảng đề nghị ---------- */
-/* Hàng CẦN CHIA (AI đề xuất > 0): vạch teal bên trái + nền teal cực nhạt — việc cần làm nổi lên */
-.tbl tr.row-can-chia td:first-child { box-shadow: inset 3px 0 0 var(--teal); }
-.tbl tr.row-can-chia { background: #F3FAF8; }
-.tbl tr.row-can-chia:hover { background: #E9F5F2; }
-/* Hàng NGUỒN KHO (gợi ý xin thêm): nền xám nhạt, chữ lùi nhẹ — tham khảo, không lấn */
-.tbl tr.row-nguon-kho { background: #FAFAF8; }
+/* ---------- Phân bậc thị giác trong bảng đề nghị (3 nhóm rõ ràng) ---------- */
+/* 1. CẦN CHIA (AI>0): nền teal + vạch teal đậm — việc cần làm */
+.tbl tr.row-can-chia td:first-child { box-shadow: inset 4px 0 0 var(--teal); }
+.tbl tr.row-can-chia { background: #E8F5F1; }
+.tbl tr.row-can-chia:hover { background: #DBEFE9; }
+/* 2. ĐANG BÁN CÒN ĐỦ / HÀNG CHẬM: nền vàng kem + vạch gold — canh chừng */
+.tbl tr.row-thuong td:first-child { box-shadow: inset 4px 0 0 #DDB863; }
+.tbl tr.row-thuong { background: #FBF6E9; }
+.tbl tr.row-thuong:hover { background: #F6EFDB; }
+/* 3. NGUỒN KHO (xin thêm): nền xám xanh + vạch xám + chữ lùi — tham khảo */
+.tbl tr.row-nguon-kho td:first-child { box-shadow: inset 4px 0 0 #B4BEC7; }
+.tbl tr.row-nguon-kho { background: #EEF2F5; }
 .tbl tr.row-nguon-kho td { color: var(--ink-2); }
-.tbl tr.row-nguon-kho:hover { background: #F4F4F0; }
-/* Hàng thường (đang bán còn đủ / hàng ế): trắng sạch, không tô */
+.tbl tr.row-nguon-kho:hover { background: #E5EBEF; }
 
 /* ---------- Chú giải màu bảng ---------- */
 .legend { display: flex; flex-wrap: wrap; gap: 16px; padding: 8px 4px 10px;
   font-size: 11.5px; color: var(--ink-2); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 22px; height: 12px; border-radius: 3px; flex-shrink: 0; }
-.legend .lg-can { background: #F3FAF8; box-shadow: inset 3px 0 0 var(--teal); }
-.legend .lg-thuong { background: #fff; border: 1px solid var(--line); }
-.legend .lg-kho { background: #FAFAF8; border: 1px solid #EDEDE7; }
+.legend .lg-can { background: #E8F5F1; box-shadow: inset 4px 0 0 var(--teal); }
+.legend .lg-thuong { background: #FBF6E9; box-shadow: inset 4px 0 0 #DDB863; }
+.legend .lg-kho { background: #EEF2F5; box-shadow: inset 4px 0 0 #B4BEC7; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
