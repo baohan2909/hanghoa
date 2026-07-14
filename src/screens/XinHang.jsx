@@ -82,11 +82,35 @@ const AI_LOG = [
   'Soát vượt kho tổng, hoàn thiện bảng',
 ];
 function AiSteps() {
-  // nhân đôi danh sách để cuộn vòng lặp liền mạch
+  const trackRef = useRef(null);
   const list = [...AI_LOG, ...AI_LOG];
+  useEffect(() => {
+    let y = 0, raf;
+    const track = trackRef.current;
+    if (!track) return;
+    const H = track.scrollHeight / 2;   // chiều cao 1 vòng
+    const box = track.parentElement.getBoundingClientRect();
+    const tam = box.top + box.height / 2;
+    const tick = () => {
+      y = (y + 0.32) % H;               // tốc độ cuộn mượt
+      track.style.transform = `translateY(${-y}px)`;
+      // dòng nào gần tâm -> to + sáng, xa -> nhỏ + mờ
+      for (const line of track.children) {
+        const r = line.getBoundingClientRect();
+        const d = Math.abs(r.top + r.height / 2 - tam);
+        const g = Math.max(0, 1 - d / 78);          // 1 ở tâm -> 0 ở xa
+        line.style.transform = `scale(${0.82 + g * 0.42})`;
+        line.style.opacity = `${0.32 + g * 0.68}`;
+        line.style.color = g > 0.72 ? '#EAF9F5' : 'rgba(200,226,221,.6)';
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
   return (
     <div className="ai-log">
-      <div className="ai-track">
+      <div className="ai-track" ref={trackRef}>
         {list.map((t, k) => (
           <div key={k} className="ai-line">
             <span className="ai-line-ic">✓</span>{t}
@@ -210,6 +234,12 @@ export default function XinHang() {
 
   const sua = (barcode, val) => setRows((rs) => rs.map((r) =>
     r.barcode === barcode ? { ...r, sl_xin: Math.max(0, parseInt(val) || 0) } : r));
+  // cuộn tới dòng đầu của một nhóm (chú giải bấm được)
+  const cuonToi = (bac) => {
+    const el = document.getElementById('grp-' + bac);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    else baoToast('Nhóm này chưa có mã nào ở tab hiện tại');
+  };
 
   // Xuất Excel 1 nhóm (mục 7)
   const xuatNhom = async (nhomId) => {
@@ -347,9 +377,12 @@ export default function XinHang() {
           </div>
 
           <div className="legend">
-            <span><i className="lg-can" /> Cần bổ sung (AI tính từ dữ liệu bán)</span>
-            <span><i className="lg-thuong" /> Đang bán, còn đủ / hàng chậm</span>
-            <span><i className="lg-kho" /> Kho tổng còn — cân nhắc xin thêm</span>
+            <button className="lg-btn" onClick={() => cuonToi('can-chia')}>
+              <i className="lg-can" /> Cần bổ sung (AI tính từ dữ liệu bán)</button>
+            <button className="lg-btn" onClick={() => cuonToi('thuong')}>
+              <i className="lg-thuong" /> Đang bán, còn đủ / hàng chậm</button>
+            <button className="lg-btn" onClick={() => cuonToi('nguon-kho')}>
+              <i className="lg-kho" /> Kho tổng còn — cân nhắc xin thêm</button>
           </div>
           <div className="tbl-wrap">
             <table className="tbl">
@@ -365,15 +398,21 @@ export default function XinHang() {
                 <th className="num sortable" onClick={() => doiSort('ngay')}>Số ngày bán{sortIc('ngay')}</th>
               </tr></thead>
               <tbody>
-                {hien.map((r) => {
+                {hien.map((r, idx) => {
                   const vuot = r.ton_du_tinh + r.sl_xin > r.muc_max;
                   const vuotKho = r.sl_xin > (r.kho_tong ?? 0);
                   // Phân bậc thị giác: 'can-chia' = AI đề xuất > 0 (việc cần làm),
-                  // 'nguon-kho' = gợi ý xin thêm (tham khảo, chìm nhẹ)
+                  // 'thuong' = đang bán còn đủ/hàng chậm, 'nguon-kho' = gợi ý xin thêm
                   const bac = r.nguon === 'KHO' ? 'nguon-kho'
-                    : r.sl_ai > 0 ? 'can-chia' : '';
+                    : r.sl_ai > 0 ? 'can-chia' : 'thuong';
+                  // dòng ĐẦU mỗi nhóm -> gắn id để chú giải cuộn tới
+                  const bacTruoc = idx > 0
+                    ? (hien[idx - 1].nguon === 'KHO' ? 'nguon-kho'
+                       : hien[idx - 1].sl_ai > 0 ? 'can-chia' : 'thuong') : null;
+                  const dauNhom = bac !== bacTruoc;
                   return (
-                    <tr key={r.barcode} className={'row-' + (bac || 'thuong')}>
+                    <tr key={r.barcode} className={'row-' + bac}
+                      id={dauNhom ? 'grp-' + bac : undefined}>
                       <td>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                           {r.hinh_url
@@ -406,7 +445,16 @@ export default function XinHang() {
                       <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.sl_ai}</td>
                       <td className="num">
                         <input className={'qty-input' + (vuot || vuotKho ? ' over' : '')} type="number" min="0"
-                          value={r.sl_xin} onChange={(e) => sua(r.barcode, e.target.value)} />
+                          data-qty={idx}
+                          value={r.sl_xin} onChange={(e) => sua(r.barcode, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const next = document.querySelector(`input[data-qty="${idx + 1}"]`);
+                              if (next) { next.focus(); next.select(); }
+                              else e.target.blur();
+                            }
+                          }} />
                         {vuotKho && <div style={{ fontSize: 10, color: 'var(--magenta)', marginTop: 2 }}>Vượt kho tổng {r.kho_tong}</div>}
                       </td>
                       <td className="num" style={{ fontWeight: 600 }}>{(r.ton_truoc ?? 0) + (r.sl_xin || 0)}</td>
