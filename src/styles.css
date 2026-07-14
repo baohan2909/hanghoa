@@ -108,6 +108,12 @@ input, select { font-family: inherit; font-size: 14px; }
 .side-out { margin-top: 8px; width: 100%; border: 1.5px solid var(--line); background: #fff;
   color: var(--ink-2); border-radius: 10px; padding: 7px; font-size: 12.5px; font-weight: 600; }
 .side-out:hover { border-color: var(--magenta); color: var(--magenta); }
+.side-install { margin-top: 10px; width: 100%; border: 0; background: var(--grad);
+  color: #fff; border-radius: 10px; padding: 9px 7px; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  box-shadow: 0 3px 10px rgba(30,95,99,.3); }
+.side-install:hover { filter: brightness(1.06); }
+.sidebar.gon .side-install { padding: 9px 0; }
 
 .main { flex: 1; min-width: 0; padding: 16px 18px 90px; max-width: 1280px; }
 

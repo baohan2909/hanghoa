@@ -243,7 +243,10 @@ export default function XinHang() {
 
   const hienAll = useMemo(() => {
     if (!rows) return [];
-    let v = nhomXem === 'ALL' ? rows : rows.filter((r) => nhomCua(r) === nhomXem);
+    // Loại hàng "Kho hết — cần sản xuất" (tồn 0 + kho tổng 0 + có bán): giai đoạn này
+    // không đưa vào gợi ý chia; chúng nằm ở màn Giám sát > Cần sản xuất.
+    const base = rows.filter((r) => !(r.nguon === 'CH' && r.ton_truoc === 0 && (r.kho_tong ?? 0) <= 0 && r.tinh_trang === 'Kho hết — cần sản xuất'));
+    let v = nhomXem === 'ALL' ? base : base.filter((r) => nhomCua(r) === nhomXem);
     if (q) {
       const k = q.toUpperCase();
       v = v.filter((r) => [r.barcode, r.sku, r.ma_tham_chieu].some((x) => (x || '').toUpperCase().includes(k)));
@@ -308,14 +311,17 @@ export default function XinHang() {
     const dsN = rows.filter((r) => nhomCua(r) === nhomId && r.sl_xin > 0);
     if (!dsN.length) { baoToast(`Nhóm ${info.ten} chưa có dòng nào`); return; }
     const khoMa = dsN[0].kho_ma || nhomId;
+    // Đúng template điều chuyển: Kho nguồn (kho tổng) | Kho đích (cửa hàng) | SKU/Barcode | Số lượng
     const rowsX = dsN.map((r) => ({
-      'Mã kho': khoMa, 'Barcode': r.barcode, 'Mã tham chiếu': r.ma_tham_chieu || '',
-      'Sản phẩm': r.nganh_3 || '', 'Số lượng': r.sl_xin,
+      'Kho nguồn': r.kho_ma || khoMa,
+      'Kho đích': maCH,
+      'SKU/ Barcode': r.sku || r.barcode,
+      'Số lượng': r.sl_xin,
     }));
     const ws = XLSX.utils.json_to_sheet(rowsX);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, khoMa);
-    XLSX.writeFile(wb, `DENGHI_${maCH}_${khoMa}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Trang tính1');
+    XLSX.writeFile(wb, `DIEUCHUYEN_${maCH}_${khoMa}.xlsx`);
     // GIỮ HÀNG: xuất = giữ chỗ trong DB, người khác thấy kho khả dụng đã trừ
     try {
       const { data: kq } = await sb.rpc('fn_giu_hang', {

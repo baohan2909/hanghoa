@@ -46,6 +46,19 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [choXuLy, setChoXuLy] = useState(0);
   const [moMenu, setMoMenu] = useState(false);
+  const [caiApp, setCaiApp] = useState(null);       // sự kiện cài PWA (nếu trình duyệt hỗ trợ)
+
+  useEffect(() => {
+    const h = (e) => { e.preventDefault(); setCaiApp(e); };
+    window.addEventListener('beforeinstallprompt', h);
+    return () => window.removeEventListener('beforeinstallprompt', h);
+  }, []);
+  const taiApp = async () => {
+    if (!caiApp) { baoToast('Mở menu trình duyệt → "Thêm vào màn hình chính" để cài'); return; }
+    caiApp.prompt();
+    await caiApp.userChoice;
+    setCaiApp(null);
+  };
 
   const baoToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
   const dangXuat = () => { localStorage.removeItem('nsflow_user'); setUser(null); };
@@ -108,6 +121,12 @@ export default function App() {
       <div className="side-user">
         {!gon && <><div className="n">{user.ten}</div>
         <div className="r mono">{user.ma_dang_nhap} · {VAI_TRO_TEN[user.vai_tro] || user.vai_tro}</div></>}
+        <button className="side-install" onClick={taiApp} title={gon ? 'Tải ứng dụng' : undefined}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: -3, flexShrink: 0 }}>
+            <path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
+          {!gon && ' Tải ứng dụng'}
+        </button>
         <button className="side-out" onClick={dangXuat} title={gon ? 'Đăng xuất' : undefined}>
           <IcOut style={{ verticalAlign: -3 }} />{!gon && ' Đăng xuất'}</button>
       </div>
