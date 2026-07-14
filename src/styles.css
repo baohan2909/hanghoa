@@ -263,7 +263,9 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 
 /* ---------- Tab nhóm hàng (BH/NV × chính/sale) ---------- */
 .nhom-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-.nhom-tab { display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px;
+/* nút cùng hàng tab — chiều cao bằng tab (40px) */
+.btn-h { height: 40px; }
+.nhom-tab { display: inline-flex; align-items: center; gap: 7px; padding: 0 15px; height: 40px;
   border: 0; background: #EEEBE4; border-radius: 10px;
   font-size: 13px; font-weight: 600; color: var(--ink-2); outline: none; }
 .nhom-tab:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }

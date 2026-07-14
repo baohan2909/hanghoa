@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb, fmtVND, LY_DO } from '../lib/supabase.js';
-import { IcSpark, IcSearch, IcBox, IcClock, IcAlert, IcDown, IcCheck } from '../lib/icons.jsx';
+import { IcSpark, IcSearch, IcBox, IcClock, IcAlert, IcDown, IcCheck, IcRefresh } from '../lib/icons.jsx';
 import { Sel, DateBox } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
@@ -234,11 +234,19 @@ export default function XinHang() {
 
   const sua = (barcode, val) => setRows((rs) => rs.map((r) =>
     r.barcode === barcode ? { ...r, sl_xin: Math.max(0, parseInt(val) || 0) } : r));
-  // cuộn tới dòng đầu của một nhóm (chú giải bấm được)
+  // cuộn tới dòng đầu của một nhóm; nếu nhóm nằm ngoài phần đang hiển thị thì nới hết trước
   const cuonToi = (bac) => {
-    const el = document.getElementById('grp-' + bac);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    else baoToast('Nhóm này chưa có mã nào ở tab hiện tại');
+    // kiểm tra nhóm có tồn tại trong dữ liệu đang lọc không
+    const coTrongDs = hienAll.some((r) => {
+      const b = r.nguon === 'KHO' ? 'nguon-kho' : r.sl_ai > 0 ? 'can-chia' : 'thuong';
+      return b === bac;
+    });
+    if (!coTrongDs) { baoToast('Nhóm này chưa có mã nào ở tab hiện tại'); return; }
+    setGioiHan(hienAll.length);   // nới hết để dòng đầu nhóm chắc chắn được render
+    setTimeout(() => {
+      const el = document.getElementById('grp-' + bac);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 60);
   };
 
   // Xuất Excel 1 nhóm (mục 7)
@@ -346,43 +354,44 @@ export default function XinHang() {
             <button className={'nhom-tab' + (nhomXem === 'ALL' ? ' on' : '')} onClick={() => setNhomXem('ALL')}>
               Xem tất cả
             </button>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              {nhomXem !== 'ALL' &&
+                <button className="btn btn-ghost btn-h" onClick={() => xuatNhom(nhomXem)}><IcDown /> Xuất nhóm này</button>}
+              <button className="btn btn-gold btn-h" onClick={xuatTatCa}><IcDown /> Xuất tất cả (4 file)</button>
+            </div>
           </div>
 
           <div className="toolbar">
             <div style={{ position: 'relative' }}>
               <input type="search" placeholder="Tìm barcode / SKU / mã cũ" value={q}
-                onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 34, width: 240 }} />
+                onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 34, width: 220 }} />
               <span style={{ position: 'absolute', left: 10, top: 10, color: 'var(--ink-2)' }}><IcSearch /></span>
             </div>
-            <span className="chip dim">Tự động lưu nháp</span>
+            <button className="btn btn-ghost" onClick={() => { setSortBy(null); baoToast('Đã xếp lại theo thứ tự ưu tiên mặc định'); }}
+              disabled={!sortBy} title="Quay lại thứ tự ưu tiên ban đầu (cần cấp → đang bán → hàng chậm → kho tổng)">
+              <IcRefresh /> Xếp mặc định</button>
             <button className="btn btn-ghost" onClick={() => {
-              if (window.confirm('Xóa toàn bộ số lượng đề nghị và bản nháp đang lưu của cửa hàng này?')) {
+              if (window.confirm('Xóa toàn bộ số lượng đề nghị và bản nháp — quay lại màn chọn cửa hàng?')) {
                 localStorage.removeItem(KEY(maCH));
-                setRows((rs) => rs ? rs.map((r) => ({ ...r, sl_xin: 0 })) : rs);
-                baoToast('Đã xóa toàn bộ — làm lại từ đầu');
+                setRows(null); setSortBy(null); setQ(''); setNhomXem('BH_C'); setGiuInfo(null);
+                baoToast('Đã xóa toàn bộ — bấm AI để làm lại');
               }
             }}>Xóa toàn bộ</button>
             {giuInfo && (
               <span className="chip gold" title="Hàng đã giữ chỗ khi xuất file — người khác thấy kho khả dụng đã trừ">
-                Đang giữ hàng đến {new Date(giuInfo.het_han).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                Đang giữ đến {new Date(giuInfo.het_han).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                 <button onClick={giaiPhong} style={{ marginLeft: 8, border: 0, background: 'transparent',
                   color: 'var(--magenta)', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>Giải phóng</button>
               </span>
             )}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-              {nhomXem !== 'ALL' &&
-                <button className="btn btn-ghost" onClick={() => xuatNhom(nhomXem)}><IcDown /> Xuất nhóm này</button>}
-              <button className="btn btn-gold" onClick={xuatTatCa}><IcDown /> Xuất tất cả (4 file)</button>
+            <div className="legend" style={{ marginLeft: 'auto', padding: 0 }}>
+              <button className="lg-btn" onClick={() => cuonToi('can-chia')}>
+                <i className="lg-can" /> Cần bổ sung</button>
+              <button className="lg-btn" onClick={() => cuonToi('thuong')}>
+                <i className="lg-thuong" /> Đang bán, còn đủ</button>
+              <button className="lg-btn" onClick={() => cuonToi('nguon-kho')}>
+                <i className="lg-kho" /> Kho tổng còn</button>
             </div>
-          </div>
-
-          <div className="legend">
-            <button className="lg-btn" onClick={() => cuonToi('can-chia')}>
-              <i className="lg-can" /> Cần bổ sung (AI tính từ dữ liệu bán)</button>
-            <button className="lg-btn" onClick={() => cuonToi('thuong')}>
-              <i className="lg-thuong" /> Đang bán, còn đủ / hàng chậm</button>
-            <button className="lg-btn" onClick={() => cuonToi('nguon-kho')}>
-              <i className="lg-kho" /> Kho tổng còn — cân nhắc xin thêm</button>
           </div>
           <div className="tbl-wrap">
             <table className="tbl">
