@@ -259,6 +259,15 @@ export default function XinHang() {
         ban: (r) => r.sl_ban_ky ?? 0, ai: (r) => r.sl_ai,
         sl: (r) => r.sl_xin, tong: (r) => (r.ton_truoc ?? 0) + (r.sl_xin || 0),
         ngay: (r) => (r.toc_do > 0) ? (((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 1e9,
+        tt: (r) => {
+          const t = r.tinh_trang || '';
+          if (t.startsWith('Hết hàng') || t === 'Vừa hết hàng' || t === 'Kho hết — cần sản xuất') return 0;
+          if (t === 'Đang bán tốt') return 1;
+          if (t === 'Bán đều') return 2;
+          if (t === 'Bán chậm') return 3;
+          if (t.startsWith('Không bán')) return 4;
+          return 5;
+        },
       }[sortBy.col];
       v = [...v].sort((a, b) => {
         const x = get(a), y = get(b);
@@ -469,7 +478,7 @@ export default function XinHang() {
                 <th className="num sortable" onClick={() => doiSort('sl')}>SL đề nghị{sortIc('sl')}</th>
                 <th className="num sortable" onClick={() => doiSort('tong')}>Tổng tồn{sortIc('tong')}</th>
                 <th className="num sortable" onClick={() => doiSort('ngay')}>Số ngày bán{sortIc('ngay')}</th>
-                <th>Tình trạng</th>
+                <th className="sortable" onClick={() => doiSort('tt')}>Tình trạng{sortIc('tt')}</th>
               </tr></thead>
               <tbody>
                 {hien.map((r, idx) => {
