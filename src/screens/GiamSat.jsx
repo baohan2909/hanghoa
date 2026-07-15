@@ -292,7 +292,7 @@ export default function GiamSat() {
           <div className="card" style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>Cần sản xuất / tái bản</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>Cần sản xuất / tái bản</div>
                 <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>
                   Mã có bán 30 ngày (toàn hệ thống) nhưng kho tổng đã cạn — tín hiệu sản xuất lại, xếp theo mức bán giảm dần.
                 </div>
