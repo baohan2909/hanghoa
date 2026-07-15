@@ -44,12 +44,40 @@ export default function GiamSat() {
     else if (pham === 'kv') { if (!khuVuc) { baoToast('Chọn khu vực'); return; } args.p_khu_vuc = khuVuc; }
     // pham === 'all' -> không truyền gì = toàn hệ thống
     setBusy(true); setLocThe('ALL'); setSortBy(null);
-    const { data, error } = await sb.rpc('fn_canh_bao', args);
+    const { data, error } = await sb.rpc('fn_canh_bao', args).limit(1000000);
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setRows(data || []);
   };
   const nhieuCH = pham !== 'ch';
+  const [xem, setXem] = useState('ch');   // 'ch' theo cửa hàng | 'ma' thống kê theo mã
+
+  // THỐNG KÊ THEO MÃ: gom các dòng thiếu theo barcode, đếm số CH hết
+  const theoMa = useMemo(() => {
+    if (!rows) return [];
+    const m = {};
+    rows.forEach((r) => {
+      let g = m[r.barcode];
+      if (!g) g = m[r.barcode] = {
+        barcode: r.barcode, sku: r.sku, ma_tham_chieu: r.ma_tham_chieu,
+        nganh_3: r.nganh_3, nhom_hang: r.nhom_hang, la_hang_sale: r.la_hang_sale,
+        gia_niem_yet: r.gia_niem_yet, gia_sale: r.gia_sale, hinh_url: r.hinh_url,
+        kho_tong: r.kho_tong, ton_ch_khac: r.ton_ch_khac,
+        so_ch_het: 0, so_ch_canh: 0, ban_tong: 0, ds_ch: [],
+      };
+      if (r.ton_that === 0) g.so_ch_het++; else g.so_ch_canh++;
+      g.ban_tong += r.ban_30 || 0;
+      g.ds_ch.push({ ten: r.ten_ch, ma: r.ma_ch, khu: r.khu_vuc, ton: r.ton_that, ngay: r.ngay_het });
+    });
+    return Object.values(m).map((g) => {
+      // phân loại: kho/CH khác còn nhiều mà nhiều CH hết = PHÂN BỔ SAI; kho cạn = HOT cần SX
+      const nguonCon = g.kho_tong + g.ton_ch_khac;
+      g.loai = (g.so_ch_het >= 2 && g.kho_tong <= 0) ? 'HOT'
+        : (g.so_ch_het >= 2 && nguonCon > 0) ? 'PHAN_BO'
+        : 'THUONG';
+      return g;
+    }).sort((a, b) => b.so_ch_het - a.so_ch_het || b.ban_tong - a.ban_tong);
+  }, [rows]);
 
   const nhomCua = (r) => (r.nhom_hang === 'BH' ? 'BH' : 'NV');
 
@@ -128,7 +156,7 @@ export default function GiamSat() {
   };
 
   const taiCanSX = async () => {
-    const { data, error } = await sb.rpc('fn_can_san_xuat', { p_so_ngay: 30 });
+    const { data, error } = await sb.rpc('fn_can_san_xuat', { p_so_ngay: 30 }).limit(1000000);
     if (!error) { setCanSX(data || []); setMoSX(true); } else baoToast('Loi: ' + error.message);
   };
   const xuatCanSX = async () => {
@@ -200,6 +228,12 @@ export default function GiamSat() {
           </div>
 
           <div className="toolbar">
+            {nhieuCH && (
+              <div className="nhom-tabs" style={{ margin: 0 }}>
+                <button className={'nhom-tab' + (xem === 'ch' ? ' on' : '')} onClick={() => setXem('ch')}>Theo cửa hàng</button>
+                <button className={'nhom-tab' + (xem === 'ma' ? ' on' : '')} onClick={() => setXem('ma')}>Thống kê theo mã</button>
+              </div>
+            )}
             <div className="nhom-tabs" style={{ margin: 0 }}>
               {['ALL', 'BH', 'NV'].map((n) => (
                 <button key={n} className={'nhom-tab' + (nhomXem === n ? ' on' : '')} onClick={() => setNhomXem(n)}>
@@ -212,10 +246,14 @@ export default function GiamSat() {
                 onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 34, width: 220 }} />
               <span style={{ position: 'absolute', left: 10, top: 10, color: 'var(--ink-2)' }}><IcSearch /></span>
             </div>
-            {locThe !== 'ALL' && <button className="btn btn-ghost" onClick={() => setLocThe('ALL')}>Bỏ lọc th\u1ebt</button>}
+            {locThe !== 'ALL' && <button className="btn btn-ghost" onClick={() => setLocThe('ALL')}>Bỏ lọc thẻ</button>}
             <button className="btn btn-gold" style={{ marginLeft: 'auto' }} onClick={xuatExcel}>Xuất Excel</button>
           </div>
 
+          {xem === 'ma' && nhieuCH ? (
+            <BangTheoMa ds={theoMa.filter((g) => nhomXem === 'ALL' || (g.nhom_hang === 'BH' ? 'BH' : 'NV') === nhomXem)
+              .filter((g) => !q || [g.barcode, g.sku, g.ma_tham_chieu, g.nganh_3].some((x) => (x || '').toUpperCase().includes(q.toUpperCase())))} />
+          ) : (
           <div className="card" style={{ padding: 0 }}>
             <div className="tbl-wrap" style={{ maxHeight: '68vh' }}>
               <table className="tbl">
@@ -245,9 +283,10 @@ export default function GiamSat() {
             </div>
             {!hien.length && <div className="empty">
               <div className="t">Không có mã nào theo bộ lọc</div>
-              Thử đổi khoảng ngày hoặc bỏ lọc th\u1ebt.
+              Thử đổi khoảng ngày hoặc bỏ lọc thẻ.
             </div>}
           </div>
+          )}
 
           {/* ===== Cần sản xuất / tái bản — toàn hệ thống ===== */}
           <div className="card" style={{ marginTop: 14 }}>
@@ -403,5 +442,64 @@ function RowSP({ r, anhProps, moNguon, nhieuCH }) {
           : <span style={{ fontSize: 11, color: 'var(--magenta)' }}>Cần SX</span>}
       </td>
     </tr>
+  );
+}
+
+// ===== Bảng THỐNG KÊ THEO MÃ: mã hot / phân bổ sai =====
+function BangTheoMa({ ds }) {
+  const [moRong, setMoRong] = useState({});
+  const nhan = { HOT: 'Mã HOT — cần sản xuất', PHAN_BO: 'Phân bổ sai — điều chuyển', THUONG: '' };
+  const mau = { HOT: 'row-nhom-magenta', PHAN_BO: 'row-nhom-gold', THUONG: '' };
+  if (!ds.length) return <div className="empty" style={{ marginTop: 12 }}>
+    <div className="t">Chưa có mã nào thiếu ở nhiều cửa hàng</div></div>;
+  return (
+    <div className="card" style={{ padding: 0 }}>
+      <div className="tbl-wrap" style={{ maxHeight: '68vh' }}>
+        <table className="tbl">
+          <thead><tr>
+            <th>Sản phẩm</th><th className="num">Số CH hết</th><th className="num">CH cảnh báo</th>
+            <th className="num">Bán 30N (tổng)</th><th className="num">Kho tổng</th><th className="num">CH khác còn</th>
+            <th>Phân loại</th><th></th>
+          </tr></thead>
+          <tbody>
+            {ds.map((g) => (
+              <>
+                <tr key={g.barcode} className={g.loai === 'HOT' ? 'row-can-chia' : g.loai === 'PHAN_BO' ? 'row-thuong' : undefined}>
+                  <td>
+                    <div className="mono" style={{ fontWeight: 600 }}>{g.ma_tham_chieu || g.sku}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3}{g.la_hang_sale ? ' · sale' : ''}</div>
+                  </td>
+                  <td className="num"><b style={{ fontSize: 16, color: 'var(--magenta)' }}>{g.so_ch_het}</b></td>
+                  <td className="num" style={{ color: 'var(--ink-2)' }}>{g.so_ch_canh}</td>
+                  <td className="num" style={{ fontWeight: 600, color: 'var(--teal-deep)' }}>{g.ban_tong}</td>
+                  <td className="num" style={{ color: g.kho_tong > 0 ? 'var(--teal-deep)' : 'var(--magenta)', fontWeight: 600 }}>{g.kho_tong}</td>
+                  <td className="num">{g.ton_ch_khac}</td>
+                  <td>{g.loai !== 'THUONG'
+                    ? <span className={'row-nhom-tag ' + mau[g.loai]}>{nhan[g.loai]}</span>
+                    : <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>—</span>}</td>
+                  <td>
+                    <button className="btn-mini" onClick={() => setMoRong((m) => ({ ...m, [g.barcode]: !m[g.barcode] }))}>
+                      {moRong[g.barcode] ? 'Ẩn' : `${g.ds_ch.length} CH`}
+                    </button>
+                  </td>
+                </tr>
+                {moRong[g.barcode] && (
+                  <tr><td colSpan={8} style={{ background: 'var(--bg)', padding: '6px 12px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {g.ds_ch.map((c, i) => (
+                        <span key={i} className="ch-tag">
+                          {c.ten} <b style={{ color: c.ton === 0 ? 'var(--magenta)' : 'var(--ink)' }}>
+                            {c.ton === 0 ? `hết ${c.ngay}d` : `còn ${c.ton}`}</b>
+                        </span>
+                      ))}
+                    </div>
+                  </td></tr>
+                )}
+              </>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

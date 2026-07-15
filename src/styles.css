@@ -37,7 +37,7 @@ input, select { font-family: inherit; font-size: 14px; }
 
 /* ---------- COMMAND BAR (signature) ---------- */
 .cmdbar {
-  position: relative;
+  position: relative; z-index: 30;
   background: var(--grad); color: #fff;
   border-radius: var(--r); padding: 18px 20px;
   box-shadow: var(--shadow-lg); margin-bottom: 16px;
@@ -145,7 +145,8 @@ input, select { font-family: inherit; font-size: 14px; }
 .sel { position: relative; }
 .sel-btn { display: flex; align-items: center; gap: 8px; min-width: 150px;
   padding: 0 12px; height: 40px; border: 0; border-radius: 10px; background: #fff;
-  color: var(--ink); font-size: 13.5px; font-weight: 500; text-align: left; width: 100%; }
+  color: var(--navy); font-size: 13.5px; font-weight: 600; text-align: left; width: 100%; cursor: pointer; }
+.sel-btn:hover { box-shadow: inset 0 0 0 1.5px var(--teal); }
 .sel-btn:focus-visible { outline: 2px solid var(--teal); }
 .sel-btn span:first-child { flex: 1; }
 .sel-pop { position: absolute; z-index: 200; top: calc(100% + 6px); left: 0;
@@ -409,7 +410,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 
 /* ---------- Popup FIXED: nổi tuyệt đối trên mọi thứ (lỗi đè) ---------- */
 .ch-pop-fixed, .sel-pop-fixed {
-  position: fixed; z-index: 9999; background: #fff; border-radius: 12px;
+  position: fixed; z-index: 99999; background: #fff; border-radius: 12px;
   box-shadow: 0 18px 50px rgba(20,33,58,.32), 0 0 0 1px var(--line);
   max-height: 320px; overflow-y: auto; padding: 4px;
 }
@@ -579,3 +580,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .flt-in::placeholder { color: #B4BCC6; font-weight: 400; }
 .flt-in:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 2px rgba(63,182,168,.15); }
 .flt-in.num { text-align: center; }
+
+/* Tag cửa hàng trong thống kê theo mã */
+.ch-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px;
+  background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 3px 10px; }
