@@ -62,7 +62,7 @@ input, select { font-family: inherit; font-size: 14px; }
   background: var(--surface); border-right: 1px solid var(--line);
   display: flex; flex-direction: column; padding: 14px 10px;
   overflow-y: auto; overflow-x: hidden; z-index: 60;
-  transition: width .28s cubic-bezier(.4,.14,.3,1);
+  transition: width .18s cubic-bezier(.4,0,.2,1);
 }
 /* ---- Chế độ THU GỌN: chỉ icon, mượt ---- */
 .sidebar.gon { width: 72px; padding: 14px 8px; }
@@ -115,7 +115,7 @@ input, select { font-family: inherit; font-size: 14px; }
 .side-install:hover { filter: brightness(1.06); }
 .sidebar.gon .side-install { padding: 9px 0; }
 
-.main { flex: 1; min-width: 0; padding: 16px 18px 90px; }
+.main { flex: 1; min-width: 0; padding: 16px 18px 90px; contain: layout style; }
 
 /* Thanh trên cho mobile */
 .mtop { display: none; }
@@ -203,6 +203,8 @@ input, select { font-family: inherit; font-size: 14px; }
 .tbl-wrap { background: var(--surface); border-radius: var(--r);
   box-shadow: var(--shadow); overflow: auto; max-height: 72vh; }
 table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
+/* Bảng lớn: bỏ qua render dòng ngoài viewport -> menu thu gọn/cuộn mượt */
+.tbl tbody tr { content-visibility: auto; contain-intrinsic-size: auto 44px; }
 .tbl thead th { position: sticky; top: 0; z-index: 5;
   background: #FBFAF6; color: var(--ink-2); font-weight: 600; font-size: 11.5px;
   text-transform: uppercase; letter-spacing: .4px;
