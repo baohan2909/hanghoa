@@ -180,6 +180,9 @@ export default function XinHang() {
   const [hoverAnh, setHoverAnh] = useState(null);   // {url, x, y} hover phóng gấp 4
   const [giuInfo, setGiuInfo] = useState(null);     // {het_han, phut} — đang giữ hàng
   const [sortBy, setSortBy] = useState(null);        // {col, dir} — sort cột (mục 7)
+  const [flt, setFlt] = useState({});                // filter gõ theo từng cột
+  const datFlt = (col, val) => setFlt((f) => ({ ...f, [col]: val }));
+  const coFlt = Object.values(flt).some((x) => (x || '').trim() !== '');
   const doiSort = (col) => setSortBy((s) =>
     s && s.col === col ? (s.dir === 'asc' ? { col, dir: 'desc' } : null) : { col, dir: 'asc' });
   const luuTimer = useRef(null);
@@ -251,6 +254,36 @@ export default function XinHang() {
       const k = q.toUpperCase();
       v = v.filter((r) => [r.barcode, r.sku, r.ma_tham_chieu].some((x) => (x || '').toUpperCase().includes(k)));
     }
+    // FILTER theo từng cột: cột số hỗ trợ "3", ">3", "<3", "3-5"; cột chữ khớp gần đúng
+    const khopSo = (val, s) => {
+      s = (s || '').trim(); if (!s) return true;
+      let m;
+      if ((m = s.match(/^>=?\s*(-?\d+)/))) return val >= +m[1];
+      if ((m = s.match(/^<=?\s*(-?\d+)/))) return val <= +m[1];
+      if ((m = s.match(/^(-?\d+)\s*-\s*(-?\d+)$/))) return val >= +m[1] && val <= +m[2];
+      if ((m = s.match(/^=?\s*(-?\d+)$/))) return val === +m[1];
+      return String(val).includes(s);
+    };
+    const khopChu = (txt, s) => !s.trim() || (txt || '').toLowerCase().includes(s.trim().toLowerCase());
+    const gia = (r) => r.la_hang_sale ? r.gia_sale : r.gia_niem_yet;
+    const colVal = {
+      sp: (r) => [r.ma_tham_chieu, r.sku, r.barcode].filter(Boolean).join(' '),
+      tt: (r) => r.tinh_trang || '',
+    };
+    const colNum = {
+      gia: (r) => gia(r) || 0, ton: (r) => r.ton_truoc ?? 0, kho: (r) => r.kho_tong ?? 0,
+      ban: (r) => r.sl_ban_ky ?? 0, ai: (r) => r.sl_ai ?? 0, sl: (r) => r.sl_xin ?? 0,
+      tong: (r) => (r.ton_truoc ?? 0) + (r.sl_xin || 0),
+      ngay: (r) => r.toc_do > 0 ? Math.round(((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 0,
+    };
+    v = v.filter((r) => {
+      for (const [c, val] of Object.entries(flt)) {
+        if (!(val || '').trim()) continue;
+        if (colVal[c] && !khopChu(colVal[c](r), val)) return false;
+        if (colNum[c] && !khopSo(colNum[c](r), val)) return false;
+      }
+      return true;
+    });
     if (sortBy) {
       const get = {
         sp: (r) => r.ma_tham_chieu || r.sku || '',
@@ -276,7 +309,7 @@ export default function XinHang() {
       });
     }
     return v;
-  }, [rows, nhomXem, q, sortBy]);
+  }, [rows, nhomXem, q, sortBy, flt]);
   const hien = useMemo(() => hienAll.slice(0, gioiHan), [hienAll, gioiHan]);
   useEffect(() => { setGioiHan(200); }, [nhomXem, q]);
 
@@ -443,6 +476,7 @@ export default function XinHang() {
             <button className="btn btn-ghost" onClick={() => { setSortBy(null); baoToast('Đã xếp lại theo thứ tự ưu tiên mặc định'); }}
               disabled={!sortBy} title="Quay lại thứ tự ưu tiên ban đầu (cần cấp → đang bán → hàng chậm → kho tổng)">
               <IcRefresh /> Xếp mặc định</button>
+            {coFlt && <button className="btn btn-ghost" onClick={() => setFlt({})} title="Xóa mọi bộ lọc cột">Xóa lọc</button>}
             <button className="btn btn-ghost" onClick={() => {
               if (window.confirm('Xóa toàn bộ số lượng đề nghị và bản nháp — quay lại màn chọn cửa hàng?')) {
                 localStorage.removeItem(KEY(maCH));
@@ -479,6 +513,24 @@ export default function XinHang() {
                 <th className="num sortable" onClick={() => doiSort('tong')}>Tổng tồn{sortIc('tong')}</th>
                 <th className="num sortable" onClick={() => doiSort('ngay')}>Số ngày bán{sortIc('ngay')}</th>
                 <th className="sortable" onClick={() => doiSort('tt')}>Tình trạng{sortIc('tt')}</th>
+              </tr>
+              <tr className="flt-row">
+                <th><input className="flt-in" placeholder="lọc mã…" value={flt.sp || ''} onChange={(e) => datFlt('sp', e.target.value)} /></th>
+                <th><input className="flt-in" placeholder="giá" value={flt.gia || ''} onChange={(e) => datFlt('gia', e.target.value)} /></th>
+                <th><input className="flt-in num" placeholder="vd >0" value={flt.ton || ''} onChange={(e) => datFlt('ton', e.target.value)} /></th>
+                <th><input className="flt-in num" placeholder="số" value={flt.kho || ''} onChange={(e) => datFlt('kho', e.target.value)} /></th>
+                <th><input className="flt-in num" placeholder="số" value={flt.ban || ''} onChange={(e) => datFlt('ban', e.target.value)} /></th>
+                <th><input className="flt-in num" placeholder=">0" value={flt.ai || ''} onChange={(e) => datFlt('ai', e.target.value)} /></th>
+                <th><input className="flt-in num" placeholder="vd 3" value={flt.sl || ''} onChange={(e) => datFlt('sl', e.target.value)} /></th>
+                <th><input className="flt-in num" placeholder="số" value={flt.tong || ''} onChange={(e) => datFlt('tong', e.target.value)} /></th>
+                <th><input className="flt-in num" placeholder="số" value={flt.ngay || ''} onChange={(e) => datFlt('ngay', e.target.value)} /></th>
+                <th>
+                  <input className="flt-in" list="dl-tt" placeholder="hết hàng…" value={flt.tt || ''} onChange={(e) => datFlt('tt', e.target.value)} />
+                  <datalist id="dl-tt">
+                    <option value="Hết hàng" /><option value="Vừa hết hàng" /><option value="Đang bán tốt" />
+                    <option value="Bán đều" /><option value="Bán chậm" /><option value="Không bán" /><option value="Chưa phát sinh" />
+                  </datalist>
+                </th>
               </tr></thead>
               <tbody>
                 {hien.map((r, idx) => {

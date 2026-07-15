@@ -568,3 +568,12 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 
 /* cmdbar cho phân hệ Thiếu hàng */
 .cmd-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: relative; z-index: 1; }
+
+/* Hàng ô filter theo cột (Đề nghị hàng) */
+.flt-row th { padding: 4px 6px !important; background: var(--bg); position: sticky;
+  top: 33px; z-index: 4; border-bottom: 1px solid var(--line); }
+.flt-in { width: 100%; min-width: 52px; border: 1px solid var(--line); border-radius: 6px;
+  padding: 4px 7px; font-size: 11.5px; background: #fff; color: var(--ink); font-family: inherit; }
+.flt-in::placeholder { color: #B4BCC6; font-weight: 400; }
+.flt-in:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 2px rgba(63,182,168,.15); }
+.flt-in.num { text-align: center; }

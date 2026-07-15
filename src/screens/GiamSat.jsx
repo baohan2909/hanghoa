@@ -94,7 +94,7 @@ export default function GiamSat() {
 
   const doiSort = (col) => setSortBy((s) =>
     s && s.col === col ? (s.dir === 'asc' ? { col, dir: 'desc' } : null) : { col, dir: 'asc' });
-  const sortIc = (col) => sortBy?.col === col ? (sortBy.dir === 'asc' ? ' \u25B2' : ' \u25BC') : '';
+  const sortIc = (col) => sortBy?.col === col ? (sortBy.dir === 'asc' ? ' ▲' : ' ▼') : '';
   const bacThe = (id) => setLocThe((v) => v === id ? 'ALL' : id);
 
   const moNguon = async (r) => {
@@ -152,109 +152,109 @@ export default function GiamSat() {
     <>
       <div className="cmdbar">
         <div className="cmd-title">
-          <h2>Thi\u1ebfu h\u00e0ng</h2>
-          <p>Ki\u1ec3m tra t\u00ecnh tr\u1ea1ng thi\u1ebfu h\u00e0ng theo kho\u1ea3ng th\u1eddi gian \u2014 \u0111\u1ec1 ngh\u1ecb b\u1ed5 sung, c\u1ea3nh b\u00e1o, t\u00ecm ngu\u1ed3n \u0111i\u1ec1u chuy\u1ec3n g\u1ea7n nh\u1ea5t.</p>
+          <h2>Thiếu hàng</h2>
+          <p>Kiểm tra tình trạng thiếu hàng theo khoảng thời gian — đề nghị bổ sung, cảnh báo, tìm nguồn điều chuyển gần nhất.</p>
         </div>
         <div className="cmd-row">
           {user.vai_tro !== 'CH' && (
-            <Sel value={maCH} onChange={setMaCH} placeholder="Ch\u1ecdn c\u1eeda h\u00e0ng"
+            <Sel value={maCH} onChange={setMaCH} placeholder="Chọn cửa hàng"
               options={dsCH.map((c) => ({ value: c.ma_ch, label: `${c.ten} (${c.ma_ch})` }))} style={{ minWidth: 260 }} />
           )}
-          <DateBox label="Ng\u00e0y t\u1eeb" value={tu} onChange={setTu} />
-          <DateBox label="Ng\u00e0y \u0111\u1ebfn" value={den} onChange={setDen} />
+          <DateBox label="Ngày từ" value={tu} onChange={setTu} />
+          <DateBox label="Ngày đến" value={den} onChange={setDen} />
           <button className="btn btn-primary" onClick={quet} disabled={busy}>
-            <IcSearch /> {busy ? '\u0110ang ki\u1ec3m tra\u2026' : 'Ki\u1ec3m tra thi\u1ebfu h\u00e0ng'}
+            <IcSearch /> {busy ? 'Đang kiểm tra…' : 'Kiểm tra thiếu hàng'}
           </button>
-          {rows && <span className="sla-chip">{hien.length} m\u00e3</span>}
+          {rows && <span className="sla-chip">{hien.length} mã</span>}
         </div>
       </div>
 
       {rows && (
         <>
           <div className="th-cards">
-            <TheTK id="BO_SUNG" on={locThe} set={bacThe} so={tk.boSung} nhan="C\u1ea7n b\u1ed5 sung" mau="magenta" />
-            <TheTK id="CANH_BAO" on={locThe} set={bacThe} so={tk.canhBao} nhan="C\u1ea3nh b\u00e1o" mau="gold" />
-            <TheTK id="HET7" on={locThe} set={bacThe} so={tk.het7} nhan="H\u1ebft > 7 ng\u00e0y" mau="magenta" />
-            <TheTK id="CHUYEN" on={locThe} set={bacThe} so={tk.chuyen} nhan="\u0110ang \u0111i\u1ec1u chuy\u1ec3n" mau="teal" />
-            <TheTK id="KHO" on={locThe} set={bacThe} so={tk.khoCon} nhan="Kho t\u1ed5ng c\u00f2n" mau="teal" />
-            <TheTK id="CH_KHAC" on={locThe} set={bacThe} so={tk.chKhac} nhan="CH kh\u00e1c c\u00f2n" mau="teal" />
+            <TheTK id="BO_SUNG" on={locThe} set={bacThe} so={tk.boSung} nhan="Cần bổ sung" mau="magenta" />
+            <TheTK id="CANH_BAO" on={locThe} set={bacThe} so={tk.canhBao} nhan="Cảnh báo" mau="gold" />
+            <TheTK id="HET7" on={locThe} set={bacThe} so={tk.het7} nhan="Hết > 7 ngày" mau="magenta" />
+            <TheTK id="CHUYEN" on={locThe} set={bacThe} so={tk.chuyen} nhan="Đang điều chuyển" mau="teal" />
+            <TheTK id="KHO" on={locThe} set={bacThe} so={tk.khoCon} nhan="Kho tổng còn" mau="teal" />
+            <TheTK id="CH_KHAC" on={locThe} set={bacThe} so={tk.chKhac} nhan="CH khác còn" mau="teal" />
           </div>
 
           <div className="toolbar">
             <div className="nhom-tabs" style={{ margin: 0 }}>
               {['ALL', 'BH', 'NV'].map((n) => (
                 <button key={n} className={'nhom-tab' + (nhomXem === n ? ' on' : '')} onClick={() => setNhomXem(n)}>
-                  {n === 'ALL' ? 'T\u1ea5t c\u1ea3' : n === 'BH' ? 'B\u1ea3o hi\u1ec3m' : 'N\u00f3n v\u1ea3i'}
+                  {n === 'ALL' ? 'Tất cả' : n === 'BH' ? 'Bảo hiểm' : 'Nón vải'}
                 </button>
               ))}
             </div>
             <div style={{ position: 'relative' }}>
-              <input type="search" placeholder="T\u00ecm m\u00e3 / SKU / nh\u00f3m" value={q}
+              <input type="search" placeholder="Tìm mã / SKU / nhóm" value={q}
                 onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 34, width: 220 }} />
               <span style={{ position: 'absolute', left: 10, top: 10, color: 'var(--ink-2)' }}><IcSearch /></span>
             </div>
-            {locThe !== 'ALL' && <button className="btn btn-ghost" onClick={() => setLocThe('ALL')}>B\u1ecf l\u1ecdc th\u1ebt</button>}
-            <button className="btn btn-gold" style={{ marginLeft: 'auto' }} onClick={xuatExcel}>Xu\u1ea5t Excel</button>
+            {locThe !== 'ALL' && <button className="btn btn-ghost" onClick={() => setLocThe('ALL')}>Bỏ lọc th\u1ebt</button>}
+            <button className="btn btn-gold" style={{ marginLeft: 'auto' }} onClick={xuatExcel}>Xuất Excel</button>
           </div>
 
           <div className="card" style={{ padding: 0 }}>
             <div className="tbl-wrap" style={{ maxHeight: '68vh' }}>
               <table className="tbl">
                 <thead><tr>
-                  <th className="sortable" onClick={() => doiSort('sp')}>S\u1ea3n ph\u1ea9m{sortIc('sp')}</th>
-                  <th className="num sortable" onClick={() => doiSort('gia')}>Gi\u00e1{sortIc('gia')}</th>
-                  <th className="num sortable" onClick={() => doiSort('ban')}>SL b\u00e1n k\u1ef3{sortIc('ban')}</th>
-                  <th className="num sortable" onClick={() => doiSort('ban30')}>B\u00e1n 30N{sortIc('ban30')}</th>
-                  <th className="num sortable" onClick={() => doiSort('that')}>T\u1ed3n th\u1ef1c{sortIc('that')}</th>
-                  <th className="num">T\u1ed3n d\u1ef1 ki\u1ebfn</th>
-                  <th className="num sortable" onClick={() => doiSort('kho')}>Kho t\u1ed5ng{sortIc('kho')}</th>
-                  <th className="num sortable" onClick={() => doiSort('chk')}>CH kh\u00e1c{sortIc('chk')}</th>
-                  <th className="num sortable" onClick={() => doiSort('het')}>Ng\u00e0y h\u1ebft{sortIc('het')}</th>
-                  <th>T\u00ecnh tr\u1ea1ng</th>
-                  <th>Ngu\u1ed3n g\u1ea7n</th>
+                  <th className="sortable" onClick={() => doiSort('sp')}>Sản phẩm{sortIc('sp')}</th>
+                  <th className="num sortable" onClick={() => doiSort('gia')}>Giá{sortIc('gia')}</th>
+                  <th className="num sortable" onClick={() => doiSort('ban')}>SL bán kỳ{sortIc('ban')}</th>
+                  <th className="num sortable" onClick={() => doiSort('ban30')}>Bán 30N{sortIc('ban30')}</th>
+                  <th className="num sortable" onClick={() => doiSort('that')}>Tồn thực{sortIc('that')}</th>
+                  <th className="num">Tồn dự kiến</th>
+                  <th className="num sortable" onClick={() => doiSort('kho')}>Kho tổng{sortIc('kho')}</th>
+                  <th className="num sortable" onClick={() => doiSort('chk')}>CH khác{sortIc('chk')}</th>
+                  <th className="num sortable" onClick={() => doiSort('het')}>Ngày hết{sortIc('het')}</th>
+                  <th>Tình trạng</th>
+                  <th>Nguồn gần</th>
                 </tr></thead>
                 <tbody>
-                  {dsBoSung.length > 0 && <RowNhom ten="\u0110\u1ec0 NGH\u1eca B\u1ed4 SUNG \u2014 kh\u1ea9n c\u1ea5p" mau="magenta" />}
+                  {dsBoSung.length > 0 && <RowNhom ten="ĐỀ NGHỊ BỔ SUNG — khẩn cấp" mau="magenta" />}
                   {dsBoSung.map((r) => <RowSP key={r.barcode} r={r} anhProps={anhProps} moNguon={moNguon} />)}
-                  {dsCanhBao.length > 0 && <RowNhom ten="C\u1ea2NH B\u00c1O \u2014 c\u00f2n t\u1ed3n nh\u01b0ng thi\u1ebfu" mau="gold" />}
+                  {dsCanhBao.length > 0 && <RowNhom ten="CẢNH BÁO — còn tồn nhưng thiếu" mau="gold" />}
                   {dsCanhBao.map((r) => <RowSP key={r.barcode} r={r} anhProps={anhProps} moNguon={moNguon} />)}
-                  {dsDu.length > 0 && locThe === 'ALL' && <RowNhom ten="\u0110\u1ee6 H\u00c0NG" mau="teal" />}
+                  {dsDu.length > 0 && locThe === 'ALL' && <RowNhom ten="ĐỦ HÀNG" mau="teal" />}
                   {locThe === 'ALL' && dsDu.map((r) => <RowSP key={r.barcode} r={r} anhProps={anhProps} moNguon={moNguon} />)}
                 </tbody>
               </table>
             </div>
             {!hien.length && <div className="empty">
-              <div className="t">Kh\u00f4ng c\u00f3 m\u00e3 n\u00e0o theo b\u1ed9 l\u1ecdc</div>
-              Th\u1eed \u0111\u1ed5i kho\u1ea3ng ng\u00e0y ho\u1eb7c b\u1ecf l\u1ecdc th\u1ebt.
+              <div className="t">Không có mã nào theo bộ lọc</div>
+              Thử đổi khoảng ngày hoặc bỏ lọc th\u1ebt.
             </div>}
           </div>
 
-          {/* ===== C\u1ea7n s\u1ea3n xu\u1ea5t / t\u00e1i b\u1ea3n \u2014 to\u00e0n h\u1ec7 th\u1ed1ng ===== */}
+          {/* ===== Cần sản xuất / tái bản — toàn hệ thống ===== */}
           <div className="card" style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>C\u1ea7n s\u1ea3n xu\u1ea5t / t\u00e1i b\u1ea3n</div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--navy)' }}>Cần sản xuất / tái bản</div>
                 <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>
-                  M\u00e3 c\u00f3 b\u00e1n 30 ng\u00e0y (to\u00e0n h\u1ec7 th\u1ed1ng) nh\u01b0ng kho t\u1ed5ng \u0111\u00e3 c\u1ea1n \u2014 t\u00edn hi\u1ec7u s\u1ea3n xu\u1ea5t l\u1ea1i, x\u1ebfp theo m\u1ee9c b\u00e1n gi\u1ea3m d\u1ea7n.
+                  Mã có bán 30 ngày (toàn hệ thống) nhưng kho tổng đã cạn — tín hiệu sản xuất lại, xếp theo mức bán giảm dần.
                 </div>
               </div>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                {!moSX && <button className="btn btn-primary" onClick={taiCanSX}>Qu\u00e9t to\u00e0n h\u1ec7 th\u1ed1ng</button>}
-                {moSX && canSX?.length > 0 && <button className="btn btn-gold" onClick={xuatCanSX}>Xu\u1ea5t Excel ({canSX.length})</button>}
+                {!moSX && <button className="btn btn-primary" onClick={taiCanSX}>Quét toàn hệ thống</button>}
+                {moSX && canSX?.length > 0 && <button className="btn btn-gold" onClick={xuatCanSX}>Xuất Excel ({canSX.length})</button>}
               </div>
             </div>
             {moSX && (canSX?.length > 0 ? (
               <div className="tbl-wrap" style={{ marginTop: 10, maxHeight: 360 }}>
                 <table className="tbl">
                   <thead><tr>
-                    <th>S\u1ea3n ph\u1ea9m</th><th className="num">B\u00e1n 30N</th><th className="num">S\u1ed1 CH b\u00e1n</th>
-                    <th className="num">T\u1ed3n c\u00f2n CH</th><th className="num">Kho t\u1ed5ng</th>
+                    <th>Sản phẩm</th><th className="num">Bán 30N</th><th className="num">Số CH bán</th>
+                    <th className="num">Tồn còn CH</th><th className="num">Kho tổng</th>
                   </tr></thead>
                   <tbody>
                     {canSX.map((r) => (
                       <tr key={r.barcode}>
                         <td><div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
-                          <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}{r.la_hang_sale ? ' \u00b7 sale' : ''}</div></td>
+                          <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}{r.la_hang_sale ? ' · sale' : ''}</div></td>
                         <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.ban_toan_ht}</td>
                         <td className="num">{r.so_ch_ban}</td>
                         <td className="num">{r.ton_con_o_ch}</td>
@@ -265,15 +265,15 @@ export default function GiamSat() {
                 </table>
               </div>
             ) : <div className="empty" style={{ marginTop: 10 }}>
-                <div className="t">Kh\u00f4ng c\u00f3 m\u00e3 n\u00e0o c\u1ea7n s\u1ea3n xu\u1ea5t</div>M\u1ecdi m\u00e3 \u0111ang b\u00e1n \u0111\u1ec1u c\u00f2n ngu\u1ed3n \u1edf kho t\u1ed5ng.</div>)}
+                <div className="t">Không có mã nào cần sản xuất</div>Mọi mã đang bán đều còn nguồn ở kho tổng.</div>)}
           </div>
         </>
       )}
 
       {!rows && !busy && (
         <div className="empty" style={{ marginTop: 30 }}>
-          <div className="t">Ch\u1ecdn c\u1eeda h\u00e0ng v\u00e0 kho\u1ea3ng ng\u00e0y, r\u1ed3i b\u1ea5m "Ki\u1ec3m tra thi\u1ebfu h\u00e0ng"</div>
-          H\u1ec7 th\u1ed1ng qu\u00e9t m\u00e3 \u0111\u00e3 b\u00e1n / h\u1ebft h\u00e0ng / c\u00f2n t\u1ed3n nh\u01b0ng thi\u1ebfu, k\u00e8m ngu\u1ed3n \u0111i\u1ec1u chuy\u1ec3n g\u1ea7n nh\u1ea5t.
+          <div className="t">Chọn cửa hàng và khoảng ngày, rồi bấm "Kiểm tra thiếu hàng"</div>
+          Hệ thống quét mã đã bán / hết hàng / còn tồn nhưng thiếu, kèm nguồn điều chuyển gần nhất.
         </div>
       )}
 
@@ -293,28 +293,28 @@ export default function GiamSat() {
             <div className="ng-head">
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{chiTiet.r.ma_tham_chieu || chiTiet.r.sku}</div>
-                <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>{chiTiet.r.nganh_3} \u00b7 Ngu\u1ed3n c\u00f2n h\u00e0ng g\u1ea7n nh\u1ea5t</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>{chiTiet.r.nganh_3} · Nguồn còn hàng gần nhất</div>
               </div>
-              <button className="ng-close" onClick={() => setChiTiet(null)}>\u2715</button>
+              <button className="ng-close" onClick={() => setChiTiet(null)}>✕</button>
             </div>
             <div className="ng-sum">
-              <span>Kho t\u1ed5ng: <b style={{ color: chiTiet.r.kho_tong > 0 ? 'var(--teal-deep)' : 'var(--magenta)' }}>{chiTiet.r.kho_tong}</b></span>
-              <span>T\u1ed3n \u1edf CH kh\u00e1c: <b>{chiTiet.r.ton_ch_khac}</b> ({chiTiet.r.so_ch_khac} CH)</span>
+              <span>Kho tổng: <b style={{ color: chiTiet.r.kho_tong > 0 ? 'var(--teal-deep)' : 'var(--magenta)' }}>{chiTiet.r.kho_tong}</b></span>
+              <span>Tồn ở CH khác: <b>{chiTiet.r.ton_ch_khac}</b> ({chiTiet.r.so_ch_khac} CH)</span>
             </div>
-            {!chiTiet.ds ? <div className="empty" style={{ padding: 20 }}>\u0110ang t\u00ecm ngu\u1ed3n g\u1ea7n\u2026</div>
+            {!chiTiet.ds ? <div className="empty" style={{ padding: 20 }}>Đang tìm nguồn gần…</div>
               : chiTiet.ds.length === 0 ? <div className="empty" style={{ padding: 20 }}>
-                  <div className="t">Kh\u00f4ng n\u01a1i n\u00e0o c\u00f2n h\u00e0ng</div>C\u1ea7n s\u1ea3n xu\u1ea5t / t\u00e1i b\u1ea3n m\u00e3 n\u00e0y.</div>
+                  <div className="t">Không nơi nào còn hàng</div>Cần sản xuất / tái bản mã này.</div>
               : (
                 <div className="ng-list">
                   {chiTiet.ds.map((n) => (
                     <div key={n.ma_ch} className="ng-item">
                       <div className="ng-item-l">
                         {n.la_kho_tong
-                          ? <span className="chip teal" style={{ marginRight: 6 }}>KHO T\u1ed4NG</span>
-                          : <span className="ng-dist">{n.khoang_cach != null ? n.khoang_cach.toFixed(1) + ' km' : '\u2014'}</span>}
+                          ? <span className="chip teal" style={{ marginRight: 6 }}>KHO TỔNG</span>
+                          : <span className="ng-dist">{n.khoang_cach != null ? n.khoang_cach.toFixed(1) + ' km' : '—'}</span>}
                         <span>{n.ten}</span>
                       </div>
-                      <div className="ng-item-r"><b>{n.ton}</b><span className="ng-du"> (d\u1ef1 {n.ton_du_kien})</span></div>
+                      <div className="ng-item-r"><b>{n.ton}</b><span className="ng-du"> (dự {n.ton_du_kien})</span></div>
                     </div>
                   ))}
                 </div>
@@ -343,8 +343,8 @@ function RowSP({ r, anhProps, moNguon }) {
   const gia = r.la_hang_sale ? r.gia_sale : r.gia_niem_yet;
   const bac = r.dang === 'BO_SUNG' ? 'can-chia' : r.dang === 'CANH_BAO' ? 'thuong' : '';
   const tt = r.ton_that === 0
-    ? (r.ban_30 > 0 ? `H\u1ebft h\u00e0ng ${r.ngay_het} ng\u00e0y` : 'H\u1ebft h\u00e0ng')
-    : r.dang === 'CANH_BAO' ? `S\u1eafp h\u1ebft \u2014 \u0111\u1ee7 ~${r.muc} ng\u00e0y` : '\u0110\u1ee7 h\u00e0ng';
+    ? (r.ban_30 > 0 ? `Hết hàng ${r.ngay_het} ngày` : 'Hết hàng')
+    : r.dang === 'CANH_BAO' ? `Sắp hết — đủ ~${r.muc} ngày` : 'Đủ hàng';
   const ttMau = r.ton_that === 0 ? 'tt-het' : r.dang === 'CANH_BAO' ? 'tt-cham' : 'tt-tot';
   const dangChuyen = r.dang_chuyen > 0;
   return (
@@ -356,27 +356,27 @@ function RowSP({ r, anhProps, moNguon }) {
           </div>
           <div>
             <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
-            <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}{r.la_hang_sale ? ' \u00b7 sale' : ''}</div>
+            <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}{r.la_hang_sale ? ' · sale' : ''}</div>
           </div>
         </div>
       </td>
-      <td className="num">{gia ? gia.toLocaleString('vi-VN') + '\u0111' : '\u2014'}</td>
+      <td className="num">{gia ? gia.toLocaleString('vi-VN') + 'đ' : '—'}</td>
       <td className="num" style={{ fontWeight: 700 }}>{r.sl_ban}</td>
       <td className="num" style={{ color: 'var(--ink-2)' }}>{r.ban_30}</td>
       <td className="num" style={{ fontWeight: 700, color: r.ton_that === 0 ? 'var(--magenta)' : 'var(--ink)' }}>{r.ton_that}</td>
       <td className="num">
         {dangChuyen
-          ? <span className="badge-chuyen" title={`\u0110ang \u0111i\u1ec1u chuy\u1ec3n ${r.dang_chuyen}`}><IcTruck style={{ verticalAlign: -2, width: 13, height: 13 }} /> {r.ton_du_kien}</span>
+          ? <span className="badge-chuyen" title={`Đang điều chuyển ${r.dang_chuyen}`}><IcTruck style={{ verticalAlign: -2, width: 13, height: 13 }} /> {r.ton_du_kien}</span>
           : <span style={{ color: 'var(--ink-2)' }}>{r.ton_du_kien}</span>}
       </td>
       <td className="num" style={{ color: r.kho_tong > 0 ? 'var(--teal-deep)' : 'var(--magenta)', fontWeight: 600 }}>{r.kho_tong}</td>
       <td className="num">{r.ton_ch_khac > 0 ? <span style={{ color: 'var(--teal-deep)' }}>{r.ton_ch_khac}</span> : <span style={{ color: 'var(--ink-2)' }}>0</span>}</td>
-      <td className="num">{r.ton_that === 0 && r.ngay_het > 0 ? <b>{r.ngay_het}d</b> : '\u2014'}</td>
+      <td className="num">{r.ton_that === 0 && r.ngay_het > 0 ? <b>{r.ngay_het}d</b> : '—'}</td>
       <td><span className={'tt ' + ttMau}>{tt}</span></td>
       <td>
         {(r.kho_tong > 0 || r.ton_ch_khac > 0)
-          ? <button className="btn-mini" onClick={() => moNguon(r)}>T\u00ecm ngu\u1ed3n</button>
-          : <span style={{ fontSize: 11, color: 'var(--magenta)' }}>C\u1ea7n SX</span>}
+          ? <button className="btn-mini" onClick={() => moNguon(r)}>Tìm nguồn</button>
+          : <span style={{ fontSize: 11, color: 'var(--magenta)' }}>Cần SX</span>}
       </td>
     </tr>
   );
