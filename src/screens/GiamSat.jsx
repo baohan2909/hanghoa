@@ -8,12 +8,13 @@ import { useApp } from '../App.jsx';
 // Kiểm tra, cảnh báo, điều chuyển. Độc lập với phân hệ Đề nghị hàng.
 const iso = (d) => d.toISOString().slice(0, 10);
 // Server Supabase chặn tối đa 1000 dòng/lượt -> tự phân trang gộp đủ toàn bộ
-const rpcAll = async (fn, args) => {
+const rpcAll = async (fn, args, onProgress) => {
   const KHOI = 1000; let tat = []; let i = 0;
   for (;;) {
     const { data, error } = await sb.rpc(fn, args).range(i * KHOI, i * KHOI + KHOI - 1);
     if (error) return { data: null, error };
     tat = tat.concat(data || []);
+    if (onProgress) onProgress(tat.length);
     if (!data || data.length < KHOI || i > 300) break;   // i>300 = van an toàn 300k dòng
     i++;
   }
@@ -50,13 +51,14 @@ export default function GiamSat() {
     }
   }, []);
 
+  const [daTai, setDaTai] = useState(0);
   const quet = async () => {
     const args = { p_tu: tu, p_den: den };
     if (pham === 'ch') { if (!maCH) { baoToast('Chọn cửa hàng'); return; } args.p_ma_ch = maCH; }
     else if (pham === 'kv') { if (!khuVuc) { baoToast('Chọn khu vực'); return; } args.p_khu_vuc = khuVuc; }
     // pham === 'all' -> không truyền gì = toàn hệ thống
-    setBusy(true); setLocThe('ALL'); setSortBy(null);
-    const { data, error } = await rpcAll('fn_canh_bao', args);
+    setBusy(true); setLocThe('ALL'); setSortBy(null); setDaTai(0); setRows(null);
+    const { data, error } = await rpcAll('fn_canh_bao', args, setDaTai);
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setRows(data || []);
@@ -305,6 +307,14 @@ export default function GiamSat() {
           )}
 
         </>
+      )}
+
+      {busy && (
+        <div className="card quet-load" style={{ marginTop: 20 }}>
+          <div className="quet-ring" />
+          <div className="quet-t">Đang quét thiếu hàng…</div>
+          <div className="quet-s">{daTai > 0 ? `đã tải ${daTai.toLocaleString('vi-VN')} mã` : 'đang kết nối dữ liệu'}</div>
+        </div>
       )}
 
       {!rows && !busy && (

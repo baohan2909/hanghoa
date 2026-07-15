@@ -482,7 +482,7 @@ export default function XinHang() {
 
           <div className="toolbar">
             <div style={{ position: 'relative' }}>
-              <input type="search" placeholder="Tìm barcode / SKU / mã cũ" value={q}
+              <input type="search" placeholder="Barcode, SKU, mã" value={q}
                 onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 34, width: 220 }} />
               <span style={{ position: 'absolute', left: 10, top: 10, color: 'var(--ink-2)' }}><IcSearch /></span>
             </div>
