@@ -115,7 +115,7 @@ input, select { font-family: inherit; font-size: 14px; }
 .side-install:hover { filter: brightness(1.06); }
 .sidebar.gon .side-install { padding: 9px 0; }
 
-.main { flex: 1; min-width: 0; padding: 16px 18px 90px; max-width: 1280px; }
+.main { flex: 1; min-width: 0; padding: 16px 18px 90px; }
 
 /* Thanh trên cho mobile */
 .mtop { display: none; }
@@ -472,7 +472,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .legend .lg-kho { background: #EEF2F5; box-shadow: inset 4px 0 0 #B4BEC7; }
 
 /* ---------- Chip tình trạng hàng ---------- */
-.tt { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.tt { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-align: center; line-height: 1.3; }
 .tt-het { background: #FCE8EF; color: #B0185C; }
 .tt-tot { background: #E4F5F0; color: var(--teal-deep); }
 .tt-cham { background: #FBF1DC; color: #9A7B2E; }

@@ -271,7 +271,7 @@ export default function XinHang() {
       tt: (r) => r.tinh_trang || '',
     };
     const colNum = {
-      gia: (r) => gia(r) || 0, ton: (r) => r.ton_truoc ?? 0, kho: (r) => r.kho_tong ?? 0,
+      gia: (r) => gia(r) || 0, ton: (r) => r.ton_truoc ?? 0, diduong: (r) => (r.ton_du_tinh ?? 0) - (r.ton_truoc ?? 0), kho: (r) => r.kho_tong ?? 0,
       ban: (r) => r.sl_ban_ky ?? 0, ai: (r) => r.sl_ai ?? 0, sl: (r) => r.sl_xin ?? 0,
       tong: (r) => (r.ton_truoc ?? 0) + (r.sl_xin || 0),
       ngay: (r) => r.toc_do > 0 ? Math.round(((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 0,
@@ -288,7 +288,7 @@ export default function XinHang() {
       const get = {
         sp: (r) => r.ma_tham_chieu || r.sku || '',
         gia: (r) => r.la_hang_sale ? r.gia_sale : r.gia_niem_yet,
-        ton: (r) => r.ton_truoc, kho: (r) => r.kho_tong ?? 0,
+        ton: (r) => r.ton_truoc, diduong: (r) => (r.ton_du_tinh ?? 0) - (r.ton_truoc ?? 0), kho: (r) => r.kho_tong ?? 0,
         ban: (r) => r.sl_ban_ky ?? 0, ai: (r) => r.sl_ai,
         sl: (r) => r.sl_xin, tong: (r) => (r.ton_truoc ?? 0) + (r.sl_xin || 0),
         ngay: (r) => (r.toc_do > 0) ? (((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 1e9,
@@ -516,6 +516,10 @@ export default function XinHang() {
                   <input className="flt-in num" placeholder="vd >0" value={flt.ton || ''} onChange={(e) => datFlt('ton', e.target.value)} />
                 </th>
                 <th className="th-col num">
+                  <span className="th-lbl sortable" onClick={() => doiSort('diduong')}>Đi đường{sortIc('diduong')}</span>
+                  <input className="flt-in num" placeholder="±" value={flt.diduong || ''} onChange={(e) => datFlt('diduong', e.target.value)} />
+                </th>
+                <th className="th-col num">
                   <span className="th-lbl sortable" onClick={() => doiSort('kho')}>Kho tổng{sortIc('kho')}</span>
                   <input className="flt-in num" placeholder="số" value={flt.kho || ''} onChange={(e) => datFlt('kho', e.target.value)} />
                 </th>
@@ -536,7 +540,7 @@ export default function XinHang() {
                   <input className="flt-in num" placeholder="số" value={flt.tong || ''} onChange={(e) => datFlt('tong', e.target.value)} />
                 </th>
                 <th className="th-col num">
-                  <span className="th-lbl sortable" onClick={() => doiSort('ngay')}>Số ngày bán{sortIc('ngay')}</span>
+                  <span className="th-lbl sortable" onClick={() => doiSort('ngay')}>Ngày bán{sortIc('ngay')}</span>
                   <input className="flt-in num" placeholder="số" value={flt.ngay || ''} onChange={(e) => datFlt('ngay', e.target.value)} />
                 </th>
                 <th className="th-col">
@@ -587,6 +591,14 @@ export default function XinHang() {
                           : <span style={{ fontWeight: 600 }}>{fmtVND(r.gia_niem_yet)}</span>}
                       </td>
                       <td className="num">{r.ton_truoc}</td>
+                      <td className="num">
+                        {(() => { const di = (r.ton_du_tinh ?? 0) - (r.ton_truoc ?? 0);
+                          return di !== 0
+                            ? <b style={{ color: di > 0 ? 'var(--teal-deep)' : 'var(--magenta)',
+                                background: di > 0 ? '#E4F5F0' : '#FCE8EF', padding: '2px 7px', borderRadius: 12, fontSize: 12 }}>
+                                {di > 0 ? '+' + di : di}</b>
+                            : <span style={{ color: 'var(--ink-2)' }}>—</span>; })()}
+                      </td>
                       <td className="num" style={r.kho_tong <= 0
                         ? { color: 'var(--magenta)', fontWeight: 700 }
                         : { color: 'var(--teal-deep)', fontWeight: 600 }}>
@@ -618,11 +630,13 @@ export default function XinHang() {
                       <td>
                         {r.tinh_trang && (
                           <span className={'tt ' + (
-                            r.tinh_trang.startsWith('Hết hàng') ? 'tt-het'
+                            r.tinh_trang.startsWith('Hết hàng') || r.tinh_trang === 'Vừa hết hàng' ? 'tt-het'
                             : r.tinh_trang === 'Đang bán tốt' ? 'tt-tot'
-                            : r.tinh_trang === 'Bán chậm' || r.tinh_trang === 'Không bán gần đây' ? 'tt-cham'
+                            : r.tinh_trang === 'Bán chậm' || r.tinh_trang.startsWith('Không bán') ? 'tt-cham'
                             : 'tt-thuong')}>
-                            {r.tinh_trang}
+                            {r.tinh_trang.startsWith('Hết hàng ')
+                              ? <>Hết hàng<br/>{r.tinh_trang.replace('Hết hàng ', '')}</>
+                              : r.tinh_trang}
                           </span>
                         )}
                       </td>
