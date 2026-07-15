@@ -206,7 +206,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
   background: #FBFAF6; color: var(--ink-2); font-weight: 600; font-size: 11.5px;
   text-transform: uppercase; letter-spacing: .4px;
   padding: 10px 10px; border-bottom: 1.5px solid var(--line);
-  text-align: left; white-space: nowrap; }
+  text-align: left; white-space: nowrap; height: 38px; box-sizing: border-box; }
 .tbl td { padding: 8px 10px; border-bottom: 1px solid #F0EDE4; vertical-align: middle; }
 .tbl tr:hover td { background: #FAF8F2; }
 .tbl .num { text-align: right; font-family: var(--font-mono); font-size: 12.5px; }
@@ -569,11 +569,13 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 /* cmdbar cho phân hệ Thiếu hàng */
 .cmd-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: relative; z-index: 1; }
 
-/* Hàng ô filter theo cột (Đề nghị hàng) */
-.flt-row th { padding: 4px 6px !important; background: var(--bg); position: sticky;
-  top: 33px; z-index: 4; border-bottom: 1px solid var(--line); }
+/* Header cột gộp: tên + ô lọc trong 1 hàng sticky (không đè khi cuộn) */
+.th-col { vertical-align: top; }
+.th-lbl { display: block; margin-bottom: 5px; cursor: pointer; user-select: none; }
+.th-col.num .th-lbl { text-align: right; }
 .flt-in { width: 100%; min-width: 52px; border: 1px solid var(--line); border-radius: 6px;
-  padding: 4px 7px; font-size: 11.5px; background: #fff; color: var(--ink); font-family: inherit; }
+  padding: 4px 7px; font-size: 11.5px; background: #fff; color: var(--ink); font-family: inherit;
+  font-weight: 400; text-transform: none; letter-spacing: 0; }
 .flt-in::placeholder { color: #B4BCC6; font-weight: 400; }
 .flt-in:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 2px rgba(63,182,168,.15); }
 .flt-in.num { text-align: center; }

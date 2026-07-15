@@ -503,28 +503,44 @@ export default function XinHang() {
           <div className="tbl-wrap">
             <table className="tbl">
               <thead><tr>
-                <th className="sortable" onClick={() => doiSort('sp')}>Sản phẩm{sortIc('sp')}</th>
-                <th className="sortable" onClick={() => doiSort('gia')}>Giá{sortIc('gia')}</th>
-                <th className="num sortable" onClick={() => doiSort('ton')}>Tồn CH{sortIc('ton')}</th>
-                <th className="num sortable" onClick={() => doiSort('kho')}>Kho tổng{sortIc('kho')}</th>
-                <th className="num sortable" onClick={() => doiSort('ban')}>SL bán{sortIc('ban')}</th>
-                <th className="num sortable" onClick={() => doiSort('ai')}>AI đề xuất{sortIc('ai')}</th>
-                <th className="num sortable" onClick={() => doiSort('sl')}>SL đề nghị{sortIc('sl')}</th>
-                <th className="num sortable" onClick={() => doiSort('tong')}>Tổng tồn{sortIc('tong')}</th>
-                <th className="num sortable" onClick={() => doiSort('ngay')}>Số ngày bán{sortIc('ngay')}</th>
-                <th className="sortable" onClick={() => doiSort('tt')}>Tình trạng{sortIc('tt')}</th>
-              </tr>
-              <tr className="flt-row">
-                <th><input className="flt-in" placeholder="lọc mã…" value={flt.sp || ''} onChange={(e) => datFlt('sp', e.target.value)} /></th>
-                <th><input className="flt-in" placeholder="giá" value={flt.gia || ''} onChange={(e) => datFlt('gia', e.target.value)} /></th>
-                <th><input className="flt-in num" placeholder="vd >0" value={flt.ton || ''} onChange={(e) => datFlt('ton', e.target.value)} /></th>
-                <th><input className="flt-in num" placeholder="số" value={flt.kho || ''} onChange={(e) => datFlt('kho', e.target.value)} /></th>
-                <th><input className="flt-in num" placeholder="số" value={flt.ban || ''} onChange={(e) => datFlt('ban', e.target.value)} /></th>
-                <th><input className="flt-in num" placeholder=">0" value={flt.ai || ''} onChange={(e) => datFlt('ai', e.target.value)} /></th>
-                <th><input className="flt-in num" placeholder="vd 3" value={flt.sl || ''} onChange={(e) => datFlt('sl', e.target.value)} /></th>
-                <th><input className="flt-in num" placeholder="số" value={flt.tong || ''} onChange={(e) => datFlt('tong', e.target.value)} /></th>
-                <th><input className="flt-in num" placeholder="số" value={flt.ngay || ''} onChange={(e) => datFlt('ngay', e.target.value)} /></th>
-                <th>
+                <th className="th-col">
+                  <span className="th-lbl sortable" onClick={() => doiSort('sp')}>Sản phẩm{sortIc('sp')}</span>
+                  <input className="flt-in" placeholder="lọc mã…" value={flt.sp || ''} onChange={(e) => datFlt('sp', e.target.value)} />
+                </th>
+                <th className="th-col">
+                  <span className="th-lbl sortable" onClick={() => doiSort('gia')}>Giá{sortIc('gia')}</span>
+                  <input className="flt-in" placeholder="giá" value={flt.gia || ''} onChange={(e) => datFlt('gia', e.target.value)} />
+                </th>
+                <th className="th-col num">
+                  <span className="th-lbl sortable" onClick={() => doiSort('ton')}>Tồn CH{sortIc('ton')}</span>
+                  <input className="flt-in num" placeholder="vd >0" value={flt.ton || ''} onChange={(e) => datFlt('ton', e.target.value)} />
+                </th>
+                <th className="th-col num">
+                  <span className="th-lbl sortable" onClick={() => doiSort('kho')}>Kho tổng{sortIc('kho')}</span>
+                  <input className="flt-in num" placeholder="số" value={flt.kho || ''} onChange={(e) => datFlt('kho', e.target.value)} />
+                </th>
+                <th className="th-col num">
+                  <span className="th-lbl sortable" onClick={() => doiSort('ban')}>SL bán{sortIc('ban')}</span>
+                  <input className="flt-in num" placeholder="số" value={flt.ban || ''} onChange={(e) => datFlt('ban', e.target.value)} />
+                </th>
+                <th className="th-col num">
+                  <span className="th-lbl sortable" onClick={() => doiSort('ai')}>AI đề xuất{sortIc('ai')}</span>
+                  <input className="flt-in num" placeholder=">0" value={flt.ai || ''} onChange={(e) => datFlt('ai', e.target.value)} />
+                </th>
+                <th className="th-col num">
+                  <span className="th-lbl sortable" onClick={() => doiSort('sl')}>SL đề nghị{sortIc('sl')}</span>
+                  <input className="flt-in num" placeholder="vd 3" value={flt.sl || ''} onChange={(e) => datFlt('sl', e.target.value)} />
+                </th>
+                <th className="th-col num">
+                  <span className="th-lbl sortable" onClick={() => doiSort('tong')}>Tổng tồn{sortIc('tong')}</span>
+                  <input className="flt-in num" placeholder="số" value={flt.tong || ''} onChange={(e) => datFlt('tong', e.target.value)} />
+                </th>
+                <th className="th-col num">
+                  <span className="th-lbl sortable" onClick={() => doiSort('ngay')}>Số ngày bán{sortIc('ngay')}</span>
+                  <input className="flt-in num" placeholder="số" value={flt.ngay || ''} onChange={(e) => datFlt('ngay', e.target.value)} />
+                </th>
+                <th className="th-col">
+                  <span className="th-lbl sortable" onClick={() => doiSort('tt')}>Tình trạng{sortIc('tt')}</span>
                   <input className="flt-in" list="dl-tt" placeholder="hết hàng…" value={flt.tt || ''} onChange={(e) => datFlt('tt', e.target.value)} />
                   <datalist id="dl-tt">
                     <option value="Hết hàng" /><option value="Vừa hết hàng" /><option value="Đang bán tốt" />

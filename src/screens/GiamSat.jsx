@@ -12,7 +12,10 @@ const homQua = () => { const d = new Date(); d.setDate(d.getDate() - 1); return 
 export default function GiamSat() {
   const { user, baoToast } = useApp();
   const [dsCH, setDsCH] = useState([]);
+  const [dsKV, setDsKV] = useState([]);
+  const [pham, setPham] = useState(user.vai_tro === 'CH' ? 'ch' : 'all'); // 'ch' | 'kv' | 'all'
   const [maCH, setMaCH] = useState(user.vai_tro === 'CH' ? user.ma_ch : '');
+  const [khuVuc, setKhuVuc] = useState('');
   const [tu, setTu] = useState(iso(new Date(Date.now() - 30 * 864e5)));
   const [den, setDen] = useState(homQua());
   const [rows, setRows] = useState(null);
@@ -31,17 +34,22 @@ export default function GiamSat() {
     if (user.vai_tro !== 'CH') {
       sb.from('cua_hang').select('ma_ch, ten').like('ma_ch', 'CH%')
         .eq('hoat_dong', true).order('ten').then(({ data }) => setDsCH(data || []));
+      sb.rpc('fn_ds_khu_vuc').then(({ data }) => setDsKV(data || []));
     }
   }, []);
 
   const quet = async () => {
-    if (!maCH) { baoToast('Chọn cửa hàng để kiểm tra'); return; }
+    const args = { p_tu: tu, p_den: den };
+    if (pham === 'ch') { if (!maCH) { baoToast('Chọn cửa hàng'); return; } args.p_ma_ch = maCH; }
+    else if (pham === 'kv') { if (!khuVuc) { baoToast('Chọn khu vực'); return; } args.p_khu_vuc = khuVuc; }
+    // pham === 'all' -> không truyền gì = toàn hệ thống
     setBusy(true); setLocThe('ALL'); setSortBy(null);
-    const { data, error } = await sb.rpc('fn_thieu_hang', { p_ma_ch: maCH, p_tu: tu, p_den: den });
+    const { data, error } = await sb.rpc('fn_canh_bao', args);
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setRows(data || []);
   };
+  const nhieuCH = pham !== 'ch';
 
   const nhomCua = (r) => (r.nhom_hang === 'BH' ? 'BH' : 'NV');
 
@@ -73,11 +81,11 @@ export default function GiamSat() {
     if (fThe) v = v.filter(fThe);
     if (q) {
       const k = q.toUpperCase();
-      v = v.filter((r) => [r.barcode, r.sku, r.ma_tham_chieu, r.nganh_3].some((x) => (x || '').toUpperCase().includes(k)));
+      v = v.filter((r) => [r.barcode, r.sku, r.ma_tham_chieu, r.nganh_3, r.ten_ch, r.ma_ch].some((x) => (x || '').toUpperCase().includes(k)));
     }
     if (sortBy) {
       const get = {
-        sp: (r) => r.ma_tham_chieu || r.sku || '',
+        ch: (r) => r.ten_ch || '', sp: (r) => r.ma_tham_chieu || r.sku || '',
         gia: (r) => r.la_hang_sale ? r.gia_sale : r.gia_niem_yet,
         ban: (r) => r.sl_ban, ban30: (r) => r.ban_30,
         that: (r) => r.ton_that, kho: (r) => r.kho_tong,
@@ -99,8 +107,8 @@ export default function GiamSat() {
 
   const moNguon = async (r) => {
     setChiTiet({ r, ds: null });
-    const { data } = await sb.rpc('fn_nguon_gan', { p_ma_ch: maCH, p_barcode: r.barcode });
-    setChiTiet((c) => c && c.r.barcode === r.barcode ? { r, ds: data || [] } : c);
+    const { data } = await sb.rpc('fn_nguon_gan', { p_ma_ch: r.ma_ch, p_barcode: r.barcode });
+    setChiTiet((c) => c && c.r.barcode === r.barcode && c.r.ma_ch === r.ma_ch ? { r, ds: data || [] } : c);
   };
 
   const xuatExcel = async () => {
@@ -157,8 +165,19 @@ export default function GiamSat() {
         </div>
         <div className="cmd-row">
           {user.vai_tro !== 'CH' && (
-            <Sel value={maCH} onChange={setMaCH} placeholder="Chọn cửa hàng"
-              options={dsCH.map((c) => ({ value: c.ma_ch, label: `${c.ten} (${c.ma_ch})` }))} style={{ minWidth: 260 }} />
+            <>
+              <Sel value={pham} onChange={setPham} placeholder="Phạm vi"
+                options={[{ value: 'all', label: 'Tất cả cửa hàng' }, { value: 'kv', label: 'Theo khu vực' }, { value: 'ch', label: 'Một cửa hàng' }]}
+                style={{ minWidth: 150 }} />
+              {pham === 'kv' && (
+                <Sel value={khuVuc} onChange={setKhuVuc} placeholder="Chọn khu vực"
+                  options={dsKV.map((k) => ({ value: k.khu_vuc, label: `${k.khu_vuc} (${k.so_ch} CH)` }))} style={{ minWidth: 220 }} />
+              )}
+              {pham === 'ch' && (
+                <Sel value={maCH} onChange={setMaCH} placeholder="Chọn cửa hàng"
+                  options={dsCH.map((c) => ({ value: c.ma_ch, label: `${c.ten} (${c.ma_ch})` }))} style={{ minWidth: 240 }} />
+              )}
+            </>
           )}
           <DateBox label="Ngày từ" value={tu} onChange={setTu} />
           <DateBox label="Ngày đến" value={den} onChange={setDen} />
@@ -201,6 +220,7 @@ export default function GiamSat() {
             <div className="tbl-wrap" style={{ maxHeight: '68vh' }}>
               <table className="tbl">
                 <thead><tr>
+                  {nhieuCH && <th className="sortable" onClick={() => doiSort('ch')}>Cửa hàng{sortIc('ch')}</th>}
                   <th className="sortable" onClick={() => doiSort('sp')}>Sản phẩm{sortIc('sp')}</th>
                   <th className="num sortable" onClick={() => doiSort('gia')}>Giá{sortIc('gia')}</th>
                   <th className="num sortable" onClick={() => doiSort('ban')}>SL bán kỳ{sortIc('ban')}</th>
@@ -215,11 +235,11 @@ export default function GiamSat() {
                 </tr></thead>
                 <tbody>
                   {dsBoSung.length > 0 && <RowNhom ten="ĐỀ NGHỊ BỔ SUNG — khẩn cấp" mau="magenta" />}
-                  {dsBoSung.map((r) => <RowSP key={r.barcode} r={r} anhProps={anhProps} moNguon={moNguon} />)}
+                  {dsBoSung.map((r) => <RowSP key={r.ma_ch+r.barcode} r={r} anhProps={anhProps} moNguon={moNguon} nhieuCH={nhieuCH} />)}
                   {dsCanhBao.length > 0 && <RowNhom ten="CẢNH BÁO — còn tồn nhưng thiếu" mau="gold" />}
-                  {dsCanhBao.map((r) => <RowSP key={r.barcode} r={r} anhProps={anhProps} moNguon={moNguon} />)}
+                  {dsCanhBao.map((r) => <RowSP key={r.ma_ch+r.barcode} r={r} anhProps={anhProps} moNguon={moNguon} nhieuCH={nhieuCH} />)}
                   {dsDu.length > 0 && locThe === 'ALL' && <RowNhom ten="ĐỦ HÀNG" mau="teal" />}
-                  {locThe === 'ALL' && dsDu.map((r) => <RowSP key={r.barcode} r={r} anhProps={anhProps} moNguon={moNguon} />)}
+                  {locThe === 'ALL' && dsDu.map((r) => <RowSP key={r.ma_ch+r.barcode} r={r} anhProps={anhProps} moNguon={moNguon} nhieuCH={nhieuCH} />)}
                 </tbody>
               </table>
             </div>
@@ -336,10 +356,10 @@ function TheTK({ id, on, set, so, nhan, mau }) {
 }
 
 function RowNhom({ ten, mau }) {
-  return (<tr className="row-nhom"><td colSpan={11}><span className={'row-nhom-tag row-nhom-' + mau}>{ten}</span></td></tr>);
+  return (<tr className="row-nhom"><td colSpan={12}><span className={'row-nhom-tag row-nhom-' + mau}>{ten}</span></td></tr>);
 }
 
-function RowSP({ r, anhProps, moNguon }) {
+function RowSP({ r, anhProps, moNguon, nhieuCH }) {
   const gia = r.la_hang_sale ? r.gia_sale : r.gia_niem_yet;
   const bac = r.dang === 'BO_SUNG' ? 'can-chia' : r.dang === 'CANH_BAO' ? 'thuong' : '';
   const tt = r.ton_that === 0
@@ -349,6 +369,10 @@ function RowSP({ r, anhProps, moNguon }) {
   const dangChuyen = r.dang_chuyen > 0;
   return (
     <tr className={bac ? 'row-' + bac : undefined}>
+      {nhieuCH && <td>
+        <div style={{ fontWeight: 600, fontSize: 12.5 }}>{r.ten_ch}</div>
+        <div style={{ fontSize: 11, color: 'var(--ink-2)' }} className="mono">{r.khu_vuc || r.ma_ch}</div>
+      </td>}
       <td>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <div className="sp-thumb" {...anhProps(r)}>
