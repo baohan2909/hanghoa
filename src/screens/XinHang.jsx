@@ -569,6 +569,7 @@ export default function XinHang() {
                           {r.hinh_url
                             ? <img className="sp" src={r.hinh_url} alt="" loading="lazy"
                                 onClick={() => setXemAnh(r.hinh_url)}
+                                onError={(e) => { e.target.style.display = 'none'; e.target.insertAdjacentHTML('afterend', '<div class="noimg"></div>'); }}
                                 onMouseEnter={(e) => { const b = e.target.getBoundingClientRect();
                                   setHoverAnh({ url: r.hinh_url, x: b.right + 12, y: Math.max(8, b.top - 70) }); }}
                                 onMouseLeave={() => setHoverAnh(null)} />
@@ -653,7 +654,7 @@ export default function XinHang() {
             <span className="ai-nucleus" />
             <span className="ai-scan" />
           </div>
-          <div className="ai-title">AI đang phân tích dữ liệu bán</div>
+          <div className="ai-title">AI đang phân tích dữ liệu</div>
           <AiSteps />
         </div>
       )}

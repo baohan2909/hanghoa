@@ -415,7 +415,7 @@ function RowSP({ r, anhProps, moNguon, nhieuCH }) {
       <td>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <div className="sp-thumb" {...anhProps(r)}>
-            {r.hinh_url ? <img src={r.hinh_url} alt="" /> : <IcBox />}
+            {r.hinh_url ? <img src={r.hinh_url} alt="" onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.insertAdjacentHTML('beforeend', '<span style="color:var(--ink-2)">▢</span>'); }} /> : <IcBox />}
           </div>
           <div>
             <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
