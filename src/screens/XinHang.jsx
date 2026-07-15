@@ -520,7 +520,7 @@ export default function XinHang() {
                   <span className="th-lbl sortable" onClick={() => doiSort('sp')}>Sản phẩm{sortIc('sp')}</span>
                   <input className="flt-in" placeholder="lọc mã…" value={flt.sp || ''} onChange={(e) => datFlt('sp', e.target.value)} />
                 </th>
-                <th className="th-col">
+                <th className="th-col num">
                   <span className="th-lbl sortable" onClick={() => doiSort('gia')}>Giá{sortIc('gia')}</span>
                   <input className="flt-in" placeholder="giá" value={flt.gia || ''} onChange={(e) => datFlt('gia', e.target.value)} />
                 </th>
@@ -593,7 +593,7 @@ export default function XinHang() {
                           </div>
                         </div>
                       </td>
-                      <td>
+                      <td className="num">
                         {r.la_hang_sale && r.gia_sale > 0
                           ? <><span className="price-sale">{fmtVND(r.gia_sale)}</span>
                               <span className="price-old">{fmtVND(r.gia_niem_yet)}</span></>
@@ -632,7 +632,10 @@ export default function XinHang() {
                       <td className="num" style={{ fontWeight: 600 }}>{(r.ton_truoc ?? 0) + (r.sl_xin || 0)}</td>
                       <td className="num">
                         {r.toc_do > 0
-                          ? <b style={{ color: 'var(--ink)' }}>{Math.round(((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do)}d</b>
+                          ? (() => { const n = Math.round(((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do);
+                              return n > 60
+                                ? <span style={{ color: 'var(--ink-2)' }} title={n + ' ngày — hàng bán rất chậm'}>60d+</span>
+                                : <b style={{ color: 'var(--ink)' }}>{n}d</b>; })()
                           : <span style={{ color: 'var(--ink-2)' }}>—</span>}
                       </td>
                       <td className="center">
