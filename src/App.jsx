@@ -101,6 +101,7 @@ export default function App() {
       <div className="side-logo">
         <div className="t">{gon ? 'ĐP' : 'ĐIỀU PHỐI HÀNG HÓA'}</div>
         {!gon && <div className="s">Nón Sơn · đề nghị & điều chuyển</div>}
+        {!gon && <div className="s" style={{ opacity: .55, fontSize: 10.5, marginTop: 2 }}>v{__APP_VERSION__}</div>}
       </div>
       {MENU.map((g) => {
         const items = g.items.filter((t) => t.roles.includes(user.vai_tro));

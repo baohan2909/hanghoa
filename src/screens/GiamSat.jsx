@@ -79,7 +79,7 @@ export default function GiamSat() {
     }).sort((a, b) => b.so_ch_het - a.so_ch_het || b.ban_tong - a.ban_tong);
   }, [rows]);
 
-  const nhomCua = (r) => (r.nhom_hang === 'BH' ? 'BH' : 'NV');
+  const nhomCua = (r) => (r.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (r.la_hang_sale ? 'S' : 'C');
 
   const tk = useMemo(() => {
     const d = { boSung: 0, canhBao: 0, chuyen: 0, khoCon: 0, chKhac: 0, het7: 0 };
@@ -235,9 +235,9 @@ export default function GiamSat() {
               </div>
             )}
             <div className="nhom-tabs" style={{ margin: 0 }}>
-              {['ALL', 'BH', 'NV'].map((n) => (
+              {[['ALL', 'Tất cả'], ['BH_C', 'BH chính'], ['BH_S', 'BH sale'], ['NV_C', 'NV chính'], ['NV_S', 'NV sale']].map(([n, ten]) => (
                 <button key={n} className={'nhom-tab' + (nhomXem === n ? ' on' : '')} onClick={() => setNhomXem(n)}>
-                  {n === 'ALL' ? 'Tất cả' : n === 'BH' ? 'Bảo hiểm' : 'Nón vải'}
+                  {ten}
                 </button>
               ))}
             </div>
@@ -251,7 +251,7 @@ export default function GiamSat() {
           </div>
 
           {xem === 'ma' && nhieuCH ? (
-            <BangTheoMa ds={theoMa.filter((g) => nhomXem === 'ALL' || (g.nhom_hang === 'BH' ? 'BH' : 'NV') === nhomXem)
+            <BangTheoMa ds={theoMa.filter((g) => nhomXem === 'ALL' || (g.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (g.la_hang_sale ? 'S' : 'C') === nhomXem)
               .filter((g) => !q || [g.barcode, g.sku, g.ma_tham_chieu, g.nganh_3].some((x) => (x || '').toUpperCase().includes(q.toUpperCase())))} />
           ) : (
           <div className="card" style={{ padding: 0 }}>
@@ -263,9 +263,8 @@ export default function GiamSat() {
                   <th className="num sortable" onClick={() => doiSort('gia')}>Giá{sortIc('gia')}</th>
                   <th className="num sortable" onClick={() => doiSort('ban')}>SL bán kỳ{sortIc('ban')}</th>
                   <th className="num sortable" onClick={() => doiSort('ban30')}>Bán 30N{sortIc('ban30')}</th>
-                  <th className="num sortable" onClick={() => doiSort('that')}>Tồn thực{sortIc('that')}</th>
-                  <th className="num sortable" onClick={() => doiSort('diduong')}>Hàng đi đường{sortIc('diduong')}</th>
-                  <th className="num sortable" onClick={() => doiSort('kho')}>Kho tổng{sortIc('kho')}</th>
+                  <th className="num sortable" onClick={() => doiSort('that')}>Tồn CH{sortIc('that')}</th>
+                                    <th className="num sortable" onClick={() => doiSort('kho')}>Kho tổng{sortIc('kho')}</th>
                   <th className="num sortable" onClick={() => doiSort('chk')}>CH khác{sortIc('chk')}</th>
                   <th className="num sortable" onClick={() => doiSort('het')}>Ngày hết{sortIc('het')}</th>
                   <th>Tình trạng</th>
@@ -401,9 +400,10 @@ function RowNhom({ ten, mau }) {
 function RowSP({ r, anhProps, moNguon, nhieuCH }) {
   const gia = r.la_hang_sale ? r.gia_sale : r.gia_niem_yet;
   const bac = r.dang === 'BO_SUNG' ? 'can-chia' : r.dang === 'CANH_BAO' ? 'thuong' : '';
+  const hetNgay = r.ton_that === 0 && r.ngay_het > 0;
   const tt = r.ton_that === 0
-    ? (r.ban_30 > 0 ? `Hết hàng ${r.ngay_het} ngày` : 'Hết hàng')
-    : r.dang === 'CANH_BAO' ? `Sắp hết — đủ ~${r.muc} ngày` : 'Đủ hàng';
+    ? (hetNgay ? <>Hết hàng<br/>{r.ngay_het} ngày</> : 'Vừa hết hàng')
+    : r.dang === 'CANH_BAO' ? <>Sắp hết<br/>~{r.muc} ngày</> : 'Đủ hàng';
   const ttMau = r.ton_that === 0 ? 'tt-het' : r.dang === 'CANH_BAO' ? 'tt-cham' : 'tt-tot';
   const dangChuyen = r.dang_chuyen > 0;
   return (
@@ -426,15 +426,12 @@ function RowSP({ r, anhProps, moNguon, nhieuCH }) {
       <td className="num">{gia ? gia.toLocaleString('vi-VN') + 'đ' : '—'}</td>
       <td className="num" style={{ fontWeight: 700 }}>{r.sl_ban}</td>
       <td className="num" style={{ color: 'var(--ink-2)' }}>{r.ban_30}</td>
-      <td className="num" style={{ fontWeight: 700, color: r.ton_that === 0 ? 'var(--magenta)' : 'var(--ink)' }}>{r.ton_that}</td>
-      <td className="num">
+      <td className="num" style={{ fontWeight: 700 }}>
+        <span style={{ color: r.ton_that === 0 ? 'var(--magenta)' : 'var(--ink)' }}>{r.ton_that}</span>
         {(() => { const di = (r.ton_du_kien ?? 0) - (r.ton_that ?? 0);
           return di !== 0
-            ? <span className="badge-chuyen" style={di < 0 ? { background: '#FCE8EF', color: 'var(--magenta)' } : undefined}
-                title={`Tồn dự kiến sau khi hàng về: ${r.ton_du_kien}`}>
-                <IcTruck style={{ verticalAlign: -2, width: 13, height: 13 }} /> {di > 0 ? '+' + di : di}
-              </span>
-            : <span style={{ color: 'var(--ink-2)' }}>—</span>; })()}
+            ? <b style={{ color: di > 0 ? 'var(--teal-deep)' : 'var(--magenta)', marginLeft: 3, fontSize: 12 }}>{di > 0 ? '+' + di : di}</b>
+            : null; })()}
       </td>
       <td className="num" style={{ color: r.kho_tong > 0 ? 'var(--teal-deep)' : 'var(--magenta)', fontWeight: 600 }}>{r.kho_tong}</td>
       <td className="num">{r.ton_ch_khac > 0 ? <span style={{ color: 'var(--teal-deep)' }}>{r.ton_ch_khac}</span> : <span style={{ color: 'var(--ink-2)' }}>0</span>}</td>

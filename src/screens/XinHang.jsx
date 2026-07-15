@@ -516,10 +516,6 @@ export default function XinHang() {
                   <input className="flt-in num" placeholder="vd >0" value={flt.ton || ''} onChange={(e) => datFlt('ton', e.target.value)} />
                 </th>
                 <th className="th-col num">
-                  <span className="th-lbl sortable" onClick={() => doiSort('diduong')}>Đi đường{sortIc('diduong')}</span>
-                  <input className="flt-in num" placeholder="±" value={flt.diduong || ''} onChange={(e) => datFlt('diduong', e.target.value)} />
-                </th>
-                <th className="th-col num">
                   <span className="th-lbl sortable" onClick={() => doiSort('kho')}>Kho tổng{sortIc('kho')}</span>
                   <input className="flt-in num" placeholder="số" value={flt.kho || ''} onChange={(e) => datFlt('kho', e.target.value)} />
                 </th>
@@ -590,14 +586,13 @@ export default function XinHang() {
                               <span className="price-old">{fmtVND(r.gia_niem_yet)}</span></>
                           : <span style={{ fontWeight: 600 }}>{fmtVND(r.gia_niem_yet)}</span>}
                       </td>
-                      <td className="num">{r.ton_truoc}</td>
                       <td className="num">
+                        {r.ton_truoc}
                         {(() => { const di = (r.ton_du_tinh ?? 0) - (r.ton_truoc ?? 0);
                           return di !== 0
-                            ? <b style={{ color: di > 0 ? 'var(--teal-deep)' : 'var(--magenta)',
-                                background: di > 0 ? '#E4F5F0' : '#FCE8EF', padding: '2px 7px', borderRadius: 12, fontSize: 12 }}>
+                            ? <b style={{ color: di > 0 ? 'var(--teal-deep)' : 'var(--magenta)', marginLeft: 3, fontSize: 12 }}>
                                 {di > 0 ? '+' + di : di}</b>
-                            : <span style={{ color: 'var(--ink-2)' }}>—</span>; })()}
+                            : null; })()}
                       </td>
                       <td className="num" style={r.kho_tong <= 0
                         ? { color: 'var(--magenta)', fontWeight: 700 }
