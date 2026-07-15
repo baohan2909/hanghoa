@@ -264,6 +264,18 @@ export default function XinHang() {
       if ((m = s.match(/^=?\s*(-?\d+)$/))) return val === +m[1];
       return String(val).includes(s);
     };
+    // Cột Tồn CH đặc biệt: "+" = có hàng đi đường dương, "+2" = đi đường đúng +2,
+    // "-" = đi đường âm, "-3" = đúng -3. Số thường -> lọc theo tồn CH.
+    const khopTon = (r, s) => {
+      s = (s || '').trim(); if (!s) return true;
+      const di = (r.ton_du_tinh ?? 0) - (r.ton_truoc ?? 0);
+      if (s === '+') return di > 0;
+      if (s === '-') return di < 0;
+      let m;
+      if ((m = s.match(/^\+(\d+)$/))) return di === +m[1];
+      if ((m = s.match(/^-(\d+)$/))) return di === -(+m[1]);
+      return khopSo(r.ton_truoc ?? 0, s);
+    };
     const khopChu = (txt, s) => !s.trim() || (txt || '').toLowerCase().includes(s.trim().toLowerCase());
     const gia = (r) => r.la_hang_sale ? r.gia_sale : r.gia_niem_yet;
     const colVal = {
@@ -271,7 +283,7 @@ export default function XinHang() {
       tt: (r) => r.tinh_trang || '',
     };
     const colNum = {
-      gia: (r) => gia(r) || 0, ton: (r) => r.ton_truoc ?? 0, diduong: (r) => (r.ton_du_tinh ?? 0) - (r.ton_truoc ?? 0), kho: (r) => r.kho_tong ?? 0,
+      gia: (r) => gia(r) || 0, diduong: (r) => (r.ton_du_tinh ?? 0) - (r.ton_truoc ?? 0), kho: (r) => r.kho_tong ?? 0,
       ban: (r) => r.sl_ban_ky ?? 0, ai: (r) => r.sl_ai ?? 0, sl: (r) => r.sl_xin ?? 0,
       tong: (r) => (r.ton_truoc ?? 0) + (r.sl_xin || 0),
       ngay: (r) => r.toc_do > 0 ? Math.round(((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 0,
@@ -279,6 +291,7 @@ export default function XinHang() {
     v = v.filter((r) => {
       for (const [c, val] of Object.entries(flt)) {
         if (!(val || '').trim()) continue;
+        if (c === 'ton') { if (!khopTon(r, val)) return false; continue; }
         if (colVal[c] && !khopChu(colVal[c](r), val)) return false;
         if (colNum[c] && !khopSo(colNum[c](r), val)) return false;
       }
@@ -503,7 +516,7 @@ export default function XinHang() {
           <div className="tbl-wrap">
             <table className="tbl">
               <thead><tr>
-                <th className="th-col">
+                <th className="th-col col-sp">
                   <span className="th-lbl sortable" onClick={() => doiSort('sp')}>Sản phẩm{sortIc('sp')}</span>
                   <input className="flt-in" placeholder="lọc mã…" value={flt.sp || ''} onChange={(e) => datFlt('sp', e.target.value)} />
                 </th>
@@ -513,7 +526,7 @@ export default function XinHang() {
                 </th>
                 <th className="th-col num">
                   <span className="th-lbl sortable" onClick={() => doiSort('ton')}>Tồn CH{sortIc('ton')}</span>
-                  <input className="flt-in num" placeholder="vd >0" value={flt.ton || ''} onChange={(e) => datFlt('ton', e.target.value)} />
+                  <input className="flt-in num" placeholder=">0, +, -2" value={flt.ton || ''} onChange={(e) => datFlt('ton', e.target.value)} />
                 </th>
                 <th className="th-col num">
                   <span className="th-lbl sortable" onClick={() => doiSort('kho')}>Kho tổng{sortIc('kho')}</span>
@@ -539,7 +552,7 @@ export default function XinHang() {
                   <span className="th-lbl sortable" onClick={() => doiSort('ngay')}>Ngày bán{sortIc('ngay')}</span>
                   <input className="flt-in num" placeholder="số" value={flt.ngay || ''} onChange={(e) => datFlt('ngay', e.target.value)} />
                 </th>
-                <th className="th-col">
+                <th className="th-col center">
                   <span className="th-lbl sortable" onClick={() => doiSort('tt')}>Tình trạng{sortIc('tt')}</span>
                   <input className="flt-in" list="dl-tt" placeholder="hết hàng…" value={flt.tt || ''} onChange={(e) => datFlt('tt', e.target.value)} />
                   <datalist id="dl-tt">
@@ -622,7 +635,7 @@ export default function XinHang() {
                           ? <b style={{ color: 'var(--ink)' }}>{Math.round(((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do)}d</b>
                           : <span style={{ color: 'var(--ink-2)' }}>—</span>}
                       </td>
-                      <td>
+                      <td className="center">
                         {r.tinh_trang && (
                           <span className={'tt ' + (
                             r.tinh_trang.startsWith('Hết hàng') || r.tinh_trang === 'Vừa hết hàng' ? 'tt-het'

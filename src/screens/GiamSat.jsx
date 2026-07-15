@@ -7,6 +7,18 @@ import { useApp } from '../App.jsx';
 // ============ PHÂN HỆ THIẾU HÀNG ============
 // Kiểm tra, cảnh báo, điều chuyển. Độc lập với phân hệ Đề nghị hàng.
 const iso = (d) => d.toISOString().slice(0, 10);
+// Server Supabase chặn tối đa 1000 dòng/lượt -> tự phân trang gộp đủ toàn bộ
+const rpcAll = async (fn, args) => {
+  const KHOI = 1000; let tat = []; let i = 0;
+  for (;;) {
+    const { data, error } = await sb.rpc(fn, args).range(i * KHOI, i * KHOI + KHOI - 1);
+    if (error) return { data: null, error };
+    tat = tat.concat(data || []);
+    if (!data || data.length < KHOI || i > 300) break;   // i>300 = van an toàn 300k dòng
+    i++;
+  }
+  return { data: tat, error: null };
+};
 const homQua = () => { const d = new Date(); d.setDate(d.getDate() - 1); return iso(d); };
 
 export default function GiamSat() {
@@ -44,7 +56,7 @@ export default function GiamSat() {
     else if (pham === 'kv') { if (!khuVuc) { baoToast('Chọn khu vực'); return; } args.p_khu_vuc = khuVuc; }
     // pham === 'all' -> không truyền gì = toàn hệ thống
     setBusy(true); setLocThe('ALL'); setSortBy(null);
-    const { data, error } = await sb.rpc('fn_canh_bao', args).limit(1000000);
+    const { data, error } = await rpcAll('fn_canh_bao', args);
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setRows(data || []);
@@ -156,7 +168,7 @@ export default function GiamSat() {
   };
 
   const taiCanSX = async () => {
-    const { data, error } = await sb.rpc('fn_can_san_xuat', { p_so_ngay: 30 }).limit(1000000);
+    const { data, error } = await rpcAll('fn_can_san_xuat', { p_so_ngay: 30 });
     if (!error) { setCanSX(data || []); setMoSX(true); } else baoToast('Loi: ' + error.message);
   };
   const xuatCanSX = async () => {
@@ -232,6 +244,8 @@ export default function GiamSat() {
               <div className="nhom-tabs" style={{ margin: 0 }}>
                 <button className={'nhom-tab' + (xem === 'ch' ? ' on' : '')} onClick={() => setXem('ch')}>Theo cửa hàng</button>
                 <button className={'nhom-tab' + (xem === 'ma' ? ' on' : '')} onClick={() => setXem('ma')}>Thống kê theo mã</button>
+                <button className={'nhom-tab' + (xem === 'sx' ? ' on' : '')}
+                  onClick={() => { setXem('sx'); if (!canSX) taiCanSX(); }}>Cần sản xuất</button>
               </div>
             )}
             <div className="nhom-tabs" style={{ margin: 0 }}>
@@ -242,7 +256,7 @@ export default function GiamSat() {
               ))}
             </div>
             <div style={{ position: 'relative' }}>
-              <input type="search" placeholder="Tìm mã / SKU / nhóm" value={q}
+              <input type="search" placeholder="Barcode, SKU, mã" value={q}
                 onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 34, width: 220 }} />
               <span style={{ position: 'absolute', left: 10, top: 10, color: 'var(--ink-2)' }}><IcSearch /></span>
             </div>
@@ -250,7 +264,10 @@ export default function GiamSat() {
             <button className="btn btn-gold" style={{ marginLeft: 'auto' }} onClick={xuatExcel}>Xuất Excel</button>
           </div>
 
-          {xem === 'ma' && nhieuCH ? (
+          {xem === 'sx' ? (
+            <BangCanSX ds={canSX} busy={!canSX} xuat={xuatCanSX}
+              q={q} nhomXem={nhomXem} />
+          ) : xem === 'ma' && nhieuCH ? (
             <BangTheoMa ds={theoMa.filter((g) => nhomXem === 'ALL' || (g.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (g.la_hang_sale ? 'S' : 'C') === nhomXem)
               .filter((g) => !q || [g.barcode, g.sku, g.ma_tham_chieu, g.nganh_3].some((x) => (x || '').toUpperCase().includes(q.toUpperCase())))} />
           ) : (
@@ -259,7 +276,7 @@ export default function GiamSat() {
               <table className="tbl">
                 <thead><tr>
                   {nhieuCH && <th className="sortable" onClick={() => doiSort('ch')}>Cửa hàng{sortIc('ch')}</th>}
-                  <th className="sortable" onClick={() => doiSort('sp')}>Sản phẩm{sortIc('sp')}</th>
+                  <th className="sortable col-sp" onClick={() => doiSort('sp')}>Sản phẩm{sortIc('sp')}</th>
                   <th className="num sortable" onClick={() => doiSort('gia')}>Giá{sortIc('gia')}</th>
                   <th className="num sortable" onClick={() => doiSort('ban')}>SL bán kỳ{sortIc('ban')}</th>
                   <th className="num sortable" onClick={() => doiSort('ban30')}>Bán 30N{sortIc('ban30')}</th>
@@ -267,8 +284,8 @@ export default function GiamSat() {
                                     <th className="num sortable" onClick={() => doiSort('kho')}>Kho tổng{sortIc('kho')}</th>
                   <th className="num sortable" onClick={() => doiSort('chk')}>CH khác{sortIc('chk')}</th>
                   <th className="num sortable" onClick={() => doiSort('het')}>Ngày hết{sortIc('het')}</th>
-                  <th>Tình trạng</th>
-                  <th>Nguồn gần</th>
+                  <th className="center">Tình trạng</th>
+                  <th className="center">Nguồn gần</th>
                 </tr></thead>
                 <tbody>
                   {dsBoSung.length > 0 && <RowNhom ten="ĐỀ NGHỊ BỔ SUNG — khẩn cấp" mau="magenta" />}
@@ -287,44 +304,6 @@ export default function GiamSat() {
           </div>
           )}
 
-          {/* ===== Cần sản xuất / tái bản — toàn hệ thống ===== */}
-          <div className="card" style={{ marginTop: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>Cần sản xuất / tái bản</div>
-                <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>
-                  Mã có bán 30 ngày (toàn hệ thống) nhưng kho tổng đã cạn — tín hiệu sản xuất lại, xếp theo mức bán giảm dần.
-                </div>
-              </div>
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                {!moSX && <button className="btn btn-primary" onClick={taiCanSX}>Quét toàn hệ thống</button>}
-                {moSX && canSX?.length > 0 && <button className="btn btn-gold" onClick={xuatCanSX}>Xuất Excel ({canSX.length})</button>}
-              </div>
-            </div>
-            {moSX && (canSX?.length > 0 ? (
-              <div className="tbl-wrap" style={{ marginTop: 10, maxHeight: 360 }}>
-                <table className="tbl">
-                  <thead><tr>
-                    <th>Sản phẩm</th><th className="num">Bán 30N</th><th className="num">Số CH bán</th>
-                    <th className="num">Tồn còn CH</th><th className="num">Kho tổng</th>
-                  </tr></thead>
-                  <tbody>
-                    {canSX.map((r) => (
-                      <tr key={r.barcode}>
-                        <td><div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
-                          <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}{r.la_hang_sale ? ' · sale' : ''}</div></td>
-                        <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.ban_toan_ht}</td>
-                        <td className="num">{r.so_ch_ban}</td>
-                        <td className="num">{r.ton_con_o_ch}</td>
-                        <td className="num" style={{ color: 'var(--magenta)', fontWeight: 700 }}>{r.kho_tong}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <div className="empty" style={{ marginTop: 10 }}>
-                <div className="t">Không có mã nào cần sản xuất</div>Mọi mã đang bán đều còn nguồn ở kho tổng.</div>)}
-          </div>
         </>
       )}
 
@@ -412,7 +391,7 @@ function RowSP({ r, anhProps, moNguon, nhieuCH }) {
         <div style={{ fontWeight: 600, fontSize: 12.5 }}>{r.ten_ch}</div>
         <div style={{ fontSize: 11, color: 'var(--ink-2)' }} className="mono">{r.khu_vuc || r.ma_ch}</div>
       </td>}
-      <td>
+      <td className="col-sp">
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <div className="sp-thumb" {...anhProps(r)}>
             {r.hinh_url ? <img src={r.hinh_url} alt="" onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.insertAdjacentHTML('beforeend', '<span style="color:var(--ink-2)">▢</span>'); }} /> : <IcBox />}
@@ -436,13 +415,57 @@ function RowSP({ r, anhProps, moNguon, nhieuCH }) {
       <td className="num" style={{ color: r.kho_tong > 0 ? 'var(--teal-deep)' : 'var(--magenta)', fontWeight: 600 }}>{r.kho_tong}</td>
       <td className="num">{r.ton_ch_khac > 0 ? <span style={{ color: 'var(--teal-deep)' }}>{r.ton_ch_khac}</span> : <span style={{ color: 'var(--ink-2)' }}>0</span>}</td>
       <td className="num">{r.ton_that === 0 && r.ngay_het > 0 ? <b>{r.ngay_het}d</b> : '—'}</td>
-      <td><span className={'tt ' + ttMau}>{tt}</span></td>
-      <td>
+      <td className="center"><span className={'tt ' + ttMau}>{tt}</span></td>
+      <td className="center">
         {(r.kho_tong > 0 || r.ton_ch_khac > 0)
           ? <button className="btn-mini" onClick={() => moNguon(r)}>Tìm nguồn</button>
           : <span style={{ fontSize: 11, color: 'var(--magenta)' }}>Cần SX</span>}
       </td>
     </tr>
+  );
+}
+
+
+// ===== Bảng CẦN SẢN XUẤT / TÁI BẢN — toàn hệ thống (chế độ xem riêng) =====
+function BangCanSX({ ds, busy, xuat, q, nhomXem }) {
+  if (busy) return <div className="empty" style={{ marginTop: 12 }}>
+    <div className="t">Đang quét toàn hệ thống…</div>Mã có bán 30 ngày nhưng kho tổng đã cạn.</div>;
+  let v = ds || [];
+  if (nhomXem !== 'ALL') v = v.filter((g) => ((g.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (g.la_hang_sale ? 'S' : 'C')) === nhomXem);
+  if (q) { const k = q.toUpperCase();
+    v = v.filter((g) => [g.barcode, g.sku, g.ma_tham_chieu, g.nganh_3].some((x) => (x || '').toUpperCase().includes(k))); }
+  if (!v.length) return <div className="empty" style={{ marginTop: 12 }}>
+    <div className="t">Không có mã nào cần sản xuất</div>Mọi mã đang bán đều còn nguồn ở kho tổng.</div>;
+  return (
+    <div className="card" style={{ padding: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--line)' }}>
+        <div style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>
+          Mã có bán trong 30 ngày (toàn hệ thống) nhưng <b style={{ color: 'var(--magenta)' }}>kho tổng đã cạn</b> — xếp theo mức bán giảm dần, bán càng nhiều càng cần sản xuất gấp.
+        </div>
+        <button className="btn btn-gold" style={{ marginLeft: 'auto', flexShrink: 0 }} onClick={xuat}>Xuất Excel ({v.length})</button>
+      </div>
+      <div className="tbl-wrap" style={{ maxHeight: '62vh' }}>
+        <table className="tbl">
+          <thead><tr>
+            <th className="col-sp">Sản phẩm</th><th className="num">Bán 30N</th><th className="num">Số CH bán</th>
+            <th className="num">Tồn còn ở CH</th><th className="num">Kho tổng</th><th>Bán gần nhất</th>
+          </tr></thead>
+          <tbody>
+            {v.map((r) => (
+              <tr key={r.barcode}>
+                <td className="col-sp"><div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}{r.la_hang_sale ? ' · sale' : ''}</div></td>
+                <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.ban_toan_ht}</td>
+                <td className="num">{r.so_ch_ban}</td>
+                <td className="num">{r.ton_con_o_ch}</td>
+                <td className="num" style={{ color: 'var(--magenta)', fontWeight: 700 }}>{r.kho_tong}</td>
+                <td>{r.ngay_ban_cuoi ? String(r.ngay_ban_cuoi).split('-').reverse().join('/') : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

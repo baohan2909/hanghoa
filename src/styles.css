@@ -115,7 +115,7 @@ input, select { font-family: inherit; font-size: 14px; }
 .side-install:hover { filter: brightness(1.06); }
 .sidebar.gon .side-install { padding: 9px 0; }
 
-.main { flex: 1; min-width: 0; padding: 16px 18px 90px; contain: layout style; }
+.main { flex: 1; min-width: 0; padding: 16px 18px 90px; }
 
 /* Thanh trên cho mobile */
 .mtop { display: none; }
@@ -216,7 +216,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .tbl img.sp { width: 44px; height: 44px; object-fit: cover; border-radius: 8px;
   background: #EEE; border: 1px solid var(--line); }
 .tbl .noimg { width: 44px; height: 44px; border-radius: 8px; background: #F0EDE4;
-  display: flex; align-items: center; justify-content: center; color: #B9B2A2; }
+  display: flex; align-items: center; justify-content: center; color: #B9B2A2; flex-shrink: 0; }
 .qty-input { width: 64px; text-align: right; font-family: var(--font-mono);
   padding: 6px 8px; border: 1.5px solid var(--line); border-radius: 8px;
   background: #FBFAF6; font-size: 13px; }
@@ -474,7 +474,7 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 .legend .lg-kho { background: #EEF2F5; box-shadow: inset 4px 0 0 #B4BEC7; }
 
 /* ---------- Chip tình trạng hàng ---------- */
-.tt { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-align: center; line-height: 1.3; }
+.tt { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11.5px; font-weight: 600; text-align: center; line-height: 1.35; font-family: inherit; }
 .tt-het { background: #FCE8EF; color: #B0185C; }
 .tt-tot { background: #E4F5F0; color: var(--teal-deep); }
 .tt-cham { background: #FBF1DC; color: #9A7B2E; }
@@ -586,3 +586,13 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 /* Tag cửa hàng trong thống kê theo mã */
 .ch-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px;
   background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 3px 10px; }
+
+
+/* Ô chọn ngày — đồng bộ phong cách app */
+input[type="date"] { border: 0; border-radius: 10px; height: 40px; padding: 0 12px;
+  font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--ink);
+  background: #fff; accent-color: var(--teal); color-scheme: light; cursor: pointer; }
+input[type="date"]:hover { box-shadow: inset 0 0 0 1.5px var(--teal); }
+input[type="date"]:focus-visible { outline: 2px solid var(--teal); }
+input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .55; }
+input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
