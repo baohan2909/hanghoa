@@ -9,6 +9,7 @@ import Kho from './screens/Kho.jsx';
 import Lich from './screens/Lich.jsx';
 import GiamSat from './screens/GiamSat.jsx';
 import ChiaHangMoi from './screens/ChiaHangMoi.jsx';
+import DacBiet from './screens/DacBiet.jsx';
 import VanDon from './screens/VanDon.jsx';
 import BaoCao from './screens/BaoCao.jsx';
 import ThamSo from './screens/ThamSo.jsx';
@@ -32,6 +33,7 @@ const MENU = [
   { nhom: 'CẤU HÌNH', items: [
     { id: 'lich',      ten: 'Lịch đề nghị',   Ic: IcClock, roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'chiamoi',   ten: 'Chia hàng mới',  Ic: IcSplit, roles: ['DIEU_PHOI', 'ADMIN'] },
+    { id: 'dacbiet',   ten: 'Hàng đặc biệt', Ic: IcBox,   roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'thamso',    ten: 'Tham số',        Ic: IcGear,  roles: ['ADMIN'] },
   ]},
 ];
@@ -86,7 +88,7 @@ export default function App() {
   if (!user) return <Login onOk={(u) => { localStorage.setItem('nsflow_user', JSON.stringify(u)); setUser(u); }} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich,
-    giamsat: GiamSat, chiamoi: ChiaHangMoi, vandon: VanDon, baocao: BaoCao, thamso: ThamSo }[tab]
+    giamsat: GiamSat, chiamoi: ChiaHangMoi, dacbiet: DacBiet, vandon: VanDon, baocao: BaoCao, thamso: ThamSo }[tab]
     || (user.vai_tro === 'KHO' ? Kho : XinHang);
   const tabDem = user.vai_tro === 'KHO' ? 'kho' : 'duyet';
   const chonTab = (id) => { setTab(id); setMoMenu(false); };

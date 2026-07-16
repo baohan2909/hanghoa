@@ -556,7 +556,7 @@ export default function XinHang() {
                   <span className="th-lbl sortable" onClick={() => doiSort('tt')}>Tình trạng{sortIc('tt')}</span>
                   <input className="flt-in" list="dl-tt" placeholder="hết hàng…" value={flt.tt || ''} onChange={(e) => datFlt('tt', e.target.value)} />
                   <datalist id="dl-tt">
-                    <option value="Hết hàng" /><option value="trong ngày" /><option value="Đang bán tốt" />
+                    <option value="Hết hàng" /><option value="trong ngày" /><option value="Hàng thu hồi" /><option value="Hàng mới" /><option value="Đang bán tốt" />
                     <option value="Bán đều" /><option value="Bán chậm" /><option value="Không bán" /><option value="Chưa phát sinh" />
                   </datalist>
                 </th>
@@ -616,9 +616,11 @@ export default function XinHang() {
                       <td className="num" style={{ fontWeight: 600 }}>{r.sl_ban_ky ?? 0}</td>
                       <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.sl_ai}</td>
                       <td className="num">
-                        <input className={'qty-input' + (vuot || vuotKho ? ' over' : '')} type="number" min="0"
+                        <input className={'qty-input' + (vuot || vuotKho ? ' over' : '') + (r.dac_biet ? ' khoa' : '')}
+                          type="number" min="0" disabled={!!r.dac_biet}
+                          title={r.dac_biet ? 'Hàng đặc biệt — phòng Điều phối chia trực tiếp' : undefined}
                           data-qty={idx}
-                          value={r.sl_xin} onChange={(e) => sua(r.barcode, e.target.value)}
+                          value={r.dac_biet ? 0 : r.sl_xin} onChange={(e) => sua(r.barcode, e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               e.preventDefault();
@@ -641,7 +643,9 @@ export default function XinHang() {
                       <td className="center">
                         {r.tinh_trang && (
                           <span className={'tt ' + (
-                            r.tinh_trang.startsWith('Hết hàng') || r.tinh_trang === 'Vừa hết hàng' ? 'tt-het'
+                            r.tinh_trang.startsWith('Hàng thu hồi') ? 'tt-dp-thuhoi'
+                            : r.tinh_trang.startsWith('Hàng mới') ? 'tt-dp-moi'
+                            : r.tinh_trang.startsWith('Hết hàng') || r.tinh_trang === 'Vừa hết hàng' ? 'tt-het'
                             : r.tinh_trang === 'Đang bán tốt' ? 'tt-tot'
                             : r.tinh_trang === 'Bán chậm' || r.tinh_trang.startsWith('Không bán') ? 'tt-cham'
                             : 'tt-thuong')}>
