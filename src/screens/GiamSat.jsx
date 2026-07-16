@@ -391,7 +391,7 @@ function RowSP({ r, anhProps, moNguon, nhieuCH }) {
   const bac = r.dang === 'BO_SUNG' ? 'can-chia' : r.dang === 'CANH_BAO' ? 'thuong' : '';
   const hetNgay = r.ton_that === 0 && r.ngay_het > 0;
   const tt = r.ton_that === 0
-    ? (hetNgay ? <>Hết hàng<br/>{r.ngay_het} ngày</> : 'Vừa hết hàng')
+    ? (r.ngay_het === 0 ? <>Hết hàng<br/>trong ngày</> : <>Hết hàng<br/>{r.ngay_het} ngày</>)
     : r.dang === 'CANH_BAO' ? <>Sắp hết<br/>~{r.muc} ngày</> : 'Đủ hàng';
   const ttMau = r.ton_that === 0 ? 'tt-het' : r.dang === 'CANH_BAO' ? 'tt-cham' : 'tt-tot';
   const dangChuyen = r.dang_chuyen > 0;

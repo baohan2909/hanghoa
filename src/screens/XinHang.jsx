@@ -556,7 +556,7 @@ export default function XinHang() {
                   <span className="th-lbl sortable" onClick={() => doiSort('tt')}>Tình trạng{sortIc('tt')}</span>
                   <input className="flt-in" list="dl-tt" placeholder="hết hàng…" value={flt.tt || ''} onChange={(e) => datFlt('tt', e.target.value)} />
                   <datalist id="dl-tt">
-                    <option value="Hết hàng" /><option value="Vừa hết hàng" /><option value="Đang bán tốt" />
+                    <option value="Hết hàng" /><option value="trong ngày" /><option value="Đang bán tốt" />
                     <option value="Bán đều" /><option value="Bán chậm" /><option value="Không bán" /><option value="Chưa phát sinh" />
                   </datalist>
                 </th>
@@ -645,7 +645,7 @@ export default function XinHang() {
                             : r.tinh_trang === 'Đang bán tốt' ? 'tt-tot'
                             : r.tinh_trang === 'Bán chậm' || r.tinh_trang.startsWith('Không bán') ? 'tt-cham'
                             : 'tt-thuong')}>
-                            {r.tinh_trang.startsWith('Hết hàng ')
+                            {r.tinh_trang.startsWith('Hết hàng ') && r.tinh_trang !== 'Hết hàng, chưa từng bán'
                               ? <>Hết hàng<br/>{r.tinh_trang.replace('Hết hàng ', '')}</>
                               : r.tinh_trang}
                           </span>
