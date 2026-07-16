@@ -508,8 +508,9 @@ table.tbl { border-collapse: collapse; width: 100%; font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* ============ PHÂN HỆ THIẾU HÀNG ============ */
-.cmd-title h2 { font-size: 20px; font-weight: 800; color: #fff; margin: 0 0 3px; }
-.cmd-title p { font-size: 12.5px; color: rgba(255,255,255,.75); margin: 0 0 12px; max-width: 640px; }
+/* QUY ĐỊNH giao diện: tiêu đề màn = 19px/600 (khớp .cmdbar h1), mô tả 12.5px mờ .82 */
+.cmd-title h2 { font-size: 19px; font-weight: 600; letter-spacing: .2px; color: #fff; margin: 0 0 3px; position: relative; z-index: 1; }
+.cmd-title p { font-size: 12.5px; color: rgba(255,255,255,.82); margin: 0 0 12px; max-width: 640px; position: relative; z-index: 1; }
 
 /* Thẻ thống kê kiêm bộ lọc */
 .th-cards { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 12px; }
@@ -647,3 +648,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 /* Ô nhập bị khóa cho hàng đặc biệt */
 .qty-input.khoa, .qty-input:disabled { opacity: .38; background: #F0EDE4; cursor: not-allowed; }
 .lbl { font-size: 11.5px; font-weight: 600; color: var(--ink-2); margin-bottom: 4px; }
+
+/* ============ QUY ĐỊNH Ô NHẬP CHUẨN (v3.2.1) ============ */
+/* Mọi ô nhập/chọn trong app dùng .inp: cao 40px, bo 10px, không viền cứng,
+   nền trắng + viền lụa, focus teal — khớp .ch-input của Đề nghị hàng. */
+.inp { height: 40px; padding: 0 12px; border: 0; border-radius: 10px;
+  background: #fff; color: var(--ink); font-size: 13.5px; font-family: inherit;
+  box-shadow: inset 0 0 0 1.5px var(--line); }
+.inp:hover { box-shadow: inset 0 0 0 1.5px var(--teal); }
+.inp:focus { outline: 2px solid var(--teal); box-shadow: none; }
+.inp::placeholder { color: var(--ink-2); }
+select.inp { cursor: pointer; }
+textarea.inp { height: auto; padding: 10px 12px; }

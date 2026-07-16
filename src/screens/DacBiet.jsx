@@ -6,12 +6,13 @@ import { useApp } from '../App.jsx';
 // ===== HÀNG ĐẶC BIỆT — Thu hồi & Hàng mới (Điều phối kiểm soát, KHÔNG chia tự động) =====
 const fmtVND = (n) => (n || 0).toLocaleString('vi-VN') + 'đ';
 const fmtNgay = (d) => d ? String(d).split('T')[0].split('-').reverse().join('/') : '—';
+const laBH = (n1) => (n1 || '').includes('bảo hiểm') || (n1 || '').includes('Mũ');
 
 const BadgeNganh = ({ n1 }) => {
-  const bh = (n1 || '').includes('bảo hiểm') || (n1 || '').includes('Mũ');
-  return <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+  const bh = laBH(n1);
+  return <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 10, whiteSpace: 'nowrap',
     background: bh ? '#E4F5F0' : '#F7EFDE', color: bh ? 'var(--teal-deep)' : '#8A6D2F' }}>
-    {bh ? 'BH' : 'NV'}</span>;
+    {bh ? 'Mũ bảo hiểm' : 'Nón vải'}</span>;
 };
 
 export default function DacBiet() {
@@ -20,13 +21,24 @@ export default function DacBiet() {
   const [ds, setDs] = useState(null);
   // tìm để thêm
   const [q, setQ] = useState('');
-  const [goiY, setGoiY] = useState([]);
+  const [goiY, setGoiY] = useState(null);        // null = chưa tìm, [] = không thấy
+  const [dangTim, setDangTim] = useState(false);
   const timRef = useRef(null);
-  // khối mã tạo gần đây (tab HANG_MOI)
+  // khối mã tạo gần đây
   const [soNgay, setSoNgay] = useState(30);
   const [maMoi, setMaMoi] = useState(null);
   const [locNganh, setLocNganh] = useState('ALL');
   const [qMoi, setQMoi] = useState('');
+  const [sortMoi, setSortMoi] = useState({ key: 'ngay', dir: -1 });
+  // ảnh hover + lightbox (như Đề nghị hàng)
+  const [hoverAnh, setHoverAnh] = useState(null);
+  const [xemAnh, setXemAnh] = useState(null);
+  const anhProps = (url) => ({
+    onMouseEnter: (e) => url && setHoverAnh({ url, x: e.clientX + 20, y: e.clientY - 80 }),
+    onMouseLeave: () => setHoverAnh(null),
+    onClick: () => url && setXemAnh(url),
+    style: url ? { cursor: 'zoom-in' } : undefined,
+  });
 
   const taiDS = async () => {
     const { data, error } = await sb.rpc('fn_dacbiet_ds');
@@ -43,22 +55,26 @@ export default function DacBiet() {
   };
   useEffect(() => { if (tab === 'HANG_MOI') taiMaMoi(soNgay); }, [tab, soNgay]);
 
-  // Tìm gợi ý (debounce 300ms)
+  // Tìm gợi ý (debounce 300ms, từ 2 ký tự, báo rõ trạng thái)
   const goTim = (v) => {
     setQ(v);
     clearTimeout(timRef.current);
-    if (v.trim().length < 3) { setGoiY([]); return; }
+    if (v.trim().length < 2) { setGoiY(null); setDangTim(false); return; }
+    setDangTim(true);
     timRef.current = setTimeout(async () => {
-      const { data } = await sb.rpc('fn_tim_sp', { p_q: v.trim() });
+      const { data, error } = await sb.rpc('fn_tim_sp', { p_q: v.trim() });
+      setDangTim(false);
+      if (error) { baoToast('Lỗi tìm kiếm: ' + error.message); setGoiY([]); return; }
       setGoiY(data || []);
     }, 300);
   };
 
-  const them = async (bc) => {
+  const them = async (bc, loai) => {
     const { error } = await sb.rpc('fn_dacbiet_them', {
-      p_barcode: bc, p_loai: tab, p_nguoi: user.ma_dang_nhap });
+      p_barcode: bc, p_loai: loai || tab, p_nguoi: user.ma_dang_nhap });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast('Đã thêm vào danh sách'); setQ(''); setGoiY([]); taiDS();
+    baoToast('Đã thêm vào danh sách'); setQ(''); setGoiY(null); taiDS();
+    if (tab === 'HANG_MOI') taiMaMoi(soNgay);
   };
   const xoa = async (bc) => {
     const { error } = await sb.rpc('fn_dacbiet_xoa', { p_barcode: bc });
@@ -67,17 +83,29 @@ export default function DacBiet() {
   };
 
   const dsTab = (ds || []).filter((r) => r.loai === tab);
-  const maMoiLoc = (maMoi || []).filter((r) => {
-    if (locNganh !== 'ALL') {
-      const bh = (r.nganh_1 || '').includes('bảo hiểm') || (r.nganh_1 || '').includes('Mũ');
-      if (locNganh === 'BH' !== bh) return false;
-    }
+
+  // Lọc + sort mã tạo gần đây
+  const sortVal = { ngay: (r) => r.ngay_tao_ma || '', gia: (r) => r.gia_niem_yet || 0,
+    kho: (r) => r.kho_tong || 0, ban: (r) => r.da_ban_30 || 0,
+    nganh: (r) => (laBH(r.nganh_1) ? 0 : 1), sp: (r) => r.ma_tham_chieu || r.sku || '' };
+  const doiSortMoi = (key) => setSortMoi((c) => ({ key, dir: c.key === key ? -c.dir : -1 }));
+  const icSort = (key) => <span style={{ opacity: sortMoi.key === key ? 1 : .3, fontSize: 10 }}>{sortMoi.key === key && sortMoi.dir === 1 ? ' ▲' : ' ▼'}</span>;
+  let maMoiLoc = (maMoi || []).filter((r) => {
+    if (locNganh !== 'ALL' && (locNganh === 'BH') !== laBH(r.nganh_1)) return false;
     if (qMoi.trim()) {
       const k = qMoi.trim().toUpperCase();
       if (![r.barcode, r.sku, r.ma_tham_chieu, r.nganh_3].some((x) => (x || '').toUpperCase().includes(k))) return false;
     }
     return true;
   });
+  maMoiLoc = [...maMoiLoc].sort((a, b) => {
+    const va = sortVal[sortMoi.key](a), vb = sortVal[sortMoi.key](b);
+    return (va < vb ? -1 : va > vb ? 1 : 0) * sortMoi.dir;
+  });
+
+  const AnhSP = ({ url }) => url
+    ? <img className="sp" src={url} alt="" {...anhProps(url)} />
+    : <div className="noimg" />;
 
   return (
     <div>
@@ -88,37 +116,39 @@ export default function DacBiet() {
         </div>
       </div>
 
-      {/* 2 tab loại */}
       <div className="nhom-tabs" style={{ marginTop: 14 }}>
-        <button className={'nhom-tab' + (tab === 'THU_HOI' ? ' on' : '')} onClick={() => setTab('THU_HOI')}>
+        <button className={'nhom-tab' + (tab === 'THU_HOI' ? ' on' : '')} onClick={() => { setTab('THU_HOI'); setQ(''); setGoiY(null); }}>
           Hàng thu hồi {ds && <b style={{ marginLeft: 4 }}>{(ds || []).filter((r) => r.loai === 'THU_HOI').length}</b>}
         </button>
-        <button className={'nhom-tab' + (tab === 'HANG_MOI' ? ' on' : '')} onClick={() => setTab('HANG_MOI')}>
+        <button className={'nhom-tab' + (tab === 'HANG_MOI' ? ' on' : '')} onClick={() => { setTab('HANG_MOI'); setQ(''); setGoiY(null); }}>
           Hàng mới / tái bản {ds && <b style={{ marginLeft: 4 }}>{(ds || []).filter((r) => r.loai === 'HANG_MOI').length}</b>}
         </button>
       </div>
 
       {/* Ô tìm + thêm */}
       <div className="card" style={{ marginTop: 12, padding: 14, position: 'relative' }}>
-        <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 8, color: 'var(--ink)' }}>
+        <div className="lbl" style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 700, marginBottom: 8 }}>
           {tab === 'THU_HOI' ? 'Thêm sản phẩm thu hồi' : 'Thêm mã tái bản (ngày tạo cũ nhưng cần ĐP chia)'}
         </div>
         <div style={{ position: 'relative', maxWidth: 520 }}>
-          <IcSearch style={{ position: 'absolute', left: 12, top: 11, width: 16, height: 16, color: 'var(--ink-2)' }} />
+          <IcSearch style={{ position: 'absolute', left: 11, top: 12, width: 16, height: 16, color: 'var(--ink-2)', pointerEvents: 'none' }} />
           <input className="inp" style={{ paddingLeft: 36, width: '100%' }}
             placeholder="Barcode, SKU, mã — gõ để tìm" value={q} onChange={(e) => goTim(e.target.value)} />
-          {goiY.length > 0 && (
+          {(dangTim || goiY) && q.trim().length >= 2 && (
             <div className="goiy-pop">
-              {goiY.map((g) => (
+              {dangTim && <div className="goiy-item" style={{ color: 'var(--ink-2)', fontSize: 12.5 }}>Đang tìm…</div>}
+              {!dangTim && goiY && !goiY.length &&
+                <div className="goiy-item" style={{ color: 'var(--ink-2)', fontSize: 12.5 }}>Không tìm thấy sản phẩm khớp "{q.trim()}"</div>}
+              {!dangTim && (goiY || []).map((g) => (
                 <div key={g.barcode} className="goiy-item">
-                  {g.hinh_url ? <img src={g.hinh_url} alt="" /> : <div className="noimg" />}
+                  <AnhSP url={g.hinh_url} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="mono" style={{ fontWeight: 600, fontSize: 12.5 }}>{g.ma_tham_chieu || g.sku}</div>
                     <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3} · kho tổng {g.kho_tong}</div>
                   </div>
                   <BadgeNganh n1={g.nganh_1} />
                   {g.dac_biet
-                    ? <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>đã trong DS</span>
+                    ? <span style={{ fontSize: 11, color: 'var(--ink-2)', whiteSpace: 'nowrap' }}>đã trong DS</span>
                     : <button className="btn-mini" onClick={() => them(g.barcode)}>＋ Thêm</button>}
                 </div>
               ))}
@@ -127,7 +157,7 @@ export default function DacBiet() {
         </div>
       </div>
 
-      {/* Danh sách hiện tại của tab */}
+      {/* Danh sách của tab */}
       <div className="card" style={{ marginTop: 12, padding: 0 }}>
         <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', fontWeight: 700, fontSize: 13.5 }}>
           Danh sách {tab === 'THU_HOI' ? 'thu hồi' : 'hàng mới thêm tay'} ({dsTab.length})
@@ -139,15 +169,15 @@ export default function DacBiet() {
             <table className="tbl">
               <thead><tr>
                 <th className="col-sp">Sản phẩm</th><th className="center">Ngành</th>
-                <th className="num">Giá</th><th className="num">Kho tổng</th>
-                <th>Người thêm</th><th>Ngày thêm</th><th className="center">Gỡ</th>
+                <th className="center">Giá</th><th className="center">Kho tổng</th>
+                <th className="center">Người thêm</th><th className="center">Ngày thêm</th><th className="center">Gỡ</th>
               </tr></thead>
               <tbody>
                 {dsTab.map((r) => (
                   <tr key={r.barcode}>
                     <td className="col-sp">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        {r.hinh_url ? <img className="sp" src={r.hinh_url} alt="" /> : <div className="noimg" />}
+                        <AnhSP url={r.hinh_url} />
                         <div>
                           <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
                           <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}</div>
@@ -157,8 +187,8 @@ export default function DacBiet() {
                     <td className="center"><BadgeNganh n1={r.nganh_1} /></td>
                     <td className="num">{fmtVND(r.gia_niem_yet)}</td>
                     <td className="num">{r.kho_tong}</td>
-                    <td>{r.nguoi_tao || '—'}</td>
-                    <td>{fmtNgay(r.tao_luc)}</td>
+                    <td className="center">{r.nguoi_tao || '—'}</td>
+                    <td className="center">{fmtNgay(r.tao_luc)}</td>
                     <td className="center"><button className="btn-mini btn-danger" onClick={() => xoa(r.barcode)}>－ Gỡ</button></td>
                   </tr>
                 ))}
@@ -168,45 +198,54 @@ export default function DacBiet() {
         )}
       </div>
 
-      {/* Tab HÀNG MỚI: khối mã tạo gần đây (tự động khóa theo ngưỡng) */}
+      {/* Tab HÀNG MỚI: mã tạo gần đây */}
       {tab === 'HANG_MOI' && (
         <div className="card" style={{ marginTop: 12, padding: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
             <div style={{ fontWeight: 700, fontSize: 13.5 }}>Mã tạo gần đây</div>
             <span style={{ fontSize: 11.5, color: 'var(--ink-2)' }}>
-              (mã tạo ≤ 30 ngày <b>tự động</b> khóa chia — không cần thêm tay)
+              (mã tạo ≤ 30 ngày <b>tự động</b> khóa chia — bấm ＋ chỉ khi muốn giữ khóa lâu hơn 30 ngày)
             </span>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <div className="nhom-tabs" style={{ margin: 0 }}>
-                {[['ALL', 'Tất cả'], ['BH', 'Bảo hiểm'], ['NV', 'Nón vải']].map(([k, ten]) => (
+                {[['ALL', 'Tất cả'], ['BH', 'Mũ bảo hiểm'], ['NV', 'Nón vải']].map(([k, ten]) => (
                   <button key={k} className={'nhom-tab' + (locNganh === k ? ' on' : '')} onClick={() => setLocNganh(k)}>{ten}</button>
                 ))}
               </div>
-              {[14, 30, 60, 90].map((n) => (
-                <button key={n} className={'nhom-tab' + (soNgay === n ? ' on' : '')} onClick={() => setSoNgay(n)}>{n} ngày</button>
-              ))}
-              <input className="inp" style={{ width: 180 }} placeholder="Barcode, SKU, mã"
-                value={qMoi} onChange={(e) => setQMoi(e.target.value)} />
+              <div className="nhom-tabs" style={{ margin: 0 }}>
+                {[14, 30, 60, 90].map((n) => (
+                  <button key={n} className={'nhom-tab' + (soNgay === n ? ' on' : '')} onClick={() => setSoNgay(n)}>{n} ngày</button>
+                ))}
+              </div>
+              <div style={{ position: 'relative' }}>
+                <IcSearch style={{ position: 'absolute', left: 10, top: 12, width: 15, height: 15, color: 'var(--ink-2)', pointerEvents: 'none' }} />
+                <input className="inp" style={{ width: 190, paddingLeft: 33 }} placeholder="Barcode, SKU, mã"
+                  value={qMoi} onChange={(e) => setQMoi(e.target.value)} />
+              </div>
             </div>
           </div>
           {!maMoi ? (
             <div className="quet-load"><div className="quet-ring" /><div className="quet-s">đang tải…</div></div>
           ) : !maMoiLoc.length ? (
-            <div className="empty" style={{ margin: 14 }}>Không có mã nào tạo trong {soNgay} ngày qua.</div>
+            <div className="empty" style={{ margin: 14 }}>Không có mã nào khớp trong {soNgay} ngày qua.</div>
           ) : (
             <div className="tbl-wrap" style={{ maxHeight: '52vh' }}>
               <table className="tbl">
                 <thead><tr>
-                  <th className="col-sp">Sản phẩm</th><th className="center">Ngành</th>
-                  <th>Ngày tạo mã</th><th className="num">Giá</th>
-                  <th className="num">Kho tổng</th><th className="num">Đã bán 30N</th>
+                  <th className="col-sp sortable" onClick={() => doiSortMoi('sp')}>Sản phẩm{icSort('sp')}</th>
+                  <th className="center sortable" onClick={() => doiSortMoi('nganh')}>Ngành{icSort('nganh')}</th>
+                  <th className="center sortable" onClick={() => doiSortMoi('ngay')}>Ngày tạo mã{icSort('ngay')}</th>
+                  <th className="center sortable" onClick={() => doiSortMoi('gia')}>Giá{icSort('gia')}</th>
+                  <th className="center sortable" onClick={() => doiSortMoi('kho')}>Kho tổng{icSort('kho')}</th>
+                  <th className="center sortable" onClick={() => doiSortMoi('ban')}>Đã bán 30N{icSort('ban')}</th>
+                  <th className="center">Thêm DS</th>
                 </tr></thead>
                 <tbody>
                   {maMoiLoc.map((r) => (
                     <tr key={r.barcode}>
                       <td className="col-sp">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                          {r.hinh_url ? <img className="sp" src={r.hinh_url} alt="" /> : <div className="noimg" />}
+                          <AnhSP url={r.hinh_url} />
                           <div>
                             <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
                             <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}</div>
@@ -214,16 +253,32 @@ export default function DacBiet() {
                         </div>
                       </td>
                       <td className="center"><BadgeNganh n1={r.nganh_1} /></td>
-                      <td><b style={{ color: 'var(--teal-deep)' }}>{fmtNgay(r.ngay_tao_ma)}</b></td>
+                      <td className="center"><b style={{ color: 'var(--teal-deep)' }}>{fmtNgay(r.ngay_tao_ma)}</b></td>
                       <td className="num">{fmtVND(r.gia_niem_yet)}</td>
                       <td className="num">{r.kho_tong}</td>
                       <td className="num">{r.da_ban_30}</td>
+                      <td className="center">
+                        {r.dac_biet
+                          ? <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>đã có</span>
+                          : <button className="btn-mini" onClick={() => them(r.barcode, 'HANG_MOI')}>＋</button>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Ảnh hover phóng to + lightbox — như Đề nghị hàng */}
+      {hoverAnh && (
+        <img className="sp-zoom" src={hoverAnh.url} alt=""
+          style={{ left: Math.min(hoverAnh.x, window.innerWidth - 340), top: Math.max(10, hoverAnh.y) }} />
+      )}
+      {xemAnh && (
+        <div className="img-lightbox" onClick={() => setXemAnh(null)}>
+          <img src={xemAnh} alt="" />
         </div>
       )}
     </div>

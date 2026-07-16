@@ -29,9 +29,10 @@ export default function ChiaHangMoi() {
     capNhat(id, field === 'sp' ? { q: v, sp: null } : { qTC: v, thamChieu: null });
     const key = id + field;
     clearTimeout(timRef.current[key]);
-    if (v.trim().length < 3) { capNhat(id, field === 'sp' ? { goiY: [] } : { goiYTC: [] }); return; }
+    if (v.trim().length < 2) { capNhat(id, field === 'sp' ? { goiY: [] } : { goiYTC: [] }); return; }
     timRef.current[key] = setTimeout(async () => {
-      const { data } = await sb.rpc('fn_tim_sp', { p_q: v.trim() });
+      const { data, error } = await sb.rpc('fn_tim_sp', { p_q: v.trim() });
+      if (error) { baoToast('Lỗi tìm kiếm: ' + error.message); return; }
       capNhat(id, field === 'sp' ? { goiY: data || [] } : { goiYTC: data || [] });
     }, 300);
   };
@@ -113,7 +114,7 @@ export default function ChiaHangMoi() {
             <div style={{ position: 'relative', flex: '1 1 240px' }}>
               <div className="lbl">Mã hàng mới #{i + 1}</div>
               <div style={{ position: 'relative' }}>
-                <IcSearch style={{ position: 'absolute', left: 10, top: 11, width: 15, height: 15, color: 'var(--ink-2)' }} />
+                <IcSearch style={{ position: 'absolute', left: 11, top: 12, width: 16, height: 16, color: 'var(--ink-2)', pointerEvents: 'none' }} />
                 <input className="inp" style={{ paddingLeft: 32, width: '100%' }}
                   placeholder="Barcode, SKU, mã" value={d.q} onChange={(e) => goTim(d.id, 'sp', e.target.value)} />
               </div>
