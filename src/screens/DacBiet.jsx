@@ -312,7 +312,9 @@ export default function DacBiet() {
         const conTon = R.filter((r) => Number(r.ton_hien_tai) > 0).sort((a, b) => b.ton_hien_tai - a.ton_hien_tai);
         const hetTon = R.filter((r) => Number(r.ton_hien_tai) === 0 && Number(r.tong_ban_all) > 0)
                         .sort((a, b) => b.tong_ban_all - a.tong_ban_all);
-        const cur = theBan === 'ban' ? daBan : theBan === 'ton' ? conTon : hetTon;
+        // Thẻ tồn gộp: hết tồn (cần bổ sung) lên TRÊN, còn tồn xuống dưới
+        const tonGop = [...hetTon, ...conTon];
+        const cur = theBan === 'ban' ? daBan : tonGop;
         const tongBanKy = daBan.reduce((s, r) => s + Number(r.sl_ban_ky), 0);
         const tongTon = conTon.reduce((s, r) => s + Number(r.ton_hien_tai), 0);
         return (
@@ -347,12 +349,8 @@ export default function DacBiet() {
                       <span className="the-g-t">Đã bán<small>{daBan.length} cửa hàng</small></span>
                     </button>
                     <button className={'the-g' + (theBan === 'ton' ? ' on' : '')} onClick={() => setTheBan('ton')}>
-                      <span className="the-g-n">{conTon.length}</span>
-                      <span className="the-g-t">Đang còn tồn<small>tổng {tongTon} cái</small></span>
-                    </button>
-                    <button className={'the-g' + (theBan === 'het' ? ' on' : '')} onClick={() => setTheBan('het')}>
-                      <span className="the-g-n">{hetTon.length}</span>
-                      <span className="the-g-t">Đã hết tồn<small>từng bán, cần bổ sung</small></span>
+                      <span className="the-g-n">{hetTon.length}<small style={{ fontSize: 15, fontWeight: 700, opacity: .55 }}> / {conTon.length}</small></span>
+                      <span className="the-g-t">Hết tồn / Còn tồn<small>{hetTon.length} cần bổ sung · {conTon.length} còn hàng</small></span>
                     </button>
                   </div>
 
@@ -369,16 +367,32 @@ export default function DacBiet() {
                           <th>Cửa hàng</th><th className="center">Khu vực</th>
                           <th className="center">Bán (kỳ)</th><th className="center">Tồn</th><th className="center">Bán gần nhất</th>
                         </tr></thead>
+                        {theBan === 'ton' && hetTon.length > 0 && (
+                          <thead><tr><th colSpan={5} style={{ background: '#FCE8EF', fontSize: 11, fontWeight: 700,
+                            color: 'var(--magenta)', padding: '5px 8px', textAlign: 'left', textTransform: 'none', letterSpacing: 0 }}>
+                            △ Cửa hàng HẾT tồn — cần bổ sung ({hetTon.length})</th></tr></thead>
+                        )}
                         <tbody>
-                          {cur.map((r) => (
-                            <tr key={r.ma_ch}>
-                              <td><b>{r.ten_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
-                              <td className="center">{r.khu_vuc || '—'}</td>
-                              <td className="num" style={{ fontWeight: 700, color: Number(r.sl_ban_ky) > 0 ? 'var(--teal-deep)' : 'var(--ink-2)' }}>{r.sl_ban_ky}</td>
-                              <td className="num" style={{ fontWeight: Number(r.ton_hien_tai) > 0 ? 700 : 400, color: Number(r.ton_hien_tai) > 0 ? 'var(--ink)' : 'var(--magenta)' }}>{r.ton_hien_tai}</td>
-                              <td className="center">{fmtNgay(r.lan_cuoi)}</td>
-                            </tr>
-                          ))}
+                          {cur.map((r, idx) => {
+                            const het = Number(r.ton_hien_tai) === 0;
+                            const dauNhomCon = theBan === 'ton' && idx > 0 && het === false
+                              && Number(cur[idx - 1].ton_hien_tai) === 0;
+                            return (
+                            <>
+                              {dauNhomCon && (
+                                <tr><td colSpan={5} style={{ background: '#EEF3F1', fontSize: 11, fontWeight: 700,
+                                  color: 'var(--teal-deep)', padding: '5px 8px' }}>▽ Cửa hàng CÒN tồn</td></tr>
+                              )}
+                              <tr key={r.ma_ch} style={theBan === 'ton' && het ? { background: '#FDF3F7' } : undefined}>
+                                <td><b>{r.ten_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
+                                <td className="center">{r.khu_vuc || '—'}</td>
+                                <td className="num" style={{ fontWeight: 700, color: Number(r.sl_ban_ky) > 0 ? 'var(--teal-deep)' : 'var(--ink-2)' }}>{r.sl_ban_ky}</td>
+                                <td className="num" style={{ fontWeight: het ? 400 : 700, color: het ? 'var(--magenta)' : 'var(--ink)' }}>{r.ton_hien_tai}</td>
+                                <td className="center">{fmtNgay(r.lan_cuoi)}</td>
+                              </tr>
+                            </>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
