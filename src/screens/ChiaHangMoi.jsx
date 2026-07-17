@@ -16,7 +16,10 @@ export default function ChiaHangMoi() {
   const [khoMap, setKhoMap] = useState({});
   const timRef = useRef({});
 
+  const [tenCH, setTenCH] = useState({});
   useEffect(() => {
+    sb.from('cua_hang').select('ma_ch, ten')
+      .then(({ data }) => setTenCH(Object.fromEntries((data || []).map((c) => [c.ma_ch, c.ten]))));
     sb.from('san_pham').select('nganh_3').not('nganh_3', 'is', null)
       .then(({ data }) => setDsNganh3([...new Set((data || []).map((x) => x.nganh_3))].sort()));
     sb.from('tham_so').select('gia_tri').eq('key', 'kho_tong_ma').eq('pham_vi', 'GLOBAL').single()
@@ -48,8 +51,9 @@ export default function ChiaHangMoi() {
       p_nguoi: user.ma_dang_nhap, p_tham_chieu: d.thamChieu?.barcode || null,
       p_tham_chieu_ma: d.thamChieu?.ma_tham_chieu || null });
     if (error) { baoToast('Lỗi: ' + error.message); return false; }
-    const { data } = await sb.from('chia_hang_moi_ct')
-      .select('*, cua_hang(ten)').eq('batch_id', id).order('sl_de_xuat', { ascending: false });
+    const { data, error: e2 } = await sb.from('chia_hang_moi_ct')
+      .select('*').eq('batch_id', id).order('sl_de_xuat', { ascending: false });
+    if (e2) { baoToast('Lỗi đọc kết quả: ' + e2.message); return false; }
     if (!data || !data.length) {
       baoToast(d.thamChieu ? 'Mã tham chiếu chưa có bán 60 ngày — thử mã khác' : 'Ngành này chưa có bán 60 ngày — hãy chọn MÃ THAM CHIẾU tương tự để chia');
     }
@@ -126,7 +130,7 @@ export default function ChiaHangMoi() {
                 <div className="goiy-pop">
                   {d.goiY.map((g) => (
                     <div key={g.barcode} className="goiy-item" style={{ cursor: 'pointer' }} onClick={() => chonSP(d.id, g)}>
-                      {g.hinh_url ? <img src={g.hinh_url} alt="" onError={(e)=>{e.target.style.display='none';e.target.insertAdjacentHTML('afterend','<div class=\'noimg\'></div>');}} /> : <div className="noimg" />}
+                      {g.hinh_url ? <img src={g.hinh_url} alt="" onError={(e) => { e.target.style.display = 'none'; e.target.insertAdjacentHTML('afterend', '<div class="noimg"></div>'); }} /> : <div className="noimg" />}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.ma_tham_chieu || g.sku}</div>
                         <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3} · kho {g.kho_tong}</div>
@@ -151,7 +155,7 @@ export default function ChiaHangMoi() {
                 <div className="goiy-pop">
                   {d.goiYTC.map((g) => (
                     <div key={g.barcode} className="goiy-item" style={{ cursor: 'pointer' }} onClick={() => chonTC(d.id, g)}>
-                      {g.hinh_url ? <img src={g.hinh_url} alt="" onError={(e)=>{e.target.style.display='none';e.target.insertAdjacentHTML('afterend','<div class=\'noimg\'></div>');}} /> : <div className="noimg" />}
+                      {g.hinh_url ? <img src={g.hinh_url} alt="" onError={(e) => { e.target.style.display = 'none'; e.target.insertAdjacentHTML('afterend', '<div class="noimg"></div>'); }} /> : <div className="noimg" />}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.ma_tham_chieu || g.sku}</div>
                         <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3}</div>
@@ -192,7 +196,7 @@ export default function ChiaHangMoi() {
                     <tbody>
                       {d.ct.map((r) => (
                         <tr key={r.id}>
-                          <td><b>{r.cua_hang?.ten || r.ma_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
+                          <td><b>{tenCH[r.ma_ch] || r.ma_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
                           <td className="num">{Math.round((r.ty_le || 0) * 100)}%</td>
                           <td className="num">{r.sl_de_xuat}</td>
                           <td className="num"><input className="qty-input" type="number" min="0" value={r.sl_chot}

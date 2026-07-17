@@ -114,7 +114,7 @@ export default function DacBiet() {
 
   const AnhSP = ({ url }) => url
     ? <img className="sp" src={url} alt="" {...anhProps(url)}
-        onError={(e) => { e.target.onerror = null; e.target.className = 'noimg'; e.target.removeAttribute('src'); }} />
+        onError={(e) => { e.target.style.display = 'none'; e.target.insertAdjacentHTML('afterend', '<div class="noimg"></div>'); }} />
     : <div className="noimg" />;
 
   return (
