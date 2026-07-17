@@ -315,6 +315,8 @@ export default function DacBiet() {
         const conTon = R.filter((r) => Number(r.ton_hien_tai) > 0).sort((a, b) => b.ton_hien_tai - a.ton_hien_tai);
         const hetTon = R.filter((r) => Number(r.ton_hien_tai) === 0)
                         .sort((a, b) => (b.da_ban - a.da_ban) || (b.tong_ban_all - a.tong_ban_all));
+        const dem = (arr) => { const ch = arr.filter((r) => r.loai_diem === 'CH').length;
+          const db = arr.length - ch; return db > 0 ? ch + ' cửa hàng · ' + db + ' điểm bán' : ch + ' cửa hàng'; };
         let cur = theBan === 'ban' ? daBan : theBan === 'ton' ? conTon : hetTon;
         if (sortP.k) {
           const sv = { ch: (r) => r.ten_ch || '', kv: (r) => r.khu_vuc || '',
@@ -358,15 +360,15 @@ export default function DacBiet() {
                   <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                     <button className={'the-g' + (theBan === 'ban' ? ' on' : '')} onClick={() => setTheBan('ban')}>
                       <span className="the-g-n">{tongBanKy}</span>
-                      <span className="the-g-t">Đã bán<small>{daBan.length} cửa hàng</small></span>
+                      <span className="the-g-t">Đã bán<small>{dem(daBan)}</small></span>
                     </button>
                     <button className={'the-g' + (theBan === 'ton' ? ' on' : '')} onClick={() => setTheBan('ton')}>
                       <span className="the-g-n">{conTon.length}</span>
-                      <span className="the-g-t">Đang còn tồn<small>tổng {tongTon} cái</small></span>
+                      <span className="the-g-t">Đang còn tồn<small>{dem(conTon)}</small></span>
                     </button>
                     <button className={'the-g' + (theBan === 'het' ? ' on' : '')} onClick={() => setTheBan('het')}>
                       <span className="the-g-n">{hetTon.length}</span>
-                      <span className="the-g-t">Không tồn<small>{hetTon.filter((r) => r.da_ban).length} bán hết · {hetTon.filter((r) => !r.da_ban).length} chưa phân bổ</small></span>
+                      <span className="the-g-t">Không tồn<small>{dem(hetTon)}</small></span>
                     </button>
                   </div>
 
