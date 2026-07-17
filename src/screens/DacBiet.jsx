@@ -353,15 +353,15 @@ export default function DacBiet() {
                     </button>
                     <button className={'the-g' + (theBan === 'het' ? ' on' : '')} onClick={() => setTheBan('het')}>
                       <span className="the-g-n">{hetTon.length}</span>
-                      <span className="the-g-t">Đã hết tồn<small>từng bán, cần bổ sung</small></span>
+                      <span className="the-g-t">Đã hết tồn<small>cần bổ sung</small></span>
                     </button>
                   </div>
 
                   {!cur.length ? (
                     <div className="empty">
                       {theBan === 'ban' ? 'Không có bán trong khoảng chọn.'
-                        : theBan === 'ton' ? 'Không cửa hàng nào có tồn hoặc từng bán.'
-                        : 'Không cửa hàng nào hết tồn (đã từng bán).'}
+                        : theBan === 'ton' ? 'Không cửa hàng nào có tồn.'
+                        : 'Không cửa hàng nào hết tồn.'}
                     </div>
                   ) : (
                     <div className="tbl-wrap" style={{ maxHeight: '48vh' }}>
