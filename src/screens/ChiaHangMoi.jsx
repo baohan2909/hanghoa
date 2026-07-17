@@ -29,7 +29,7 @@ export default function ChiaHangMoi() {
     capNhat(id, field === 'sp' ? { q: v, sp: null } : { qTC: v, thamChieu: null });
     const key = id + field;
     clearTimeout(timRef.current[key]);
-    if (v.trim().length < 2) { capNhat(id, field === 'sp' ? { goiY: [] } : { goiYTC: [] }); return; }
+    if (v.trim().length < 1) { capNhat(id, field === 'sp' ? { goiY: [] } : { goiYTC: [] }); return; }
     timRef.current[key] = setTimeout(async () => {
       const { data, error } = await sb.rpc('fn_tim_sp', { p_q: v.trim() });
       if (error) { baoToast('Lỗi tìm kiếm: ' + error.message); return; }
@@ -49,6 +49,9 @@ export default function ChiaHangMoi() {
     if (error) { baoToast('Lỗi: ' + error.message); return false; }
     const { data } = await sb.from('chia_hang_moi_ct')
       .select('*, cua_hang(ten)').eq('batch_id', id).order('sl_de_xuat', { ascending: false });
+    if (!data || !data.length) {
+      baoToast(d.thamChieu ? 'Mã tham chiếu chưa có bán 60 ngày — thử mã khác' : 'Ngành này chưa có bán 60 ngày — hãy chọn MÃ THAM CHIẾU tương tự để chia');
+    }
     capNhat(d.id, { ct: data || [], batchId: id });
     return true;
   };
@@ -99,7 +102,7 @@ export default function ChiaHangMoi() {
           <p>Thêm nhiều mã một lần — chia theo tỷ trọng bán ngành cấp 3, hoặc theo mã tham chiếu tương tự. Chỉnh tay được sau khi chia.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="btn btn-primary" disabled={busy} onClick={chiaTatCa}>
+          <button className="btn btn-ai" disabled={busy} onClick={chiaTatCa}>
             {busy ? 'Đang chia…' : '✦ Chia tự động tất cả'}
           </button>
           <button className="btn btn-gold" onClick={xuatTatCa}>
@@ -122,9 +125,9 @@ export default function ChiaHangMoi() {
                 <div className="goiy-pop">
                   {d.goiY.map((g) => (
                     <div key={g.barcode} className="goiy-item" style={{ cursor: 'pointer' }} onClick={() => chonSP(d.id, g)}>
-                      {g.hinh_url ? <img src={g.hinh_url} alt="" /> : <div className="noimg" />}
+                      {g.hinh_url ? <img src={g.hinh_url} alt="" onError={(e)=>{e.target.style.display='none';e.target.insertAdjacentHTML('afterend','<div class=\'noimg\'></div>');}} /> : <div className="noimg" />}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="mono" style={{ fontWeight: 600, fontSize: 12.5 }}>{g.ma_tham_chieu || g.sku}</div>
+                        <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.ma_tham_chieu || g.sku}</div>
                         <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3} · kho {g.kho_tong}</div>
                       </div>
                     </div>
@@ -147,9 +150,9 @@ export default function ChiaHangMoi() {
                 <div className="goiy-pop">
                   {d.goiYTC.map((g) => (
                     <div key={g.barcode} className="goiy-item" style={{ cursor: 'pointer' }} onClick={() => chonTC(d.id, g)}>
-                      {g.hinh_url ? <img src={g.hinh_url} alt="" /> : <div className="noimg" />}
+                      {g.hinh_url ? <img src={g.hinh_url} alt="" onError={(e)=>{e.target.style.display='none';e.target.insertAdjacentHTML('afterend','<div class=\'noimg\'></div>');}} /> : <div className="noimg" />}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="mono" style={{ fontWeight: 600, fontSize: 12.5 }}>{g.ma_tham_chieu || g.sku}</div>
+                        <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.ma_tham_chieu || g.sku}</div>
                         <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3}</div>
                       </div>
                     </div>

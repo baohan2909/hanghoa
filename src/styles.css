@@ -660,3 +660,17 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 .inp::placeholder { color: var(--ink-2); }
 select.inp { cursor: pointer; }
 textarea.inp { height: auto; padding: 10px 12px; }
+
+/* ============ Modal + dòng bấm được (v3.2.2) ============ */
+.row-click { cursor: pointer; }
+.row-click:hover td { background: #F1FAF8; }
+.modal-nen { position: fixed; inset: 0; z-index: 300; background: rgba(20,33,58,.42);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  backdrop-filter: blur(2px); animation: fadeIn .15s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-hop { background: #fff; border-radius: 16px; width: min(760px, 96vw);
+  max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 24px 60px rgba(20,33,58,.28); }
+.modal-dau { display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.modal-than { padding: 16px 18px; overflow: auto; }

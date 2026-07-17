@@ -26,6 +26,7 @@ export default function DacBiet() {
   const timRef = useRef(null);
   // khối mã tạo gần đây
   const [soNgay, setSoNgay] = useState(30);
+  const [tatCa, setTatCa] = useState(false);
   const [maMoi, setMaMoi] = useState(null);
   const [locNganh, setLocNganh] = useState('ALL');
   const [qMoi, setQMoi] = useState('');
@@ -33,10 +34,18 @@ export default function DacBiet() {
   // ảnh hover + lightbox (như Đề nghị hàng)
   const [hoverAnh, setHoverAnh] = useState(null);
   const [xemAnh, setXemAnh] = useState(null);
+  // Panel bán theo cửa hàng (kiểm soát hàng mới toàn diện — CHỈ số lượng)
+  const [xemBan, setXemBan] = useState(null);   // {sp, rows|null, tu, den}
+  const moBan = async (sp, tu, den) => {
+    setXemBan({ sp, rows: null, tu, den });
+    const { data, error } = await sb.rpc('fn_ban_theo_ch', { p_barcode: sp.barcode, p_tu: tu, p_den: den });
+    if (error) { baoToast('Lỗi: ' + error.message); setXemBan(null); return; }
+    setXemBan({ sp, rows: data || [], tu, den });
+  };
   const anhProps = (url) => ({
     onMouseEnter: (e) => url && setHoverAnh({ url, x: e.clientX + 20, y: e.clientY - 80 }),
     onMouseLeave: () => setHoverAnh(null),
-    onClick: () => url && setXemAnh(url),
+    onClick: (e) => { if (url) { e.stopPropagation(); setXemAnh(url); } },
     style: url ? { cursor: 'zoom-in' } : undefined,
   });
 
@@ -47,19 +56,19 @@ export default function DacBiet() {
   };
   useEffect(() => { taiDS(); }, []);
 
-  const taiMaMoi = async (n) => {
+  const taiMaMoi = async (n, all) => {
     setMaMoi(null);
-    const { data, error } = await sb.rpc('fn_ma_moi_ds', { p_so_ngay: n });
+    const { data, error } = await sb.rpc('fn_ma_moi_ds', { p_so_ngay: n, p_tat_ca: !!all });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setMaMoi(data || []);
   };
-  useEffect(() => { if (tab === 'HANG_MOI') taiMaMoi(soNgay); }, [tab, soNgay]);
+  useEffect(() => { if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa); }, [tab, soNgay, tatCa]);
 
   // Tìm gợi ý (debounce 300ms, từ 2 ký tự, báo rõ trạng thái)
   const goTim = (v) => {
     setQ(v);
     clearTimeout(timRef.current);
-    if (v.trim().length < 2) { setGoiY(null); setDangTim(false); return; }
+    if (v.trim().length < 1) { setGoiY(null); setDangTim(false); return; }
     setDangTim(true);
     timRef.current = setTimeout(async () => {
       const { data, error } = await sb.rpc('fn_tim_sp', { p_q: v.trim() });
@@ -104,7 +113,8 @@ export default function DacBiet() {
   });
 
   const AnhSP = ({ url }) => url
-    ? <img className="sp" src={url} alt="" {...anhProps(url)} />
+    ? <img className="sp" src={url} alt="" {...anhProps(url)}
+        onError={(e) => { e.target.onerror = null; e.target.className = 'noimg'; e.target.removeAttribute('src'); }} />
     : <div className="noimg" />;
 
   return (
@@ -134,7 +144,7 @@ export default function DacBiet() {
           <IcSearch style={{ position: 'absolute', left: 11, top: 12, width: 16, height: 16, color: 'var(--ink-2)', pointerEvents: 'none' }} />
           <input className="inp" style={{ paddingLeft: 36, width: '100%' }}
             placeholder="Barcode, SKU, mã — gõ để tìm" value={q} onChange={(e) => goTim(e.target.value)} />
-          {(dangTim || goiY) && q.trim().length >= 2 && (
+          {(dangTim || goiY) && q.trim().length >= 1 && (
             <div className="goiy-pop">
               {dangTim && <div className="goiy-item" style={{ color: 'var(--ink-2)', fontSize: 12.5 }}>Đang tìm…</div>}
               {!dangTim && goiY && !goiY.length &&
@@ -143,7 +153,7 @@ export default function DacBiet() {
                 <div key={g.barcode} className="goiy-item">
                   <AnhSP url={g.hinh_url} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="mono" style={{ fontWeight: 600, fontSize: 12.5 }}>{g.ma_tham_chieu || g.sku}</div>
+                    <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.ma_tham_chieu || g.sku}</div>
                     <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3} · kho tổng {g.kho_tong}</div>
                   </div>
                   <BadgeNganh n1={g.nganh_1} />
@@ -179,7 +189,7 @@ export default function DacBiet() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                         <AnhSP url={r.hinh_url} />
                         <div>
-                          <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
+                          <div className="mono" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.ma_tham_chieu || r.sku}</div>
                           <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}</div>
                         </div>
                       </div>
@@ -206,7 +216,7 @@ export default function DacBiet() {
             <span style={{ fontSize: 11.5, color: 'var(--ink-2)' }}>
               (mã tạo ≤ 30 ngày <b>tự động</b> khóa chia — bấm ＋ chỉ khi muốn giữ khóa lâu hơn 30 ngày)
             </span>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', width: '100%', marginTop: 4 }}>
               <div className="nhom-tabs" style={{ margin: 0 }}>
                 {[['ALL', 'Tất cả'], ['BH', 'Mũ bảo hiểm'], ['NV', 'Nón vải']].map(([k, ten]) => (
                   <button key={k} className={'nhom-tab' + (locNganh === k ? ' on' : '')} onClick={() => setLocNganh(k)}>{ten}</button>
@@ -214,8 +224,9 @@ export default function DacBiet() {
               </div>
               <div className="nhom-tabs" style={{ margin: 0 }}>
                 {[14, 30, 60, 90].map((n) => (
-                  <button key={n} className={'nhom-tab' + (soNgay === n ? ' on' : '')} onClick={() => setSoNgay(n)}>{n} ngày</button>
+                  <button key={n} className={'nhom-tab' + (!tatCa && soNgay === n ? ' on' : '')} onClick={() => { setTatCa(false); setSoNgay(n); }}>{n} ngày</button>
                 ))}
+                <button className={'nhom-tab' + (tatCa ? ' on' : '')} onClick={() => setTatCa(true)}>Tất cả mã</button>
               </div>
               <div style={{ position: 'relative' }}>
                 <IcSearch style={{ position: 'absolute', left: 10, top: 12, width: 15, height: 15, color: 'var(--ink-2)', pointerEvents: 'none' }} />
@@ -242,12 +253,12 @@ export default function DacBiet() {
                 </tr></thead>
                 <tbody>
                   {maMoiLoc.map((r) => (
-                    <tr key={r.barcode}>
+                    <tr key={r.barcode} className="row-click" onClick={() => moBan(r, null, null)} title="Bấm xem bán tại từng cửa hàng">
                       <td className="col-sp">
                         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                           <AnhSP url={r.hinh_url} />
                           <div>
-                            <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
+                            <div className="mono" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{r.ma_tham_chieu || r.sku}</div>
                             <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}</div>
                           </div>
                         </div>
@@ -260,7 +271,7 @@ export default function DacBiet() {
                       <td className="center">
                         {r.dac_biet
                           ? <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>đã có</span>
-                          : <button className="btn-mini" onClick={() => them(r.barcode, 'HANG_MOI')}>＋</button>}
+                          : <button className="btn-mini" onClick={(e) => { e.stopPropagation(); them(r.barcode, 'HANG_MOI'); }}>＋</button>}
                       </td>
                     </tr>
                   ))}
@@ -279,6 +290,56 @@ export default function DacBiet() {
       {xemAnh && (
         <div className="img-lightbox" onClick={() => setXemAnh(null)}>
           <img src={xemAnh} alt="" />
+        </div>
+      )}
+
+      {/* Panel: bán mã tại từng cửa hàng (kiểm soát toàn diện — CHỈ số lượng) */}
+      {xemBan && (
+        <div className="modal-nen" onClick={() => setXemBan(null)}>
+          <div className="modal-hop" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-dau">
+              <div>
+                <div className="mono" style={{ fontWeight: 700, color: 'var(--teal-deep)', fontSize: 15 }}>
+                  {xemBan.sp.ma_tham_chieu || xemBan.sp.sku}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>
+                  {xemBan.sp.nganh_3} · bán tại từng cửa hàng {xemBan.tu ? '(khoảng chọn)' : '(30 ngày gần nhất)'}</div>
+              </div>
+              <button className="btn-mini" onClick={() => setXemBan(null)}>Đóng</button>
+            </div>
+            <div className="modal-than">
+              {!xemBan.rows ? (
+                <div className="quet-load"><div className="quet-ring" /><div className="quet-s">đang tải…</div></div>
+              ) : !xemBan.rows.length ? (
+                <div className="empty">Mã này chưa phát sinh bán và không còn tồn ở cửa hàng nào.</div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', gap: 14, marginBottom: 10, fontSize: 12.5 }}>
+                    <span>Tổng bán: <b style={{ color: 'var(--teal-deep)' }}>{xemBan.rows.reduce((s, r) => s + Number(r.sl_ban), 0)}</b></span>
+                    <span>Số cửa hàng có bán: <b>{xemBan.rows.filter((r) => Number(r.sl_ban) > 0).length}</b></span>
+                  </div>
+                  <div className="tbl-wrap" style={{ maxHeight: '54vh' }}>
+                    <table className="tbl">
+                      <thead><tr>
+                        <th>Cửa hàng</th><th className="center">Khu vực</th>
+                        <th className="center">SL bán</th><th className="center">Tồn hiện tại</th><th className="center">Bán gần nhất</th>
+                      </tr></thead>
+                      <tbody>
+                        {xemBan.rows.map((r) => (
+                          <tr key={r.ma_ch}>
+                            <td><b>{r.ten_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
+                            <td className="center">{r.khu_vuc || '—'}</td>
+                            <td className="num" style={{ fontWeight: 700, color: Number(r.sl_ban) > 0 ? 'var(--teal-deep)' : 'var(--ink-2)' }}>{r.sl_ban}</td>
+                            <td className="num">{r.ton_hien_tai}</td>
+                            <td className="center">{fmtNgay(r.lan_cuoi)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
