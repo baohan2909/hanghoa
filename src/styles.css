@@ -700,3 +700,10 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .the-g-t small { font-size: 10.5px; font-weight: 400; color: var(--ink-2); }
 /* Ô ngày mini trong panel */
 .date-mini { height: 32px; padding: 0 8px; font-size: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+
+/* Ô ngày hiển thị dd/mm/yyyy — text VN che input date */
+.date-vi { position: relative; display: inline-flex; align-items: center; height: 32px;
+  padding: 0 10px; border-radius: 8px; background: #fff; box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 12px; font-weight: 600; color: var(--ink); cursor: pointer; font-family: var(--font-mono); }
+.date-vi:hover { box-shadow: inset 0 0 0 1.5px var(--teal); }
+.date-vi input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

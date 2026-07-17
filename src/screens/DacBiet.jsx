@@ -37,6 +37,9 @@ export default function DacBiet() {
   // Panel bán theo cửa hàng (kiểm soát hàng mới toàn diện — CHỈ số lượng)
   const [xemBan, setXemBan] = useState(null);   // {sp, rows|null, tu, den}
   const [theBan, setTheBan] = useState('ban');   // thẻ: ban | ton | het
+  const [sortP, setSortP] = useState({ k: null, d: -1 });   // sort bảng panel
+  const doiSortP = (k) => setSortP((c) => ({ k, d: c.k === k ? -c.d : -1 }));
+  const icSortP = (k) => <span style={{ opacity: sortP.k === k ? 1 : .3, fontSize: 10 }}>{sortP.k === k && sortP.d === 1 ? ' ▲' : ' ▼'}</span>;
   const isoD = (d) => d.toISOString().slice(0, 10);
   const moBan = async (sp, tu, den) => {
     tu = tu || isoD(new Date(Date.now() - 30 * 864e5));
@@ -312,7 +315,14 @@ export default function DacBiet() {
         const conTon = R.filter((r) => Number(r.ton_hien_tai) > 0).sort((a, b) => b.ton_hien_tai - a.ton_hien_tai);
         const hetTon = R.filter((r) => Number(r.ton_hien_tai) === 0)
                         .sort((a, b) => (b.da_ban - a.da_ban) || (b.tong_ban_all - a.tong_ban_all));
-        const cur = theBan === 'ban' ? daBan : theBan === 'ton' ? conTon : hetTon;
+        let cur = theBan === 'ban' ? daBan : theBan === 'ton' ? conTon : hetTon;
+        if (sortP.k) {
+          const sv = { ch: (r) => r.ten_ch || '', kv: (r) => r.khu_vuc || '',
+            ban: (r) => Number(r.sl_ban_ky), ton: (r) => Number(r.ton_hien_tai),
+            ngay: (r) => r.lan_cuoi || '' };
+          cur = [...cur].sort((a, b) => { const x = sv[sortP.k](a), y = sv[sortP.k](b);
+            return (x < y ? -1 : x > y ? 1 : 0) * sortP.d; });
+        }
         const tongBanKy = daBan.reduce((s, r) => s + Number(r.sl_ban_ky), 0);
         const tongTon = conTon.reduce((s, r) => s + Number(r.ton_hien_tai), 0);
         return (
@@ -324,14 +334,18 @@ export default function DacBiet() {
                   {xemBan.sp.ma_tham_chieu || xemBan.sp.sku}</div>
                 <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>{xemBan.sp.nganh_3}</div>
               </div>
-              {/* Chọn ngày mini — mặc định 30 ngày */}
+              {/* Chọn ngày mini — hiển thị dd/mm/yyyy */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                 <span style={{ color: 'var(--ink-2)' }}>Bán từ</span>
-                <input type="date" className="inp date-mini" value={xemBan.tu}
-                  onChange={(e) => doiNgayBan(e.target.value, xemBan.den)} />
+                <label className="date-vi">
+                  <span>{xemBan.tu.split('-').reverse().join('/')}</span>
+                  <input type="date" value={xemBan.tu} onChange={(e) => doiNgayBan(e.target.value, xemBan.den)} />
+                </label>
                 <span style={{ color: 'var(--ink-2)' }}>đến</span>
-                <input type="date" className="inp date-mini" value={xemBan.den}
-                  onChange={(e) => doiNgayBan(xemBan.tu, e.target.value)} />
+                <label className="date-vi">
+                  <span>{xemBan.den.split('-').reverse().join('/')}</span>
+                  <input type="date" value={xemBan.den} onChange={(e) => doiNgayBan(xemBan.tu, e.target.value)} />
+                </label>
                 <button className="btn-mini" onClick={() => setXemBan(null)} style={{ marginLeft: 6 }}>Đóng</button>
               </div>
             </div>
@@ -366,9 +380,13 @@ export default function DacBiet() {
                     <div className="tbl-wrap" style={{ maxHeight: '48vh' }}>
                       <table className="tbl">
                         <thead><tr>
-                          <th>Cửa hàng</th><th className="center">Khu vực</th>
-                          <th className="center">Bán (kỳ)</th><th className="center">Tồn</th>
-                          {theBan === 'het' ? <th className="center">Tình trạng</th> : <th className="center">Bán gần nhất</th>}
+                          <th className="sortable" onClick={() => doiSortP('ch')}>Cửa hàng{icSortP('ch')}</th>
+                          <th className="center sortable" onClick={() => doiSortP('kv')}>Khu vực{icSortP('kv')}</th>
+                          <th className="center sortable" onClick={() => doiSortP('ban')}>Bán (kỳ){icSortP('ban')}</th>
+                          <th className="center sortable" onClick={() => doiSortP('ton')}>Tồn{icSortP('ton')}</th>
+                          {theBan === 'het'
+                            ? <th className="center">Tình trạng</th>
+                            : <th className="center sortable" onClick={() => doiSortP('ngay')}>Bán gần nhất{icSortP('ngay')}</th>}
                         </tr></thead>
                         {theBan === 'het' && hetTon.some((r) => r.da_ban) && (
                           <thead><tr><th colSpan={5} style={{ background: '#FCE8EF', fontSize: 11, fontWeight: 700,
@@ -393,8 +411,8 @@ export default function DacBiet() {
                                 <td className="num" style={{ fontWeight: het ? 400 : 700, color: het ? 'var(--magenta)' : 'var(--ink)' }}>{r.ton_hien_tai}</td>
                                 {theBan === 'het'
                                   ? <td className="center">{r.da_ban
-                                      ? <span className="tt tt-het" style={{ fontSize: 10.5 }}>Bán hết</span>
-                                      : <span className="tt" style={{ fontSize: 10.5, background: '#EEF0F3', color: 'var(--ink-2)' }}>Chưa phân bổ</span>}</td>
+                                      ? <span className="tt tt-het" style={{ fontSize: 10.5, whiteSpace: 'nowrap' }}>Bán hết</span>
+                                      : <span className="tt" style={{ fontSize: 10.5, background: '#EEF0F3', color: 'var(--ink-2)', whiteSpace: 'nowrap' }}>Chưa phân bổ</span>}</td>
                                   : <td className="center">{fmtNgay(r.lan_cuoi)}</td>}
                               </tr>
                             </>
