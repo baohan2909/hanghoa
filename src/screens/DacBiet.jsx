@@ -38,7 +38,7 @@ export default function DacBiet() {
   const [xemBan, setXemBan] = useState(null);   // {sp, rows|null, tu, den}
   const moBan = async (sp, tu, den) => {
     setXemBan({ sp, rows: null, tu, den });
-    const { data, error } = await sb.rpc('fn_ban_theo_ch', { p_barcode: sp.barcode, p_tu: tu, p_den: den });
+    const { data, error } = await sb.rpc('fn_ban_theo_ch', { p_barcode: sp.barcode, p_ma_tc: sp.ma_tham_chieu, p_tu: tu, p_den: den });
     if (error) { baoToast('Lỗi: ' + error.message); setXemBan(null); return; }
     setXemBan({ sp, rows: data || [], tu, den });
   };

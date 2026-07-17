@@ -45,7 +45,8 @@ export default function ChiaHangMoi() {
     }
     const { data: id, error } = await sb.rpc('fn_chia_hang_moi_v2', {
       p_barcode: d.sp.barcode, p_nganh3: d.nganh3 || null, p_tong: parseInt(d.tong),
-      p_nguoi: user.ma_dang_nhap, p_tham_chieu: d.thamChieu?.barcode || null });
+      p_nguoi: user.ma_dang_nhap, p_tham_chieu: d.thamChieu?.barcode || null,
+      p_tham_chieu_ma: d.thamChieu?.ma_tham_chieu || null });
     if (error) { baoToast('Lỗi: ' + error.message); return false; }
     const { data } = await sb.from('chia_hang_moi_ct')
       .select('*, cua_hang(ten)').eq('batch_id', id).order('sl_de_xuat', { ascending: false });
