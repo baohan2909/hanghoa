@@ -687,3 +687,16 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .the-ks-n { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1.1; }
 .the-ks-l { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-top: 2px; }
 .the-ks-s { font-size: 11px; color: var(--ink-2); margin-top: 3px; }
+
+/* ============ Thẻ kiểm soát GỌN (v3.2.6) — số + nhãn cùng hàng, đồng màu teal ============ */
+.the-g { flex: 1; display: flex; align-items: center; gap: 10px; text-align: left;
+  padding: 12px 14px; border-radius: 12px; border: 0; cursor: pointer;
+  background: #F4F6F8; box-shadow: inset 0 0 0 1.5px var(--line); transition: box-shadow .12s; }
+.the-g:hover { box-shadow: inset 0 0 0 1.5px var(--teal); }
+.the-g.on { background: var(--grad); box-shadow: 0 6px 16px rgba(30,95,99,.28); }
+.the-g.on .the-g-n, .the-g.on .the-g-t, .the-g.on .the-g-t small { color: #fff; }
+.the-g-n { font-size: 28px; font-weight: 800; color: var(--ink); line-height: 1; flex-shrink: 0; }
+.the-g-t { display: flex; flex-direction: column; font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.25; }
+.the-g-t small { font-size: 10.5px; font-weight: 400; color: var(--ink-2); }
+/* Ô ngày mini trong panel */
+.date-mini { height: 32px; padding: 0 8px; font-size: 12px; box-shadow: inset 0 0 0 1px var(--line); }

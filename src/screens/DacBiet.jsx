@@ -35,18 +35,20 @@ export default function DacBiet() {
   const [hoverAnh, setHoverAnh] = useState(null);
   const [xemAnh, setXemAnh] = useState(null);
   // Panel bán theo cửa hàng (kiểm soát hàng mới toàn diện — CHỈ số lượng)
-  const [xemBan, setXemBan] = useState(null);   // {sp, ban, ton}
-  const [cheDoBan, setCheDoBan] = useState('ban');   // thẻ đang xem: ban | ton
-  const moBan = async (sp) => {
-    setCheDoBan('ban');
-    setXemBan({ sp, ban: null, ton: null });
-    const [rb, rt] = await Promise.all([
-      sb.rpc('fn_ban_theo_ch', { p_barcode: sp.barcode, p_ma_tc: sp.ma_tham_chieu, p_che_do: 'ban' }),
-      sb.rpc('fn_ban_theo_ch', { p_barcode: sp.barcode, p_ma_tc: sp.ma_tham_chieu, p_che_do: 'ton' }),
-    ]);
-    if (rb.error) { baoToast('Lỗi: ' + rb.error.message); setXemBan(null); return; }
-    setXemBan({ sp, ban: rb.data || [], ton: rt.data || [] });
+  const [xemBan, setXemBan] = useState(null);   // {sp, rows|null, tu, den}
+  const [theBan, setTheBan] = useState('ban');   // thẻ: ban | ton | het
+  const isoD = (d) => d.toISOString().slice(0, 10);
+  const moBan = async (sp, tu, den) => {
+    tu = tu || isoD(new Date(Date.now() - 30 * 864e5));
+    den = den || isoD(new Date());
+    setTheBan('ban');
+    setXemBan({ sp, rows: null, tu, den });
+    const { data, error } = await sb.rpc('fn_ban_theo_ch',
+      { p_barcode: sp.barcode, p_ma_tc: sp.ma_tham_chieu, p_tu: tu, p_den: den });
+    if (error) { baoToast('Lỗi: ' + error.message); setXemBan(null); return; }
+    setXemBan({ sp, rows: data || [], tu, den });
   };
+  const doiNgayBan = (tu, den) => xemBan && moBan(xemBan.sp, tu, den);
   const anhProps = (url) => ({
     onMouseEnter: (e) => url && setHoverAnh({ url, x: e.clientX + 20, y: e.clientY - 80 }),
     onMouseLeave: () => setHoverAnh(null),
@@ -303,14 +305,16 @@ export default function DacBiet() {
         </div>
       )}
 
-      {/* Panel: kiểm soát toàn diện — 2 thẻ Số lượng bán / Tồn kho theo cửa hàng */}
+      {/* Panel kiểm soát — 3 thẻ gọn + chọn ngày, 1 lần gọi */}
       {xemBan && (() => {
-        const rows = cheDoBan === 'ban' ? xemBan.ban : xemBan.ton;
-        const tongBan = (xemBan.ban || []).reduce((s, r) => s + Number(r.sl_ban), 0);
-        const soChBan = (xemBan.ban || []).filter((r) => Number(r.sl_ban) > 0).length;
-        const tongTon = (xemBan.ton || []).reduce((s, r) => s + Number(r.ton_hien_tai), 0);
-        const soChTon = (xemBan.ton || []).filter((r) => Number(r.ton_hien_tai) > 0).length;
-        const chHet = (xemBan.ton || []).filter((r) => Number(r.ton_hien_tai) === 0 && Number(r.sl_ban) > 0);
+        const R = xemBan.rows || [];
+        const daBan = R.filter((r) => Number(r.sl_ban_ky) > 0).sort((a, b) => b.sl_ban_ky - a.sl_ban_ky);
+        const conTon = R.filter((r) => Number(r.ton_hien_tai) > 0).sort((a, b) => b.ton_hien_tai - a.ton_hien_tai);
+        const hetTon = R.filter((r) => Number(r.ton_hien_tai) === 0 && Number(r.tong_ban_all) > 0)
+                        .sort((a, b) => b.tong_ban_all - a.tong_ban_all);
+        const cur = theBan === 'ban' ? daBan : theBan === 'ton' ? conTon : hetTon;
+        const tongBanKy = daBan.reduce((s, r) => s + Number(r.sl_ban_ky), 0);
+        const tongTon = conTon.reduce((s, r) => s + Number(r.ton_hien_tai), 0);
         return (
         <div className="modal-nen" onClick={() => setXemBan(null)}>
           <div className="modal-hop" onClick={(e) => e.stopPropagation()}>
@@ -318,66 +322,65 @@ export default function DacBiet() {
               <div>
                 <div className="mono" style={{ fontWeight: 700, color: 'var(--teal-deep)', fontSize: 15 }}>
                   {xemBan.sp.ma_tham_chieu || xemBan.sp.sku}</div>
-                <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>{xemBan.sp.nganh_3} · kiểm soát toàn diện</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>{xemBan.sp.nganh_3}</div>
               </div>
-              <button className="btn-mini" onClick={() => setXemBan(null)}>Đóng</button>
+              {/* Chọn ngày mini — mặc định 30 ngày */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <span style={{ color: 'var(--ink-2)' }}>Bán từ</span>
+                <input type="date" className="inp date-mini" value={xemBan.tu}
+                  onChange={(e) => doiNgayBan(e.target.value, xemBan.den)} />
+                <span style={{ color: 'var(--ink-2)' }}>đến</span>
+                <input type="date" className="inp date-mini" value={xemBan.den}
+                  onChange={(e) => doiNgayBan(xemBan.tu, e.target.value)} />
+                <button className="btn-mini" onClick={() => setXemBan(null)} style={{ marginLeft: 6 }}>Đóng</button>
+              </div>
             </div>
             <div className="modal-than">
-              {!xemBan.ban ? (
+              {!xemBan.rows ? (
                 <div className="quet-load"><div className="quet-ring" /><div className="quet-s">đang tải…</div></div>
               ) : (
                 <>
-                  {/* 2 THẺ chuyển đổi — màu chuẩn chung */}
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-                    <button className={'the-ks' + (cheDoBan === 'ban' ? ' on' : '')} onClick={() => setCheDoBan('ban')}>
-                      <div className="the-ks-n">{tongBan}</div>
-                      <div className="the-ks-l">SL bán 30 ngày</div>
-                      <div className="the-ks-s">{soChBan} cửa hàng có bán</div>
+                  {/* 3 THẺ GỌN — số to bên trái, nhãn bên phải, đồng màu teal */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                    <button className={'the-g' + (theBan === 'ban' ? ' on' : '')} onClick={() => setTheBan('ban')}>
+                      <span className="the-g-n">{tongBanKy}</span>
+                      <span className="the-g-t">Đã bán<small>{daBan.length} cửa hàng</small></span>
                     </button>
-                    <button className={'the-ks the-ks-gold' + (cheDoBan === 'ton' ? ' on' : '')} onClick={() => setCheDoBan('ton')}>
-                      <div className="the-ks-n">{tongTon}</div>
-                      <div className="the-ks-l">Tồn kho theo cửa hàng</div>
-                      <div className="the-ks-s">{soChTon} cửa hàng còn tồn</div>
+                    <button className={'the-g' + (theBan === 'ton' ? ' on' : '')} onClick={() => setTheBan('ton')}>
+                      <span className="the-g-n">{conTon.length}</span>
+                      <span className="the-g-t">Đang còn tồn<small>tổng {tongTon} cái</small></span>
+                    </button>
+                    <button className={'the-g' + (theBan === 'het' ? ' on' : '')} onClick={() => setTheBan('het')}>
+                      <span className="the-g-n">{hetTon.length}</span>
+                      <span className="the-g-t">Đã hết tồn<small>từng bán, cần bổ sung</small></span>
                     </button>
                   </div>
 
-                  {!rows || !rows.length ? (
-                    <div className="empty">{cheDoBan === 'ban' ? 'Mã này chưa phát sinh bán 30 ngày.' : 'Mã này không còn tồn ở cửa hàng nào.'}</div>
+                  {!cur.length ? (
+                    <div className="empty">
+                      {theBan === 'ban' ? 'Không có bán trong khoảng chọn.'
+                        : theBan === 'ton' ? 'Không cửa hàng nào còn tồn.'
+                        : 'Không cửa hàng nào hết tồn (đã từng bán).'}
+                    </div>
                   ) : (
-                    <div className="tbl-wrap" style={{ maxHeight: '46vh' }}>
+                    <div className="tbl-wrap" style={{ maxHeight: '48vh' }}>
                       <table className="tbl">
                         <thead><tr>
                           <th>Cửa hàng</th><th className="center">Khu vực</th>
-                          <th className="center">SL bán</th><th className="center">Tồn hiện tại</th><th className="center">Bán gần nhất</th>
+                          <th className="center">Bán (kỳ)</th><th className="center">Tồn</th><th className="center">Bán gần nhất</th>
                         </tr></thead>
                         <tbody>
-                          {rows.map((r) => (
+                          {cur.map((r) => (
                             <tr key={r.ma_ch}>
                               <td><b>{r.ten_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
                               <td className="center">{r.khu_vuc || '—'}</td>
-                              <td className="num" style={{ fontWeight: 700, color: Number(r.sl_ban) > 0 ? 'var(--teal-deep)' : 'var(--ink-2)' }}>{r.sl_ban}</td>
+                              <td className="num" style={{ fontWeight: 700, color: Number(r.sl_ban_ky) > 0 ? 'var(--teal-deep)' : 'var(--ink-2)' }}>{r.sl_ban_ky}</td>
                               <td className="num" style={{ fontWeight: Number(r.ton_hien_tai) > 0 ? 700 : 400, color: Number(r.ton_hien_tai) > 0 ? 'var(--ink)' : 'var(--magenta)' }}>{r.ton_hien_tai}</td>
                               <td className="center">{fmtNgay(r.lan_cuoi)}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
-                    </div>
-                  )}
-
-                  {/* Cửa hàng có bán mà HẾT tồn — cần bổ sung / chưa điều chuyển */}
-                  {cheDoBan === 'ton' && chHet.length > 0 && (
-                    <div style={{ marginTop: 14 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--magenta)', marginBottom: 6 }}>
-                        {chHet.length} cửa hàng có bán nhưng đã HẾT tồn (bán hết / chưa điều chuyển)
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {chHet.map((r) => (
-                          <span key={r.ma_ch} style={{ fontSize: 11.5, padding: '3px 9px', borderRadius: 8,
-                            background: '#FCE8EF', color: 'var(--magenta)' }}>
-                            {r.ten_ch} · bán {r.sl_ban}</span>
-                        ))}
-                      </div>
                     </div>
                   )}
                 </>
