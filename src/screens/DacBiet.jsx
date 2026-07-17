@@ -312,9 +312,8 @@ export default function DacBiet() {
         const conTon = R.filter((r) => Number(r.ton_hien_tai) > 0).sort((a, b) => b.ton_hien_tai - a.ton_hien_tai);
         const hetTon = R.filter((r) => Number(r.ton_hien_tai) === 0 && Number(r.tong_ban_all) > 0)
                         .sort((a, b) => b.tong_ban_all - a.tong_ban_all);
-        // Thẻ tồn gộp: hết tồn (cần bổ sung) lên TRÊN, còn tồn xuống dưới
-        const tonGop = [...hetTon, ...conTon];
-        const cur = theBan === 'ban' ? daBan : tonGop;
+        const tonGop = [...hetTon, ...conTon];   // thẻ "còn tồn": hết TRÊN, còn DƯỚI
+        const cur = theBan === 'ban' ? daBan : theBan === 'ton' ? tonGop : hetTon;
         const tongBanKy = daBan.reduce((s, r) => s + Number(r.sl_ban_ky), 0);
         const tongTon = conTon.reduce((s, r) => s + Number(r.ton_hien_tai), 0);
         return (
@@ -349,15 +348,19 @@ export default function DacBiet() {
                       <span className="the-g-t">Đã bán<small>{daBan.length} cửa hàng</small></span>
                     </button>
                     <button className={'the-g' + (theBan === 'ton' ? ' on' : '')} onClick={() => setTheBan('ton')}>
-                      <span className="the-g-n">{hetTon.length}<small style={{ fontSize: 15, fontWeight: 700, opacity: .55 }}> / {conTon.length}</small></span>
-                      <span className="the-g-t">Hết tồn / Còn tồn<small>{hetTon.length} cần bổ sung · {conTon.length} còn hàng</small></span>
+                      <span className="the-g-n">{conTon.length}</span>
+                      <span className="the-g-t">Đang còn tồn<small>tổng {tongTon} cái</small></span>
+                    </button>
+                    <button className={'the-g' + (theBan === 'het' ? ' on' : '')} onClick={() => setTheBan('het')}>
+                      <span className="the-g-n">{hetTon.length}</span>
+                      <span className="the-g-t">Đã hết tồn<small>từng bán, cần bổ sung</small></span>
                     </button>
                   </div>
 
                   {!cur.length ? (
                     <div className="empty">
                       {theBan === 'ban' ? 'Không có bán trong khoảng chọn.'
-                        : theBan === 'ton' ? 'Không cửa hàng nào còn tồn.'
+                        : theBan === 'ton' ? 'Không cửa hàng nào có tồn hoặc từng bán.'
                         : 'Không cửa hàng nào hết tồn (đã từng bán).'}
                     </div>
                   ) : (
