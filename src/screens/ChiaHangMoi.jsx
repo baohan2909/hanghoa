@@ -4,6 +4,11 @@ import { IcSplit, IcDown, IcSearch } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
 
 // ===== CHIA HÀNG MỚI v2 — nhiều mã một lần · ngành cấp 3 HOẶC mã tham chiếu · xuất tất cả =====
+function AnhMini({ url }) {
+  const [loi, setLoi] = useState(false);
+  if (!url || loi) return <div className="noimg" />;
+  return <img src={url} alt="" onError={() => setLoi(true)} />;
+}
 let seq = 1;
 const dongMoi = () => ({ id: seq++, q: '', goiY: [], sp: null, nganh3: '',
   qTC: '', goiYTC: [], thamChieu: null, tong: '', ct: null, batchId: null, moRong: true });
@@ -130,7 +135,7 @@ export default function ChiaHangMoi() {
                 <div className="goiy-pop">
                   {d.goiY.map((g) => (
                     <div key={g.barcode} className="goiy-item" style={{ cursor: 'pointer' }} onClick={() => chonSP(d.id, g)}>
-                      {g.hinh_url ? <img src={g.hinh_url} alt="" onError={(e) => { e.target.style.display = 'none'; e.target.insertAdjacentHTML('afterend', '<div class="noimg"></div>'); }} /> : <div className="noimg" />}
+                      <AnhMini url={g.hinh_url} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.ma_tham_chieu || g.sku}</div>
                         <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3} · kho {g.kho_tong}</div>
@@ -155,7 +160,7 @@ export default function ChiaHangMoi() {
                 <div className="goiy-pop">
                   {d.goiYTC.map((g) => (
                     <div key={g.barcode} className="goiy-item" style={{ cursor: 'pointer' }} onClick={() => chonTC(d.id, g)}>
-                      {g.hinh_url ? <img src={g.hinh_url} alt="" onError={(e) => { e.target.style.display = 'none'; e.target.insertAdjacentHTML('afterend', '<div class="noimg"></div>'); }} /> : <div className="noimg" />}
+                      <AnhMini url={g.hinh_url} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.ma_tham_chieu || g.sku}</div>
                         <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3}</div>

@@ -674,3 +674,16 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .modal-dau { display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
 .modal-than { padding: 16px 18px; overflow: auto; }
+
+/* ============ Thẻ kiểm soát hàng mới (v3.2.5) — màu chuẩn chung ============ */
+.the-ks { flex: 1; text-align: left; padding: 14px 16px; border-radius: 14px;
+  border: 0; cursor: pointer; background: #F4F6F8; box-shadow: inset 0 0 0 1.5px var(--line);
+  transition: box-shadow .12s; }
+.the-ks:hover { box-shadow: inset 0 0 0 1.5px var(--teal); }
+.the-ks.on { background: var(--grad); box-shadow: 0 6px 18px rgba(30,95,99,.3); }
+.the-ks.on .the-ks-n, .the-ks.on .the-ks-l, .the-ks.on .the-ks-s { color: #fff; }
+.the-ks-gold.on { background: linear-gradient(135deg, #8A6D2F 0%, #CBA45A 100%);
+  box-shadow: 0 6px 18px rgba(203,164,90,.35); }
+.the-ks-n { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1.1; }
+.the-ks-l { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-top: 2px; }
+.the-ks-s { font-size: 11px; color: var(--ink-2); margin-top: 3px; }
