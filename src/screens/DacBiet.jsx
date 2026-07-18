@@ -101,7 +101,24 @@ export default function DacBiet() {
     baoToast('Đã thêm vào danh sách'); setQ(''); setGoiY(null); taiDS();
     if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM);
   };
-  const xoa = async (bc) => {
+  const choChia = async (bc) => {
+    const { error } = await sb.rpc('fn_dacbiet_them',
+      { p_barcode: bc, p_loai: 'CHO_CHIA', p_nguoi: user.ma_dang_nhap, p_ghi_chu: 'Điều phối duyệt cho cửa hàng chia' });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast('Đã duyệt cho cửa hàng chia bình thường'); taiDS();
+    if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM);
+  };
+  const xoa = async (bc, loai) => {
+    // Gỡ THU_HOI: xóa hẳn. Gỡ HANG_MOI: đánh dấu CHO_CHIA để ĐÈ khóa tự động
+    // (mã mới ≤30 ngày vẫn bị engine tự khóa nếu chỉ xóa -> phải duyệt cho chia).
+    if (loai === 'HANG_MOI') {
+      const { error } = await sb.rpc('fn_dacbiet_them',
+        { p_barcode: bc, p_loai: 'CHO_CHIA', p_nguoi: user.ma_dang_nhap, p_ghi_chu: 'Điều phối duyệt cho cửa hàng chia' });
+      if (error) { baoToast('Lỗi: ' + error.message); return; }
+      baoToast('Đã duyệt cho cửa hàng chia bình thường'); taiDS();
+      if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM);
+      return;
+    }
     const { error } = await sb.rpc('fn_dacbiet_xoa', { p_barcode: bc });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     baoToast('Đã gỡ khỏi danh sách'); taiDS();
@@ -222,7 +239,7 @@ export default function DacBiet() {
                     <td className="num">{r.kho_tong}</td>
                     <td className="center">{r.nguoi_tao || '—'}</td>
                     <td className="center">{fmtNgay(r.tao_luc)}</td>
-                    <td className="center"><button className="btn-mini btn-danger" onClick={() => xoa(r.barcode)}>－ Gỡ</button></td>
+                    <td className="center"><button className="btn-mini btn-danger" onClick={() => xoa(r.barcode, r.loai)}>－ Gỡ</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -309,9 +326,14 @@ export default function DacBiet() {
                       <td className="num">{r.so_ch_pb ?? 0}</td>
                       <td className="num">{r.da_ban_30}</td>
                       <td className="center">
-                        {r.dac_biet
+                        {r.dac_biet === 'CHO_CHIA'
+                          ? <span style={{ fontSize: 11, color: 'var(--teal-deep)' }}>đã duyệt chia</span>
+                          : r.dac_biet
                           ? <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>đã có</span>
-                          : <button className="btn-mini" onClick={(e) => { e.stopPropagation(); them(r.barcode, 'HANG_MOI'); }}>＋</button>}
+                          : <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                              <button className="btn-mini" title="Thêm vào hàng mới (ĐP chia)" onClick={(e) => { e.stopPropagation(); them(r.barcode, 'HANG_MOI'); }}>＋</button>
+                              <button className="btn-mini" style={{ color: 'var(--teal-deep)' }} title="Duyệt cho cửa hàng chia bình thường" onClick={(e) => { e.stopPropagation(); choChia(r.barcode); }}>✓ Chia</button>
+                            </div>}
                       </td>
                     </tr>
                   ))}
