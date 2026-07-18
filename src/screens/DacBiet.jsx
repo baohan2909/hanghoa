@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcSearch, IcBox } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
+import BaoCaoMaMoi from './BaoCaoMaMoi.jsx';
 
 // ===== HÀNG ĐẶC BIỆT — Thu hồi & Hàng mới (Điều phối kiểm soát, KHÔNG chia tự động) =====
 const fmtVND = (n) => (n || 0).toLocaleString('vi-VN') + 'đ';
@@ -27,6 +28,8 @@ export default function DacBiet() {
   // khối mã tạo gần đây
   const [soNgay, setSoNgay] = useState(30);
   const [tatCa, setTatCa] = useState(false);
+  const [tuMM, setTuMM] = useState('');   // khoảng ngày tạo mã (tùy chọn)
+  const [denMM, setDenMM] = useState('');
   const [maMoi, setMaMoi] = useState(null);
   const [locNganh, setLocNganh] = useState('ALL');
   const [qMoi, setQMoi] = useState('');
@@ -66,13 +69,16 @@ export default function DacBiet() {
   };
   useEffect(() => { taiDS(); }, []);
 
-  const taiMaMoi = async (n, all) => {
+  const taiMaMoi = async (n, all, tu, den) => {
     setMaMoi(null);
-    const { data, error } = await sb.rpc('fn_ma_moi_ds', { p_so_ngay: n, p_tat_ca: !!all });
+    const arg = tu && den
+      ? { p_tu: tu, p_den: den }
+      : { p_so_ngay: n, p_tat_ca: !!all };
+    const { data, error } = await sb.rpc('fn_ma_moi_ds', arg);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setMaMoi(data || []);
   };
-  useEffect(() => { if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa); }, [tab, soNgay, tatCa]);
+  useEffect(() => { if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM); }, [tab, soNgay, tatCa, tuMM, denMM]);
 
   // Tìm gợi ý (debounce 300ms, từ 2 ký tự, báo rõ trạng thái)
   const goTim = (v) => {
@@ -93,7 +99,7 @@ export default function DacBiet() {
       p_barcode: bc, p_loai: loai || tab, p_nguoi: user.ma_dang_nhap });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     baoToast('Đã thêm vào danh sách'); setQ(''); setGoiY(null); taiDS();
-    if (tab === 'HANG_MOI') taiMaMoi(soNgay);
+    if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM);
   };
   const xoa = async (bc) => {
     const { error } = await sb.rpc('fn_dacbiet_xoa', { p_barcode: bc });
@@ -144,8 +150,14 @@ export default function DacBiet() {
         <button className={'nhom-tab' + (tab === 'HANG_MOI' ? ' on' : '')} onClick={() => { setTab('HANG_MOI'); setQ(''); setGoiY(null); }}>
           Hàng mới / tái bản {ds && <b style={{ marginLeft: 4 }}>{(ds || []).filter((r) => r.loai === 'HANG_MOI').length}</b>}
         </button>
+        <button className={'nhom-tab' + (tab === 'BAOCAO' ? ' on' : '')} onClick={() => { setTab('BAOCAO'); setQ(''); setGoiY(null); }}>
+          Báo cáo mã mới
+        </button>
       </div>
 
+      {tab === 'BAOCAO' && <BaoCaoMaMoi />}
+
+      {tab !== 'BAOCAO' && (<>
       {/* Ô tìm + thêm */}
       <div className="card" style={{ marginTop: 12, padding: 14, position: 'relative' }}>
         <div className="lbl" style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 700, marginBottom: 8 }}>
@@ -235,9 +247,22 @@ export default function DacBiet() {
               </div>
               <div className="nhom-tabs" style={{ margin: 0 }}>
                 {[14, 30, 60, 90].map((n) => (
-                  <button key={n} className={'nhom-tab' + (!tatCa && soNgay === n ? ' on' : '')} onClick={() => { setTatCa(false); setSoNgay(n); }}>{n} ngày</button>
+                  <button key={n} className={'nhom-tab' + (!tatCa && soNgay === n ? ' on' : '')} onClick={() => { setTatCa(false); setTuMM(''); setDenMM(''); setSoNgay(n); }}>{n} ngày</button>
                 ))}
-                <button className={'nhom-tab' + (tatCa ? ' on' : '')} onClick={() => setTatCa(true)}>Tất cả mã</button>
+                <button className={'nhom-tab' + (tatCa ? ' on' : '')} onClick={() => { setTuMM(''); setDenMM(''); setTatCa(true); }}>Tất cả mã</button>
+              </div>
+              {/* Chọn khoảng ngày tạo mã — mini */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--ink-2)' }}>
+                <span>Tạo từ</span>
+                <label className="date-vi">
+                  <span>{tuMM ? tuMM.split('-').reverse().join('/') : 'dd/mm/yyyy'}</span>
+                  <input type="date" value={tuMM} onChange={(e) => setTuMM(e.target.value)} />
+                </label>
+                <span>đến</span>
+                <label className="date-vi">
+                  <span>{denMM ? denMM.split('-').reverse().join('/') : 'dd/mm/yyyy'}</span>
+                  <input type="date" value={denMM} onChange={(e) => setDenMM(e.target.value)} />
+                </label>
               </div>
               <div style={{ position: 'relative' }}>
                 <IcSearch style={{ position: 'absolute', left: 10, top: 12, width: 15, height: 15, color: 'var(--ink-2)', pointerEvents: 'none' }} />
@@ -296,6 +321,8 @@ export default function DacBiet() {
           )}
         </div>
       )}
+
+      </>)}
 
       {/* Ảnh hover phóng to + lightbox — như Đề nghị hàng */}
       {hoverAnh && (
