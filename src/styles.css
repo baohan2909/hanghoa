@@ -773,3 +773,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* Bảng ít cột: cột đầu nuốt khoảng dư, các cột sau co về nội dung (hết rỗng giữa) */
 .tbl-fit td:first-child, .tbl-fit th:first-child { width: 100%; }
 .tbl-fit th:not(:first-child), .tbl-fit td:not(:first-child) { white-space: nowrap; }
+/* Bảng có cột đèn ở đầu: cột 1 (đèn) hẹp, cột 2 (tên) nuốt dư */
+.tbl-fit2 td:first-child, .tbl-fit2 th:first-child { width: 32px; white-space: nowrap; text-align: center; }
+.tbl-fit2 td:nth-child(2), .tbl-fit2 th:nth-child(2) { width: 100%; }
+.tbl-fit2 th:not(:first-child):not(:nth-child(2)), .tbl-fit2 td:not(:first-child):not(:nth-child(2)) { white-space: nowrap; }

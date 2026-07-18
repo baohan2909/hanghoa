@@ -137,9 +137,9 @@ export default function TheoDoiOnline() {
       ) : (
         <div className="card" style={{ marginTop: 12, padding: 0 }}>
           <div className="tbl-wrap" style={{ maxHeight: '52vh' }}>
-            <table className="tbl tbl-fit">
+            <table className="tbl tbl-fit2">
               <thead><tr>
-                <th className="center sortable" onClick={() => doiSort('online')}>{ic('online')}</th>
+                <th className="center sortable" onClick={() => doiSort('online')} title="Sắp xếp theo trạng thái online"><span style={{ fontSize: 10, opacity: .5 }}>●</span></th>
                 <th className="sortable" onClick={() => doiSort('ten')}>Cửa hàng{ic('ten')}</th>
                 <th className="center sortable" onClick={() => doiSort('phien')}>Số phiên{ic('phien')}</th>
                 <th className="center sortable" onClick={() => doiSort('gio')}>Tổng thời lượng{ic('gio')}</th>
