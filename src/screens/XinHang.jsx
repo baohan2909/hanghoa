@@ -391,9 +391,36 @@ export default function XinHang() {
     } catch { baoToast(`Đã xuất ${dsN.length} dòng — kho ${khoMa}`); }
   };
   const xuatTatCa = async () => {
-    const conNhom = NHOM.filter((n) => demNhom[n.id] > 0);
-    if (!conNhom.length) { baoToast('Chưa có số lượng nào để xuất'); return; }
-    for (const n of conNhom) await xuatNhom(n.id);
+    const dsAll = rows.filter((r) => r.sl_xin > 0);
+    if (!dsAll.length) { baoToast('Chưa có số lượng nào để xuất'); return; }
+    const XLSX = await import('xlsx');
+    // 1 FILE TỔNG — mỗi dòng ghi rõ Kho nguồn riêng nên gộp chung được
+    const rowsX = dsAll.map((r) => ({
+      'Kho nguồn': r.kho_ma || nhomCua(r),
+      'Kho đích': maCH,
+      'SKU/ Barcode': r.sku || r.barcode,
+      'Số lượng': r.sl_xin,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rowsX);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Trang tính1');
+    XLSX.writeFile(wb, `DIEUCHUYEN_${maCH}.xlsx`);
+    // GIỮ HÀNG theo từng kho nguồn
+    const theoKho = {};
+    dsAll.forEach((r) => { const k = r.kho_ma || nhomCua(r);
+      (theoKho[k] = theoKho[k] || []).push({ barcode: r.barcode, so_luong: r.sl_xin }); });
+    let hetHan = null, phut = 0;
+    for (const [khoMa, lines] of Object.entries(theoKho)) {
+      try {
+        const { data: kq } = await sb.rpc('fn_giu_hang', { p_token: user.token, p_ma_ch: maCH, p_kho_ma: khoMa, p_lines: lines });
+        if (kq?.het_han) { hetHan = kq.het_han; phut = kq.phut; }
+      } catch { /* im lặng, đã xuất file */ }
+    }
+    if (hetHan) {
+      const gio = new Date(hetHan).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      setGiuInfo({ het_han: hetHan, phut });
+      baoToast(`Đã xuất ${dsAll.length} dòng (1 file) — GIỮ HÀNG đến ${gio}`);
+    } else baoToast(`Đã xuất ${dsAll.length} dòng (1 file tổng)`);
   };
   const giaiPhong = async () => {
     const { data, error } = await sb.rpc('fn_giai_phong', { p_token: user.token, p_ma_ch: maCH });
@@ -476,7 +503,7 @@ export default function XinHang() {
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               {nhomXem !== 'ALL' &&
                 <button className="btn btn-ghost btn-h" onClick={() => xuatNhom(nhomXem)}><IcDown /> Xuất nhóm này</button>}
-              <button className="btn btn-gold btn-h" onClick={xuatTatCa}><IcDown /> Xuất tất cả (4 file)</button>
+              <button className="btn btn-gold btn-h" onClick={xuatTatCa}><IcDown /> Xuất tất cả (1 file)</button>
             </div>
           </div>
 
@@ -589,7 +616,7 @@ export default function XinHang() {
                             : <div className="noimg"><IcBox /></div>}
                           <div>
                             <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
-                            <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}</div>
+                            <div className="sp-desc" style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}</div>
                           </div>
                         </div>
                       </td>
