@@ -10,6 +10,7 @@ import Lich from './screens/Lich.jsx';
 import GiamSat from './screens/GiamSat.jsx';
 import ChiaHangMoi from './screens/ChiaHangMoi.jsx';
 import DacBiet from './screens/DacBiet.jsx';
+import TheoDoiOnline from './screens/TheoDoiOnline.jsx';
 import VanDon from './screens/VanDon.jsx';
 import BaoCao from './screens/BaoCao.jsx';
 import ThamSo from './screens/ThamSo.jsx';
@@ -34,6 +35,7 @@ const MENU = [
     { id: 'lich',      ten: 'Lịch đề nghị',   Ic: IcClock, roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'chiamoi',   ten: 'Chia hàng mới',  Ic: IcSplit, roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'dacbiet',   ten: 'Hàng đặc biệt', Ic: IcBox,   roles: ['DIEU_PHOI', 'ADMIN'] },
+    { id: 'online',    ten: 'Theo dõi online', Ic: IcPulse, roles: ['ADMIN'] },
     { id: 'thamso',    ten: 'Tham số',        Ic: IcGear,  roles: ['ADMIN'] },
   ]},
 ];
@@ -65,7 +67,40 @@ export default function App() {
   };
 
   const baoToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
-  const dangXuat = () => { localStorage.removeItem('nsflow_user'); setUser(null); };
+  const dangXuat = () => { localStorage.removeItem('nsflow_user'); localStorage.removeItem('nsflow_login_at'); setUser(null); };
+
+  // Nhịp tim: báo online + màn đang xem, mỗi 60s. Cũng gửi ngay khi đổi màn.
+  useEffect(() => {
+    if (!user) return;
+    let dung = false;
+    const nhip = () => {
+      if (dung) return;
+      sb.rpc('fn_ghi_nhip', { p_ma: user.ma_dang_nhap, p_ma_ch: user.ma_ch || null, p_man: tab })
+        .then(() => {}, () => {});   // im lặng nếu lỗi mạng, không phiền người dùng
+    };
+    nhip();
+    const t = setInterval(nhip, 60000);
+    return () => { dung = true; clearInterval(t); };
+  }, [user, tab]);
+
+  // Đăng nhập duy trì 1 tuần: tự logout vào 0h thứ 2. Kiểm khi mở app + mỗi phút.
+  useEffect(() => {
+    if (!user) return;
+    const motThu2 = () => {
+      // mốc 0h thứ 2 kế tiếp kể từ lúc đăng nhập
+      const loginAt = Number(localStorage.getItem('nsflow_login_at') || Date.now());
+      const d = new Date(loginAt);
+      const day = d.getDay();                     // 0=CN,1=T2...
+      const toMon = (day === 1 ? 7 : ((8 - day) % 7)) || 7;
+      const han = new Date(d); han.setDate(d.getDate() + toMon);
+      han.setHours(0, 0, 0, 0);
+      return han.getTime();
+    };
+    const kiem = () => { if (Date.now() >= motThu2()) { baoToast('Phiên tuần đã hết — đăng nhập lại'); dangXuat(); } };
+    kiem();
+    const t = setInterval(kiem, 60000);
+    return () => clearInterval(t);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -85,10 +120,10 @@ export default function App() {
   const [gon, setGon] = useState(() => localStorage.getItem('nsflow_side_gon') === '1');
   const doiGon = () => setGon((v) => { localStorage.setItem('nsflow_side_gon', v ? '0' : '1'); return !v; });
 
-  if (!user) return <Login onOk={(u) => { localStorage.setItem('nsflow_user', JSON.stringify(u)); setUser(u); }} />;
+  if (!user) return <Login onOk={(u) => { localStorage.setItem('nsflow_user', JSON.stringify(u)); localStorage.setItem('nsflow_login_at', String(Date.now())); setUser(u); }} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich,
-    giamsat: GiamSat, chiamoi: ChiaHangMoi, dacbiet: DacBiet, vandon: VanDon, baocao: BaoCao, thamso: ThamSo }[tab]
+    giamsat: GiamSat, chiamoi: ChiaHangMoi, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo }[tab]
     || (user.vai_tro === 'KHO' ? Kho : XinHang);
   const tabDem = user.vai_tro === 'KHO' ? 'kho' : 'duyet';
   const chonTab = (id) => { setTab(id); setMoMenu(false); };

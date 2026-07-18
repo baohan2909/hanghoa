@@ -125,11 +125,11 @@ export default function BaoCaoMaMoi() {
           <div>
             <div className="lbl">Mã tạo từ … đến</div>
             <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-              <label className="date-vi" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}>
+              <label className="date-vi lg" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}>
                 <span>{tuTao ? tuTao.split('-').reverse().join('/') : 'dd/mm/yyyy'}</span>
                 <input type="date" value={tuTao} onChange={(e) => setTuTao(e.target.value)} /></label>
               <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>–</span>
-              <label className="date-vi" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}>
+              <label className="date-vi lg" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}>
                 <span>{denTao ? denTao.split('-').reverse().join('/') : 'dd/mm/yyyy'}</span>
                 <input type="date" value={denTao} onChange={(e) => setDenTao(e.target.value)} /></label>
             </div>
