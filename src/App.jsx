@@ -142,6 +142,7 @@ export default function App() {
         {!gon && <div className="s">Nón Sơn · đề nghị & điều chuyển</div>}
         <div className="s" style={{ opacity: .55, fontSize: 10.5, marginTop: 2 }}>v{__APP_VERSION__}</div>
       </div>
+      <div className="side-nav">
       {MENU.map((g) => {
         const items = g.items.filter((t) => t.roles.includes(user.vai_tro));
         if (!items.length) return null;
@@ -158,6 +159,7 @@ export default function App() {
           </div>
         );
       })}
+      </div>
       <div className="side-user">
         {!gon && <><div className="n">{user.ten}</div>
         <div className="r mono">{user.ma_dang_nhap} · {VAI_TRO_TEN[user.vai_tro] || user.vai_tro}</div></>}

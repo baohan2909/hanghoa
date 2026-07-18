@@ -61,9 +61,12 @@ input, select { font-family: inherit; font-size: 14px; }
   width: 232px; flex-shrink: 0; position: sticky; top: 0; height: 100vh;
   background: var(--surface); border-right: 1px solid var(--line);
   display: flex; flex-direction: column; padding: 14px 10px;
-  overflow-y: auto; overflow-x: hidden; z-index: 60;
+  overflow: hidden; z-index: 60;
   /* đổi width tức thì: 1 reflow duy nhất, không kéo giật qua nhiều khung hình */
 }
+.side-nav { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0;
+  scrollbar-width: none; }
+.side-nav::-webkit-scrollbar { width: 0; height: 0; }
 /* ---- Chế độ THU GỌN: chỉ icon, mượt ---- */
 .sidebar.gon { width: 72px; padding: 14px 8px; }
 .sidebar.gon .side-logo { padding: 6px 4px 14px; text-align: center; }
@@ -73,7 +76,7 @@ input, select { font-family: inherit; font-size: 14px; }
 .sidebar.gon .side-txt { display: none; }
 .sidebar.gon .badge-dot { position: absolute; top: 4px; right: 8px; margin-left: 0; }
 .sidebar.gon .side-item { position: relative; }
-.sidebar.gon .side-user { text-align: center; }
+.sidebar.gon .side-user { margin-top: auto; text-align: center; }
 .sidebar.gon .side-out { justify-content: center; width: 100%; }
 .side-txt { white-space: nowrap; }
 /* nút thu gọn: tròn nhỏ nổi mép phải sidebar */
@@ -766,3 +769,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
     background: #fff; box-shadow: 2px 0 4px rgba(20,33,58,.06); }
   .tbl thead th.col-sp { background: #FBFAF6; z-index: 6; }
 }
+
+/* Bảng ít cột: cột đầu nuốt khoảng dư, các cột sau co về nội dung (hết rỗng giữa) */
+.tbl-fit td:first-child, .tbl-fit th:first-child { width: 100%; }
+.tbl-fit th:not(:first-child), .tbl-fit td:not(:first-child) { white-space: nowrap; }

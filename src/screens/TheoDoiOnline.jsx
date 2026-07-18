@@ -94,7 +94,7 @@ export default function TheoDoiOnline() {
             <span className="dot-online" /> Đang online ({online.length})
           </div>
           <div className="tbl-wrap" style={{ maxHeight: '32vh' }}>
-            <table className="tbl">
+            <table className="tbl tbl-fit">
               <thead><tr><th>Cửa hàng</th><th className="center">Đang xem</th><th className="center">Online từ</th><th className="center">Thời lượng</th></tr></thead>
               <tbody>
                 {online.map((o) => (
@@ -137,7 +137,7 @@ export default function TheoDoiOnline() {
       ) : (
         <div className="card" style={{ marginTop: 12, padding: 0 }}>
           <div className="tbl-wrap" style={{ maxHeight: '52vh' }}>
-            <table className="tbl">
+            <table className="tbl tbl-fit">
               <thead><tr>
                 <th className="center sortable" onClick={() => doiSort('online')}>{ic('online')}</th>
                 <th className="sortable" onClick={() => doiSort('ten')}>Cửa hàng{ic('ten')}</th>
