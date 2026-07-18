@@ -125,20 +125,20 @@ export default function BaoCaoMaMoi() {
           <div>
             <div className="lbl">Mã tạo từ … đến</div>
             <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-              <label className="date-vi"><span>{tuTao ? tuTao.split('-').reverse().join('/') : 'dd/mm/yyyy'}</span>
+              <label className="date-vi" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}><span>{tuTao ? tuTao.split('-').reverse().join('/') : 'dd/mm/yyyy'}</span>
                 <input type="date" value={tuTao} onChange={(e) => setTuTao(e.target.value)} /></label>
               <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>–</span>
-              <label className="date-vi"><span>{denTao ? denTao.split('-').reverse().join('/') : 'dd/mm/yyyy'}</span>
+              <label className="date-vi" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}><span>{denTao ? denTao.split('-').reverse().join('/') : 'dd/mm/yyyy'}</span>
                 <input type="date" value={denTao} onChange={(e) => setDenTao(e.target.value)} /></label>
             </div>
           </div>
           <div>
             <div className="lbl">Bán từ … đến</div>
             <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-              <label className="date-vi"><span>{banTu.split('-').reverse().join('/')}</span>
+              <label className="date-vi" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}><span>{banTu.split('-').reverse().join('/')}</span>
                 <input type="date" value={banTu} onChange={(e) => setBanTu(e.target.value)} /></label>
               <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>–</span>
-              <label className="date-vi"><span>{banDen.split('-').reverse().join('/')}</span>
+              <label className="date-vi" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}><span>{banDen.split('-').reverse().join('/')}</span>
                 <input type="date" value={banDen} onChange={(e) => setBanDen(e.target.value)} /></label>
             </div>
           </div>

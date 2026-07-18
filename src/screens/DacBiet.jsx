@@ -254,12 +254,12 @@ export default function DacBiet() {
               {/* Chọn khoảng ngày tạo mã — mini */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--ink-2)' }}>
                 <span>Tạo từ</span>
-                <label className="date-vi">
+                <label className="date-vi" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}>
                   <span>{tuMM ? tuMM.split('-').reverse().join('/') : 'dd/mm/yyyy'}</span>
                   <input type="date" value={tuMM} onChange={(e) => setTuMM(e.target.value)} />
                 </label>
                 <span>đến</span>
-                <label className="date-vi">
+                <label className="date-vi" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}>
                   <span>{denMM ? denMM.split('-').reverse().join('/') : 'dd/mm/yyyy'}</span>
                   <input type="date" value={denMM} onChange={(e) => setDenMM(e.target.value)} />
                 </label>
@@ -366,12 +366,12 @@ export default function DacBiet() {
               {/* Chọn ngày mini — hiển thị dd/mm/yyyy */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                 <span style={{ color: 'var(--ink-2)' }}>Bán từ</span>
-                <label className="date-vi">
+                <label className="date-vi" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}>
                   <span>{xemBan.tu.split('-').reverse().join('/')}</span>
                   <input type="date" value={xemBan.tu} onChange={(e) => doiNgayBan(e.target.value, xemBan.den)} />
                 </label>
                 <span style={{ color: 'var(--ink-2)' }}>đến</span>
-                <label className="date-vi">
+                <label className="date-vi" onClick={(e) => { const i = e.currentTarget.querySelector("input"); i && i.showPicker && i.showPicker(); }}>
                   <span>{xemBan.den.split('-').reverse().join('/')}</span>
                   <input type="date" value={xemBan.den} onChange={(e) => doiNgayBan(xemBan.tu, e.target.value)} />
                 </label>
