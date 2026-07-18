@@ -93,7 +93,7 @@ export default function GiamSat() {
     }).sort((a, b) => b.so_ch_het - a.so_ch_het || b.ban_tong - a.ban_tong);
   }, [rows]);
 
-  const nhomCua = (r) => (r.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (r.la_hang_sale ? 'S' : 'C');
+  const nhomCua = (r) => r.nhom_hang === 'PK' ? 'PK' : (r.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (r.la_hang_sale ? 'S' : 'C');
 
   const tk = useMemo(() => {
     const d = { boSung: 0, canhBao: 0, chuyen: 0, khoCon: 0, chKhac: 0, het7: 0 };
@@ -251,7 +251,7 @@ export default function GiamSat() {
               </div>
             )}
             <div className="nhom-tabs" style={{ margin: 0 }}>
-              {[['ALL', 'Tất cả'], ['BH_C', 'BH chính'], ['BH_S', 'BH sale'], ['NV_C', 'NV chính'], ['NV_S', 'NV sale']].map(([n, ten]) => (
+              {[['ALL', 'Tất cả'], ['BH_C', 'BH chính'], ['BH_S', 'BH sale'], ['NV_C', 'NV chính'], ['NV_S', 'NV sale'], ['PK', 'Phụ kiện']].map(([n, ten]) => (
                 <button key={n} className={'nhom-tab' + (nhomXem === n ? ' on' : '')} onClick={() => setNhomXem(n)}>
                   {ten}
                 </button>

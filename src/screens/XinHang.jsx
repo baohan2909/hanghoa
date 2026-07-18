@@ -13,8 +13,9 @@ const NHOM = [
   { id: 'BH_S', ten: 'Bảo hiểm — sale',  nhom: 'BH', sale: true  },
   { id: 'NV_C', ten: 'Nón vải — chính',  nhom: 'NV', sale: false },
   { id: 'NV_S', ten: 'Nón vải — sale',   nhom: 'NV', sale: true  },
+  { id: 'PK',   ten: 'Phụ kiện',         nhom: 'PK', sale: false },
 ];
-const nhomCua = (r) => (r.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (r.la_hang_sale ? 'S' : 'C');
+const nhomCua = (r) => r.nhom_hang === 'PK' ? 'PK' : (r.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (r.la_hang_sale ? 'S' : 'C');
 const KEY = (ma) => 'nsflow_draft_' + ma;
 
 // Ô chọn cửa hàng: gõ trực tiếp để lọc; dropdown render FIXED nên không bị đè/cắt (lỗi 1)
@@ -201,10 +202,16 @@ export default function XinHang() {
       const { data: ch } = await sb.from('cua_hang')
         .select('nhom_ch, chu_ky_ngay, ten').eq('ma_ch', maCH).single();
       setLich(ch || null);
-      if (ch) setSoNgayCan(String(ch.chu_ky_ngay || (ch.nhom_ch === 1 ? 4 : ch.nhom_ch === 3 ? 11 : 7)));
+      if (ch) {
+        const sn = ch.chu_ky_ngay || (ch.nhom_ch === 1 ? 4 : ch.nhom_ch === 3 ? 11 : 7);
+        setSoNgayCan(String(sn));
+        // "Ngày từ" = hôm qua lùi lại đúng số ngày nhóm (khớp khung đo bán của kỳ)
+        const tu = new Date(); tu.setDate(tu.getDate() - 1 - sn);
+        setTuNgay(tu.toISOString().slice(0, 10));
+      }
       try {
         const raw = localStorage.getItem(KEY(maCH));
-        if (raw) { const d = JSON.parse(raw); setRows(d.rows); setTuNgay(d.tuNgay || ''); baoToast('Đã khôi phục bản nháp đang làm dở'); }
+        if (raw) { const d = JSON.parse(raw); setRows(d.rows); if (d.tuNgay) setTuNgay(d.tuNgay); baoToast('Đã khôi phục bản nháp đang làm dở'); }
         else setRows(null);
       } catch { setRows(null); }
     })();
@@ -332,6 +339,7 @@ export default function XinHang() {
     const g = { BH: { ton: 0, min: 0, max: 0, xin: 0 }, NV: { ton: 0, min: 0, max: 0, xin: 0 } };
     (rows || []).forEach((r) => {
       if (r.nguon === 'KHO') return;                 // chỉ tính hàng cửa hàng đang có
+      if (r.nhom_hang === 'PK') return;              // phụ kiện không có định mức min/max
       const k = r.nhom_hang === 'BH' ? 'BH' : 'NV';
       g[k].ton += r.ton_truoc || 0;
       g[k].xin += r.sl_xin || 0;
