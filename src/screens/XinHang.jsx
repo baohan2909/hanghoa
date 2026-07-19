@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb, fmtVND, LY_DO } from '../lib/supabase.js';
 import { IcSpark, IcSearch, IcBox, IcClock, IcAlert, IcDown, IcCheck, IcRefresh } from '../lib/icons.jsx';
-import { Sel, DateBox } from '../lib/ui.jsx';
+import { Sel, DateBox, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
 // ===== Màn ĐỀ NGHỊ HÀNG HÓA (10 mục hoàn thiện) =====
@@ -173,7 +173,7 @@ export default function XinHang() {
   const [lyDoKhan, setLyDoKhan] = useState('');
   const [lich, setLich] = useState(null);
   const [tuNgay, setTuNgay] = useState('');          // mốc thời gian từ (mục 9)
-  const homQua = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })();
+  const homQua = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return isoVN(d); })();
   const [denNgay, setDenNgay] = useState(homQua);    // Ngày đến — mặc định HÔM QUA
   const [soNgayCan, setSoNgayCan] = useState('');    // tính đủ hàng cho N ngày (mặc định theo nhóm)
   const [gioiHan, setGioiHan] = useState(200);
@@ -210,7 +210,7 @@ export default function XinHang() {
         // "Ngày từ" = "Ngày đến" lùi (số ngày nhóm − 1) -> trọn đúng N ngày kể cả 2 đầu
         const dDen = new Date(denNgay + 'T00:00:00');
         const tu = new Date(dDen); tu.setDate(dDen.getDate() - (sn - 1));
-        setTuNgay(tu.toISOString().slice(0, 10));
+        setTuNgay(isoVN(tu));
       }
       // KHÔNG khôi phục rows từ nháp (rows cũ có thể lỗi thời khi kho đổi).
       // Chỉ nhớ số lượng đã nhập -> áp lại sau khi engine trả kết quả mới.
@@ -229,8 +229,8 @@ export default function XinHang() {
   useEffect(() => {
     if (!maCH) { setLichCH(null); return; }
     (async () => {
-      const homNay = new Date().toISOString().slice(0, 10);
-      const den14 = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+      const homNay = isoVN();
+      const den14 = isoVN(new Date(Date.now() + 14 * 864e5));
       const { data } = await sb.rpc('fn_lich_cua_ch', { p_ma_ch: maCH, p_tu: homNay, p_den: den14 });
       setLichCH(data || []);
     })();
@@ -537,7 +537,7 @@ export default function XinHang() {
       </div>
 
       {lichCH && lichCH.length > 0 && (() => {
-        const homNay = new Date().toISOString().slice(0, 10);
+        const homNay = isoVN();
         const homNayLich = lichCH.find((l) => l.ngay === homNay);
         const sapToi = lichCH.filter((l) => l.ngay > homNay).slice(0, 4);
         const fmtDM2 = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);

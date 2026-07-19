@@ -1,10 +1,11 @@
+import { isoVN } from '../lib/ui.jsx';
 import { useEffect, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcPulse, IcSearch } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
 
 // ===== THEO DÕI ONLINE — ai đang xem, tần suất, thời lượng (Admin) =====
-const isoD = (d) => d.toISOString().slice(0, 10);
+const isoD = (d) => isoVN(d);
 const fmtGio = (s) => {
   s = Math.round(Number(s) || 0);
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);

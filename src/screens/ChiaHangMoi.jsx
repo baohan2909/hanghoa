@@ -1,3 +1,4 @@
+import { isoVN } from '../lib/ui.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcSplit, IcDown, IcSearch } from '../lib/icons.jsx';
@@ -98,7 +99,7 @@ export default function ChiaHangMoi() {
     const ws = XLSX.utils.json_to_sheet(rowsX);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Trang tính1');
-    XLSX.writeFile(wb, `CHIAMOI_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `CHIAMOI_${isoVN()}.xlsx`);
     baoToast(`Đã chốt & xuất ${rowsX.length} dòng điều chuyển`);
   };
 

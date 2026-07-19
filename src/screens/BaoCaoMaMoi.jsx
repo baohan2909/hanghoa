@@ -1,3 +1,4 @@
+import { isoVN } from '../lib/ui.jsx';
 import { useEffect, useState } from 'react';
 import { sb, rpcHet } from '../lib/supabase.js';
 import { IcSearch, IcDown } from '../lib/icons.jsx';
@@ -7,7 +8,7 @@ import { useApp } from '../App.jsx';
 const fmtVND = (n) => (n || 0).toLocaleString('vi-VN') + 'đ';
 const fmtNgay = (d) => d ? String(d).split('T')[0].split('-').reverse().join('/') : '—';
 const laBH = (n1) => (n1 || '').includes('bảo hiểm') || (n1 || '').includes('Mũ');
-const isoD = (d) => d.toISOString().slice(0, 10);
+const isoD = (d) => isoVN(d);
 const thangNay = () => { const d = new Date(); return 'T' + (d.getMonth() + 1) + '/' + d.getFullYear(); };
 
 const BadgeNganh = ({ n1 }) => {
@@ -98,7 +99,7 @@ export default function BaoCaoMaMoi() {
     const ws = XLSX.utils.aoa_to_sheet([[`BÁO CÁO MÃ MỚI — ${tenCHchon} — ${thangNay()}`], head, ...body]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Báo cáo mã mới');
-    XLSX.writeFile(wb, `BAOCAO_MAMOI_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `BAOCAO_MAMOI_${isoVN()}.xlsx`);
     baoToast('Đã xuất báo cáo');
   };
 

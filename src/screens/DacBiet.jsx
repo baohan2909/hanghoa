@@ -1,3 +1,4 @@
+import { isoVN } from '../lib/ui.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { sb, rpcHet } from '../lib/supabase.js';
 import { IcSearch, IcBox } from '../lib/icons.jsx';
@@ -43,7 +44,7 @@ export default function DacBiet() {
   const [sortP, setSortP] = useState({ k: null, d: -1 });   // sort bảng panel
   const doiSortP = (k) => setSortP((c) => ({ k, d: c.k === k ? -c.d : -1 }));
   const icSortP = (k) => <span style={{ opacity: sortP.k === k ? 1 : .3, fontSize: 10 }}>{sortP.k === k && sortP.d === 1 ? ' ▲' : ' ▼'}</span>;
-  const isoD = (d) => d.toISOString().slice(0, 10);
+  const isoD = (d) => isoVN(d);
   const moBan = async (sp, tu, den) => {
     tu = tu || isoD(new Date(Date.now() - 30 * 864e5));
     den = den || isoD(new Date());

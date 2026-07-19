@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { IcDown } from './icons.jsx';
 
+// Ngày HÔM NAY theo giờ máy người dùng (điện thoại NV ở VN) — KHÔNG dùng toISOString()
+// vì toISOString() trả giờ UTC, sáng sớm VN sẽ lùi 1 ngày. Dùng thành phần local.
+export const isoVN = (d = new Date()) => {
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+};
+
 // ============================================================
 // QUY TẮC UI (áp toàn hệ thống):
 // - KHÔNG dùng <select> hay popup mặc định của trình duyệt.

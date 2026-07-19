@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { sb } from '../lib/supabase.js';
-import { Sel, DateBox } from '../lib/ui.jsx';
+import { Sel, DateBox , isoVN } from '../lib/ui.jsx';
 import { IcAlert, IcRefresh, IcBox, IcSearch, IcCheck, IcTruck } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
 
 // ============ PHÂN HỆ THIẾU HÀNG ============
 // Kiểm tra, cảnh báo, điều chuyển. Độc lập với phân hệ Đề nghị hàng.
-const iso = (d) => d.toISOString().slice(0, 10);
+const iso = (d) => isoVN(d);
 // Server Supabase chặn tối đa 1000 dòng/lượt -> tự phân trang gộp đủ toàn bộ
 const rpcAll = async (fn, args, onProgress) => {
   const KHOI = 1000; let tat = []; let i = 0;

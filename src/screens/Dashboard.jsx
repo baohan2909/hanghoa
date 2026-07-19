@@ -1,3 +1,4 @@
+import { isoVN } from '../lib/ui.jsx';
 import { useEffect, useState } from 'react';
 import { sb, fmtDT, TRANG_THAI } from '../lib/supabase.js';
 import { IcAlert, IcRefresh, IcClock } from '../lib/icons.jsx';
@@ -24,7 +25,7 @@ export default function Dashboard() {
         && !['BAN_GIAO_VC','DANG_GIAO','DA_NHAN','HOAN'].includes(d.trang_thai)) qh.push(d);
     });
     setPipe(p); setHomNay(hn); setQuaHan(qh);
-    const isoHN = new Date().toISOString().slice(0, 10);
+    const isoHN = isoVN();
     const { data: lich } = await sb.rpc('fn_lich_ngay', { p_ngay: isoHN });
     setChuaGui((lich || []).filter((r) => !r.da_gui));
   };

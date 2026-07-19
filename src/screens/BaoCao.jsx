@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { sb, fmtDT } from '../lib/supabase.js';
 import { IcRefresh, IcClock } from '../lib/icons.jsx';
-import { DateBox } from '../lib/ui.jsx';
+import { DateBox , isoVN } from '../lib/ui.jsx';
 
-const iso = (d) => d.toISOString().slice(0, 10);
+const iso = (d) => isoVN(d);
 
 export default function BaoCao() {
   const homNay = new Date();

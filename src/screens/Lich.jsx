@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb, rpcHet } from '../lib/supabase.js';
-import { DateBox, Sel } from '../lib/ui.jsx';
+import { DateBox, Sel, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
-const iso = (d) => d.toISOString().slice(0, 10);
+const iso = (d = new Date()) => isoVN(d);
 const fmtDM = (s) => s.slice(8, 10) + '/' + s.slice(5, 7);
 const THU = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const THU_DAY = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
