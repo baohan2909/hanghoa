@@ -15,6 +15,13 @@ const CHE_DO = {
   SINHTON:  { ten: 'Sinh tồn',   Ic: IcHeart,  giay: 0,   mota: 'Không giới hạn giờ — 3 mạng, mỗi câu chỉ 7 giây. Sai hoặc hết giờ mất 1 mạng.' },
 };
 const fmtVND = (n) => Number(n).toLocaleString('vi') + ' đ';
+// Nén ảnh qua proxy weserv.nl: resize 420px, chất lượng 82, giảm 5-10 lần dung lượng
+// ngay lần đầu (không phụ thuộc cache). Ảnh không hợp lệ trả '' để game tự né.
+const nenHinh = (u, w = 420) => {
+  if (typeof u !== 'string' || !/^https?:\/\//.test(u.trim())) return '';
+  const bo = u.trim().replace(/^https?:\/\//, '');
+  return `https://images.weserv.nl/?url=${encodeURIComponent(bo)}&w=${w}&q=82&output=webp`;
+};
 const xao = (a) => { const v = [...a]; for (let i = v.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [v[i], v[j]] = [v[j], v[i]]; } return v; };
 const lay = (a, n, loai) => xao(a.filter((x) => x !== loai)).slice(0, n);
 
@@ -39,13 +46,13 @@ function sinhCau(pool, daDung) {
     const b = spKhacGia[Math.floor(Math.random() * spKhacGia.length)];
     const cap = xao([sp, b]);
     return { loai: l, hoi: 'Sản phẩm nào có giá niêm yết CAO hơn?', sp,
-      dapAn: cap.map((x) => ({ nhan: x.ten, hinh: x.hinh_url, dung: x.gia === Math.max(sp.gia, b.gia) })) };
+      dapAn: cap.map((x) => ({ nhan: x.ten, hinh: nenHinh(x.hinh_url), dung: x.gia === Math.max(sp.gia, b.gia) })) };
   }
   if (l === 'TEN') {
     const nhieu = lay(pool.filter((x) => x.barcode !== sp.barcode &&
       (x.nganh_3 === sp.nganh_3 || x.nganh_1 === sp.nganh_1)).map((x) => x.ten), 3)
       .concat(lay(pool.filter((x) => x.barcode !== sp.barcode).map((x) => x.ten), 3)).slice(0, 3);
-    return { loai: l, hoi: 'Sản phẩm trong hình là mã nào?', sp, hinh: sp.hinh_url,
+    return { loai: l, hoi: 'Sản phẩm trong hình là mã nào?', sp, hinh: nenHinh(sp.hinh_url),
       dapAn: xao([{ nhan: sp.ten, dung: true }, ...nhieu.map((t) => ({ nhan: t, dung: false }))]) };
   }
   if (l === 'NGANH') {
@@ -111,8 +118,8 @@ export default function DauTruong() {
     if (error || !data || data.length < 12) { baoToast('Chưa đủ dữ liệu sản phẩm để thi'); return; }
     setPool(data);
     // preload 20 hình đầu (ảnh nét/nặng — tải sẵn để không khựng giữa trận)
-    data.filter((s) => /^https?:\/\//.test((s.hinh_url || '').trim())).slice(0, 20)
-      .forEach((s) => { const im = new Image(); im.src = s.hinh_url; });
+    data.filter((s) => nenHinh(s.hinh_url)).slice(0, 20)
+      .forEach((s) => { const im = new Image(); im.src = nenHinh(s.hinh_url); });
     daDung.current = new Set();
     setDiem(0); setSoCau(0); setSoDung(0); setCombo(0); setComboMax(0); setMang(3); setChon(null); setKq(null);
     setTgConLai(CHE_DO[cheDo].giay || 0); setTgCau(7);
@@ -157,8 +164,8 @@ export default function DauTruong() {
     daDung.current.add(c.sp.barcode);
     if (daDung.current.size > pool.length - 8) daDung.current = new Set();
     // preload hình 4 SP ngẫu nhiên tiếp (mượt hơn)
-    xao(pool).filter((s) => /^https?:\/\//.test((s.hinh_url || '').trim())).slice(0, 4)
-      .forEach((s) => { const im = new Image(); im.src = s.hinh_url; });
+    xao(pool).filter((s) => nenHinh(s.hinh_url)).slice(0, 4)
+      .forEach((s) => { const im = new Image(); im.src = nenHinh(s.hinh_url); });
     setCau(c); setChon(null); setTgCau(7);
     batDauCau.current = Date.now();
   };
@@ -294,11 +301,18 @@ export default function DauTruong() {
       {laAdmin && (
         <div className="nhom-tabs" style={{ marginTop: 14, marginBottom: 0 }}>
           <button className={'nhom-tab' + (sanhTab === 'CHOI' ? ' on' : '')} onClick={() => setSanhTab('CHOI')}>Chơi &amp; Bảng vàng</button>
+          <button className={'nhom-tab' + (sanhTab === 'GIAI' ? ' on' : '')} onClick={() => setSanhTab('GIAI')}>Giải đấu</button>
           <button className={'nhom-tab' + (sanhTab === 'LOG' ? ' on' : '')} onClick={() => setSanhTab('LOG')}>Nhật ký cửa hàng</button>
         </div>
       )}
+      {!laAdmin && (
+        <div className="nhom-tabs" style={{ marginTop: 14, marginBottom: 0 }}>
+          <button className={'nhom-tab' + (sanhTab === 'CHOI' ? ' on' : '')} onClick={() => setSanhTab('CHOI')}>Chơi &amp; Bảng vàng</button>
+          <button className={'nhom-tab' + (sanhTab === 'GIAI' ? ' on' : '')} onClick={() => setSanhTab('GIAI')}>Giải đấu</button>
+        </div>
+      )}
 
-      {laAdmin && sanhTab === 'LOG' ? <NhatKy /> : (
+      {sanhTab === 'LOG' ? <NhatKy /> : sanhTab === 'GIAI' ? <GiaiDau /> : (
       <div className="dt-sanh">
         <div>
           <div className="dt-modes">
@@ -367,10 +381,13 @@ function NhatKy() {
   const [sortC, setSortC] = useState({ col: 'so_luot', dir: 'desc' });
   const [chiChoi, setChiChoi] = useState(false);       // lọc chỉ CH đã chơi
 
+  const [loi, setLoi] = useState(null);
   useEffect(() => { (async () => {
-    const { data, error } = await rpcHet('fn_thi_log_ch', { p_tu: tu, p_den: den });
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    setRows(data || []);
+    try {
+      const { data, error } = await rpcHet('fn_thi_log_ch', { p_tu: tu, p_den: den });
+      if (error) { setLoi(error.message); setRows([]); return; }
+      setLoi(null); setRows(data || []);
+    } catch (e) { setLoi(String(e?.message || e)); setRows([]); }
   })(); }, [tu, den]);
 
   const moChiTiet = async (ma_ch) => {
@@ -409,6 +426,11 @@ function NhatKy() {
 
   return (
     <>
+      {loi && (
+        <div className="card" style={{ marginTop: 14, padding: 14, borderLeft: '4px solid var(--magenta)', color: 'var(--magenta)', fontSize: 13 }}>
+          Chưa tải được nhật ký: {loi}. Kiểm tra đã chạy SQL 084 trên Supabase chưa.
+        </div>
+      )}
       <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <DateBox label="Từ" value={tu} onChange={setTu} />
         <DateBox label="Đến" value={den} onChange={setDen} />
@@ -481,6 +503,102 @@ function NhatKy() {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+// ============ GIẢI ĐẤU — cá nhân tuần + xếp hạng cửa hàng/khu vực ============
+function GiaiDau() {
+  const { user } = useApp();
+  const [muc, setMuc] = useState('TUAN');           // TUAN | CH | KV
+  const [tuanOffset, setTuanOffset] = useState(0);  // 0 = tuần này, -1 tuần trước
+  const [caNhan, setCaNhan] = useState(null);
+  const [dsCH, setDsCH] = useState(null);
+  const [dsKV, setDsKV] = useState(null);
+
+  // mốc thứ 2 của tuần đang xem
+  const dauTuan = useMemo(() => {
+    const d = new Date(); const dow = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dow + tuanOffset * 7);
+    return iso2(d);
+  }, [tuanOffset]);
+  const cuoiTuan = useMemo(() => iso2(new Date(new Date(dauTuan + 'T00:00:00').getTime() + 6 * 864e5)), [dauTuan]);
+
+  useEffect(() => {
+    if (muc === 'TUAN') sb.rpc('fn_thi_top_tuan', { p_tuan: dauTuan }).then(({ data }) => setCaNhan(data || []));
+    if (muc === 'CH') rpcHet('fn_thi_hang_ch', { p_tu: dauTuan, p_den: cuoiTuan }).then(({ data }) => setDsCH(data || []));
+    if (muc === 'KV') rpcHet('fn_thi_hang_kv', { p_tu: dauTuan, p_den: cuoiTuan }).then(({ data }) => setDsKV(data || []));
+  }, [muc, dauTuan, cuoiTuan]);
+
+  const fmtNgay = (s) => s.slice(8, 10) + '/' + s.slice(5, 7);
+
+  return (
+    <>
+      <div style={{ marginTop: 14, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="nhom-tabs" style={{ margin: 0 }}>
+          <button className={'nhom-tab' + (muc === 'TUAN' ? ' on' : '')} onClick={() => setMuc('TUAN')}>Cá nhân tuần</button>
+          <button className={'nhom-tab' + (muc === 'CH' ? ' on' : '')} onClick={() => setMuc('CH')}>Cửa hàng</button>
+          <button className={'nhom-tab' + (muc === 'KV' ? ' on' : '')} onClick={() => setMuc('KV')}>Khu vực</button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 'auto' }}>
+          <button className="cal-nav" onClick={() => setTuanOffset((o) => o - 1)}>‹</button>
+          <span style={{ fontSize: 13, fontWeight: 700, minWidth: 130, textAlign: 'center' }}>
+            {tuanOffset === 0 ? 'Tuần này' : tuanOffset === -1 ? 'Tuần trước' : `${-tuanOffset} tuần trước`}
+            <div style={{ fontSize: 11, color: 'var(--ink-2)', fontWeight: 400 }}>{fmtNgay(dauTuan)}–{fmtNgay(cuoiTuan)}</div>
+          </span>
+          <button className="cal-nav" onClick={() => setTuanOffset((o) => Math.min(0, o + 1))} disabled={tuanOffset >= 0}>›</button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 12, padding: 16 }}>
+        {muc === 'TUAN' && (
+          !caNhan ? <div className="dt-top-trong">Đang tải…</div>
+          : caNhan.length === 0 ? <div className="dt-top-trong">Tuần này chưa có ai thi đấu.</div>
+          : <div className="dt-top-list">
+              {caNhan.map((r, i) => (
+                <div key={r.ma_nguoi} className={'dt-top-item' + (r.ma_nguoi === user.ma_dang_nhap ? ' toi' : '') + (i < 3 ? ' top3' : '')}>
+                  <span className={'dt-hang h' + (i + 1)}>{i + 1}</span>
+                  <div className="dt-top-ten"><div>{r.ten_nguoi}</div>
+                    <div className="dt-top-sub">{r.ma_ch || r.ma_nguoi} · {r.che_do}</div></div>
+                  <b className="dt-top-diem">{Number(r.diem).toLocaleString('vi')}</b>
+                </div>
+              ))}
+            </div>
+        )}
+
+        {muc === 'CH' && (
+          !dsCH ? <div className="dt-top-trong">Đang tải…</div>
+          : dsCH.length === 0 ? <div className="dt-top-trong">Tuần này chưa cửa hàng nào thi đấu.</div>
+          : <div className="dt-top-list">
+              {dsCH.map((r, i) => (
+                <div key={r.ma_ch} className={'dt-top-item' + (r.ma_ch === user.ma_ch ? ' toi' : '') + (i < 3 ? ' top3' : '')}>
+                  <span className={'dt-hang h' + (i + 1)}>{i + 1}</span>
+                  <div className="dt-top-ten"><div>{r.ten_ch}</div>
+                    <div className="dt-top-sub">{r.khu_vuc} · {Number(r.so_nguoi)} người · {Number(r.so_luot)} lượt · TB {Number(r.diem_tb).toLocaleString('vi')}</div></div>
+                  <b className="dt-top-diem">{Number(r.tong_diem).toLocaleString('vi')}</b>
+                </div>
+              ))}
+            </div>
+        )}
+
+        {muc === 'KV' && (
+          !dsKV ? <div className="dt-top-trong">Đang tải…</div>
+          : dsKV.length === 0 ? <div className="dt-top-trong">Tuần này chưa có khu vực nào thi đấu.</div>
+          : <div className="dt-top-list">
+              {dsKV.map((r, i) => (
+                <div key={r.khu_vuc} className={'dt-top-item' + (i < 3 ? ' top3' : '')}>
+                  <span className={'dt-hang h' + (i + 1)}>{i + 1}</span>
+                  <div className="dt-top-ten"><div>{r.khu_vuc}</div>
+                    <div className="dt-top-sub">{Number(r.so_ch)} cửa hàng · {Number(r.so_nguoi)} người · TB {Number(r.diem_tb).toLocaleString('vi')}</div></div>
+                  <b className="dt-top-diem">{Number(r.tong_diem).toLocaleString('vi')}</b>
+                </div>
+              ))}
+            </div>
+        )}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--ink-2)', marginTop: 10, textAlign: 'center' }}>
+        Xếp hạng cửa hàng &amp; khu vực tính bằng tổng điểm cao nhất của từng người trong kỳ — càng nhiều người nỗ lực, thứ hạng tập thể càng cao.
+      </div>
     </>
   );
 }
