@@ -58,6 +58,26 @@ export default function Lich() {
     return m;
   }, [hien, dsNgay]);
 
+  // TÓM TẮT KIỂM SOÁT: hôm nay ai tới lịch, ai chưa gửi; tuân thủ toàn kỳ (đã qua)
+  const tomTat = useMemo(() => {
+    const v = rows || [];
+    const homNayLich = v.filter((r) => (r.ngay_lich || []).includes(homNay));
+    const homNayChuaGui = homNayLich.filter((r) => !(r.ngay_gui || []).includes(homNay));
+    let lichQua = 0, dungQua = 0;
+    v.forEach((r) => {
+      const gui = new Set(r.ngay_gui || []);
+      (r.ngay_lich || []).forEach((n) => {
+        if (n < homNay) { lichQua++; if (gui.has(n)) dungQua++; }
+      });
+    });
+    return {
+      homNayTong: homNayLich.length,
+      homNayChuaGui: homNayChuaGui.map((r) => r).sort((a, b) => a.nhom_ch - b.nhom_ch),
+      pct: lichQua ? Math.round(100 * dungQua / lichQua) : null,
+      boLo: lichQua - dungQua,
+    };
+  }, [rows, homNay]);
+
   const toggleO = async (r, ngay) => {
     if (!['DIEU_PHOI', 'ADMIN'].includes(user.vai_tro)) return;
     const co = (r.ngay_lich || []).includes(ngay);
@@ -88,7 +108,7 @@ export default function Lich() {
       </div>
 
       {tab === 'MATRAN' && (
-        <MaTran hien={hien} dsNgay={dsNgay} tongNgay={tongNgay} homNay={homNay}
+        <MaTran hien={hien} dsNgay={dsNgay} tongNgay={tongNgay} homNay={homNay} tomTat={tomTat} setTab={setTab}
           nhomXem={nhomXem} setNhomXem={setNhomXem} kv={kv} setKv={setKv} dsKV={dsKV}
           q={q} setQ={setQ} toggleO={toggleO} suaDuoc={['DIEU_PHOI', 'ADMIN'].includes(user.vai_tro)} />
       )}
@@ -99,28 +119,74 @@ export default function Lich() {
 }
 
 // ================= MA TRẬN =================
-function MaTran({ hien, dsNgay, tongNgay, homNay, nhomXem, setNhomXem, kv, setKv, dsKV, q, setQ, toggleO, suaDuoc }) {
+function MaTran({ hien, dsNgay, tongNgay, homNay, tomTat, setTab, nhomXem, setNhomXem, kv, setKv, dsKV, q, setQ, toggleO, suaDuoc }) {
+  const fmtDM2 = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
   return (
-    <div className="card" style={{ marginTop: 12, padding: 14 }}>
-      <div className="row" style={{ marginBottom: 10, flexWrap: 'wrap' }}>
-        <div className="nhom-tabs" style={{ margin: 0 }}>
-          {[['ALL', 'Tất cả'], ['1', 'Nhóm 1'], ['2', 'Nhóm 2'], ['3', 'Nhóm 3']].map(([v, t]) => (
-            <button key={v} className={'nhom-tab' + (nhomXem === v ? ' on' : '')} onClick={() => setNhomXem(v)}>{t}</button>
-          ))}
+    <>
+      {/* THANH TÓM TẮT KIỂM SOÁT */}
+      <div className="lich-tomtat">
+        <div className="lich-tt-o">
+          <div className="lich-tt-so" style={{ color: 'var(--navy)' }}>{tomTat.homNayTong}</div>
+          <div className="lich-tt-ten">nơi bán tới lịch <b>hôm nay</b></div>
         </div>
-        <Sel value={kv} onChange={setKv} placeholder="Khu vực"
-          options={[{ value: 'ALL', label: 'Mọi khu vực' }, ...dsKV.map((k) => ({ value: k, label: k }))]} style={{ minWidth: 190 }} />
-        <input className="inp" placeholder="Tìm cửa hàng…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 200 }} />
-        <span className="sla-chip">{hien.length} nơi bán</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, fontSize: 11.5, color: 'var(--ink-2)', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className={'lich-tt-o' + (tomTat.homNayChuaGui.length ? ' nhac' : '')}>
+          <div className="lich-tt-so" style={{ color: tomTat.homNayChuaGui.length ? 'var(--magenta)' : 'var(--teal-deep)' }}>
+            {tomTat.homNayChuaGui.length}
+          </div>
+          <div className="lich-tt-ten">chưa gửi <b>hôm nay</b></div>
+        </div>
+        <div className="lich-tt-o">
+          <div className="lich-tt-so" style={{ color: tomTat.pct == null ? 'var(--ink-2)' : tomTat.pct >= 80 ? 'var(--teal-deep)' : tomTat.pct >= 50 ? '#a8842c' : 'var(--magenta)' }}>
+            {tomTat.pct == null ? '—' : tomTat.pct + '%'}
+          </div>
+          <div className="lich-tt-ten">tuân thủ kỳ · <button className="lnk" onClick={() => setTab('TUANTHU')}>chi tiết</button></div>
+        </div>
+        <div className="lich-tt-o">
+          <div className="lich-tt-so" style={{ color: tomTat.boLo ? 'var(--magenta)' : 'var(--teal-deep)' }}>{tomTat.boLo}</div>
+          <div className="lich-tt-ten">lượt bỏ lỡ (đã qua)</div>
+        </div>
+      </div>
+
+      {/* CẦN CHÚ Ý HÔM NAY — chip từng nơi bán chưa gửi */}
+      {tomTat.homNayChuaGui.length > 0 && (
+        <div className="card lich-canchuy">
+          <div className="lich-cc-tit">⚠ {tomTat.homNayChuaGui.length} nơi bán tới lịch hôm nay nhưng chưa gửi phiếu</div>
+          <div className="lich-cc-chips">
+            {tomTat.homNayChuaGui.map((r) => (
+              <span key={r.ma_ch} className="lich-cc-chip" title={r.ma_ch + ' · ' + (r.khu_vuc || '')}>
+                <span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span> {r.ten}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
+        {/* THANH LỌC — mỗi control tách bạch */}
+        <div className="lich-loc">
+          <div className="nhom-tabs" style={{ margin: 0 }}>
+            {[['ALL', 'Tất cả'], ['1', 'Nhóm 1'], ['2', 'Nhóm 2'], ['3', 'Nhóm 3']].map(([v, t]) => (
+              <button key={v} className={'nhom-tab' + (nhomXem === v ? ' on' : '')} onClick={() => setNhomXem(v)}>{t}</button>
+            ))}
+          </div>
+          <div className="lich-loc-r">
+            <Sel value={kv} onChange={setKv} placeholder="Khu vực"
+              options={[{ value: 'ALL', label: 'Mọi khu vực' }, ...dsKV.map((k) => ({ value: k, label: k }))]} style={{ minWidth: 200 }} />
+            <input className="inp" placeholder="Tìm cửa hàng…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 210 }} />
+            <span className="sla-chip">{hien.length} nơi bán</span>
+          </div>
+        </div>
+
+        {/* CHÚ THÍCH */}
+        <div className="lich-chuthich">
           <span><i className="lich-dot co" /> Có lịch</span>
           <span><i className="lich-dot gui" /> Đã gửi đúng lịch</span>
           <span><i className="lich-dot lo" /> Bỏ lỡ</span>
           <span><i className="lich-dot ngoai" /> Gửi ngoài lịch</span>
-          {suaDuoc && <span style={{ opacity: .7 }}>· Bấm ô để thêm/bỏ lịch</span>}
+          {suaDuoc && <span style={{ marginLeft: 'auto', opacity: .7, fontStyle: 'italic' }}>Bấm ô để thêm / bỏ lịch</span>}
         </div>
-      </div>
-      <div className="tbl-wrap" style={{ maxHeight: '68vh', overflow: 'auto' }}>
+
+        <div className="tbl-wrap" style={{ maxHeight: '64vh', overflow: 'auto' }}>
         <table className="tbl lich-mt">
           <thead>
             <tr>
@@ -165,7 +231,7 @@ function MaTran({ hien, dsNgay, tongNgay, homNay, nhomXem, setNhomXem, kv, setKv
                         style={{ cursor: suaDuoc ? 'pointer' : 'default' }}
                         onClick={() => suaDuoc && toggleO(r, n)}
                         title={r.ten + ' · ' + fmtDM(n) + (co ? ' — có lịch' : '') + (daGui ? ' — đã gửi' : '')}>
-                        {co && daGui ? '✓' : co ? '●' : daGui ? '○' : ''}
+                        {co && daGui ? '✓' : co && n < homNay ? '✕' : co ? '●' : daGui ? '△' : ''}
                       </td>
                     );
                   })}
@@ -174,8 +240,9 @@ function MaTran({ hien, dsNgay, tongNgay, homNay, nhomXem, setNhomXem, kv, setKv
             })}
           </tbody>
         </table>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

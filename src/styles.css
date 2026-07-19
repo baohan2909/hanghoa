@@ -796,13 +796,12 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .lich-colngay.cuoituan { background: #f6f4ef; }
 .lich-colngay.homnay, .lich-tong th.homnay, .lich-o.homnay { box-shadow: inset 0 0 0 1.5px var(--gold); }
 .lich-tong th { font-size: 10.5px; color: var(--ink-2); padding: 3px 2px; text-align: center; }
-.lich-o { text-align: center; font-size: 12px; padding: 4px 2px !important; user-select: none; min-width: 34px; }
-.lich-o.o-co { color: var(--teal-deep); }
-.lich-o.o-gui { background: rgba(63,182,168,.16); color: var(--teal-deep); font-weight: 800; }
-.lich-o.o-lo { background: rgba(214,0,108,.10); color: var(--magenta); font-weight: 800; }
-.lich-o.o-lo::after { content: '✕'; }
-.lich-o.o-ngoai { color: #a8842c; }
-.lich-o:hover { outline: 1.5px dashed var(--teal); outline-offset: -2px; }
+.lich-o { text-align: center; font-size: 11px; padding: 0 !important; height: 30px; user-select: none; min-width: 32px; color: transparent; transition: background .1s; }
+.lich-o.o-co { color: var(--teal-deep); font-weight: 700; }
+.lich-o.o-gui { background: rgba(63,182,168,.18); color: var(--teal-deep); font-weight: 800; }
+.lich-o.o-lo { background: rgba(214,0,108,.12); color: var(--magenta); font-weight: 800; }
+.lich-o.o-ngoai { color: #b98f2e; font-weight: 700; }
+.lich-o:hover { outline: 2px solid var(--teal); outline-offset: -2px; background: rgba(63,182,168,.08); }
 .lich-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
 .lich-dot.co { background: var(--teal-deep); }
 .lich-dot.gui { background: rgba(63,182,168,.5); }
@@ -813,3 +812,26 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .tag-n2 { background: rgba(63,182,168,.14); color: var(--teal-deep); }
 .tag-n3 { background: rgba(203,164,90,.16); color: #8a6a24; }
 .row-lo td { background: rgba(214,0,108,.035); }
+
+/* ===== LỊCH — tóm tắt kiểm soát + bố cục ===== */
+.lich-tomtat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; }
+.lich-tt-o { background: var(--card, #fff); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px; box-shadow: 0 1px 2px rgba(20,33,58,.04); }
+.lich-tt-o.nhac { border-color: rgba(214,0,108,.35); background: rgba(214,0,108,.03); }
+.lich-tt-so { font-size: 30px; font-weight: 800; line-height: 1.05; letter-spacing: -.5px; }
+.lich-tt-ten { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; }
+.lich-tt-ten b { color: var(--ink); }
+.lnk { background: none; border: 0; color: var(--teal-deep); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+
+.lich-canchuy { margin-top: 12px; padding: 12px 14px; border-left: 4px solid var(--magenta);
+  background: rgba(214,0,108,.03); }
+.lich-cc-tit { font-weight: 700; color: var(--magenta); font-size: 13.5px; margin-bottom: 8px; }
+.lich-cc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lich-cc-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--card, #fff);
+  border: 1px solid var(--line); border-radius: 20px; padding: 3px 11px 3px 5px; font-size: 12.5px; white-space: nowrap; }
+
+.lich-loc { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.lich-loc-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lich-chuthich { display: flex; align-items: center; gap: 16px; padding: 8px 14px;
+  border-bottom: 1px solid var(--line); font-size: 11.5px; color: var(--ink-2); background: #faf9f6; flex-wrap: wrap; }
