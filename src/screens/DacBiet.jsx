@@ -117,7 +117,12 @@ export default function DacBiet() {
         if (t === 'CH_DB' || t === 'DB_CH' || t === 'CHDB') return 'CH_DB';
         return 'CH_DB';
       };
-      const data = rows.slice(1)
+      // Bỏ dòng tiêu đề nếu có: dòng 1 chứa chữ "barcode"/"mã"/"áp dụng" -> là tiêu đề.
+      // Nếu dòng 1 đã là mã thật (không phải chữ tiêu đề) thì giữ lại, không mất mã.
+      const o1 = String(rows[0]?.[0] || '').trim().toLowerCase();
+      const laTieuDe = /barcode|mã|ma\b|áp dụng|ap dung|code/.test(o1) || !/\d/.test(o1);
+      const batDau = laTieuDe ? 1 : 0;
+      const data = rows.slice(batDau)
         .map((r) => ({ bc: String(r[0] || '').trim(), ap: chuan(r[1]) }))
         .filter((x) => x.bc);
       if (!data.length) { baoToast('File không có mã nào ở cột A'); return; }
