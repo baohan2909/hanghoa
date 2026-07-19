@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { sb } from '../lib/supabase.js';
+import { sb, rpcHet } from '../lib/supabase.js';
 import { IcTrophy, IcFlash, IcTarget, IcHeart, IcRefresh } from '../lib/icons.jsx';
+import { DateBox, Sel } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
 // ĐẤU TRƯỜNG — thi đua kiến thức sản phẩm toàn hệ thống.
@@ -72,6 +73,8 @@ function sinhCau(pool, daDung) {
 export default function DauTruong() {
   const { user, baoToast } = useApp();
   const [view, setView] = useState('SANH');          // SANH | DEM | CHOI | KETQUA
+  const [sanhTab, setSanhTab] = useState('CHOI');    // CHOI | LOG (admin)
+  const laAdmin = user.vai_tro === 'ADMIN';
   const [cheDo, setCheDo] = useState('TOCDO');
   const [tabTop, setTabTop] = useState('TOCDO');
   const [top, setTop] = useState(null);
@@ -107,8 +110,9 @@ export default function DauTruong() {
     const { data, error } = await sb.rpc('fn_thi_pool', { p_so: 60 });
     if (error || !data || data.length < 12) { baoToast('Chưa đủ dữ liệu sản phẩm để thi'); return; }
     setPool(data);
-    // preload 10 hình đầu
-    data.slice(0, 10).forEach((s) => { if (s.hinh_url) { const im = new Image(); im.src = s.hinh_url; } });
+    // preload 20 hình đầu (ảnh nét/nặng — tải sẵn để không khựng giữa trận)
+    data.filter((s) => /^https?:\/\//.test((s.hinh_url || '').trim())).slice(0, 20)
+      .forEach((s) => { const im = new Image(); im.src = s.hinh_url; });
     daDung.current = new Set();
     setDiem(0); setSoCau(0); setSoDung(0); setCombo(0); setComboMax(0); setMang(3); setChon(null); setKq(null);
     setTgConLai(CHE_DO[cheDo].giay || 0); setTgCau(7);
@@ -152,8 +156,9 @@ export default function DauTruong() {
     const c = sinhCau(pool, daDung.current);
     daDung.current.add(c.sp.barcode);
     if (daDung.current.size > pool.length - 8) daDung.current = new Set();
-    // preload hình 2 SP ngẫu nhiên tiếp
-    xao(pool).slice(0, 2).forEach((s) => { if (s.hinh_url) { const im = new Image(); im.src = s.hinh_url; } });
+    // preload hình 4 SP ngẫu nhiên tiếp (mượt hơn)
+    xao(pool).filter((s) => /^https?:\/\//.test((s.hinh_url || '').trim())).slice(0, 4)
+      .forEach((s) => { const im = new Image(); im.src = s.hinh_url; });
     setCau(c); setChon(null); setTgCau(7);
     batDauCau.current = Date.now();
   };
@@ -240,6 +245,7 @@ export default function DauTruong() {
         ) : (
           <>
             {cau.hinh && <div className="dt-hinh"><img src={cau.hinh} alt="" loading="eager"
+              className="dt-hinh-img" onLoad={(e) => e.currentTarget.classList.add('san')}
               onError={() => { if (chon === null) cauMoi(); }} /></div>}
             <div className="dt-dapan">
               {cau.dapAn.map((a, i) => (
@@ -285,6 +291,14 @@ export default function DauTruong() {
         <div className="sub">Thi đua tốc độ &amp; kiến thức sản phẩm toàn hệ thống — vừa chơi vừa thuộc giá, thuộc mã. Top 10 ghi danh bảng vàng.</div>
       </div>
 
+      {laAdmin && (
+        <div className="nhom-tabs" style={{ marginTop: 14, marginBottom: 0 }}>
+          <button className={'nhom-tab' + (sanhTab === 'CHOI' ? ' on' : '')} onClick={() => setSanhTab('CHOI')}>Chơi &amp; Bảng vàng</button>
+          <button className={'nhom-tab' + (sanhTab === 'LOG' ? ' on' : '')} onClick={() => setSanhTab('LOG')}>Nhật ký cửa hàng</button>
+        </div>
+      )}
+
+      {laAdmin && sanhTab === 'LOG' ? <NhatKy /> : (
       <div className="dt-sanh">
         <div>
           <div className="dt-modes">
@@ -334,6 +348,139 @@ export default function DauTruong() {
             )}
         </div>
       </div>
+      )}
+    </>
+  );
+}
+
+// ============ NHẬT KÝ QUẢN TRỊ ============
+const iso2 = (d) => d.toISOString().slice(0, 10);
+const fmtGio = (ts) => { const d = new Date(ts); return d.toLocaleString('vi', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
+
+function NhatKy() {
+  const { baoToast } = useApp();
+  const [tu, setTu] = useState(iso2(new Date(Date.now() - 30 * 864e5)));
+  const [den, setDen] = useState(iso2(new Date()));
+  const [rows, setRows] = useState(null);
+  const [chiTiet, setChiTiet] = useState(null);       // ma_ch đang mở chi tiết
+  const [ct, setCt] = useState(null);
+  const [sortC, setSortC] = useState({ col: 'so_luot', dir: 'desc' });
+  const [chiChoi, setChiChoi] = useState(false);       // lọc chỉ CH đã chơi
+
+  useEffect(() => { (async () => {
+    const { data, error } = await rpcHet('fn_thi_log_ch', { p_tu: tu, p_den: den });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    setRows(data || []);
+  })(); }, [tu, den]);
+
+  const moChiTiet = async (ma_ch) => {
+    setChiTiet(ma_ch); setCt(null);
+    const { data } = await rpcHet('fn_thi_log_chitiet', { p_tu: tu, p_den: den, p_ma_ch: ma_ch });
+    setCt(data || []);
+  };
+
+  const tk = useMemo(() => {
+    const v = rows || [];
+    return {
+      luot: v.reduce((s, r) => s + Number(r.so_luot), 0),
+      choi: v.filter((r) => Number(r.so_luot) > 0).length,
+      chua: v.filter((r) => Number(r.so_luot) === 0).length,
+    };
+  }, [rows]);
+
+  const hien = useMemo(() => {
+    let v = [...(rows || [])];
+    if (chiChoi) v = v.filter((r) => Number(r.so_luot) > 0);
+    const g = { ten: (r) => r.ten_ch, luot: (r) => Number(r.so_luot), nguoi: (r) => Number(r.so_nguoi),
+      max: (r) => r.diem_max, tb: (r) => Number(r.diem_tb), gan: (r) => r.lan_gan_nhat || '' }[sortC.col];
+    v.sort((a, b) => { const x = g(a), y = g(b); const c = typeof x === 'string' ? x.localeCompare(y) : (x > y ? 1 : x < y ? -1 : 0); return sortC.dir === 'asc' ? c : -c; });
+    return v;
+  }, [rows, chiChoi, sortC]);
+  const ds = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
+  const ic = (c) => sortC.col === c ? (sortC.dir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  const xuat = async () => {
+    const XLSX = await import('xlsx');
+    const hdr = ['Mã CH', 'Cửa hàng', 'Khu vực', 'Nhóm', 'Số lượt', 'Số người', 'Điểm cao nhất', 'Điểm TB', 'Lần gần nhất'];
+    const data = hien.map((r) => [r.ma_ch, r.ten_ch, r.khu_vuc, 'N' + r.nhom_ch, Number(r.so_luot), Number(r.so_nguoi), r.diem_max, Number(r.diem_tb), r.lan_gan_nhat ? fmtGio(r.lan_gan_nhat) : '']);
+    const ws = XLSX.utils.aoa_to_sheet([hdr, ...data]); const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Nhật ký Đấu trường'); XLSX.writeFile(wb, `NhatKy_DauTruong_${tu}_${den}.xlsx`);
+  };
+
+  return (
+    <>
+      <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <DateBox label="Từ" value={tu} onChange={setTu} />
+        <DateBox label="Đến" value={den} onChange={setDen} />
+        <button className={'nhom-tab' + (chiChoi ? ' on' : '')} onClick={() => setChiChoi((v) => !v)} style={{ height: 40 }}>Chỉ CH đã chơi</button>
+        <button className="btn btn-ghost" onClick={xuat} style={{ marginLeft: 'auto' }}>Xuất Excel</button>
+      </div>
+
+      <div className="the-hang" style={{ marginTop: 12 }}>
+        <div className="the-g"><span className="the-g-n">{tk.luot}</span><span className="the-g-t">tổng lượt chơi</span></div>
+        <div className="the-g"><span className="the-g-n" style={{ color: 'var(--teal-deep)' }}>{tk.choi}</span><span className="the-g-t">cửa hàng có tham gia</span></div>
+        <div className="the-g"><span className="the-g-n" style={{ color: tk.chua ? 'var(--magenta)' : 'var(--teal-deep)' }}>{tk.chua}</span><span className="the-g-t">cửa hàng chưa chơi lần nào</span></div>
+      </div>
+
+      <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
+        <div className="tbl-wrap" style={{ maxHeight: '58vh', overflow: 'auto' }}>
+          <table className="tbl tbl-fit">
+            <thead><tr>
+              <th className="sortable" onClick={() => ds('ten')}>Cửa hàng{ic('ten')}</th>
+              <th className="num sortable" onClick={() => ds('luot')}>Số lượt{ic('luot')}</th>
+              <th className="num sortable" onClick={() => ds('nguoi')}>Số người{ic('nguoi')}</th>
+              <th className="num sortable" onClick={() => ds('max')}>Điểm cao nhất{ic('max')}</th>
+              <th className="num sortable" onClick={() => ds('tb')}>Điểm TB{ic('tb')}</th>
+              <th className="sortable" onClick={() => ds('gan')}>Lần gần nhất{ic('gan')}</th>
+              <th></th>
+            </tr></thead>
+            <tbody>
+              {hien.map((r) => (
+                <tr key={r.ma_ch} className={Number(r.so_luot) === 0 ? 'row-lo' : ''}>
+                  <td><div style={{ fontWeight: 600 }}>{r.ten_ch}</div><div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}</div></td>
+                  <td className="num" style={{ fontWeight: 700, color: Number(r.so_luot) ? 'var(--teal-deep)' : 'var(--magenta)' }}>{Number(r.so_luot)}</td>
+                  <td className="num">{Number(r.so_nguoi)}</td>
+                  <td className="num">{r.diem_max ? Number(r.diem_max).toLocaleString('vi') : '—'}</td>
+                  <td className="num">{Number(r.diem_tb) ? Number(r.diem_tb).toLocaleString('vi') : '—'}</td>
+                  <td style={{ fontSize: 12 }}>{r.lan_gan_nhat ? fmtGio(r.lan_gan_nhat) : <span style={{ color: 'var(--magenta)' }}>chưa chơi</span>}</td>
+                  <td>{Number(r.so_luot) > 0 && <button className="btn-mini btn-mini-teal" onClick={() => moChiTiet(r.ma_ch)}>Chi tiết</button>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {chiTiet && (
+        <div className="modal-bg" onClick={() => setChiTiet(null)}>
+          <div className="modal" style={{ maxWidth: 640, width: '94vw' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div style={{ flex: 1 }}><b>Chi tiết lượt chơi</b> — {(rows || []).find((r) => r.ma_ch === chiTiet)?.ten_ch}</div>
+              <button className="modal-x" onClick={() => setChiTiet(null)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '60vh', overflow: 'auto', padding: 0 }}>
+              {!ct ? <div className="dt-top-trong">Đang tải…</div> : (
+                <table className="tbl tbl-fit">
+                  <thead><tr><th>Thời điểm</th><th>Người chơi</th><th className="center">Chế độ</th><th className="num">Điểm</th><th className="num">Đúng/Câu</th><th className="num">Combo</th></tr></thead>
+                  <tbody>
+                    {ct.map((r, i) => (
+                      <tr key={i}>
+                        <td style={{ fontSize: 12 }}>{fmtGio(r.tao_luc)}</td>
+                        <td style={{ fontWeight: 600 }}>{r.ten_nguoi}</td>
+                        <td className="center"><span className="tag-n tag-n2">{r.che_do}</span></td>
+                        <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{Number(r.diem).toLocaleString('vi')}</td>
+                        <td className="num">{r.so_dung}/{r.so_cau}</td>
+                        <td className="num">×{r.combo_max}</td>
+                      </tr>
+                    ))}
+                    {ct.length === 0 && <tr><td colSpan={6} style={{ textAlign: 'center', padding: 20, color: 'var(--ink-2)' }}>Không có lượt nào.</td></tr>}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

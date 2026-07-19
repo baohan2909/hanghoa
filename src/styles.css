@@ -1000,3 +1000,13 @@ textarea.inp { height: auto; padding: 10px 12px; }
   animation: dtPop .5s ease; }
 .dt-kq-best { margin-top: 14px; font-size: 13px; color: var(--ink-2); }
 .dt-kq-best b { color: var(--ink); }
+
+/* Ảnh game — nền chờ mượt, fade khi tải xong */
+.dt-hinh { position: relative; }
+.dt-hinh::after { content: ''; position: absolute; inset: 0; border-radius: 16px;
+  background: linear-gradient(100deg, #f0efe9 30%, #f8f7f3 50%, #f0efe9 70%);
+  background-size: 200% 100%; animation: dtShimmer 1.1s infinite; z-index: 0; }
+.dt-hinh-img { position: relative; z-index: 1; opacity: 0; transition: opacity .25s; }
+.dt-hinh-img.san { opacity: 1; }
+.dt-hinh-img.san + ::after, .dt-hinh:has(.san)::after { display: none; }
+@keyframes dtShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
