@@ -13,6 +13,17 @@ const CHE_DO = {
   TOCDO:    { ten: 'Tốc độ',     Ic: IcFlash,  giay: 60,  mota: '60 giây — trả lời càng nhiều càng tốt. Sai không trừ điểm nhưng mất chuỗi combo.' },
   CHINHXAC: { ten: 'Chính xác',  Ic: IcTarget, giay: 90,  mota: '90 giây — đúng +điểm, sai −50. Dành cho người chắc kiến thức.' },
   SINHTON:  { ten: 'Sinh tồn',   Ic: IcHeart,  giay: 0,   mota: 'Không giới hạn giờ — 3 mạng, mỗi câu chỉ 7 giây. Sai hoặc hết giờ mất 1 mạng.' },
+  DAILY:    { ten: 'Thử thách ngày', Ic: IcTrophy, giay: 0, mota: 'Mỗi ngày 1 đề — 10 câu GIỐNG NHAU cho cả hệ thống, mỗi người chỉ thi 1 lần. So kè công bằng tuyệt đối.' },
+};
+const DAILY_SO_CAU = 10;
+const HUY_HIEU = {
+  TAN_BINH:   { ten: 'Tân binh',      mota: 'Hoàn thành lượt thi đầu tiên' },
+  CHIEN_BINH: { ten: 'Chiến binh',    mota: 'Thi đấu 50 lượt' },
+  THIEN_XA:   { ten: 'Thiện xạ',      mota: 'Chính xác ≥90% (từ 100 câu)' },
+  COMBO_10:   { ten: 'Chuỗi ×10',     mota: 'Đạt combo 10 câu liên tiếp' },
+  VUA_TOC_DO: { ten: 'Vua tốc độ',    mota: 'Tốc độ đạt 3.000 điểm' },
+  BAT_TU:     { ten: 'Bất tử',        mota: 'Sinh tồn đạt 2.500 điểm' },
+  CHUYEN_CAN: { ten: 'Chuyên cần',    mota: 'Thi đấu 5 ngày khác nhau' },
 };
 const fmtVND = (n) => Number(n).toLocaleString('vi') + ' đ';
 // Dùng ảnh gốc trực tiếp (proxy nén lần đầu chậm hơn với ảnh nét). Chỉ validate URL http.
@@ -38,7 +49,45 @@ function sinhCau(pool, daDung) {
   const spKhacGia = pool.filter((x) => x.barcode !== sp.barcode && hopLeHinh(x.hinh_url)
     && Math.abs(x.gia - sp.gia) / Math.max(x.gia, sp.gia) >= 0.1);
   if (coHinh && spKhacGia.length) loai.push('SOSANH');
+  // Dạng câu TỒN/BÁN — thiết kế chống trễ dữ liệu 1 giờ:
+  // BANCHAY dùng dữ liệu bán QUÁ KHỨ (chắc 100%); CHAYHANG/TONNHIEU chỉ sinh khi
+  // chênh lệch lớn (1 giờ không đổi được đáp án), kèm chữ "cập nhật mỗi giờ".
+  const coTon = pool.some((x) => x.ton_ht != null);
+  if (coTon) {
+    const chay = pool.filter((x) => Number(x.ban_30) > 0 && Number(x.ton_ht) === 0);
+    const tonNhieu = pool.filter((x) => Number(x.ton_ht) >= 20);
+    if (chay.length >= 1 && tonNhieu.length >= 3) loai.push('CHAYHANG');
+    const banCo = pool.filter((x) => Number(x.ban_30) > 0);
+    if (banCo.length >= 4) loai.push('BANCHAY');
+    if (tonNhieu.length >= 4) loai.push('TONNHIEU');
+  }
   const l = loai[Math.floor(Math.random() * loai.length)];
+
+  if (l === 'CHAYHANG') {
+    const chay = xao(pool.filter((x) => Number(x.ban_30) > 0 && Number(x.ton_ht) === 0))[0];
+    const nhieu = xao(pool.filter((x) => Number(x.ton_ht) >= 20)).slice(0, 3);
+    return { loai: l, hoi: 'Mã nào đang CHÁY HÀNG — có bán trong 30 ngày nhưng toàn hệ thống đã hết tồn? (tồn cập nhật mỗi giờ)', sp: chay,
+      dapAn: xao([{ nhan: chay.ten, dung: true }, ...nhieu.map((x) => ({ nhan: x.ten, dung: false }))]) };
+  }
+  if (l === 'BANCHAY') {
+    const banCo = pool.filter((x) => Number(x.ban_30) > 0).sort((a, b) => Number(b.ban_30) - Number(a.ban_30));
+    // lấy top1 + 3 mã bán thấp hơn hẳn (<= 60% top1) để đáp án không mơ hồ
+    const top1 = banCo[0];
+    const thap = xao(banCo.filter((x) => Number(x.ban_30) <= Number(top1.ban_30) * 0.6)).slice(0, 3);
+    if (thap.length >= 3) {
+      return { loai: l, hoi: 'Trong 4 mã sau, mã nào BÁN CHẠY NHẤT 30 ngày qua toàn hệ thống?', sp: top1,
+        dapAn: xao([{ nhan: top1.ten, dung: true }, ...thap.map((x) => ({ nhan: x.ten, dung: false }))]) };
+    }
+  }
+  if (l === 'TONNHIEU') {
+    const tonSx = pool.filter((x) => Number(x.ton_ht) > 0).sort((a, b) => Number(b.ton_ht) - Number(a.ton_ht));
+    const t1 = tonSx[0];
+    const thap = xao(tonSx.filter((x) => Number(x.ton_ht) <= Number(t1.ton_ht) * 0.5 && Number(x.ton_ht) >= 1)).slice(0, 3);
+    if (t1 && thap.length >= 3) {
+      return { loai: l, hoi: 'Mã nào còn TỒN NHIỀU NHẤT toàn hệ thống? (tồn cập nhật mỗi giờ)', sp: t1,
+        dapAn: xao([{ nhan: t1.ten, dung: true }, ...thap.map((x) => ({ nhan: x.ten, dung: false }))]) };
+    }
+  }
 
   if (l === 'SOSANH') {
     const b = spKhacGia[Math.floor(Math.random() * spKhacGia.length)];
@@ -84,6 +133,7 @@ export default function DauTruong() {
   const [tabTop, setTabTop] = useState('TOCDO');
   const [top, setTop] = useState(null);
   const [pool, setPool] = useState(null);
+  const [hoso, setHoso] = useState(null);
   const [dem, setDem] = useState(3);
 
   // trạng thái lượt chơi
@@ -105,14 +155,25 @@ export default function DauTruong() {
   const batDauCau = useRef(0);
 
   const taiTop = async (cd) => {
-    const { data } = await sb.rpc('fn_thi_top', { p_che_do: cd });
+    const { data } = cd === 'DAILY'
+      ? await sb.rpc('fn_thi_top_daily', {})
+      : await sb.rpc('fn_thi_top', { p_che_do: cd });
     setTop(data || []);
   };
   useEffect(() => { taiTop(tabTop); }, [tabTop]);
+  useEffect(() => {
+    if (view === 'SANH') sb.rpc('fn_thi_hoso', { p_token: user.token }).then(({ data }) => setHoso(data));
+  }, [view]);   // eslint-disable-line
 
   // ---- bắt đầu lượt ----
   const batDau = async () => {
-    const { data, error } = await sb.rpc('fn_thi_pool', { p_so: 60 });
+    if (cheDo === 'DAILY') {
+      const { data: daThi } = await sb.rpc('fn_thi_daily_da_thi', { p_token: user.token });
+      if (daThi) { baoToast('Hôm nay bạn đã thi Thử thách ngày — quay lại ngày mai'); return; }
+    }
+    const { data, error } = cheDo === 'DAILY'
+      ? await sb.rpc('fn_thi_pool_daily')
+      : await sb.rpc('fn_thi_pool', { p_so: 60 });
     if (error || !data || data.length < 12) { baoToast('Chưa đủ dữ liệu sản phẩm để thi'); return; }
     setPool(data);
     // preload 20 hình đầu (ảnh nét/nặng — tải sẵn để không khựng giữa trận)
@@ -134,7 +195,7 @@ export default function DauTruong() {
 
   // đồng hồ tổng (TOCDO/CHINHXAC) — tính bằng MỐC THỜI GIAN THẬT, chạy đúng cả khi ẩn app
   useEffect(() => {
-    if (view !== 'CHOI' || cheDo === 'SINHTON') return;
+    if (view !== 'CHOI' || cheDo === 'SINHTON' || cheDo === 'DAILY') return;
     const tongGiay = CHE_DO[cheDo].giay;
     const ketThucLuc = Date.now() + tgConLai * 1000;   // mốc kết thúc tuyệt đối
     tRef.current = setInterval(() => {
@@ -203,7 +264,11 @@ export default function DauTruong() {
         });
       }
     }
-    setTimeout(() => { if (dangChoi.current) cauMoi(); }, 550);
+    if (cheDo === 'DAILY' && soCau + 1 >= DAILY_SO_CAU) {
+      setTimeout(() => ketThuc(), 600);
+    } else {
+      setTimeout(() => { if (dangChoi.current) cauMoi(); }, 550);
+    }
   };
 
   const dangLuu = useRef(false);
@@ -231,13 +296,17 @@ export default function DauTruong() {
 
   if (view === 'CHOI' && cau) {
     const CD = CHE_DO[cheDo];
-    const pct = cheDo === 'SINHTON' ? (tgCau / 7) * 100 : (tgConLai / CD.giay) * 100;
+    const pct = cheDo === 'SINHTON' ? (tgCau / 7) * 100
+      : cheDo === 'DAILY' ? ((DAILY_SO_CAU - soCau) / DAILY_SO_CAU) * 100
+      : (tgConLai / CD.giay) * 100;
     return (
       <div className="dt-choi">
         <div className="dt-bar">
           <div className="dt-bar-tg">
             <div className="dt-bar-fill" style={{ width: pct + '%', background: pct < 25 ? 'var(--magenta)' : 'var(--grad)' }} />
-            <span className="dt-bar-txt">{cheDo === 'SINHTON' ? tgCau.toFixed(1) : Math.ceil(tgConLai)}s</span>
+            <span className="dt-bar-txt">{cheDo === 'SINHTON' ? tgCau.toFixed(1) + 's'
+              : cheDo === 'DAILY' ? `Câu ${Math.min(soCau + 1, DAILY_SO_CAU)}/${DAILY_SO_CAU}`
+              : Math.ceil(tgConLai) + 's'}</span>
           </div>
           <div className="dt-diem">{diem.toLocaleString('vi')}</div>
           {combo >= 2 && <div className="dt-combo" key={combo}>×{combo}</div>}
@@ -341,6 +410,27 @@ export default function DauTruong() {
           <button className="btn btn-ai dt-batdau" onClick={batDau}>
             <IcFlash width={16} /> VÀO TRẬN — {CHE_DO[cheDo].ten}
           </button>
+
+          {hoso && hoso.luot > 0 && (
+            <div className="card dt-hoso">
+              <div className="dt-hoso-head">Hồ sơ của tôi</div>
+              <div className="dt-hoso-so">
+                <span><b>{hoso.luot}</b> lượt</span>
+                <span><b>{hoso.dung}</b>/{hoso.cau} đúng ({hoso.acc}%)</span>
+                <span>combo <b>×{hoso.combo}</b></span>
+                <span><b>{hoso.ngay}</b> ngày thi</span>
+              </div>
+              {(hoso.huy_hieu || []).length > 0 && (
+                <div className="dt-hh-list">
+                  {(hoso.huy_hieu || []).map((h) => HUY_HIEU[h] && (
+                    <span key={h} className="dt-hh" title={HUY_HIEU[h].mota}>
+                      <IcTrophy width={12} /> {HUY_HIEU[h].ten}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="card dt-top">
