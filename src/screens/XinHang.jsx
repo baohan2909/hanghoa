@@ -187,6 +187,7 @@ export default function XinHang() {
   const doiSort = (col) => setSortBy((s) =>
     s && s.col === col ? (s.dir === 'asc' ? { col, dir: 'desc' } : null) : { col, dir: 'asc' });
   const luuTimer = useRef(null);
+  const napDraft = useRef(null);   // số đã nhập từ nháp, áp sau khi engine trả rows
 
   useEffect(() => {
     if (user.vai_tro !== 'CH') {
@@ -209,20 +210,27 @@ export default function XinHang() {
         const tu = new Date(); tu.setDate(tu.getDate() - 1 - sn);
         setTuNgay(tu.toISOString().slice(0, 10));
       }
+      // KHÔNG khôi phục rows từ nháp (rows cũ có thể lỗi thời khi kho đổi).
+      // Chỉ nhớ số lượng đã nhập -> áp lại sau khi engine trả kết quả mới.
       try {
         const raw = localStorage.getItem(KEY(maCH));
-        if (raw) { const d = JSON.parse(raw); setRows(d.rows); if (d.tuNgay) setTuNgay(d.tuNgay); baoToast('Đã khôi phục bản nháp đang làm dở'); }
-        else setRows(null);
-      } catch { setRows(null); }
+        if (raw) { const d = JSON.parse(raw);
+          napDraft.current = d.daNhap || null;
+          if (d.tuNgay) setTuNgay(d.tuNgay);
+        } else napDraft.current = null;
+      } catch { napDraft.current = null; }
+      setRows(null);
     })();
   }, [maCH]);
 
-  // Auto-save mỗi khi rows đổi (mục 6) — chống mất khi lỡ tắt
+  // Auto-save mỗi khi rows đổi — CHỈ lưu số đã nhập (không lưu rows, tránh lỗi thời)
   useEffect(() => {
     if (!maCH || !rows) return;
     clearTimeout(luuTimer.current);
     luuTimer.current = setTimeout(() => {
-      try { localStorage.setItem(KEY(maCH), JSON.stringify({ rows, tuNgay, luc: Date.now() })); } catch {}
+      const daNhap = {};
+      rows.forEach((r) => { if (r.sl_xin && r.sl_xin !== r.sl_ai) daNhap[r.barcode] = r.sl_xin; });
+      try { localStorage.setItem(KEY(maCH), JSON.stringify({ daNhap, tuNgay, luc: Date.now() })); } catch {}
     }, 600);
   }, [rows, tuNgay, maCH]);
 
@@ -241,7 +249,11 @@ export default function XinHang() {
     ]);
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    setRows((data || []).map((r) => ({ ...r, sl_xin: r.sl_ai })));
+    setRows((data || []).map((r) => ({
+      ...r,
+      sl_xin: (napDraft.current && napDraft.current[r.barcode] != null) ? napDraft.current[r.barcode] : r.sl_ai,
+    })));
+    if (napDraft.current) { baoToast('Đã khôi phục số lượng đang nhập dở'); napDraft.current = null; }
   };
 
   // Số lượng theo từng nhóm để hiện badge trên tab

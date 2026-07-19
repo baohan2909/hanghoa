@@ -9,23 +9,30 @@ import { IcDown } from './icons.jsx';
 // - Thẻ/tab đang chọn = gradient chủ đạo + bóng mờ (class .on chuẩn).
 // ============================================================
 
-export function Sel({ value, onChange, options, style, placeholder = 'Chọn…' }) {
+export function Sel({ value, onChange, options, style, placeholder = 'Chọn…', timKiem }) {
   const [mo, setMo] = useState(false);
   const [pos, setPos] = useState(null);
+  const [q, setQ] = useState('');
   const ref = useRef(null);
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setMo(false); };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
+  // bật ô tìm nếu prop timKiem, hoặc tự động khi >8 lựa chọn
+  const coTim = timKiem ?? options.length > 8;
   const toggle = () => {
     if (!mo && ref.current) {
       const r = ref.current.getBoundingClientRect();
       setPos({ left: r.left, top: r.bottom + 6, width: Math.max(r.width, 160) });
+      setQ('');
     }
     setMo((v) => !v);
   };
   const chon = options.find((o) => o.value === value);
+  const loc = coTim && q.trim()
+    ? options.filter((o) => (o.label || '').toString().toLowerCase().includes(q.trim().toLowerCase()))
+    : options;
   return (
     <div ref={ref} className="sel" style={style}>
       <button type="button" className="sel-btn" onClick={toggle}>
@@ -34,7 +41,13 @@ export function Sel({ value, onChange, options, style, placeholder = 'Chọn…'
       </button>
       {mo && pos && (
         <div className="sel-pop-fixed" style={{ left: pos.left, top: pos.top, minWidth: pos.width }}>
-          {options.map((o) => (
+          {coTim && (
+            <input className="sel-search" autoFocus placeholder="Gõ để tìm…"
+              value={q} onChange={(e) => setQ(e.target.value)}
+              onMouseDown={(e) => e.stopPropagation()} />
+          )}
+          {loc.length === 0 && <div className="sel-empty">Không tìm thấy</div>}
+          {loc.map((o) => (
             <button key={o.value} type="button" disabled={o.disabled}
               className={'sel-item' + (o.value === value ? ' on' : '')}
               onMouseDown={() => { if (!o.disabled) { onChange(o.value); setMo(false); } }}>
