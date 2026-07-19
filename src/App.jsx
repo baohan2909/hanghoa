@@ -1,4 +1,4 @@
-import { useEffect, useState, createContext, useContext } from 'react';
+import { useEffect, useState, createContext, useContext, Component } from 'react';
 import { sb } from './lib/supabase.js';
 import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy } from './lib/icons.jsx';
 import Login from './screens/Login.jsx';
@@ -45,6 +45,21 @@ const MENU = [
 ];
 const TAB_MAC_DINH = { CH: 'xinhang', KHO: 'kho', DIEU_PHOI: 'dashboard', ADMIN: 'dashboard' };
 const VAI_TRO_TEN = { CH: 'Trưởng ca cửa hàng', KHO: 'Kho tổng', DIEU_PHOI: 'Điều phối', ADMIN: 'Quản trị' };
+
+class ErrBound extends Component {
+  constructor(p) { super(p); this.state = { loi: null }; }
+  static getDerivedStateFromError(e) { return { loi: e?.message || String(e) }; }
+  render() {
+    if (this.state.loi) return (
+      <div className="card" style={{ margin: 16, padding: 20, borderLeft: '4px solid var(--magenta)' }}>
+        <div style={{ fontWeight: 700, color: 'var(--magenta)', marginBottom: 6 }}>Màn hình gặp lỗi</div>
+        <div style={{ fontSize: 13, color: 'var(--ink-2)' }}>{this.state.loi}</div>
+        <button className="btn btn-ghost" style={{ marginTop: 12 }} onClick={() => location.reload()}>Tải lại</button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -194,7 +209,7 @@ export default function App() {
             <div className="t">ĐIỀU PHỐI HÀNG HÓA</div>
           </div>
           <main className="main">
-            <Screen />
+            <ErrBound key={tab}><Screen /></ErrBound>
           </main>
         </div>
         {toast && <div className="toast" role="status">{toast}</div>}

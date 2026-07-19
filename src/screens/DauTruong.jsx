@@ -15,12 +15,10 @@ const CHE_DO = {
   SINHTON:  { ten: 'Sinh tồn',   Ic: IcHeart,  giay: 0,   mota: 'Không giới hạn giờ — 3 mạng, mỗi câu chỉ 7 giây. Sai hoặc hết giờ mất 1 mạng.' },
 };
 const fmtVND = (n) => Number(n).toLocaleString('vi') + ' đ';
-// Nén ảnh qua proxy weserv.nl: resize 420px, chất lượng 82, giảm 5-10 lần dung lượng
-// ngay lần đầu (không phụ thuộc cache). Ảnh không hợp lệ trả '' để game tự né.
-const nenHinh = (u, w = 420) => {
+// Dùng ảnh gốc trực tiếp (proxy nén lần đầu chậm hơn với ảnh nét). Chỉ validate URL http.
+const nenHinh = (u) => {
   if (typeof u !== 'string' || !/^https?:\/\//.test(u.trim())) return '';
-  const bo = u.trim().replace(/^https?:\/\//, '');
-  return `https://images.weserv.nl/?url=${encodeURIComponent(bo)}&w=${w}&q=82&output=webp`;
+  return u.trim();
 };
 const xao = (a) => { const v = [...a]; for (let i = v.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [v[i], v[j]] = [v[j], v[i]]; } return v; };
 const lay = (a, n, loai) => xao(a.filter((x) => x !== loai)).slice(0, n);
@@ -134,23 +132,35 @@ export default function DauTruong() {
     return () => clearTimeout(t);
   }, [view, dem]);
 
-  // đồng hồ tổng (TOCDO/CHINHXAC)
+  // đồng hồ tổng (TOCDO/CHINHXAC) — tính bằng MỐC THỜI GIAN THẬT, chạy đúng cả khi ẩn app
   useEffect(() => {
     if (view !== 'CHOI' || cheDo === 'SINHTON') return;
-    tRef.current = setInterval(() => setTgConLai((t) => {
-      if (t <= 0.1) { clearInterval(tRef.current); ketThuc(); return 0; }
-      return +(t - 0.1).toFixed(1);
-    }), 100);
-    return () => clearInterval(tRef.current);
+    const tongGiay = CHE_DO[cheDo].giay;
+    const ketThucLuc = Date.now() + tgConLai * 1000;   // mốc kết thúc tuyệt đối
+    tRef.current = setInterval(() => {
+      const conLai = Math.max(0, (ketThucLuc - Date.now()) / 1000);
+      setTgConLai(+conLai.toFixed(1));
+      if (conLai <= 0) { clearInterval(tRef.current); ketThuc(); }
+    }, 100);
+    // khi app hiện lại (từ ẩn), cập nhật ngay
+    const onVis = () => { if (!document.hidden) {
+      const conLai = Math.max(0, (ketThucLuc - Date.now()) / 1000);
+      setTgConLai(+conLai.toFixed(1));
+      if (conLai <= 0) { clearInterval(tRef.current); ketThuc(); }
+    }};
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(tRef.current); document.removeEventListener('visibilitychange', onVis); };
   }, [view]);   // eslint-disable-line
 
-  // đồng hồ mỗi câu (SINHTON)
+  // đồng hồ mỗi câu (SINHTON) — timestamp thật
   useEffect(() => {
     if (view !== 'CHOI' || cheDo !== 'SINHTON' || chon !== null) return;
-    tCauRef.current = setInterval(() => setTgCau((t) => {
-      if (t <= 0.1) { clearInterval(tCauRef.current); traLoi(-1); return 0; }
-      return +(t - 0.1).toFixed(1);
-    }), 100);
+    const hetLuc = Date.now() + tgCau * 1000;
+    tCauRef.current = setInterval(() => {
+      const conLai = Math.max(0, (hetLuc - Date.now()) / 1000);
+      setTgCau(+conLai.toFixed(1));
+      if (conLai <= 0) { clearInterval(tCauRef.current); traLoi(-1); }
+    }, 100);
     return () => clearInterval(tCauRef.current);
   }, [view, cau, chon]);   // eslint-disable-line
 
