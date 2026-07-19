@@ -63,7 +63,7 @@ export default function Lich() {
       </div>
 
       <div className="nhom-tabs" style={{ marginTop: 14, marginBottom: 0 }}>
-        {[['LICH', 'Lịch tổng'], ['TUANTHU', 'Tuân thủ'], ['NHOM', 'Data nhóm'], ['AUTO', 'Lịch tự động']].map(([v, t]) => (
+        {[['LICH', 'Lịch tổng'], ['TUANTHU', 'Tuân thủ'], ['NHOM', 'Data nhóm'], ['AUTO', 'Ma trận & Tạo lịch']].map(([v, t]) => (
           <button key={v} className={'nhom-tab' + (tab === v ? ' on' : '')} onClick={() => setTab(v)}>{t}</button>
         ))}
       </div>
@@ -131,9 +131,7 @@ function TabLich({ theoNgay, homNay, tu, den, setTu, setDen, toggleO, chuyenO, s
                 {ds.length > 0 && (
                   <div className="cal-cell-body">
                     {n <= homNay
-                      ? <div className={'cal-frac' + (gui < ds.length && n < homNay ? ' thieu' : '')}>
-                          <b>{gui}</b><span>/{ds.length}</span>
-                        </div>
+                      ? <div className="cal-frac"><b>{gui}</b><span>/{ds.length}</span></div>
                       : <div className="cal-count">{ds.length}</div>}
                     <div className="cal-nhom">
                       {[1, 2, 3].map((nn) => { const c = ds.filter((r) => r.nhom_ch === nn).length;
@@ -192,11 +190,11 @@ function NgayModal({ ngay, theoNgay, loc, homNay, rows, onClose, onNav, toggleO,
                 {suaDuoc && (chuyen === r.ma_ch
                   ? <span className="lich2-chuyen-wrap" onClick={(e) => e.stopPropagation()}>
                       <DateBox value={ngay} onChange={(nv) => { chuyenO(r.ma_ch, ngay, nv); setChuyen(null); }} />
-                      <button className="btn btn-ghost btn-xs" onClick={() => setChuyen(null)}>Hủy</button>
+                      <button className="btn-mini" onClick={() => setChuyen(null)}>Hủy</button>
                     </span>
-                  : <span style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-ghost btn-xs" onClick={() => setChuyen(r.ma_ch)}>Chuyển</button>
-                      <button className="btn btn-danger btn-xs" onClick={() => toggleO(r.ma_ch, ngay, true)}>Bỏ</button>
+                  : <span style={{ display: 'flex', gap: 5 }}>
+                      <button className="btn-mini btn-mini-teal" onClick={() => setChuyen(r.ma_ch)}>Chuyển</button>
+                      <button className="btn-mini btn-mini-danger" onClick={() => toggleO(r.ma_ch, ngay, true)}>Bỏ</button>
                     </span>)}
               </div>
             ))}
@@ -259,7 +257,7 @@ function TabTuanThu({ tu, den, setTu, setDen }) {
 
   return (
     <>
-      <div className="card" style={{ marginTop: 14, padding: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <DateBox label="Từ" value={tu} onChange={setTu} /><DateBox label="Đến" value={den} onChange={setDen} />
         <span style={{ color: 'var(--ink-2)', fontSize: 12 }}>Bấm thẻ để lọc bảng</span>
       </div>
@@ -367,7 +365,7 @@ function TabNhom({ tu, den, taiLai }) {
                 <tr key={r.ma_ch}>
                   <td><div style={{ fontWeight: 600 }}>{r.ten}</div><div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}</div></td>
                   <td className="center">
-                    <div className="nhom-tabs" style={{ margin: 0, display: 'inline-flex' }}>
+                    <div className="nhom-tabs" style={{ margin: 0, display: 'inline-flex', flexWrap: 'nowrap' }}>
                       {[1, 2, 3].map((n) => (
                         <button key={n} className={'nhom-tab' + (r.nhom_ch === n ? ' on' : '')} style={{ height: 30, padding: '0 11px', fontSize: 12 }} onClick={() => doiNhom(r.ma_ch, n)}>N{n}</button>
                       ))}
@@ -387,120 +385,231 @@ function TabNhom({ tu, den, taiLai }) {
   );
 }
 
-// ============ LỊCH TỰ ĐỘNG ============
+// ============ MA TRẬN — tổng quan + tạo lịch tự động + nhập/xuất ============
 function TabAuto({ rows, homNay, taiLai }) {
   const { user, baoToast } = useApp();
-  const [preview, setPreview] = useState(null);
+  const [tuM, setTuM] = useState(iso(new Date(Date.now() - 3 * 864e5)));
+  const [denM, setDenM] = useState(iso(new Date(Date.now() + 28 * 864e5)));
+  const [kv, setKv] = useState('ALL');
+  const [nhom, setNhom] = useState('ALL');
+  const [q, setQ] = useState('');
+  const [preview, setPreview] = useState(null);   // Set "ma_ch|ngay" các ô MỚI tạo
+  const [local, setLocal] = useState(null);       // ma trận cục bộ khi có preview
   const [busy, setBusy] = useState(false);
   const fileRef = useRef(null);
-  // Kỳ sinh mặc định: bắt đầu SAU ngày lịch cuối cùng hiện có
-  const ngayCuoi = useMemo(() => {
-    let mx = null; (rows || []).forEach((r) => (r.ngay_lich || []).forEach((n) => { if (!mx || n > mx) mx = n; }));
-    return mx;
-  }, [rows]);
-  const [gtu, setGtu] = useState('');
-  const [gden, setGden] = useState('');
-  useEffect(() => {
-    const start = ngayCuoi ? themNgay(ngayCuoi, 1) : homNay;
-    setGtu(start); setGden(themNgay(start, 30));
-  }, [ngayCuoi, homNay]);
 
-  // Rà soát: bao nhiêu CH đã có lịch trong kỳ sinh, bao nhiêu chưa
-  const raSoat = useMemo(() => {
-    const v = rows || []; if (!gtu || !gden) return { co: 0, chua: 0, tong: v.length };
-    let co = 0;
-    v.forEach((r) => { if ((r.ngay_lich || []).some((n) => n >= gtu && n <= gden)) co++; });
-    return { co, chua: v.length - co, tong: v.length };
-  }, [rows, gtu, gden]);
+  const base = local || rows || [];
+  const dsKV = useMemo(() => [...new Set(base.map((r) => r.khu_vuc).filter(Boolean))].sort(), [base]);
+  const dsNgay = useMemo(() => {
+    const out = []; let d = new Date(tuM + 'T00:00:00'); const e = new Date(denM + 'T00:00:00');
+    while (d <= e && out.length < 70) { out.push(iso(d)); d = new Date(d.getTime() + 864e5); }
+    return out;
+  }, [tuM, denM]);
+
+  const hien = useMemo(() => base.filter((r) =>
+    (kv === 'ALL' || r.khu_vuc === kv) && (nhom === 'ALL' || String(r.nhom_ch) === nhom) &&
+    (!q.trim() || (r.ten + r.ma_ch).toLowerCase().includes(q.toLowerCase()))
+  ), [base, kv, nhom, q]);
+
+  // Thống kê
+  const tk = useMemo(() => {
+    let oLich = 0, chuaCo = 0;
+    hien.forEach((r) => {
+      const c = (r.ngay_lich || []).filter((n) => n >= tuM && n <= denM).length;
+      oLich += c; if (c === 0) chuaCo++;
+    });
+    return { oLich, chuaCo, tong: hien.length, moi: preview ? preview.size : 0 };
+  }, [hien, tuM, denM, preview]);
+
+  // TẠO LỊCH TỰ ĐỘNG (preview phía client) — N1/N2 giữ thứ kỳ trước, N3 chu kỳ ~11, né T7/CN
+  const taoTuDong = () => {
+    const moi = new Set();
+    const next = base.map((r) => {
+      const cu = new Set(r.ngay_lich || []);
+      const truoc = (r.ngay_lich || []).filter((n) => n < tuM);
+      if (r.nhom_ch === 1 || r.nhom_ch === 2) {
+        // các thứ (dow) đã dùng gần đây; mặc định N1 T2+T5, N2 T3
+        let dows = [...new Set(truoc.slice(-8).map((n) => dow(n)))];
+        if (!dows.length) dows = r.nhom_ch === 1 ? [1, 4] : [2];
+        dsNgay.forEach((n) => {
+          const d = dow(n);
+          if (d !== 0 && d !== 6 && dows.includes(d) && n >= tuM && !cu.has(n)) {
+            cu.add(n); moi.add(r.ma_ch + '|' + n);
+          }
+        });
+      } else {
+        // N3: chu kỳ trung bình kỳ trước (fallback 11), tiếp từ ngày cuối
+        const sorted = truoc.slice().sort();
+        let ck = 11;
+        if (sorted.length >= 2) {
+          let tot = 0, cnt = 0;
+          for (let i = 1; i < sorted.length; i++) {
+            const kc = Math.round((new Date(sorted[i]) - new Date(sorted[i - 1])) / 864e5);
+            if (kc >= 5 && kc <= 20) { tot += kc; cnt++; }
+          }
+          if (cnt) ck = Math.round(tot / cnt);
+        }
+        let d = sorted.length ? themNgay(sorted[sorted.length - 1], ck)
+          : themNgay(tuM, Math.abs(hashStr(r.ma_ch)) % ck);
+        let guard = 0;
+        while (d <= denM && guard++ < 40) {
+          if (d >= tuM) {
+            let dd = d; const w = dow(dd);
+            if (w === 6) dd = themNgay(dd, -1); else if (w === 0) dd = themNgay(dd, 1);
+            if (!cu.has(dd)) { cu.add(dd); moi.add(r.ma_ch + '|' + dd); }
+          }
+          d = themNgay(d, ck);
+        }
+      }
+      return { ...r, ngay_lich: [...cu].sort() };
+    });
+    setLocal(next); setPreview(moi);
+    baoToast(`Xem trước: sẽ tạo ${moi.size} ngày-lịch mới. Kiểm tra rồi Xác nhận.`);
+  };
+
+  const xacNhan = async () => {
+    if (!preview || !preview.size) return;
+    setBusy(true);
+    // Gom ô mới thành rows import CHỈ cho khoảng [tuM,denM] — nhưng import xóa cả kỳ,
+    // nên ta ghi từng ô mới bằng fn_sua_lich_ngay (an toàn, không xóa lịch cũ).
+    let ok = 0;
+    for (const key of preview) {
+      const [ma_ch, ngay] = key.split('|');
+      const { error } = await sb.rpc('fn_sua_lich_ngay', { p_token: user.token, p_ma_ch: ma_ch, p_ngay: ngay, p_co: true });
+      if (!error) ok++;
+    }
+    setBusy(false);
+    baoToast(`Đã tạo ${ok} ngày-lịch mới`);
+    setPreview(null); setLocal(null); taiLai();
+  };
+  const huyPreview = () => { setPreview(null); setLocal(null); };
+
+  // Tick 1 ô (chỉ khi không ở chế độ preview)
+  const tick = async (r, ngay, dangCo) => {
+    if (preview) { baoToast('Đang xem trước — Xác nhận hoặc Hủy trước khi sửa tay'); return; }
+    const { error } = await sb.rpc('fn_sua_lich_ngay', { p_token: user.token, p_ma_ch: r.ma_ch, p_ngay: ngay, p_co: !dangCo });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    taiLai();
+  };
 
   const docFile = async (file) => {
     if (!file) return; setBusy(true);
     try {
       const XLSX = await import('xlsx');
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const all = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
-      const hdr = all[0] || []; const colNgay = [];
+      const rowsF = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+      const hdr = rowsF[0] || []; const colNgay = [];
       hdr.forEach((h, i) => { const m = String(h || '').trim().match(/^(\d{1,2})\/(\d{1,2})$/); if (m) colNgay.push({ idx: i, dd: +m[1], mm: +m[2] }); });
-      if (!colNgay.length) { baoToast('Không thấy cột ngày dd/mm ở dòng 1'); setBusy(false); return; }
-      let nam = +(gtu || homNay).slice(0, 4), truoc = colNgay[0].mm;
+      if (!colNgay.length) { baoToast('Không thấy cột ngày dd/mm'); setBusy(false); return; }
+      let nam = +tuM.slice(0, 4), truoc = colNgay[0].mm;
       const ngayCua = colNgay.map((c) => { if (c.mm < truoc) nam++; truoc = c.mm; return { idx: c.idx, iso: `${nam}-${String(c.mm).padStart(2, '0')}-${String(c.dd).padStart(2, '0')}` }; });
       const { data: dsCH } = await sb.from('cua_hang').select('ma_ch, ten').or('ma_ch.like.CH%,ma_ch.like.DB%');
       const map = {}; (dsCH || []).forEach((c) => { map[c.ten.trim().toUpperCase()] = c.ma_ch; });
       const out = [], kk = [];
-      for (let i = 1; i < all.length; i++) { const r = all[i]; const ten = String(r?.[1] || '').trim(); if (!ten) continue;
+      for (let i = 1; i < rowsF.length; i++) { const r = rowsF[i]; const ten = String(r?.[1] || '').trim(); if (!ten) continue;
         const ma = map[ten.toUpperCase()]; if (!ma) { if (String(r?.[0] || '').match(/^\d+$/)) kk.push(ten); continue; }
         ngayCua.forEach(({ idx, iso: is }) => { if (String(r[idx] || '').trim().toLowerCase() === 'x') out.push({ ma_ch: ma, ngay: is }); }); }
       const cac = out.map((o) => o.ngay).sort();
-      setPreview({ rows: out, kk, tuF: cac[0], denF: cac[cac.length - 1], soCH: new Set(out.map((o) => o.ma_ch)).size });
+      if (!confirm(`Nhập ${out.length} ngày-lịch (${new Set(out.map(o=>o.ma_ch)).size} nơi bán, ${fmtDM(cac[0])}–${fmtDM(cac[cac.length-1])})?\nSẽ THAY lịch trong khoảng ngày của file.${kk.length?`\n⚠ ${kk.length} tên không khớp.`:''}`)) { setBusy(false); return; }
+      const { data, error } = await sb.rpc('fn_lich_import', { p_token: user.token, p_tu: cac[0], p_den: cac[cac.length - 1], p_rows: out });
+      if (error) { baoToast('Lỗi: ' + error.message); setBusy(false); return; }
+      baoToast(`Đã nhập ${data?.them_moi} ngày-lịch`); taiLai();
     } catch (e) { baoToast('Lỗi đọc file: ' + e.message); }
     setBusy(false); if (fileRef.current) fileRef.current.value = '';
   };
-  const ghi = async () => { if (!preview?.rows?.length) return; setBusy(true);
-    const { data, error } = await sb.rpc('fn_lich_import', { p_token: user.token, p_tu: preview.tuF, p_den: preview.denF, p_rows: preview.rows });
-    setBusy(false); if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã nhập ${data?.them_moi} ngày-lịch`); setPreview(null); taiLai(); };
-  const sinh = async () => { setBusy(true);
-    const { data, error } = await sb.rpc('fn_lich_sinh_tiep', { p_token: user.token, p_tu: gtu, p_den: gden });
-    setBusy(false); if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã sinh ${data?.so_ngay_sinh} ngày-lịch cho ${data?.so_ch} nơi bán`); taiLai(); };
-  const taiMau = async () => {
+  const xuatFile = async () => {
     const XLSX = await import('xlsx');
-    const dsN = []; let d = new Date((gtu || homNay) + 'T00:00:00'); const e = new Date((gden || homNay) + 'T00:00:00');
-    while (d <= e) { dsN.push(iso(d)); d = new Date(d.getTime() + 864e5); }
-    const hdr = ['STT', 'TÊN CỬA HÀNG', 'KHU VỰC', 'NHÓM', ...dsN.map(fmtDM), 'TỔNG/CH'];
-    const rowsX = (rows || []).map((r, i) => { const l = new Set(r.ngay_lich || []); const cells = dsN.map((n) => l.has(n) ? 'x' : ''); return [i + 1, r.ten, r.khu_vuc, 'N' + r.nhom_ch, ...cells, cells.filter(Boolean).length]; });
+    const hdr = ['STT', 'TÊN CỬA HÀNG', 'KHU VỰC', 'NHÓM', ...dsNgay.map(fmtDM), 'TỔNG/CH'];
+    const rowsX = hien.map((r, i) => { const l = new Set(r.ngay_lich || []); const cells = dsNgay.map((n) => l.has(n) ? 'x' : ''); return [i + 1, r.ten, r.khu_vuc, 'N' + r.nhom_ch, ...cells, cells.filter(Boolean).length]; });
     const ws = XLSX.utils.aoa_to_sheet([hdr, ...rowsX]); const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Ma trận theo ngày'); XLSX.writeFile(wb, `LICH_${gtu}_${gden}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Ma trận theo ngày'); XLSX.writeFile(wb, `LICH_${tuM}_${denM}.xlsx`);
   };
 
   return (
-    <div style={{ marginTop: 14, display: 'grid', gap: 14, gridTemplateColumns: '1.3fr 1fr' }}>
-      {/* SINH LỊCH TỰ ĐỘNG */}
-      <div className="card" style={{ padding: 18 }}>
-        <div className="lich2-cfg-tit">Sinh lịch tự động cho kỳ mới</div>
-        <div className="lich2-cfg-mo">
-          Chọn khoảng ngày <b>chưa có lịch</b> để hệ thống sinh tiếp: N1/N2 giữ đúng thứ kỳ trước, N3 tiếp chu kỳ ~11 ngày, tự né T7 &amp; CN, không đè ngày đã có.
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '4px 0 14px', flexWrap: 'wrap' }}>
-          <DateBox label="Sinh từ" value={gtu} onChange={setGtu} />
-          <DateBox label="Đến" value={gden} onChange={setGden} />
-          {ngayCuoi && <span style={{ fontSize: 11.5, color: 'var(--ink-2)' }}>Lịch hiện có tới {fmtDM(ngayCuoi)}</span>}
-        </div>
-        {/* Rà soát trực quan */}
-        <div className="auto-rasoat">
-          <div className="auto-ra-o"><div className="auto-ra-n" style={{ color: 'var(--teal-deep)' }}>{raSoat.co}</div><div className="auto-ra-t">đã có lịch trong kỳ</div></div>
-          <div className="auto-ra-o"><div className="auto-ra-n" style={{ color: raSoat.chua ? 'var(--magenta)' : 'var(--teal-deep)' }}>{raSoat.chua}</div><div className="auto-ra-t">chưa có lịch trong kỳ</div></div>
-          <div className="auto-ra-o"><div className="auto-ra-n">{raSoat.tong}</div><div className="auto-ra-t">tổng nơi bán</div></div>
-        </div>
-        <button className="btn btn-teal" onClick={sinh} disabled={busy || !gtu || !gden} style={{ marginTop: 14 }}>
-          Sinh lịch {gtu && fmtDM(gtu)} → {gden && fmtDM(gden)}
-        </button>
+    <>
+      {/* Thống kê */}
+      <div className="the-hang" style={{ marginTop: 14 }}>
+        <div className="the-g"><span className="the-g-n">{tk.tong}</span><span className="the-g-t">nơi bán</span></div>
+        <div className="the-g"><span className="the-g-n" style={{ color: 'var(--teal-deep)' }}>{tk.oLich}</span><span className="the-g-t">ô lịch trong kỳ</span></div>
+        <div className="the-g"><span className="the-g-n" style={{ color: tk.chuaCo ? 'var(--magenta)' : 'var(--teal-deep)' }}>{tk.chuaCo}</span><span className="the-g-t">nơi bán chưa có lịch</span></div>
+        {preview && <div className="the-g on"><span className="the-g-n">+{tk.moi}</span><span className="the-g-t">ô mới (xem trước)</span></div>}
       </div>
 
-      {/* NHẬP / TẢI */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div className="card" style={{ padding: 18 }}>
-          <div className="lich2-cfg-tit">Nhập lịch từ file Excel</div>
-          <div className="lich2-cfg-mo">Dòng 1 có cột ngày dd/mm, cột B tên cửa hàng, đánh x. Nhập sẽ thay lịch trong khoảng ngày của file.</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <label className="btn btn-teal" style={{ cursor: 'pointer' }}>
-              Chọn file Excel
-              <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => docFile(e.target.files?.[0])} />
-            </label>
-            <button className="btn btn-ghost" onClick={taiMau} disabled={busy}>Tải Excel mẫu / hiện tại</button>
-          </div>
-          {preview && (
-            <div className="lich2-preview">
-              <div><b>{preview.soCH}</b> nơi bán · <b>{preview.rows.length}</b> ngày-lịch · {fmtDM(preview.tuF)}–{fmtDM(preview.denF)}</div>
-              {preview.kk.length > 0 && <div style={{ color: 'var(--magenta)', marginTop: 5, fontSize: 12 }}>⚠ {preview.kk.length} tên không khớp: {preview.kk.slice(0, 4).join(', ')}…</div>}
-              <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-                <button className="btn btn-teal btn-sm" onClick={ghi} disabled={busy}>Ghi vào hệ thống</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setPreview(null)}>Hủy</button>
-              </div>
-            </div>
+      {/* Thanh công cụ */}
+      <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <DateBox label="Từ" value={tuM} onChange={setTuM} />
+        <DateBox label="Đến" value={denM} onChange={setDenM} />
+        <div className="nhom-tabs" style={{ margin: 0 }}>
+          {[['ALL', 'Tất cả'], ['1', 'N1'], ['2', 'N2'], ['3', 'N3']].map(([v, t]) => (
+            <button key={v} className={'nhom-tab' + (nhom === v ? ' on' : '')} onClick={() => setNhom(v)}>{t}</button>
+          ))}
+        </div>
+        <Sel value={kv} onChange={setKv} placeholder="Khu vực" options={[{ value: 'ALL', label: 'Mọi khu vực' }, ...dsKV.map((k) => ({ value: k, label: k }))]} style={{ minWidth: 170 }} />
+        <input className="inp" placeholder="Tìm cửa hàng…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 180 }} />
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {!preview ? (
+            <>
+              <button className="btn btn-teal" onClick={taoTuDong} disabled={busy}>✨ Tạo lịch tự động</button>
+              <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>Nhập Excel
+                <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => docFile(e.target.files?.[0])} /></label>
+              <button className="btn btn-ghost" onClick={xuatFile}>Xuất Excel</button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-teal" onClick={xacNhan} disabled={busy}>✓ Xác nhận tạo {tk.moi} ô</button>
+              <button className="btn btn-ghost" onClick={huyPreview}>Hủy xem trước</button>
+            </>
           )}
         </div>
       </div>
-    </div>
+
+      {preview && (
+        <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(203,164,90,.12)', borderRadius: 8, fontSize: 12.5, color: '#8a6a24' }}>
+          Đang xem trước — ô <b style={{ color: 'var(--gold)' }}>vàng</b> là lịch mới sẽ tạo. Bấm <b>Xác nhận</b> để lưu, hoặc <b>Hủy</b> để bỏ.
+        </div>
+      )}
+
+      {/* MA TRẬN */}
+      <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
+        <div className="tbl-wrap" style={{ maxHeight: '64vh', overflow: 'auto' }}>
+          <table className="tbl mt2">
+            <thead>
+              <tr>
+                <th className="mt2-ten">Cửa hàng</th>
+                <th className="mt2-nhom">Nhóm</th>
+                {dsNgay.map((n) => { const d = dow(n); return (
+                  <th key={n} className={'mt2-ngay' + (n === homNay ? ' homnay' : '') + (d === 0 || d === 6 ? ' cuoi' : '')}>
+                    <div className="mt2-dm">{n.slice(8, 10)}/{n.slice(5, 7)}</div><div className="mt2-thu">{THU[d]}</div>
+                  </th>
+                ); })}
+              </tr>
+            </thead>
+            <tbody>
+              {hien.map((r) => {
+                const lich = new Set(r.ngay_lich || []);
+                return (
+                  <tr key={r.ma_ch}>
+                    <td className="mt2-ten"><div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.ten}</div>
+                      <div className="mono" style={{ fontSize: 9.5, color: 'var(--ink-2)' }}>{r.ma_ch}</div></td>
+                    <td className="mt2-nhom center"><span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span></td>
+                    {dsNgay.map((n) => {
+                      const co = lich.has(n); const laMoi = preview && preview.has(r.ma_ch + '|' + n);
+                      return (
+                        <td key={n} className={'mt2-o' + (co ? ' co' : '') + (laMoi ? ' moi' : '') + (n === homNay ? ' homnay' : '')}
+                          onClick={() => tick(r, n, co)} title={r.ten + ' · ' + fmtDM(n)}>
+                          {laMoi ? '✦' : co ? '✓' : ''}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
   );
 }
+
+function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; } return h; }
