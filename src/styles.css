@@ -910,8 +910,9 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* ============ ĐẤU TRƯỜNG (game thi đua) ============ */
 .dt-sanh { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; margin-top: 16px; }
 @media (max-width: 900px) { .dt-sanh { grid-template-columns: 1fr; } }
-.dt-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 10px; }
-@media (max-width: 640px) { .dt-modes { grid-template-columns: 1fr; } }
+.dt-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 720px) { .dt-modes { grid-template-columns: repeat(2, 1fr); } }
+.dt-mode { min-height: 128px; }
 /* Thẻ chế độ — theo chuẩn the-g: nền xám, active gradient + glow */
 .dt-mode { border: 0; border-radius: 14px; padding: 16px 14px; text-align: left; cursor: pointer;
   background: #F4F6F8; box-shadow: inset 0 0 0 1.5px var(--line); transition: all .14s;
@@ -1020,3 +1021,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .dt-hh { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px; border-radius: 14px;
   background: rgba(203,164,90,.14); color: #8a6a24; font-size: 11.5px; font-weight: 700;
   box-shadow: inset 0 0 0 1px rgba(203,164,90,.35); }
+
+/* Tab chia đều bề ngang (bảng vàng Đấu trường) */
+.nhom-tabs.nhom-deu { flex-wrap: nowrap; gap: 4px; }
+.nhom-tabs.nhom-deu .nhom-tab { flex: 1; justify-content: center; min-width: 0; white-space: nowrap; }

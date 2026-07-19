@@ -438,9 +438,9 @@ export default function DauTruong() {
             <IcTrophy width={18} style={{ color: 'var(--gold)' }} />
             <span>Bảng vàng Top 10</span>
           </div>
-          <div className="nhom-tabs" style={{ margin: '10px 0' }}>
+          <div className="nhom-tabs nhom-deu" style={{ margin: '10px 0' }}>
             {Object.entries(CHE_DO).map(([id, cd]) => (
-              <button key={id} className={'nhom-tab' + (tabTop === id ? ' on' : '')} style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+              <button key={id} className={'nhom-tab' + (tabTop === id ? ' on' : '')} style={{ height: 34, padding: '0 6px', fontSize: 11.5 }}
                 onClick={() => setTabTop(id)}>{cd.ten}</button>
             ))}
           </div>
