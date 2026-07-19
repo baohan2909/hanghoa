@@ -783,3 +783,33 @@ textarea.inp { height: auto; padding: 10px 12px; }
   border: 0; box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; outline: none; }
 .sel-search:focus { box-shadow: inset 0 0 0 1.5px var(--teal); }
 .sel-empty { padding: 10px 14px; font-size: 12px; color: var(--ink-2); }
+
+/* ===== LỊCH ĐỀ NGHỊ — ma trận ===== */
+.lich-mt { border-collapse: separate; border-spacing: 0; }
+.lich-mt th, .lich-mt td { border-bottom: 1px solid var(--line); }
+.lich-colten { position: sticky; left: 0; background: var(--card, #fff); z-index: 2;
+  min-width: 168px; max-width: 210px; text-align: left; padding: 6px 10px !important; }
+.lich-mt thead th { position: sticky; top: 0; background: var(--card, #fff); z-index: 3; }
+.lich-mt thead th.lich-colten { z-index: 4; }
+.lich-colngay { min-width: 34px; font-size: 10.5px; text-align: center; padding: 4px 2px !important; }
+.lich-colngay .lich-thu { font-size: 9px; color: var(--ink-2); font-weight: 500; }
+.lich-colngay.cuoituan { background: #f6f4ef; }
+.lich-colngay.homnay, .lich-tong th.homnay, .lich-o.homnay { box-shadow: inset 0 0 0 1.5px var(--gold); }
+.lich-tong th { font-size: 10.5px; color: var(--ink-2); padding: 3px 2px; text-align: center; }
+.lich-o { text-align: center; font-size: 12px; padding: 4px 2px !important; user-select: none; min-width: 34px; }
+.lich-o.o-co { color: var(--teal-deep); }
+.lich-o.o-gui { background: rgba(63,182,168,.16); color: var(--teal-deep); font-weight: 800; }
+.lich-o.o-lo { background: rgba(214,0,108,.10); color: var(--magenta); font-weight: 800; }
+.lich-o.o-lo::after { content: '✕'; }
+.lich-o.o-ngoai { color: #a8842c; }
+.lich-o:hover { outline: 1.5px dashed var(--teal); outline-offset: -2px; }
+.lich-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.lich-dot.co { background: var(--teal-deep); }
+.lich-dot.gui { background: rgba(63,182,168,.5); }
+.lich-dot.lo { background: rgba(214,0,108,.55); }
+.lich-dot.ngoai { background: #cba45a; }
+.tag-n { display: inline-block; padding: 1px 7px; border-radius: 8px; font-size: 10.5px; font-weight: 700; }
+.tag-n1 { background: rgba(20,33,58,.09); color: var(--navy); }
+.tag-n2 { background: rgba(63,182,168,.14); color: var(--teal-deep); }
+.tag-n3 { background: rgba(203,164,90,.16); color: #8a6a24; }
+.row-lo td { background: rgba(214,0,108,.035); }

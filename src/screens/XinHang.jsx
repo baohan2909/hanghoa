@@ -180,6 +180,7 @@ export default function XinHang() {
   const [xemAnh, setXemAnh] = useState(null);
   const [hoverAnh, setHoverAnh] = useState(null);   // {url, x, y} hover phóng gấp 4
   const [giuInfo, setGiuInfo] = useState(null);     // {het_han, phut} — đang giữ hàng
+  const [lichCH, setLichCH] = useState(null);       // lịch đề nghị của CH (banner nhắc)
   const [sortBy, setSortBy] = useState(null);        // {col, dir} — sort cột (mục 7)
   const [flt, setFlt] = useState({});                // filter gõ theo từng cột
   const datFlt = (col, val) => setFlt((f) => ({ ...f, [col]: val }));
@@ -217,10 +218,21 @@ export default function XinHang() {
         const raw = localStorage.getItem(KEY(maCH));
         if (raw) { const d = JSON.parse(raw);
           napDraft.current = d.daNhap || null;
-          if (d.tuNgay) setTuNgay(d.tuNgay);
+          // KHÔNG khôi phục tuNgay từ nháp — luôn tính mới theo nhóm (tránh giữ ngày cũ sai)
         } else napDraft.current = null;
       } catch { napDraft.current = null; }
       setRows(null);
+    })();
+  }, [maCH]);
+
+  // Lịch đề nghị của cửa hàng (banner nhắc + lịch sắp tới 14 ngày)
+  useEffect(() => {
+    if (!maCH) { setLichCH(null); return; }
+    (async () => {
+      const homNay = new Date().toISOString().slice(0, 10);
+      const den14 = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+      const { data } = await sb.rpc('fn_lich_cua_ch', { p_ma_ch: maCH, p_tu: homNay, p_den: den14 });
+      setLichCH(data || []);
     })();
   }, [maCH]);
 
@@ -523,6 +535,34 @@ export default function XinHang() {
           </div>
         )}
       </div>
+
+      {lichCH && lichCH.length > 0 && (() => {
+        const homNay = new Date().toISOString().slice(0, 10);
+        const homNayLich = lichCH.find((l) => l.ngay === homNay);
+        const sapToi = lichCH.filter((l) => l.ngay > homNay).slice(0, 4);
+        const fmtDM2 = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+        const THU3 = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+        const thuCua = (iso) => THU3[new Date(iso + 'T00:00:00').getDay()];
+        return (
+          <div className="card lich-banner" style={{ marginBottom: 12, padding: '10px 14px',
+            borderLeft: homNayLich && !homNayLich.da_gui ? '4px solid var(--gold)' : '4px solid var(--teal)' }}>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+              {homNayLich ? (
+                homNayLich.da_gui
+                  ? <span style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>✓ Hôm nay là lịch đề nghị — đã gửi phiếu</span>
+                  : <span style={{ fontWeight: 800, color: '#a8842c' }}>📅 HÔM NAY là lịch đề nghị của cửa hàng — nhớ lập phiếu và gửi</span>
+              ) : (
+                <span style={{ fontWeight: 600, color: 'var(--ink-2)' }}>📅 Lịch đề nghị sắp tới:</span>
+              )}
+              {sapToi.map((l) => (
+                <span key={l.ngay} className="sla-chip" style={{ fontWeight: 600 }}>
+                  {thuCua(l.ngay)} {fmtDM2(l.ngay)}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {rows && boSot.length > 0 && (
         <div className="card" style={{ marginBottom: 12, borderLeft: '4px solid var(--magenta)' }}>
