@@ -101,21 +101,14 @@ export default function DacBiet() {
     baoToast('Đã thêm vào danh sách'); setQ(''); setGoiY(null); taiDS();
     if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM);
   };
-  const choChia = async (bc) => {
-    const { error } = await sb.rpc('fn_dacbiet_them',
-      { p_barcode: bc, p_loai: 'CHO_CHIA', p_nguoi: user.ma_dang_nhap, p_ghi_chu: 'Điều phối duyệt cho cửa hàng chia' });
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast('Đã duyệt cho cửa hàng chia bình thường'); taiDS();
-    if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM);
-  };
   const xoa = async (bc, loai) => {
-    // Gỡ THU_HOI: xóa hẳn. Gỡ HANG_MOI: đánh dấu CHO_CHIA để ĐÈ khóa tự động
-    // (mã mới ≤30 ngày vẫn bị engine tự khóa nếu chỉ xóa -> phải duyệt cho chia).
+    // Gỡ = BỎ HẠN CHẾ hoàn toàn. THU_HOI xóa hẳn. HANG_MOI: mã ≤30 ngày còn bị
+    // engine tự khóa theo ngày -> đánh dấu CHO_CHIA (ngầm) để bỏ khóa tự động luôn.
     if (loai === 'HANG_MOI') {
       const { error } = await sb.rpc('fn_dacbiet_them',
-        { p_barcode: bc, p_loai: 'CHO_CHIA', p_nguoi: user.ma_dang_nhap, p_ghi_chu: 'Điều phối duyệt cho cửa hàng chia' });
+        { p_barcode: bc, p_loai: 'CHO_CHIA', p_nguoi: user.ma_dang_nhap, p_ghi_chu: 'Đã gỡ hạn chế' });
       if (error) { baoToast('Lỗi: ' + error.message); return; }
-      baoToast('Đã duyệt cho cửa hàng chia bình thường'); taiDS();
+      baoToast('Đã gỡ hạn chế — cửa hàng chia bình thường'); taiDS();
       if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM);
       return;
     }
@@ -327,13 +320,10 @@ export default function DacBiet() {
                       <td className="num">{r.da_ban_30}</td>
                       <td className="center">
                         {r.dac_biet === 'CHO_CHIA'
-                          ? <span style={{ fontSize: 11, color: 'var(--teal-deep)' }}>đã duyệt chia</span>
+                          ? <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>đã gỡ hạn chế</span>
                           : r.dac_biet
                           ? <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>đã có</span>
-                          : <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                              <button className="btn-mini" title="Thêm vào hàng mới (ĐP chia)" onClick={(e) => { e.stopPropagation(); them(r.barcode, 'HANG_MOI'); }}>＋</button>
-                              <button className="btn-mini" style={{ color: 'var(--teal-deep)' }} title="Duyệt cho cửa hàng chia bình thường" onClick={(e) => { e.stopPropagation(); choChia(r.barcode); }}>✓ Chia</button>
-                            </div>}
+                          : <button className="btn-mini" title="Thêm vào danh sách hạn chế" onClick={(e) => { e.stopPropagation(); them(r.barcode, 'HANG_MOI'); }}>＋</button>}
                       </td>
                     </tr>
                   ))}
