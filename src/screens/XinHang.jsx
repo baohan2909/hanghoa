@@ -206,8 +206,8 @@ export default function XinHang() {
       if (ch) {
         const sn = ch.chu_ky_ngay || (ch.nhom_ch === 1 ? 4 : ch.nhom_ch === 3 ? 11 : 7);
         setSoNgayCan(String(sn));
-        // "Ngày từ" = hôm qua lùi lại đúng số ngày nhóm (khớp khung đo bán của kỳ)
-        const tu = new Date(); tu.setDate(tu.getDate() - 1 - sn);
+        // "Ngày từ" = hôm qua lùi (số ngày nhóm − 1) để trọn đúng N ngày kể cả ngày đến
+        const tu = new Date(); tu.setDate(tu.getDate() - 1 - (sn - 1));
         setTuNgay(tu.toISOString().slice(0, 10));
       }
       // KHÔNG khôi phục rows từ nháp (rows cũ có thể lỗi thời khi kho đổi).
@@ -392,18 +392,27 @@ export default function XinHang() {
   };
 
   // Xuất Excel 1 nhóm (mục 7)
+  // Mã kho đơn: {DK|KC}{yyyymmdd}-{mã kho nguồn}-{mã CH đích}-{thứ tự đơn}
+  const taoMaKho = (khoMa, thuTu) => {
+    const d = new Date();
+    const ymd = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+    const pre = loai === 'KHAN_CAP' ? 'KC' : 'DK';
+    return `${pre}${ymd}-${khoMa}-${maCH}-${String(thuTu).padStart(2, '0')}`;
+  };
   const xuatNhom = async (nhomId) => {
     const XLSX = await import('xlsx');
     const info = NHOM.find((n) => n.id === nhomId);
     const dsN = rows.filter((r) => nhomCua(r) === nhomId && r.sl_xin > 0);
     if (!dsN.length) { baoToast(`Nhóm ${info.ten} chưa có dòng nào`); return; }
     const khoMa = dsN[0].kho_ma || nhomId;
-    // Đúng template điều chuyển: Kho nguồn (kho tổng) | Kho đích (cửa hàng) | SKU/Barcode | Số lượng
+    const maKho = taoMaKho(khoMa, 1);   // xuất 1 nhóm = 1 đơn
+    // Template điều chuyển: Kho nguồn | Kho đích | SKU/Barcode | Số lượng | Mã kho
     const rowsX = dsN.map((r) => ({
       'Kho nguồn': r.kho_ma || khoMa,
       'Kho đích': maCH,
       'SKU/ Barcode': r.sku || r.barcode,
       'Số lượng': r.sl_xin,
+      'Mã kho': maKho,
     }));
     const ws = XLSX.utils.json_to_sheet(rowsX);
     const wb = XLSX.utils.book_new();
@@ -426,13 +435,20 @@ export default function XinHang() {
     const dsAll = rows.filter((r) => r.sl_xin > 0);
     if (!dsAll.length) { baoToast('Chưa có số lượng nào để xuất'); return; }
     const XLSX = await import('xlsx');
-    // 1 FILE TỔNG — mỗi dòng ghi rõ Kho nguồn riêng nên gộp chung được
-    const rowsX = dsAll.map((r) => ({
-      'Kho nguồn': r.kho_ma || nhomCua(r),
-      'Kho đích': maCH,
-      'SKU/ Barcode': r.sku || r.barcode,
-      'Số lượng': r.sl_xin,
-    }));
+    // Mỗi KHO NGUỒN = 1 đơn -> mã kho riêng, thứ tự tăng dần theo thứ tự kho
+    const khoThuTu = {}; let stt = 0;
+    dsAll.forEach((r) => { const k = r.kho_ma || nhomCua(r);
+      if (!(k in khoThuTu)) { stt++; khoThuTu[k] = taoMaKho(k, stt); } });
+    // 1 FILE TỔNG — mỗi dòng ghi rõ Kho nguồn + Mã kho riêng
+    const rowsX = dsAll.map((r) => { const k = r.kho_ma || nhomCua(r);
+      return {
+        'Kho nguồn': k,
+        'Kho đích': maCH,
+        'SKU/ Barcode': r.sku || r.barcode,
+        'Số lượng': r.sl_xin,
+        'Mã kho': khoThuTu[k],
+      };
+    });
     const ws = XLSX.utils.json_to_sheet(rowsX);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Trang tính1');

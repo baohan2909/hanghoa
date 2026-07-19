@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { sb } from '../lib/supabase.js';
+import { sb, rpcHet } from '../lib/supabase.js';
 import { IcSearch, IcDown } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
 
@@ -47,7 +47,7 @@ export default function BaoCaoMaMoi() {
 
   const tai = async () => {
     setRows(null);
-    const { data, error } = await sb.rpc('fn_baocao_ma_moi', {
+    const { data, error } = await rpcHet('fn_baocao_ma_moi', {
       p_tu: tuTao || null, p_den: denTao || null,
       p_nganh: nganh === 'ALL' ? null : nganh, p_ma_ch: maCH || null,
     });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { sb } from '../lib/supabase.js';
+import { sb, rpcHet } from '../lib/supabase.js';
 import { IcSearch, IcBox } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
 import BaoCaoMaMoi from './BaoCaoMaMoi.jsx';
@@ -74,7 +74,7 @@ export default function DacBiet() {
     const arg = tu && den
       ? { p_tu: tu, p_den: den }
       : { p_so_ngay: n, p_tat_ca: !!all };
-    const { data, error } = await sb.rpc('fn_ma_moi_ds', arg);
+    const { data, error } = await rpcHet('fn_ma_moi_ds', arg);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setMaMoi(data || []);
   };
@@ -100,6 +100,26 @@ export default function DacBiet() {
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     baoToast('Đã thêm vào danh sách'); setQ(''); setGoiY(null); taiDS();
     if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM);
+  };
+  const importThuHoi = async (file) => {
+    if (!file) return;
+    try {
+      const XLSX = await import('xlsx');
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      const bcs = rows.slice(1).map((r) => String(r[0] || '').trim()).filter(Boolean);
+      if (!bcs.length) { baoToast('File không có mã nào ở cột A'); return; }
+      let ok = 0, loi = 0;
+      for (const bc of bcs) {
+        const { error } = await sb.rpc('fn_dacbiet_them',
+          { p_barcode: bc, p_loai: 'THU_HOI', p_nguoi: user.ma_dang_nhap, p_ghi_chu: 'Import Excel' });
+        if (error) loi++; else ok++;
+      }
+      baoToast(`Import xong: ${ok} mã thu hồi${loi ? `, ${loi} lỗi (mã không có?)` : ''}`);
+      taiDS();
+    } catch (e) { baoToast('Lỗi đọc file: ' + e.message); }
   };
   const xoa = async (bc, loai) => {
     // Gỡ = BỎ HẠN CHẾ hoàn toàn. THU_HOI xóa hẳn. HANG_MOI: mã ≤30 ngày còn bị
@@ -170,8 +190,15 @@ export default function DacBiet() {
       {tab !== 'BAOCAO' && (<>
       {/* Ô tìm + thêm */}
       <div className="card" style={{ marginTop: 12, padding: 14, position: 'relative' }}>
-        <div className="lbl" style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 700, marginBottom: 8 }}>
-          {tab === 'THU_HOI' ? 'Thêm sản phẩm thu hồi' : 'Thêm mã tái bản (ngày tạo cũ nhưng cần ĐP chia)'}
+        <div className="lbl" style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{tab === 'THU_HOI' ? 'Thêm sản phẩm thu hồi' : 'Thêm mã tái bản (ngày tạo cũ nhưng cần ĐP chia)'}</span>
+          {tab === 'THU_HOI' && (
+            <label className="btn-mini" style={{ cursor: 'pointer', margin: 0 }}>
+              ⇪ Import Excel (cột A = Barcode)
+              <input type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
+                onChange={(e) => importThuHoi(e.target.files?.[0])} />
+            </label>
+          )}
         </div>
         <div style={{ position: 'relative', maxWidth: 520 }}>
           <IcSearch style={{ position: 'absolute', left: 11, top: 12, width: 16, height: 16, color: 'var(--ink-2)', pointerEvents: 'none' }} />

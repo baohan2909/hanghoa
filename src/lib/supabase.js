@@ -29,3 +29,16 @@ export const TRANG_THAI = {
   BAN_GIAO_VC: 'Bàn giao VC', DANG_GIAO: 'Đang giao', DA_NHAN: 'Đã nhận',
   HOAN: 'Hoàn', NHAP: 'Nháp',
 };
+
+// Gọi RPC lấy HẾT dữ liệu, tự phân trang chống giới hạn 1000 dòng của PostgREST.
+// Dùng cho mọi RPC có thể trả > 1000 dòng.
+export async function rpcHet(fn, args, trang = 1000) {
+  let tat = [];
+  for (let i = 0; i < 30; i++) {
+    const { data, error } = await sb.rpc(fn, args).range(i * trang, (i + 1) * trang - 1);
+    if (error) return { data: null, error };
+    tat = tat.concat(data || []);
+    if (!data || data.length < trang) break;
+  }
+  return { data: tat, error: null };
+}
