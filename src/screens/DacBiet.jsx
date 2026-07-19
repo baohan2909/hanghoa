@@ -108,11 +108,11 @@ export default function DacBiet() {
       const { error } = await sb.rpc('fn_dacbiet_them',
         { p_barcode: bc, p_loai: 'CHO_CHIA', p_nguoi: user.ma_dang_nhap, p_ghi_chu: 'Đã gỡ hạn chế' });
       if (error) { baoToast('Lỗi: ' + error.message); return; }
-      baoToast('Đã gỡ hạn chế — cửa hàng chia bình thường'); taiDS();
+      baoToast('Đã gỡ hạn chế'); taiDS();
       if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM);
       return;
     }
-    const { error } = await sb.rpc('fn_dacbiet_xoa', { p_barcode: bc });
+    const { error } = await sb.rpc('fn_dacbiet_xoa', { p_barcode: bc, p_nguoi: user.ma_dang_nhap });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     baoToast('Đã gỡ khỏi danh sách'); taiDS();
   };
@@ -319,11 +319,13 @@ export default function DacBiet() {
                       <td className="num">{r.so_ch_pb ?? 0}</td>
                       <td className="num">{r.da_ban_30}</td>
                       <td className="center">
-                        {r.dac_biet === 'CHO_CHIA'
-                          ? <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>đã gỡ hạn chế</span>
-                          : r.dac_biet
-                          ? <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>đã có</span>
-                          : <button className="btn-mini" title="Thêm vào danh sách hạn chế" onClick={(e) => { e.stopPropagation(); them(r.barcode, 'HANG_MOI'); }}>＋</button>}
+                        {r.dac_biet === 'THU_HOI' || r.dac_biet === 'HANG_MOI'
+                          ? <div><span style={{ fontSize: 11, color: 'var(--ink-2)' }}>đã có</span>
+                              {r.vet_luc && <div style={{ fontSize: 9.5, color: 'var(--magenta)' }}>hạn chế {fmtNgay(r.vet_luc)}</div>}</div>
+                          : <div>
+                              <button className="btn-mini" title="Thêm vào danh sách hạn chế" onClick={(e) => { e.stopPropagation(); them(r.barcode, 'HANG_MOI'); }}>＋</button>
+                              {r.vet_hanh_dong === 'GO_HAN_CHE' && r.vet_luc && <div style={{ fontSize: 9.5, color: 'var(--ink-2)' }}>gỡ {fmtNgay(r.vet_luc)}</div>}
+                            </div>}
                       </td>
                     </tr>
                   ))}
