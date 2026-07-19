@@ -549,14 +549,14 @@ function TabAuto({ rows, homNay, taiLai }) {
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           {!preview ? (
             <>
-              <button className="btn btn-teal" onClick={taoTuDong} disabled={busy}>✨ Tạo lịch tự động</button>
+              <button className="btn btn-ai" onClick={taoTuDong} disabled={busy}>✨ Tạo lịch tự động</button>
               <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>Nhập Excel
                 <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => docFile(e.target.files?.[0])} /></label>
               <button className="btn btn-ghost" onClick={xuatFile}>Xuất Excel</button>
             </>
           ) : (
             <>
-              <button className="btn btn-teal" onClick={xacNhan} disabled={busy}>✓ Xác nhận tạo {tk.moi} ô</button>
+              <button className="btn btn-ai" onClick={xacNhan} disabled={busy}>✓ Xác nhận tạo {tk.moi} ô</button>
               <button className="btn btn-ghost" onClick={huyPreview}>Hủy xem trước</button>
             </>
           )}
