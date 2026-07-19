@@ -244,14 +244,23 @@ export default function XinHang() {
     if (soNgayCan) args.p_so_ngay_can = parseInt(soNgayCan);
     // Chạy engine + hiệu ứng song song, chờ CẢ HAI (hiệu ứng tối thiểu 3.8s để không qua loa)
     const toiThieu = new Promise((res) => setTimeout(res, 3800));
-    const [{ data, error }] = await Promise.all([
-      sb.rpc('fn_goi_y_chia_hang', args), toiThieu,
-    ]);
+    // PHÂN TRANG chống cắt 1000 dòng (PostgREST Max Rows): lấy từng trang tới hết
+    const layHet = async () => {
+      const TRANG = 1000; let tat = []; let i = 0;
+      for (;;) {
+        const { data: d, error: e } = await sb.rpc('fn_goi_y_chia_hang', args)
+          .range(i * TRANG, (i + 1) * TRANG - 1);
+        if (e) return { data: null, error: e };
+        tat = tat.concat(d || []);
+        if (!d || d.length < TRANG) break;   // trang cuối
+        i++;
+        if (i > 20) break;                    // an toàn: tối đa 20k dòng
+      }
+      return { data: tat, error: null };
+    };
+    const [{ data, error }] = await Promise.all([layHet(), toiThieu]);
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    // DEBUG v3.5.1: soi số dòng nhận từ engine + số mã MC037 (gỡ sau khi bắt xong bug)
-    console.log('[NSFLOW DEBUG] engine trả:', (data || []).length, 'dòng.',
-      'MC037:', (data || []).filter((r) => (r.ma_tham_chieu || '').includes('MC037')).map((r) => r.ma_tham_chieu));
     setRows((data || []).map((r) => ({
       ...r,
       sl_xin: (napDraft.current && napDraft.current[r.barcode] != null) ? napDraft.current[r.barcode] : r.sl_ai,
