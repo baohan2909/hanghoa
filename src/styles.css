@@ -1037,3 +1037,15 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .apd-CH { background: rgba(20,33,58,.09); color: var(--navy, var(--ink)); }
 .apd-DB { background: rgba(203,164,90,.2); color: #8a6a24; }
 .apd-CH_DB { background: #EEF6F5; color: var(--teal-deep); }
+
+/* Overlay tiến độ import mã thu hồi */
+.import-overlay { position: fixed; inset: 0; background: rgba(20,33,58,.42); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center; z-index: 999; }
+.import-box { background: #fff; border-radius: 18px; padding: 26px 30px; width: min(420px, 90vw);
+  box-shadow: 0 18px 50px rgba(0,0,0,.28); text-align: center; }
+.import-title { font-weight: 800; font-size: 15px; margin-bottom: 16px; }
+.import-bar { height: 12px; border-radius: 8px; background: #EEF1F4; overflow: hidden; }
+.import-bar-fill { height: 100%; border-radius: 8px;
+  background: linear-gradient(90deg, var(--teal), var(--teal-deep)); transition: width .25s ease; }
+.import-txt { margin-top: 12px; font-size: 14px; font-weight: 700; color: var(--teal-deep); }
+.import-hint { margin-top: 4px; font-size: 11.5px; color: var(--ink-2); }

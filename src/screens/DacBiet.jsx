@@ -21,6 +21,7 @@ export default function DacBiet() {
   const { user, baoToast } = useApp();
   const [tab, setTab] = useState('THU_HOI');
   const [ds, setDs] = useState(null);
+  const [tienDo, setTienDo] = useState(null);   // {phan_tram, da, tong} khi đang import
   // tìm để thêm
   const [q, setQ] = useState('');
   const [goiY, setGoiY] = useState(null);        // null = chưa tìm, [] = không thấy
@@ -127,15 +128,26 @@ export default function DacBiet() {
         .map((r) => ({ bc: String(r[0] || '').trim(), ap: chuan(r[1]) }))
         .filter((x) => x.bc);
       if (!data.length) { baoToast('File không có mã nào ở cột A'); return; }
+      // Chia lô ~300 mã/request (thay vì 1 request/mã) — nhanh + có tiến độ %.
+      const LO = 300;
       let ok = 0, loi = 0;
-      for (const { bc, ap } of data) {
-        const { error } = await sb.rpc('fn_dacbiet_them',
-          { p_barcode: bc, p_loai: 'THU_HOI', p_nguoi: user.ma_dang_nhap, p_ghi_chu: 'Import Excel', p_ap_dung: ap });
-        if (error) loi++; else ok++;
+      const loiMa = [];
+      setTienDo({ phan_tram: 0, da: 0, tong: data.length });
+      for (let i = 0; i < data.length; i += LO) {
+        const lo = data.slice(i, i + LO);
+        const { data: kq, error } = await sb.rpc('fn_dacbiet_them_loat', {
+          p_items: lo.map((x) => ({ bc: x.bc, ap: x.ap })),
+          p_loai: 'THU_HOI', p_nguoi: user.ma_dang_nhap,
+        });
+        if (error) { loi += lo.length; }
+        else { ok += kq.ok || 0; loi += kq.so_loi || 0; if (kq.loi) loiMa.push(...kq.loi); }
+        const da = Math.min(i + LO, data.length);
+        setTienDo({ phan_tram: Math.round((da / data.length) * 100), da, tong: data.length });
       }
-      baoToast(`Import xong: ${ok} mã thu hồi${loi ? `, ${loi} lỗi (mã không có?)` : ''}`);
+      setTienDo(null);
+      baoToast(`Import xong: ${ok} mã thu hồi${loi ? `, ${loi} mã lỗi (không có trong sản phẩm)` : ''}`);
       taiDS();
-    } catch (e) { baoToast('Lỗi đọc file: ' + e.message); }
+    } catch (e) { setTienDo(null); baoToast('Lỗi đọc file: ' + e.message); }
   };
   const taiMauThuHoi = async () => {
     const XLSX = await import('xlsx');
@@ -195,6 +207,16 @@ export default function DacBiet() {
 
   return (
     <div>
+      {tienDo && (
+        <div className="import-overlay">
+          <div className="import-box">
+            <div className="import-title">Đang nhập mã thu hồi…</div>
+            <div className="import-bar"><div className="import-bar-fill" style={{ width: tienDo.phan_tram + '%' }} /></div>
+            <div className="import-txt">{tienDo.phan_tram}% — {tienDo.da.toLocaleString('vi')}/{tienDo.tong.toLocaleString('vi')} mã</div>
+            <div className="import-hint">Đừng đóng trang cho tới khi xong</div>
+          </div>
+        </div>
+      )}
       <div className="cmdbar">
         <div className="cmd-title">
           <h2><IcBox style={{ verticalAlign: -3, marginRight: 8 }} />Hàng đặc biệt</h2>
