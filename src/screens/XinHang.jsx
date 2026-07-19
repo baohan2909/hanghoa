@@ -249,6 +249,9 @@ export default function XinHang() {
     ]);
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
+    // DEBUG v3.5.1: soi số dòng nhận từ engine + số mã MC037 (gỡ sau khi bắt xong bug)
+    console.log('[NSFLOW DEBUG] engine trả:', (data || []).length, 'dòng.',
+      'MC037:', (data || []).filter((r) => (r.ma_tham_chieu || '').includes('MC037')).map((r) => r.ma_tham_chieu));
     setRows((data || []).map((r) => ({
       ...r,
       sl_xin: (napDraft.current && napDraft.current[r.barcode] != null) ? napDraft.current[r.barcode] : r.sl_ai,
