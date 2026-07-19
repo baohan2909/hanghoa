@@ -22,13 +22,14 @@ function sinhCau(pool, daDung) {
   // chọn SP chưa dùng gần đây
   const ung = pool.filter((s) => !daDung.has(s.barcode));
   const sp = (ung.length ? ung : pool)[Math.floor(Math.random() * (ung.length ? ung.length : pool.length))];
-  const coHinh = !!sp.hinh_url;
+  const hopLeHinh = (u) => typeof u === 'string' && /^https?:\/\//.test(u.trim());
+  const coHinh = hopLeHinh(sp.hinh_url);
   // loại câu khả dụng
   const loai = [];
   loai.push('GIA');
   if (coHinh) loai.push('TEN', 'TEN');           // ưu tiên câu hình
   if (sp.nganh_3) loai.push('NGANH');
-  const spKhacGia = pool.filter((x) => x.barcode !== sp.barcode && x.hinh_url
+  const spKhacGia = pool.filter((x) => x.barcode !== sp.barcode && hopLeHinh(x.hinh_url)
     && Math.abs(x.gia - sp.gia) / Math.max(x.gia, sp.gia) >= 0.1);
   if (coHinh && spKhacGia.length) loai.push('SOSANH');
   const l = loai[Math.floor(Math.random() * loai.length)];
@@ -49,7 +50,7 @@ function sinhCau(pool, daDung) {
   if (l === 'NGANH') {
     const dsN = [...new Set(pool.map((x) => x.nganh_3).filter(Boolean))];
     const nhieu = lay(dsN, 3, sp.nganh_3);
-    return { loai: l, hoi: `“${sp.ten}” thuộc ngành hàng nào?`, sp, hinh: sp.hinh_url,
+    return { loai: l, hoi: `“${sp.ten}” thuộc ngành hàng nào?`, sp,
       dapAn: xao([{ nhan: sp.nganh_3, dung: true }, ...nhieu.map((t) => ({ nhan: t, dung: false }))]) };
   }
   // GIA
@@ -64,7 +65,7 @@ function sinhCau(pool, daDung) {
     if (g !== gia && !nhieu.includes(g)) nhieu.push(g);
     i++;
   }
-  return { loai: l, hoi: `Giá niêm yết của “${sp.ten}” là?`, sp, hinh: sp.hinh_url,
+  return { loai: l, hoi: `Giá niêm yết của “${sp.ten}” là?`, sp,
     dapAn: xao([{ nhan: fmtVND(gia), dung: true }, ...nhieu.slice(0, 3).map((g) => ({ nhan: fmtVND(g), dung: false }))]) };
 }
 
@@ -230,14 +231,16 @@ export default function DauTruong() {
             {cau.dapAn.map((a, i) => (
               <button key={i} onClick={() => traLoi(i)}
                 className={'dt-ss-the' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
-                <div className="dt-ss-hinh"><img src={a.hinh} alt="" loading="eager" /></div>
+                <div className="dt-ss-hinh"><img src={a.hinh} alt="" loading="eager"
+                  onError={() => { if (chon === null) cauMoi(); }} /></div>
                 <div className="dt-ss-ten">{a.nhan}</div>
               </button>
             ))}
           </div>
         ) : (
           <>
-            {cau.hinh && <div className="dt-hinh"><img src={cau.hinh} alt="" loading="eager" /></div>}
+            {cau.hinh && <div className="dt-hinh"><img src={cau.hinh} alt="" loading="eager"
+              onError={() => { if (chon === null) cauMoi(); }} /></div>}
             <div className="dt-dapan">
               {cau.dapAn.map((a, i) => (
                 <button key={i} onClick={() => traLoi(i)}
