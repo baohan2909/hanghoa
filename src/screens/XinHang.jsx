@@ -206,8 +206,9 @@ export default function XinHang() {
       if (ch) {
         const sn = ch.chu_ky_ngay || (ch.nhom_ch === 1 ? 4 : ch.nhom_ch === 3 ? 11 : 7);
         setSoNgayCan(String(sn));
-        // "Ngày từ" = hôm qua lùi (số ngày nhóm − 1) để trọn đúng N ngày kể cả ngày đến
-        const tu = new Date(); tu.setDate(tu.getDate() - 1 - (sn - 1));
+        // "Ngày từ" = "Ngày đến" lùi (số ngày nhóm − 1) -> trọn đúng N ngày kể cả 2 đầu
+        const dDen = new Date(denNgay + 'T00:00:00');
+        const tu = new Date(dDen); tu.setDate(dDen.getDate() - (sn - 1));
         setTuNgay(tu.toISOString().slice(0, 10));
       }
       // KHÔNG khôi phục rows từ nháp (rows cũ có thể lỗi thời khi kho đổi).
