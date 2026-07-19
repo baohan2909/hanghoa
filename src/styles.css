@@ -829,9 +829,9 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .cal-cell-mm { font-size: 10px; font-weight: 600; color: var(--ink-2); }
 .cal-today-tag { font-size: 9px; background: var(--teal); color: #fff; padding: 1px 6px; border-radius: 6px; font-weight: 700; }
 .cal-cell-body { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; }
-.cal-count { font-size: 24px; font-weight: 800; line-height: 1; color: var(--ink); }
+.cal-count { font-size: 24px; font-weight: 800; line-height: 1; color: var(--magenta); }
 .cal-frac { font-size: 21px; font-weight: 800; line-height: 1; }
-.cal-frac b { color: var(--teal-deep); }
+.cal-frac b { color: var(--magenta); }
 .cal-frac span { font-size: 13px; color: var(--ink-2); font-weight: 700; }
 .cal-frac.thieu b { color: var(--magenta); }
 .cal-nhom { display: flex; gap: 3px; }
