@@ -109,17 +109,40 @@ export default function DacBiet() {
       const wb = XLSX.read(buf, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      const bcs = rows.slice(1).map((r) => String(r[0] || '').trim()).filter(Boolean);
-      if (!bcs.length) { baoToast('File không có mã nào ở cột A'); return; }
+      // Cột A = Barcode, Cột B = Áp dụng (CH / DB / CH-DB / CH_DB). Mặc định CH_DB nếu trống.
+      const chuan = (v) => {
+        const t = String(v || '').trim().toUpperCase().replace(/[\s\-–]/g, '_');
+        if (t === 'CH') return 'CH';
+        if (t === 'DB') return 'DB';
+        if (t === 'CH_DB' || t === 'DB_CH' || t === 'CHDB') return 'CH_DB';
+        return 'CH_DB';
+      };
+      const data = rows.slice(1)
+        .map((r) => ({ bc: String(r[0] || '').trim(), ap: chuan(r[1]) }))
+        .filter((x) => x.bc);
+      if (!data.length) { baoToast('File không có mã nào ở cột A'); return; }
       let ok = 0, loi = 0;
-      for (const bc of bcs) {
+      for (const { bc, ap } of data) {
         const { error } = await sb.rpc('fn_dacbiet_them',
-          { p_barcode: bc, p_loai: 'THU_HOI', p_nguoi: user.ma_dang_nhap, p_ghi_chu: 'Import Excel' });
+          { p_barcode: bc, p_loai: 'THU_HOI', p_nguoi: user.ma_dang_nhap, p_ghi_chu: 'Import Excel', p_ap_dung: ap });
         if (error) loi++; else ok++;
       }
       baoToast(`Import xong: ${ok} mã thu hồi${loi ? `, ${loi} lỗi (mã không có?)` : ''}`);
       taiDS();
     } catch (e) { baoToast('Lỗi đọc file: ' + e.message); }
+  };
+  const taiMauThuHoi = async () => {
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Barcode', 'Áp dụng'],
+      ['8938501234567', 'CH'],
+      ['8938507654321', 'DB'],
+      ['8938509999999', 'CH-DB'],
+    ]);
+    ws['!cols'] = [{ wch: 20 }, { wch: 12 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Thu hồi');
+    XLSX.writeFile(wb, 'MAU_THU_HOI.xlsx');
   };
   const xoa = async (bc, loai) => {
     // Gỡ = BỎ HẠN CHẾ hoàn toàn. THU_HOI xóa hẳn. HANG_MOI: mã ≤30 ngày còn bị
@@ -193,11 +216,14 @@ export default function DacBiet() {
         <div className="lbl" style={{ fontSize: 13, color: 'var(--ink)', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>{tab === 'THU_HOI' ? 'Thêm sản phẩm thu hồi' : 'Thêm mã tái bản (ngày tạo cũ nhưng cần ĐP chia)'}</span>
           {tab === 'THU_HOI' && (
-            <label className="btn-mini" style={{ cursor: 'pointer', margin: 0 }}>
-              ⇪ Import Excel (cột A = Barcode)
-              <input type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
-                onChange={(e) => importThuHoi(e.target.files?.[0])} />
-            </label>
+            <>
+              <label className="btn-mini" style={{ cursor: 'pointer', margin: 0 }}>
+                ⇪ Import Excel (A=Barcode, B=Áp dụng)
+                <input type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
+                  onChange={(e) => importThuHoi(e.target.files?.[0])} />
+              </label>
+              <button className="btn-mini" style={{ margin: 0 }} onClick={taiMauThuHoi}>⬇ Tải file mẫu</button>
+            </>
           )}
         </div>
         <div style={{ position: 'relative', maxWidth: 520 }}>
@@ -239,6 +265,7 @@ export default function DacBiet() {
             <table className="tbl">
               <thead><tr>
                 <th className="col-sp">Sản phẩm</th><th className="center">Ngành</th>
+                {tab === 'THU_HOI' && <th className="center">Áp dụng</th>}
                 <th className="center">Giá</th><th className="center">Kho tổng</th>
                 <th className="center">Người thêm</th><th className="center">Ngày thêm</th><th className="center">Gỡ</th>
               </tr></thead>
@@ -255,6 +282,7 @@ export default function DacBiet() {
                       </div>
                     </td>
                     <td className="center"><BadgeNganh n1={r.nganh_1} /></td>
+                    {tab === 'THU_HOI' && <td className="center"><span className={'apd-badge apd-' + (r.ap_dung || 'CH_DB')}>{{ CH: 'Cửa hàng', DB: 'Điểm bán', CH_DB: 'Cả hai' }[r.ap_dung] || 'Cả hai'}</span></td>}
                     <td className="num">{fmtVND(r.gia_niem_yet)}</td>
                     <td className="num">{r.kho_tong}</td>
                     <td className="center">{r.nguoi_tao || '—'}</td>

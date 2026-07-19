@@ -894,20 +894,20 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .mt2-ten { position: sticky; left: 0; background: #fff; z-index: 2; min-width: 150px; max-width: 190px;
   text-align: left; padding: 5px 10px !important; }
 .mt2-nhom { position: sticky; left: 150px; background: #fff; z-index: 2; width: 46px; }
-.mt2 thead th { position: sticky; top: 0; background: #fff; z-index: 3; }
+.mt2 thead th { position: sticky; top: 0; background: #fff; z-index: 5; box-shadow: 0 1px 0 var(--line); }
 .mt2 thead th.mt2-ten { z-index: 4; } .mt2 thead th.mt2-nhom { z-index: 4; }
-.mt2-ngay { min-width: 32px; padding: 3px 1px !important; text-align: center; }
-.mt2-dm { font-size: 10px; font-weight: 700; }
-.mt2-thu { font-size: 8.5px; color: var(--ink-2); }
+.mt2-ngay { min-width: 46px; padding: 7px 4px !important; text-align: center; }
+.mt2-dm { font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.mt2-thu { font-size: 9.5px; color: var(--ink-2); margin-top: 1px; }
 .mt2-ngay.cuoi { background: #F4F6F8; }
-/* Cột hôm nay: nền teal rất nhạt (không viền chạy dọc thô), header nổi bật */
-.mt2-o.homnay { background: rgba(63,182,168,.07); }
-.mt2-o.homnay.co { background: rgba(63,182,168,.18); }
+/* Cột HÔM NAY = hồng nhạt (khác teal), header nổi bật */
+.mt2-o.homnay { background: rgba(214,0,108,.06); }
+.mt2-o.homnay.co { background: rgba(214,0,108,.16); color: var(--magenta); }
 .mt2-o.homnay.moi { background: rgba(203,164,90,.28); }
-.mt2-ngay.homnay { position: relative; }
-.mt2-ngay.homnay .mt2-dm { color: #fff; background: var(--teal); border-radius: 6px; padding: 1px 4px; display: inline-block; }
-.mt2-ngay.homnay .mt2-thu { color: var(--teal-deep); font-weight: 700; }
-.mt2-o { text-align: center; min-width: 32px; height: 30px; cursor: pointer; font-size: 12px;
+.mt2 thead th.mt2-ngay.homnay { background: #FCE9F1; }
+.mt2-ngay.homnay .mt2-dm { color: #fff; background: var(--magenta); border-radius: 7px; padding: 2px 6px; display: inline-block; }
+.mt2-ngay.homnay .mt2-thu { color: var(--magenta); font-weight: 700; }
+.mt2-o { text-align: center; min-width: 46px; height: 34px; cursor: pointer; font-size: 13px;
   color: var(--teal-deep); font-weight: 800; user-select: none; }
 .mt2-o.co { background: rgba(63,182,168,.12); }
 .mt2-o.moi { background: rgba(203,164,90,.28); color: var(--gold); }
@@ -1031,3 +1031,9 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* Tab chia đều bề ngang (bảng vàng Đấu trường) */
 .nhom-tabs.nhom-deu { flex-wrap: nowrap; gap: 4px; }
 .nhom-tabs.nhom-deu .nhom-tab { flex: 1; justify-content: center; min-width: 0; white-space: nowrap; }
+
+/* Badge áp dụng mã thu hồi */
+.apd-badge { display: inline-block; padding: 1px 9px; border-radius: 8px; font-size: 11px; font-weight: 700; }
+.apd-CH { background: rgba(20,33,58,.09); color: var(--navy, var(--ink)); }
+.apd-DB { background: rgba(203,164,90,.2); color: #8a6a24; }
+.apd-CH_DB { background: #EEF6F5; color: var(--teal-deep); }
