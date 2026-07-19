@@ -544,19 +544,19 @@ export default function XinHang() {
         const THU3 = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
         const thuCua = (iso) => THU3[new Date(iso + 'T00:00:00').getDay()];
         return (
-          <div className="card lich-banner" style={{ marginBottom: 12, padding: '10px 14px',
-            borderLeft: homNayLich && !homNayLich.da_gui ? '4px solid var(--gold)' : '4px solid var(--teal)' }}>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
-              {homNayLich ? (
-                homNayLich.da_gui
-                  ? <span style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>✓ Hôm nay là lịch đề nghị — đã gửi phiếu</span>
-                  : <span style={{ fontWeight: 800, color: '#a8842c' }}>📅 HÔM NAY là lịch đề nghị của cửa hàng — nhớ lập phiếu và gửi</span>
-              ) : (
-                <span style={{ fontWeight: 600, color: 'var(--ink-2)' }}>📅 Lịch đề nghị sắp tới:</span>
-              )}
+          <div className="lich-banner-thin" style={{
+            borderLeft: homNayLich && !homNayLich.da_gui ? '3px solid var(--gold)' : '3px solid var(--teal)' }}>
+            {homNayLich ? (
+              homNayLich.da_gui
+                ? <span className="lbt-txt" style={{ color: 'var(--teal-deep)', fontWeight: 700 }}>✓ Hôm nay tới lịch — đã gửi phiếu</span>
+                : <span className="lbt-txt" style={{ color: '#a8842c', fontWeight: 800 }}>📅 HÔM NAY tới lịch đề nghị — nhớ lập & gửi phiếu</span>
+            ) : (
+              <span className="lbt-txt" style={{ color: 'var(--ink-2)' }}>📅 Lịch sắp tới:</span>
+            )}
+            <div className="lbt-chips">
               {sapToi.map((l) => (
-                <span key={l.ngay} className="sla-chip" style={{ fontWeight: 600 }}>
-                  {thuCua(l.ngay)} {fmtDM2(l.ngay)}
+                <span key={l.ngay} className={'lbt-chip' + (l.da_gui ? ' gui' : '')}>
+                  {thuCua(l.ngay)} {fmtDM2(l.ngay)}{l.da_gui ? ' ✓' : ''}
                 </span>
               ))}
             </div>

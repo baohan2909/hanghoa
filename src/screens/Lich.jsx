@@ -1,58 +1,58 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb, rpcHet } from '../lib/supabase.js';
-import { IcRefresh } from '../lib/icons.jsx';
 import { DateBox, Sel } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
-// LỊCH ĐỀ NGHỊ — 3 tab: Hôm nay (điều khiển) · Lịch (calendar tuần) · Tuân thủ.
-// N1 2 lần/tuần · N2 1 lần/tuần · N3 chu kỳ ~11 ngày · né T7/CN.
 const iso = (d) => d.toISOString().slice(0, 10);
 const fmtDM = (s) => s.slice(8, 10) + '/' + s.slice(5, 7);
 const THU = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const THU_DAY = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const dow = (s) => new Date(s + 'T00:00:00').getDay();
+const themNgay = (s, n) => iso(new Date(new Date(s + 'T00:00:00').getTime() + n * 864e5));
 
 export default function Lich() {
   const { user, baoToast } = useApp();
   const homNay = iso(new Date());
   const suaDuoc = ['DIEU_PHOI', 'ADMIN'].includes(user.vai_tro);
-  const [tab, setTab] = useState('HOMNAY');
-  // Kỳ xem: mặc định tháng quanh hôm nay
+  const [tab, setTab] = useState('LICH');
   const [tu, setTu] = useState(iso(new Date(Date.now() - 3 * 864e5)));
   const [den, setDen] = useState(iso(new Date(Date.now() + 28 * 864e5)));
   const [rows, setRows] = useState(null);
-  const [busy, setBusy] = useState(false);
 
   const tai = async () => {
-    setBusy(true);
     const { data, error } = await rpcHet('fn_lich_matran', { p_tu: tu, p_den: den });
-    setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setRows(data || []);
   };
   useEffect(() => { tai(); }, [tu, den]);
 
-  // Index: ngày -> danh sách CH có lịch (kèm đã gửi chưa)
+  // ngày -> [{ch, daGui}]
   const theoNgay = useMemo(() => {
     const m = {};
     (rows || []).forEach((r) => {
       const gui = new Set(r.ngay_gui || []);
-      (r.ngay_lich || []).forEach((n) => {
-        (m[n] || (m[n] = [])).push({ ...r, daGui: gui.has(n) });
-      });
+      (r.ngay_lich || []).forEach((n) => (m[n] || (m[n] = [])).push({ ...r, daGui: gui.has(n) }));
     });
     return m;
   }, [rows]);
 
+  const setLichLocal = (ma_ch, ngay, co) => setRows((rs) => rs.map((x) => x.ma_ch !== ma_ch ? x : {
+    ...x, ngay_lich: co ? [...new Set([...x.ngay_lich, ngay])].sort() : x.ngay_lich.filter((n) => n !== ngay),
+  }));
+
   const toggleO = async (ma_ch, ngay, dangCo) => {
     if (!suaDuoc) return;
-    const { error } = await sb.rpc('fn_sua_lich_ngay',
-      { p_token: user.token, p_ma_ch: ma_ch, p_ngay: ngay, p_co: !dangCo });
+    const { error } = await sb.rpc('fn_sua_lich_ngay', { p_token: user.token, p_ma_ch: ma_ch, p_ngay: ngay, p_co: !dangCo });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    setRows((rs) => rs.map((x) => x.ma_ch !== ma_ch ? x : {
-      ...x, ngay_lich: dangCo ? x.ngay_lich.filter((n) => n !== ngay) : [...x.ngay_lich, ngay].sort(),
-    }));
+    setLichLocal(ma_ch, ngay, !dangCo);
     baoToast(dangCo ? 'Đã bỏ lịch' : 'Đã thêm lịch');
+  };
+  const chuyenO = async (ma_ch, tuN, denN) => {
+    if (!suaDuoc) return;
+    const { error } = await sb.rpc('fn_lich_chuyen', { p_token: user.token, p_ma_ch: ma_ch, p_tu_ngay: tuN, p_den_ngay: denN });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    setLichLocal(ma_ch, tuN, false); setLichLocal(ma_ch, denN, true);
+    baoToast(`Đã chuyển sang ${fmtDM(denN)}`);
   };
 
   return (
@@ -63,161 +63,38 @@ export default function Lich() {
       </div>
 
       <div className="seg" style={{ marginTop: 14 }}>
-        {[['HOMNAY', 'Hôm nay & sắp tới'], ['LICH', 'Lịch tổng'], ['TUANTHU', 'Tuân thủ'], ['CAUHINH', 'Nhập / Sinh lịch']].map(([v, t]) => (
+        {[['LICH', 'Lịch tổng'], ['TUANTHU', 'Tuân thủ'], ['NHOM', 'Data nhóm'], ['AUTO', 'Lịch tự động']].map(([v, t]) => (
           <button key={v} className={'seg-btn' + (tab === v ? ' on' : '')} onClick={() => setTab(v)}>{t}</button>
         ))}
       </div>
 
-      {tab === 'HOMNAY' && <TabHomNay rows={rows} theoNgay={theoNgay} homNay={homNay} toggleO={toggleO} suaDuoc={suaDuoc} setTab={setTab} />}
-      {tab === 'LICH' && <TabLich theoNgay={theoNgay} homNay={homNay} tu={tu} den={den} setTu={setTu} setDen={setDen}
-        toggleO={toggleO} suaDuoc={suaDuoc} rows={rows} busy={busy} tai={tai} />}
-      {tab === 'TUANTHU' && <TabTuanThu tu={tu} den={den} setTu={setTu} setDen={setDen} />}
-      {tab === 'CAUHINH' && <TabCauHinh tu={tu} den={den} setTu={setTu} setDen={setDen} taiLai={tai} />}
+      {tab === 'LICH' && <TabLich {...{ theoNgay, homNay, tu, den, setTu, setDen, toggleO, chuyenO, suaDuoc, rows }} />}
+      {tab === 'TUANTHU' && <TabTuanThu {...{ tu, den, setTu, setDen }} />}
+      {tab === 'NHOM' && <TabNhom {...{ tu, den, taiLai: tai }} />}
+      {tab === 'AUTO' && <TabAuto {...{ rows, homNay, taiLai: tai }} />}
     </>
   );
 }
 
-// ============ TAB HÔM NAY — điều khiển kiểm soát ============
-function TabHomNay({ rows, theoNgay, homNay, toggleO, suaDuoc, setTab }) {
-  const homNayDs = theoNgay[homNay] || [];
-  const chuaGui = homNayDs.filter((r) => !r.daGui);
-  const daGui = homNayDs.filter((r) => r.daGui);
-
-  // 7 ngày tới (bỏ hôm nay)
-  const sapToi = useMemo(() => {
-    const out = [];
-    for (let i = 1; i <= 10; i++) {
-      const n = iso(new Date(Date.now() + i * 864e5));
-      const ds = theoNgay[n] || [];
-      if (ds.length) out.push({ ngay: n, ds });
-      if (out.length >= 6) break;
-    }
-    return out;
-  }, [theoNgay]);
-
-  if (!rows) return <div className="card" style={{ marginTop: 12, padding: 40, textAlign: 'center', color: 'var(--ink-2)' }}>Đang tải…</div>;
-
-  return (
-    <div style={{ marginTop: 14, display: 'grid', gap: 14, gridTemplateColumns: '1.2fr 1fr' }}>
-      {/* CỘT TRÁI — hôm nay */}
-      <div>
-        <div className="card lich2-today">
-          <div className="lich2-today-head">
-            <div>
-              <div className="lich2-today-thu">{THU_DAY[dow(homNay)]}</div>
-              <div className="lich2-today-ngay">{fmtDM(homNay)}</div>
-            </div>
-            <div className="lich2-today-badges">
-              <div className="lich2-badge"><b>{homNayDs.length}</b> tới lịch</div>
-              <div className={'lich2-badge' + (chuaGui.length ? ' warn' : ' ok')}>
-                <b>{chuaGui.length}</b> chưa gửi
-              </div>
-            </div>
-          </div>
-
-          {homNayDs.length === 0 ? (
-            <div className="lich2-empty">Hôm nay không có cửa hàng nào theo lịch.</div>
-          ) : (
-            <>
-              {chuaGui.length > 0 && (
-                <div className="lich2-sec">
-                  <div className="lich2-sec-tit warn">Chưa gửi phiếu ({chuaGui.length})</div>
-                  <div className="lich2-list">
-                    {chuaGui.map((r) => (
-                      <div key={r.ma_ch} className="lich2-item warn">
-                        <span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span>
-                        <div className="lich2-item-ten">
-                          <div>{r.ten}</div>
-                          <div className="lich2-item-sub">{r.ma_ch} · {r.khu_vuc}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {daGui.length > 0 && (
-                <div className="lich2-sec">
-                  <div className="lich2-sec-tit ok">Đã gửi ({daGui.length})</div>
-                  <div className="lich2-list">
-                    {daGui.map((r) => (
-                      <div key={r.ma_ch} className="lich2-item ok">
-                        <span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span>
-                        <div className="lich2-item-ten">
-                          <div>{r.ten}</div>
-                          <div className="lich2-item-sub">{r.ma_ch} · {r.khu_vuc}</div>
-                        </div>
-                        <span className="lich2-tick">✓</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* CỘT PHẢI — sắp tới */}
-      <div>
-        <div className="card" style={{ padding: 16 }}>
-          <div className="lich2-h">Lịch sắp tới</div>
-          {sapToi.length === 0 ? (
-            <div className="lich2-empty">Chưa có lịch trong những ngày tới.</div>
-          ) : sapToi.map(({ ngay, ds }) => (
-            <div key={ngay} className="lich2-upcoming">
-              <div className="lich2-up-date">
-                <div className="lich2-up-thu">{THU[dow(ngay)]}</div>
-                <div className="lich2-up-dm">{fmtDM(ngay)}</div>
-              </div>
-              <div className="lich2-up-body">
-                <div className="lich2-up-count">{ds.length} nơi bán</div>
-                <div className="lich2-up-nhom">
-                  {[1, 2, 3].map((n) => {
-                    const c = ds.filter((r) => r.nhom_ch === n).length;
-                    return c ? <span key={n} className={'tag-n tag-n' + n}>N{n}: {c}</span> : null;
-                  })}
-                </div>
-              </div>
-            </div>
-          ))}
-          <button className="btn-ghost" style={{ marginTop: 12, width: '100%' }} onClick={() => setTab('LICH')}>
-            Xem lịch tổng →
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============ TAB LỊCH — calendar theo tuần ============
-function TabLich({ theoNgay, homNay, tu, den, setTu, setDen, toggleO, suaDuoc, rows, busy, tai }) {
+// ============ LỊCH TỔNG — calendar ============
+function TabLich({ theoNgay, homNay, tu, den, setTu, setDen, toggleO, chuyenO, suaDuoc, rows }) {
   const [kv, setKv] = useState('ALL');
   const [nhom, setNhom] = useState('ALL');
-  const [chiTiet, setChiTiet] = useState(null);   // ngày đang mở chi tiết
-
+  const [openNgay, setOpenNgay] = useState(null);
   const dsKV = useMemo(() => [...new Set((rows || []).map((r) => r.khu_vuc).filter(Boolean))].sort(), [rows]);
+  const loc = (ds) => (ds || []).filter((r) => (kv === 'ALL' || r.khu_vuc === kv) && (nhom === 'ALL' || String(r.nhom_ch) === nhom));
 
-  // Lọc theoNgay theo kv/nhom
-  const loc = (ds) => (ds || []).filter((r) =>
-    (kv === 'ALL' || r.khu_vuc === kv) && (nhom === 'ALL' || String(r.nhom_ch) === nhom));
-
-  // Dựng lưới tuần: từ đầu tuần chứa 'tu' đến hết tuần chứa 'den'
   const tuan = useMemo(() => {
     const start = new Date(tu + 'T00:00:00');
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // về thứ 2
-    const end = new Date(den + 'T00:00:00');
-    const weeks = []; let cur = new Date(start); let guard = 0;
-    while (cur <= end && guard < 12) {
-      const days = [];
-      for (let i = 0; i < 7; i++) { days.push(iso(cur)); cur = new Date(cur.getTime() + 864e5); }
-      weeks.push(days); guard++;
-    }
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    const end = new Date(den + 'T00:00:00'); const weeks = []; let cur = new Date(start); let g = 0;
+    while (cur <= end && g < 14) { const d = []; for (let i = 0; i < 7; i++) { d.push(iso(cur)); cur = new Date(cur.getTime() + 864e5); } weeks.push(d); g++; }
     return weeks;
   }, [tu, den]);
 
   return (
     <>
-      <div className="card" style={{ marginTop: 14, padding: 14 }}>
+      <div className="card" style={{ marginTop: 14, padding: 16 }}>
         <div className="lich2-toolbar">
           <div className="lich2-toolbar-l">
             <DateBox label="Từ" value={tu} onChange={setTu} />
@@ -234,38 +111,30 @@ function TabLich({ theoNgay, homNay, tu, den, setTu, setDen, toggleO, suaDuoc, r
           </div>
         </div>
 
-        {/* Header thứ */}
         <div className="cal-head">
           {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((t, i) => (
             <div key={t} className={'cal-head-c' + (i >= 5 ? ' cuoi' : '')}>{t}</div>
           ))}
         </div>
-        {/* Lưới tuần */}
         <div className="cal-grid">
-          {tuan.map((week, wi) => week.map((n) => {
-            const d = dow(n);
-            const cuoiTuan = d === 0 || d === 6;
-            const ds = loc(theoNgay[n]);
-            const chuaGui = ds.filter((r) => !r.daGui).length;
+          {tuan.map((week) => week.map((n) => {
+            const d = dow(n); const cuoiTuan = d === 0 || d === 6;
+            const ds = loc(theoNgay[n]); const gui = ds.filter((r) => r.daGui).length;
             const inRange = n >= tu && n <= den;
             return (
-              <div key={n} className={'cal-cell' + (n === homNay ? ' homnay' : '') + (cuoiTuan ? ' cuoi' : '') + (!inRange ? ' mo' : '')}
-                onClick={() => ds.length && setChiTiet({ ngay: n, ds })}
-                style={{ cursor: ds.length ? 'pointer' : 'default' }}>
+              <div key={n} className={'cal-cell' + (n === homNay ? ' homnay' : '') + (cuoiTuan ? ' cuoi' : '') + (!inRange ? ' mo' : '') + (ds.length ? ' co' : '')}
+                onClick={() => ds.length && setOpenNgay(n)}>
                 <div className="cal-cell-top">
-                  <span className="cal-cell-day">{n.slice(8, 10)}/{n.slice(5, 7)}</span>
+                  <span className="cal-cell-day">{n.slice(8, 10)}<span className="cal-cell-mm">/{n.slice(5, 7)}</span></span>
                   {n === homNay && <span className="cal-today-tag">hôm nay</span>}
                 </div>
                 {ds.length > 0 && (
                   <div className="cal-cell-body">
-                    <div className={'cal-count' + (chuaGui ? ' warn' : ' ok')}>{ds.length}</div>
+                    <div className="cal-frac"><b>{gui}</b><span>/{ds.length}</span></div>
                     <div className="cal-nhom">
-                      {[1, 2, 3].map((nn) => {
-                        const c = ds.filter((r) => r.nhom_ch === nn).length;
-                        return c ? <span key={nn} className={'cal-nhom-dot n' + nn} title={'N' + nn + ': ' + c}>{c}</span> : null;
-                      })}
+                      {[1, 2, 3].map((nn) => { const c = ds.filter((r) => r.nhom_ch === nn).length;
+                        return c ? <span key={nn} className={'cal-nhom-dot n' + nn} title={'N' + nn + ': ' + c}>{c}</span> : null; })}
                     </div>
-                    {chuaGui > 0 && n <= homNay && <div className="cal-warn">{chuaGui} chưa gửi</div>}
                   </div>
                 )}
               </div>
@@ -273,71 +142,76 @@ function TabLich({ theoNgay, homNay, tu, den, setTu, setDen, toggleO, suaDuoc, r
           }))}
         </div>
         <div className="cal-legend">
-          <span><i className="cal-dot n1" />N1</span>
-          <span><i className="cal-dot n2" />N2</span>
-          <span><i className="cal-dot n3" />N3</span>
-          <span style={{ marginLeft: 'auto', color: 'var(--ink-2)' }}>Bấm ngày để xem chi tiết{suaDuoc ? ' & sửa lịch' : ''}</span>
+          <span><i className="cal-dot n1" />N1</span><span><i className="cal-dot n2" />N2</span><span><i className="cal-dot n3" />N3</span>
+          <span style={{ marginLeft: 16, color: 'var(--ink-2)' }}><b style={{ color: 'var(--teal-deep)' }}>số xanh</b> = đã gửi / tổng lịch ngày đó</span>
+          <span style={{ marginLeft: 'auto', color: 'var(--ink-2)' }}>Bấm ngày để xem chi tiết{suaDuoc ? ' · chuyển · thêm/bỏ' : ''}</span>
         </div>
       </div>
 
-      {chiTiet && <NgayModal chiTiet={chiTiet} homNay={homNay} onClose={() => setChiTiet(null)}
-        toggleO={toggleO} suaDuoc={suaDuoc} rows={rows} />}
+      {openNgay && (
+        <NgayModal ngay={openNgay} theoNgay={theoNgay} loc={loc} homNay={homNay} rows={rows}
+          onClose={() => setOpenNgay(null)} onNav={(delta) => setOpenNgay((n) => themNgay(n, delta))}
+          toggleO={toggleO} chuyenO={chuyenO} suaDuoc={suaDuoc} />
+      )}
     </>
   );
 }
 
-// Modal chi tiết 1 ngày + thêm/bỏ CH
-function NgayModal({ chiTiet, homNay, onClose, toggleO, suaDuoc, rows }) {
-  const { ngay, ds } = chiTiet;
+function NgayModal({ ngay, theoNgay, loc, homNay, rows, onClose, onNav, toggleO, chuyenO, suaDuoc }) {
+  const ds = loc(theoNgay[ngay]).sort((a, b) => a.nhom_ch - b.nhom_ch);
   const [them, setThem] = useState(false);
-  const coRoi = new Set(ds.map((r) => r.ma_ch));
-  const conLai = (rows || []).filter((r) => !coRoi.has(r.ma_ch));
   const [q, setQ] = useState('');
-  const locConLai = conLai.filter((r) => !q || (r.ten + r.ma_ch).toLowerCase().includes(q.toLowerCase())).slice(0, 30);
+  const [chuyen, setChuyen] = useState(null);   // ma_ch đang chọn ngày chuyển
+  const coRoi = new Set(ds.map((r) => r.ma_ch));
+  const conLai = (rows || []).filter((r) => !coRoi.has(r.ma_ch) && (!q || (r.ten + r.ma_ch).toLowerCase().includes(q.toLowerCase()))).slice(0, 40);
+  const gui = ds.filter((r) => r.daGui).length;
 
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal lich2-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <div>
+          <button className="cal-nav" onClick={() => onNav(-1)} title="Ngày trước">‹</button>
+          <div style={{ textAlign: 'center', flex: 1 }}>
             <div style={{ fontWeight: 800, fontSize: 16 }}>{THU_DAY[dow(ngay)]}, {fmtDM(ngay)}</div>
-            <div style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>{ds.length} nơi bán theo lịch</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>{gui}/{ds.length} đã gửi · {ds.length} theo lịch</div>
           </div>
-          <button className="modal-x" onClick={onClose}>✕</button>
+          <button className="cal-nav" onClick={() => onNav(1)} title="Ngày sau">›</button>
+          <button className="modal-x" onClick={onClose} style={{ marginLeft: 8 }}>✕</button>
         </div>
-        <div className="modal-body" style={{ maxHeight: '60vh', overflow: 'auto' }}>
+        <div className="modal-body" style={{ maxHeight: '62vh', overflow: 'auto' }}>
           <div className="lich2-list">
-            {ds.sort((a, b) => a.nhom_ch - b.nhom_ch).map((r) => (
+            {ds.map((r) => (
               <div key={r.ma_ch} className={'lich2-item' + (r.daGui ? ' ok' : ngay < homNay ? ' warn' : '')}>
                 <span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span>
-                <div className="lich2-item-ten">
-                  <div>{r.ten}</div>
-                  <div className="lich2-item-sub">{r.ma_ch} · {r.khu_vuc}</div>
-                </div>
-                {r.daGui ? <span className="lich2-tick">✓ đã gửi</span>
-                  : ngay < homNay ? <span className="lich2-x">✕ bỏ lỡ</span> : null}
-                {suaDuoc && <button className="btn-mini btn-danger" onClick={() => { toggleO(r.ma_ch, ngay, true); onClose(); }}>Bỏ</button>}
+                <div className="lich2-item-ten"><div>{r.ten}</div><div className="lich2-item-sub">{r.ma_ch} · {r.khu_vuc}</div></div>
+                {r.daGui ? <span className="lich2-tick">✓ đã gửi</span> : ngay < homNay ? <span className="lich2-x">✕ bỏ lỡ</span> : null}
+                {suaDuoc && (chuyen === r.ma_ch
+                  ? <span className="lich2-chuyen-wrap" onClick={(e) => e.stopPropagation()}>
+                      <DateBox value={ngay} onChange={(nv) => { chuyenO(r.ma_ch, ngay, nv); setChuyen(null); }} />
+                      <button className="btn btn-ghost btn-xs" onClick={() => setChuyen(null)}>Hủy</button>
+                    </span>
+                  : <span style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-ghost btn-xs" onClick={() => setChuyen(r.ma_ch)}>Chuyển</button>
+                      <button className="btn btn-danger btn-xs" onClick={() => toggleO(r.ma_ch, ngay, true)}>Bỏ</button>
+                    </span>)}
               </div>
             ))}
+            {ds.length === 0 && <div className="lich2-empty">Ngày này chưa có cửa hàng nào.</div>}
           </div>
           {suaDuoc && (
             <div style={{ marginTop: 14 }}>
-              {!them ? (
-                <button className="btn-ghost" onClick={() => setThem(true)}>+ Thêm cửa hàng vào ngày này</button>
-              ) : (
-                <div>
-                  <input className="inp" autoFocus placeholder="Tìm cửa hàng để thêm…" value={q}
-                    onChange={(e) => setQ(e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
-                  <div className="lich2-add-list">
-                    {locConLai.map((r) => (
-                      <button key={r.ma_ch} className="lich2-add-item" onClick={() => { toggleO(r.ma_ch, ngay, false); onClose(); }}>
-                        <span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span> {r.ten}
-                        <span className="lich2-item-sub" style={{ marginLeft: 'auto' }}>{r.ma_ch}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {!them ? <button className="btn btn-teal btn-sm" onClick={() => setThem(true)}>+ Thêm cửa hàng vào ngày này</button>
+                : <>
+                    <input className="inp" autoFocus placeholder="Tìm cửa hàng để thêm…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: '100%', marginBottom: 8 }} />
+                    <div className="lich2-add-list">
+                      {conLai.map((r) => (
+                        <button key={r.ma_ch} className="lich2-add-item" onClick={() => toggleO(r.ma_ch, ngay, false)}>
+                          <span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span> {r.ten}
+                          <span className="lich2-item-sub" style={{ marginLeft: 'auto' }}>{r.ma_ch}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>}
             </div>
           )}
         </div>
@@ -346,80 +220,67 @@ function NgayModal({ chiTiet, homNay, onClose, toggleO, suaDuoc, rows }) {
   );
 }
 
-// ============ TAB TUÂN THỦ — thẻ lọc + bảng ============
+// ============ TUÂN THỦ ============
 function TabTuanThu({ tu, den, setTu, setDen }) {
   const { baoToast } = useApp();
   const [rows, setRows] = useState(null);
-  const [loc, setLoc] = useState('ALL');   // ALL | LO | NGOAI | TOT
+  const [loc, setLoc] = useState('ALL');
   const [sortC, setSortC] = useState({ col: 'pct', dir: 'asc' });
-
   useEffect(() => { (async () => {
     const { data, error } = await rpcHet('fn_lich_tuanthu', { p_tu: tu, p_den: den });
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    setRows(data || []);
+    if (error) { baoToast('Lỗi: ' + error.message); return; } setRows(data || []);
   })(); }, [tu, den]);
 
-  const tk = useMemo(() => {
-    const v = rows || [];
-    return {
-      tongLich: v.reduce((s, r) => s + (r.so_lich || 0), 0),
-      dung: v.reduce((s, r) => s + (r.dung_lich || 0), 0),
-      lo: v.reduce((s, r) => s + (r.bo_lo || 0), 0),
-      ngoai: v.reduce((s, r) => s + (r.ngoai_lich || 0), 0),
-    };
-  }, [rows]);
-
+  const tk = useMemo(() => { const v = rows || []; return {
+    tongLich: v.reduce((s, r) => s + (r.so_lich || 0), 0), dung: v.reduce((s, r) => s + (r.dung_lich || 0), 0),
+    lo: v.reduce((s, r) => s + (r.bo_lo || 0), 0), ngoai: v.reduce((s, r) => s + (r.ngoai_lich || 0), 0),
+    tot: v.filter((r) => r.pct != null && r.pct >= 80).length }; }, [rows]);
   const hien = useMemo(() => {
     let v = [...(rows || [])];
     if (loc === 'LO') v = v.filter((r) => r.bo_lo > 0);
     else if (loc === 'NGOAI') v = v.filter((r) => r.ngoai_lich > 0);
     else if (loc === 'TOT') v = v.filter((r) => r.pct != null && r.pct >= 80);
-    const get = { ten: (r) => r.ten, nhom: (r) => r.nhom_ch, lich: (r) => r.so_lich,
-      dung: (r) => r.dung_lich, lo: (r) => r.bo_lo, ngoai: (r) => r.ngoai_lich, pct: (r) => r.pct ?? -1 }[sortC.col];
-    v.sort((a, b) => { const x = get(a), y = get(b); const c = typeof x === 'string' ? x.localeCompare(y) : x - y; return sortC.dir === 'asc' ? c : -c; });
+    const g = { ten: (r) => r.ten, nhom: (r) => r.nhom_ch, lich: (r) => r.so_lich, dung: (r) => r.dung_lich,
+      lo: (r) => r.bo_lo, ngoai: (r) => r.ngoai_lich, pct: (r) => r.pct ?? -1 }[sortC.col];
+    v.sort((a, b) => { const x = g(a), y = g(b); const c = typeof x === 'string' ? x.localeCompare(y) : x - y; return sortC.dir === 'asc' ? c : -c; });
     return v;
   }, [rows, loc, sortC]);
-  const doiSort = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
+  const ds = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
   const ic = (c) => sortC.col === c ? (sortC.dir === 'asc' ? ' ▲' : ' ▼') : '';
-
-  const The = ({ id, so, ten, mau }) => (
-    <button className={'lich2-kpi' + (loc === id ? ' on' : '')} onClick={() => setLoc(id)}>
-      <div className="lich2-kpi-so" style={{ color: mau }}>{so}</div>
-      <div className="lich2-kpi-ten">{ten}</div>
+  const The = ({ id, n, t }) => (
+    <button className={'the-g' + (loc === id ? ' on' : '')} onClick={() => setLoc(id)}>
+      <span className="the-g-n">{n}</span><span className="the-g-t">{t}</span>
     </button>
   );
 
   return (
     <>
-      <div className="card" style={{ marginTop: 14, padding: 14, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <DateBox label="Từ" value={tu} onChange={setTu} />
-        <DateBox label="Đến" value={den} onChange={setDen} />
-        <span style={{ color: 'var(--ink-2)', fontSize: 12.5 }}>Bấm thẻ để lọc bảng bên dưới</span>
+      <div className="card" style={{ marginTop: 14, padding: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <DateBox label="Từ" value={tu} onChange={setTu} /><DateBox label="Đến" value={den} onChange={setDen} />
+        <span style={{ color: 'var(--ink-2)', fontSize: 12 }}>Bấm thẻ để lọc bảng</span>
       </div>
-      <div className="lich2-kpis">
-        <The id="ALL" so={`${tk.dung}/${tk.tongLich}`} ten="Gửi đúng lịch" mau="var(--teal-deep)" />
-        <The id="LO" so={tk.lo} ten="Bỏ lỡ (quá ngày chưa gửi)" mau="var(--magenta)" />
-        <The id="NGOAI" so={tk.ngoai} ten="Gửi ngoài lịch" mau="#b98f2e" />
-        <The id="TOT" so={(rows || []).filter((r) => r.pct != null && r.pct >= 80).length} ten="Nơi bán tuân thủ tốt (≥80%)" mau="var(--teal-deep)" />
+      <div className="the-hang" style={{ marginTop: 12 }}>
+        <The id="ALL" n={`${tk.dung}/${tk.tongLich}`} t="Gửi đúng lịch" />
+        <The id="LO" n={tk.lo} t="Bỏ lỡ (quá ngày)" />
+        <The id="NGOAI" n={tk.ngoai} t="Gửi ngoài lịch" />
+        <The id="TOT" n={tk.tot} t="Tuân thủ tốt (≥80%)" />
       </div>
-
       <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
         <div className="tbl-wrap" style={{ maxHeight: '56vh', overflow: 'auto' }}>
           <table className="tbl tbl-fit">
             <thead><tr>
-              <th className="sortable" onClick={() => doiSort('ten')}>Cửa hàng{ic('ten')}</th>
-              <th className="center sortable" onClick={() => doiSort('nhom')}>Nhóm{ic('nhom')}</th>
-              <th className="num sortable" onClick={() => doiSort('lich')}>Số lịch{ic('lich')}</th>
-              <th className="num sortable" onClick={() => doiSort('dung')}>Đúng{ic('dung')}</th>
-              <th className="num sortable" onClick={() => doiSort('lo')}>Bỏ lỡ{ic('lo')}</th>
-              <th className="num sortable" onClick={() => doiSort('ngoai')}>Ngoài lịch{ic('ngoai')}</th>
-              <th className="num sortable" onClick={() => doiSort('pct')}>Tuân thủ{ic('pct')}</th>
+              <th className="sortable" onClick={() => ds('ten')}>Cửa hàng{ic('ten')}</th>
+              <th className="center sortable" onClick={() => ds('nhom')}>Nhóm{ic('nhom')}</th>
+              <th className="num sortable" onClick={() => ds('lich')}>Số lịch{ic('lich')}</th>
+              <th className="num sortable" onClick={() => ds('dung')}>Đúng{ic('dung')}</th>
+              <th className="num sortable" onClick={() => ds('lo')}>Bỏ lỡ{ic('lo')}</th>
+              <th className="num sortable" onClick={() => ds('ngoai')}>Ngoài lịch{ic('ngoai')}</th>
+              <th className="num sortable" onClick={() => ds('pct')}>Tuân thủ{ic('pct')}</th>
             </tr></thead>
             <tbody>
               {hien.map((r) => (
                 <tr key={r.ma_ch} className={r.bo_lo > 0 ? 'row-lo' : ''}>
-                  <td><div style={{ fontWeight: 600 }}>{r.ten}</div>
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}</div></td>
+                  <td><div style={{ fontWeight: 600 }}>{r.ten}</div><div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}</div></td>
                   <td className="center"><span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span></td>
                   <td className="num">{r.so_lich}</td>
                   <td className="num" style={{ color: 'var(--teal-deep)', fontWeight: 700 }}>{r.dung_lich}</td>
@@ -428,7 +289,92 @@ function TabTuanThu({ tu, den, setTu, setDen }) {
                   <td className="num"><PctBar pct={r.pct} /></td>
                 </tr>
               ))}
-              {hien.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--ink-2)' }}>Không có dữ liệu khớp bộ lọc.</td></tr>}
+              {hien.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--ink-2)' }}>Không có dữ liệu.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+function PctBar({ pct }) {
+  if (pct == null) return <span style={{ color: 'var(--ink-2)' }}>—</span>;
+  const m = pct >= 80 ? 'var(--teal-deep)' : pct >= 50 ? 'var(--gold)' : 'var(--magenta)';
+  return <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+    <div style={{ width: 46, height: 6, borderRadius: 4, background: 'var(--line)', overflow: 'hidden' }}><div style={{ width: pct + '%', height: '100%', background: m }} /></div>
+    <b style={{ color: m, minWidth: 34, textAlign: 'right' }}>{pct}%</b></div>;
+}
+
+// ============ DATA NHÓM ============
+function TabNhom({ tu, den, taiLai }) {
+  const { user, baoToast } = useApp();
+  const [rows, setRows] = useState(null);
+  const [q, setQ] = useState(''); const [nhom, setNhom] = useState('ALL'); const [kv, setKv] = useState('ALL');
+  const [sortC, setSortC] = useState({ col: 'nhom', dir: 'asc' });
+  const tai = async () => {
+    const { data, error } = await rpcHet('fn_ds_nhom_ch', { p_tu: tu, p_den: den });
+    if (error) { baoToast('Lỗi: ' + error.message); return; } setRows(data || []);
+  };
+  useEffect(() => { tai(); }, [tu, den]);
+  const doiNhom = async (ma_ch, n) => {
+    const { error } = await sb.rpc('fn_sua_nhom_ch', { p_token: user.token, p_ma_ch: ma_ch, p_nhom: n });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    setRows((rs) => rs.map((r) => r.ma_ch === ma_ch ? { ...r, nhom_ch: n } : r));
+    baoToast(`${ma_ch} → Nhóm ${n}`); taiLai && taiLai();
+  };
+  const dsKV = useMemo(() => [...new Set((rows || []).map((r) => r.khu_vuc).filter(Boolean))].sort(), [rows]);
+  const hien = useMemo(() => {
+    let v = [...(rows || [])];
+    if (nhom !== 'ALL') v = v.filter((r) => String(r.nhom_ch) === nhom);
+    if (kv !== 'ALL') v = v.filter((r) => r.khu_vuc === kv);
+    if (q.trim()) v = v.filter((r) => (r.ten + r.ma_ch).toLowerCase().includes(q.toLowerCase()));
+    const g = { ten: (r) => r.ten, nhom: (r) => r.nhom_ch, lich: (r) => r.so_lich_ky, ban: (r) => Number(r.ban_30) }[sortC.col];
+    v.sort((a, b) => { const x = g(a), y = g(b); const c = typeof x === 'string' ? x.localeCompare(y) : x - y; return sortC.dir === 'asc' ? c : -c; });
+    return v;
+  }, [rows, nhom, kv, q, sortC]);
+  const ds = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
+  const ic = (c) => sortC.col === c ? (sortC.dir === 'asc' ? ' ▲' : ' ▼') : '';
+  const chuaLich = (rows || []).filter((r) => r.so_lich_ky === 0).length;
+
+  return (
+    <>
+      <div className="card" style={{ marginTop: 14, padding: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="seg sm">
+          {[['ALL', 'Tất cả'], ['1', 'N1'], ['2', 'N2'], ['3', 'N3']].map(([v, t]) => (
+            <button key={v} className={'seg-btn' + (nhom === v ? ' on' : '')} onClick={() => setNhom(v)}>{t}</button>
+          ))}
+        </div>
+        <Sel value={kv} onChange={setKv} placeholder="Khu vực" options={[{ value: 'ALL', label: 'Mọi khu vực' }, ...dsKV.map((k) => ({ value: k, label: k }))]} style={{ minWidth: 180 }} />
+        <input className="inp" placeholder="Tìm cửa hàng…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 200 }} />
+        <span className="sla-chip">{hien.length} nơi bán</span>
+        {chuaLich > 0 && <span className="sla-chip" style={{ background: 'rgba(214,0,108,.1)', color: 'var(--magenta)' }}>{chuaLich} chưa có lịch kỳ này</span>}
+      </div>
+      <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
+        <div className="tbl-wrap" style={{ maxHeight: '60vh', overflow: 'auto' }}>
+          <table className="tbl tbl-fit">
+            <thead><tr>
+              <th className="sortable" onClick={() => ds('ten')}>Cửa hàng{ic('ten')}</th>
+              <th className="center">Đổi nhóm</th>
+              <th className="num sortable" onClick={() => ds('ban')}>Bán 30 ngày{ic('ban')}</th>
+              <th className="num sortable" onClick={() => ds('lich')}>Lịch kỳ này{ic('lich')}</th>
+            </tr></thead>
+            <tbody>
+              {hien.map((r) => (
+                <tr key={r.ma_ch}>
+                  <td><div style={{ fontWeight: 600 }}>{r.ten}</div><div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}</div></td>
+                  <td className="center">
+                    <div className="seg sm" style={{ display: 'inline-flex' }}>
+                      {[1, 2, 3].map((n) => (
+                        <button key={n} className={'seg-btn' + (r.nhom_ch === n ? ' on' : '')} style={{ padding: '4px 10px' }} onClick={() => doiNhom(r.ma_ch, n)}>N{n}</button>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="num">{Number(r.ban_30).toLocaleString('vi')}</td>
+                  <td className="num">{r.so_lich_ky === 0
+                    ? <span style={{ color: 'var(--magenta)', fontWeight: 700 }}>chưa có</span>
+                    : <span style={{ color: 'var(--teal-deep)', fontWeight: 700 }}>{r.so_lich_ky}</span>}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -437,112 +383,120 @@ function TabTuanThu({ tu, den, setTu, setDen }) {
   );
 }
 
-function PctBar({ pct }) {
-  if (pct == null) return <span style={{ color: 'var(--ink-2)' }}>—</span>;
-  const mau = pct >= 80 ? 'var(--teal-deep)' : pct >= 50 ? '#b98f2e' : 'var(--magenta)';
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-      <div style={{ width: 46, height: 6, borderRadius: 4, background: 'var(--line)', overflow: 'hidden' }}>
-        <div style={{ width: pct + '%', height: '100%', background: mau }} />
-      </div>
-      <b style={{ color: mau, minWidth: 34, textAlign: 'right' }}>{pct}%</b>
-    </div>
-  );
-}
-
-// ============ TAB CẤU HÌNH — nhập / sinh lịch ============
-function TabCauHinh({ tu, den, setTu, setDen, taiLai }) {
+// ============ LỊCH TỰ ĐỘNG ============
+function TabAuto({ rows, homNay, taiLai }) {
   const { user, baoToast } = useApp();
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef(null);
+  // Kỳ sinh mặc định: bắt đầu SAU ngày lịch cuối cùng hiện có
+  const ngayCuoi = useMemo(() => {
+    let mx = null; (rows || []).forEach((r) => (r.ngay_lich || []).forEach((n) => { if (!mx || n > mx) mx = n; }));
+    return mx;
+  }, [rows]);
+  const [gtu, setGtu] = useState('');
+  const [gden, setGden] = useState('');
+  useEffect(() => {
+    const start = ngayCuoi ? themNgay(ngayCuoi, 1) : homNay;
+    setGtu(start); setGden(themNgay(start, 30));
+  }, [ngayCuoi, homNay]);
+
+  // Rà soát: bao nhiêu CH đã có lịch trong kỳ sinh, bao nhiêu chưa
+  const raSoat = useMemo(() => {
+    const v = rows || []; if (!gtu || !gden) return { co: 0, chua: 0, tong: v.length };
+    let co = 0;
+    v.forEach((r) => { if ((r.ngay_lich || []).some((n) => n >= gtu && n <= gden)) co++; });
+    return { co, chua: v.length - co, tong: v.length };
+  }, [rows, gtu, gden]);
 
   const docFile = async (file) => {
-    if (!file) return;
-    setBusy(true);
+    if (!file) return; setBusy(true);
     try {
       const XLSX = await import('xlsx');
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const all = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      const hdr = all[0] || [];
-      const colNgay = [];
+      const all = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+      const hdr = all[0] || []; const colNgay = [];
       hdr.forEach((h, i) => { const m = String(h || '').trim().match(/^(\d{1,2})\/(\d{1,2})$/); if (m) colNgay.push({ idx: i, dd: +m[1], mm: +m[2] }); });
       if (!colNgay.length) { baoToast('Không thấy cột ngày dd/mm ở dòng 1'); setBusy(false); return; }
-      let nam = +tu.slice(0, 4), truoc = colNgay[0].mm;
+      let nam = +(gtu || homNay).slice(0, 4), truoc = colNgay[0].mm;
       const ngayCua = colNgay.map((c) => { if (c.mm < truoc) nam++; truoc = c.mm; return { idx: c.idx, iso: `${nam}-${String(c.mm).padStart(2, '0')}-${String(c.dd).padStart(2, '0')}` }; });
       const { data: dsCH } = await sb.from('cua_hang').select('ma_ch, ten').or('ma_ch.like.CH%,ma_ch.like.DB%');
       const map = {}; (dsCH || []).forEach((c) => { map[c.ten.trim().toUpperCase()] = c.ma_ch; });
-      const out = [], khongKhop = [];
-      for (let i = 1; i < all.length; i++) {
-        const r = all[i]; const ten = String(r?.[1] || '').trim(); if (!ten) continue;
-        const ma = map[ten.toUpperCase()];
-        if (!ma) { if (String(r?.[0] || '').match(/^\d+$/)) khongKhop.push(ten); continue; }
-        ngayCua.forEach(({ idx, iso: is }) => { if (String(r[idx] || '').trim().toLowerCase() === 'x') out.push({ ma_ch: ma, ngay: is }); });
-      }
+      const out = [], kk = [];
+      for (let i = 1; i < all.length; i++) { const r = all[i]; const ten = String(r?.[1] || '').trim(); if (!ten) continue;
+        const ma = map[ten.toUpperCase()]; if (!ma) { if (String(r?.[0] || '').match(/^\d+$/)) kk.push(ten); continue; }
+        ngayCua.forEach(({ idx, iso: is }) => { if (String(r[idx] || '').trim().toLowerCase() === 'x') out.push({ ma_ch: ma, ngay: is }); }); }
       const cac = out.map((o) => o.ngay).sort();
-      setPreview({ rows: out, khongKhop, tuF: cac[0], denF: cac[cac.length - 1], soCH: new Set(out.map((o) => o.ma_ch)).size });
+      setPreview({ rows: out, kk, tuF: cac[0], denF: cac[cac.length - 1], soCH: new Set(out.map((o) => o.ma_ch)).size });
     } catch (e) { baoToast('Lỗi đọc file: ' + e.message); }
     setBusy(false); if (fileRef.current) fileRef.current.value = '';
   };
-
-  const ghi = async () => {
-    if (!preview?.rows?.length) return; setBusy(true);
+  const ghi = async () => { if (!preview?.rows?.length) return; setBusy(true);
     const { data, error } = await sb.rpc('fn_lich_import', { p_token: user.token, p_tu: preview.tuF, p_den: preview.denF, p_rows: preview.rows });
-    setBusy(false);
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã nhập ${data?.them_moi} ngày-lịch (thay ${data?.xoa_cu} dòng cũ)`); setPreview(null); taiLai();
-  };
-  const sinhTiep = async () => {
-    setBusy(true);
-    const { data, error } = await sb.rpc('fn_lich_sinh_tiep', { p_token: user.token, p_tu: tu, p_den: den });
-    setBusy(false);
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã sinh ${data?.so_ngay_sinh} ngày-lịch cho ${data?.so_ch} nơi bán`); taiLai();
-  };
+    setBusy(false); if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã nhập ${data?.them_moi} ngày-lịch`); setPreview(null); taiLai(); };
+  const sinh = async () => { setBusy(true);
+    const { data, error } = await sb.rpc('fn_lich_sinh_tiep', { p_token: user.token, p_tu: gtu, p_den: gden });
+    setBusy(false); if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã sinh ${data?.so_ngay_sinh} ngày-lịch cho ${data?.so_ch} nơi bán`); taiLai(); };
   const taiMau = async () => {
     const XLSX = await import('xlsx');
-    const { data } = await rpcHet('fn_lich_matran', { p_tu: tu, p_den: den });
-    const dsN = []; let d = new Date(tu + 'T00:00:00'); const e = new Date(den + 'T00:00:00');
+    const dsN = []; let d = new Date((gtu || homNay) + 'T00:00:00'); const e = new Date((gden || homNay) + 'T00:00:00');
     while (d <= e) { dsN.push(iso(d)); d = new Date(d.getTime() + 864e5); }
     const hdr = ['STT', 'TÊN CỬA HÀNG', 'KHU VỰC', 'NHÓM', ...dsN.map(fmtDM), 'TỔNG/CH'];
-    const rowsX = (data || []).map((r, i) => { const l = new Set(r.ngay_lich || []); const cells = dsN.map((n) => l.has(n) ? 'x' : ''); return [i + 1, r.ten, r.khu_vuc, 'N' + r.nhom_ch, ...cells, cells.filter(Boolean).length]; });
+    const rowsX = (rows || []).map((r, i) => { const l = new Set(r.ngay_lich || []); const cells = dsN.map((n) => l.has(n) ? 'x' : ''); return [i + 1, r.ten, r.khu_vuc, 'N' + r.nhom_ch, ...cells, cells.filter(Boolean).length]; });
     const ws = XLSX.utils.aoa_to_sheet([hdr, ...rowsX]); const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Ma trận theo ngày'); XLSX.writeFile(wb, `LICH_${tu}_${den}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Ma trận theo ngày'); XLSX.writeFile(wb, `LICH_${gtu}_${gden}.xlsx`);
   };
 
-  const Card = ({ tit, mo, children }) => (
-    <div className="card lich2-cfg">
-      <div className="lich2-cfg-tit">{tit}</div>
-      <div className="lich2-cfg-mo">{mo}</div>
-      {children}
-    </div>
-  );
-
   return (
-    <div className="lich2-cfg-grid">
-      <Card tit="⇪ Nhập lịch từ file Excel" mo="Dòng 1 có các cột ngày dd/mm, cột B là tên cửa hàng, đánh x vào ngày có lịch. Nhập kỳ mới thay toàn bộ lịch trong khoảng ngày của file.">
-        <label className="btn-primary lich2-btn" style={{ cursor: 'pointer' }}>
-          Chọn file Excel
-          <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => docFile(e.target.files?.[0])} />
-        </label>
-        {preview && (
-          <div className="lich2-preview">
-            <div><b>{preview.soCH}</b> nơi bán · <b>{preview.rows.length}</b> ngày-lịch · {fmtDM(preview.tuF)}–{fmtDM(preview.denF)}</div>
-            {preview.khongKhop.length > 0 && <div style={{ color: 'var(--magenta)', marginTop: 5, fontSize: 12 }}>⚠ {preview.khongKhop.length} tên không khớp: {preview.khongKhop.slice(0, 4).join(', ')}…</div>}
-            <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-              <button className="btn-primary lich2-btn" onClick={ghi} disabled={busy}>Ghi vào hệ thống</button>
-              <button className="btn-ghost" onClick={() => setPreview(null)}>Hủy</button>
-            </div>
+    <div style={{ marginTop: 14, display: 'grid', gap: 14, gridTemplateColumns: '1.3fr 1fr' }}>
+      {/* SINH LỊCH TỰ ĐỘNG */}
+      <div className="card" style={{ padding: 18 }}>
+        <div className="lich2-cfg-tit">Sinh lịch tự động cho kỳ mới</div>
+        <div className="lich2-cfg-mo">
+          Chọn khoảng ngày <b>chưa có lịch</b> để hệ thống sinh tiếp: N1/N2 giữ đúng thứ kỳ trước, N3 tiếp chu kỳ ~11 ngày, tự né T7 &amp; CN, không đè ngày đã có.
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '4px 0 14px', flexWrap: 'wrap' }}>
+          <DateBox label="Sinh từ" value={gtu} onChange={setGtu} />
+          <DateBox label="Đến" value={gden} onChange={setGden} />
+          {ngayCuoi && <span style={{ fontSize: 11.5, color: 'var(--ink-2)' }}>Lịch hiện có tới {fmtDM(ngayCuoi)}</span>}
+        </div>
+        {/* Rà soát trực quan */}
+        <div className="auto-rasoat">
+          <div className="auto-ra-o"><div className="auto-ra-n" style={{ color: 'var(--teal-deep)' }}>{raSoat.co}</div><div className="auto-ra-t">đã có lịch trong kỳ</div></div>
+          <div className="auto-ra-o"><div className="auto-ra-n" style={{ color: raSoat.chua ? 'var(--magenta)' : 'var(--teal-deep)' }}>{raSoat.chua}</div><div className="auto-ra-t">chưa có lịch trong kỳ</div></div>
+          <div className="auto-ra-o"><div className="auto-ra-n">{raSoat.tong}</div><div className="auto-ra-t">tổng nơi bán</div></div>
+        </div>
+        <button className="btn btn-teal" onClick={sinh} disabled={busy || !gtu || !gden} style={{ marginTop: 14 }}>
+          Sinh lịch {gtu && fmtDM(gtu)} → {gden && fmtDM(gden)}
+        </button>
+      </div>
+
+      {/* NHẬP / TẢI */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="card" style={{ padding: 18 }}>
+          <div className="lich2-cfg-tit">Nhập lịch từ file Excel</div>
+          <div className="lich2-cfg-mo">Dòng 1 có cột ngày dd/mm, cột B tên cửa hàng, đánh x. Nhập sẽ thay lịch trong khoảng ngày của file.</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <label className="btn btn-teal" style={{ cursor: 'pointer' }}>
+              Chọn file Excel
+              <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => docFile(e.target.files?.[0])} />
+            </label>
+            <button className="btn btn-ghost" onClick={taiMau} disabled={busy}>Tải Excel mẫu / hiện tại</button>
           </div>
-        )}
-      </Card>
-      <Card tit="⚙ Sinh lịch tự động kỳ tiếp" mo={`Sinh cho khoảng ${fmtDM(tu)}–${fmtDM(den)} (chỉnh 2 ô ngày ở tab Lịch tổng) dựa trên kỳ trước: N1/N2 giữ đúng thứ, N3 tiếp chu kỳ ~11 ngày, tự né T7 & CN, không đè ngày đã có.`}>
-        <button className="btn-primary lich2-btn" onClick={sinhTiep} disabled={busy}>Sinh lịch {fmtDM(tu)} – {fmtDM(den)}</button>
-      </Card>
-      <Card tit="⬇ Tải file mẫu / lịch hiện tại" mo="Xuất ma trận kỳ đang xem ra Excel đúng định dạng nhập — sửa ngoài rồi nhập lại, hoặc làm mẫu trắng.">
-        <button className="btn-ghost lich2-btn" onClick={taiMau} disabled={busy}>Tải Excel kỳ hiện tại</button>
-      </Card>
+          {preview && (
+            <div className="lich2-preview">
+              <div><b>{preview.soCH}</b> nơi bán · <b>{preview.rows.length}</b> ngày-lịch · {fmtDM(preview.tuF)}–{fmtDM(preview.denF)}</div>
+              {preview.kk.length > 0 && <div style={{ color: 'var(--magenta)', marginTop: 5, fontSize: 12 }}>⚠ {preview.kk.length} tên không khớp: {preview.kk.slice(0, 4).join(', ')}…</div>}
+              <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                <button className="btn btn-teal btn-sm" onClick={ghi} disabled={busy}>Ghi vào hệ thống</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setPreview(null)}>Hủy</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
