@@ -62,9 +62,9 @@ export default function Lich() {
         <div className="sub">N1 · 2 lần/tuần — N2 · 1 lần/tuần — N3 · chu kỳ ~11 ngày. Cửa hàng đề nghị hôm trước, kho lấy hôm sau (né T7/CN).</div>
       </div>
 
-      <div className="seg" style={{ marginTop: 14 }}>
+      <div className="nhom-tabs" style={{ marginTop: 14, marginBottom: 0 }}>
         {[['LICH', 'Lịch tổng'], ['TUANTHU', 'Tuân thủ'], ['NHOM', 'Data nhóm'], ['AUTO', 'Lịch tự động']].map(([v, t]) => (
-          <button key={v} className={'seg-btn' + (tab === v ? ' on' : '')} onClick={() => setTab(v)}>{t}</button>
+          <button key={v} className={'nhom-tab' + (tab === v ? ' on' : '')} onClick={() => setTab(v)}>{t}</button>
         ))}
       </div>
 
@@ -101,9 +101,9 @@ function TabLich({ theoNgay, homNay, tu, den, setTu, setDen, toggleO, chuyenO, s
             <DateBox label="Đến" value={den} onChange={setDen} />
           </div>
           <div className="lich2-toolbar-r">
-            <div className="seg sm">
+            <div className="nhom-tabs" style={{ margin: 0 }}>
               {[['ALL', 'Tất cả'], ['1', 'N1'], ['2', 'N2'], ['3', 'N3']].map(([v, t]) => (
-                <button key={v} className={'seg-btn' + (nhom === v ? ' on' : '')} onClick={() => setNhom(v)}>{t}</button>
+                <button key={v} className={'nhom-tab' + (nhom === v ? ' on' : '')} onClick={() => setNhom(v)}>{t}</button>
               ))}
             </div>
             <Sel value={kv} onChange={setKv} placeholder="Khu vực"
@@ -130,7 +130,11 @@ function TabLich({ theoNgay, homNay, tu, den, setTu, setDen, toggleO, chuyenO, s
                 </div>
                 {ds.length > 0 && (
                   <div className="cal-cell-body">
-                    <div className="cal-frac"><b>{gui}</b><span>/{ds.length}</span></div>
+                    {n <= homNay
+                      ? <div className={'cal-frac' + (gui < ds.length && n < homNay ? ' thieu' : '')}>
+                          <b>{gui}</b><span>/{ds.length}</span>
+                        </div>
+                      : <div className="cal-count">{ds.length}</div>}
                     <div className="cal-nhom">
                       {[1, 2, 3].map((nn) => { const c = ds.filter((r) => r.nhom_ch === nn).length;
                         return c ? <span key={nn} className={'cal-nhom-dot n' + nn} title={'N' + nn + ': ' + c}>{c}</span> : null; })}
@@ -339,9 +343,9 @@ function TabNhom({ tu, den, taiLai }) {
   return (
     <>
       <div className="card" style={{ marginTop: 14, padding: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div className="seg sm">
+        <div className="nhom-tabs" style={{ margin: 0 }}>
           {[['ALL', 'Tất cả'], ['1', 'N1'], ['2', 'N2'], ['3', 'N3']].map(([v, t]) => (
-            <button key={v} className={'seg-btn' + (nhom === v ? ' on' : '')} onClick={() => setNhom(v)}>{t}</button>
+            <button key={v} className={'nhom-tab' + (nhom === v ? ' on' : '')} onClick={() => setNhom(v)}>{t}</button>
           ))}
         </div>
         <Sel value={kv} onChange={setKv} placeholder="Khu vực" options={[{ value: 'ALL', label: 'Mọi khu vực' }, ...dsKV.map((k) => ({ value: k, label: k }))]} style={{ minWidth: 180 }} />
@@ -363,9 +367,9 @@ function TabNhom({ tu, den, taiLai }) {
                 <tr key={r.ma_ch}>
                   <td><div style={{ fontWeight: 600 }}>{r.ten}</div><div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}</div></td>
                   <td className="center">
-                    <div className="seg sm" style={{ display: 'inline-flex' }}>
+                    <div className="nhom-tabs" style={{ margin: 0, display: 'inline-flex' }}>
                       {[1, 2, 3].map((n) => (
-                        <button key={n} className={'seg-btn' + (r.nhom_ch === n ? ' on' : '')} style={{ padding: '4px 10px' }} onClick={() => doiNhom(r.ma_ch, n)}>N{n}</button>
+                        <button key={n} className={'nhom-tab' + (r.nhom_ch === n ? ' on' : '')} style={{ height: 30, padding: '0 11px', fontSize: 12 }} onClick={() => doiNhom(r.ma_ch, n)}>N{n}</button>
                       ))}
                     </div>
                   </td>

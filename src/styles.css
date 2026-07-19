@@ -168,7 +168,9 @@ input, select { font-family: inherit; font-size: 14px; }
 
 /* ---------- Ô NGÀY (DateBox) — hiển thị dd/mm/yyyy, bấm cả ô ---------- */
 .datebox { position: relative; display: inline-flex; align-items: center; gap: 7px; background: #fff;
-  border-radius: 10px; padding: 0 12px; height: 40px; cursor: pointer; }
+  border-radius: 10px; padding: 0 12px; height: 40px; cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--line); }
+.datebox:hover { box-shadow: inset 0 0 0 1.5px var(--teal); }
 .datebox-l { font-size: 12px; color: var(--ink-2); font-weight: 600; pointer-events: none; }
 .datebox-txt { font-size: 13px; color: var(--ink); font-weight: 500; min-width: 82px; pointer-events: none; }
 /* input phủ toàn bộ ô, trong suốt — bấm đâu cũng mở lịch */
@@ -692,6 +694,9 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .the-ks-s { font-size: 11px; color: var(--ink-2); margin-top: 3px; }
 
 /* ============ Thẻ kiểm soát GỌN (v3.2.6) — số + nhãn cùng hàng, đồng màu teal ============ */
+.the-hang { display: flex; gap: 10px; flex-wrap: wrap; }
+.the-hang .the-g { min-width: 170px; }
+
 .the-g { flex: 1; display: flex; align-items: center; gap: 10px; text-align: left;
   padding: 12px 14px; border-radius: 12px; border: 0; cursor: pointer;
   background: #F4F6F8; box-shadow: inset 0 0 0 1.5px var(--line); transition: box-shadow .12s; }
@@ -791,15 +796,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .modal-x:hover { background: #e2e6df; color: var(--ink); }
 .modal-body { padding: 16px 18px; }
 
-/* ============ LỊCH ĐỀ NGHỊ (v3.5.8) — đúng rule màu/nút ============ */
-/* Segmented tab — nền teal nhạt, active teal-deep */
-.seg { display: inline-flex; background: #EEF6F5; border-radius: 12px; padding: 4px; gap: 2px; }
-.seg.sm { padding: 3px; border-radius: 10px; }
-.seg-btn { border: 0; background: transparent; padding: 8px 16px; border-radius: 9px; font: inherit;
-  font-weight: 600; font-size: 13px; color: var(--ink-2); cursor: pointer; transition: all .12s; white-space: nowrap; }
-.seg.sm .seg-btn { padding: 5px 11px; font-size: 12px; }
-.seg-btn:hover { color: var(--teal-deep); }
-.seg-btn.on { background: var(--teal); color: #fff; box-shadow: 0 2px 6px rgba(63,182,168,.35); }
+/* ============ LỊCH ĐỀ NGHỊ — đúng rule màu/nút ============ */
 
 .tag-n { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 8px; font-size: 10.5px; font-weight: 700; flex-shrink: 0; }
 .tag-n1 { background: rgba(20,33,58,.09); color: var(--ink); }
@@ -830,9 +827,11 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .cal-cell-mm { font-size: 10px; font-weight: 600; color: var(--ink-2); }
 .cal-today-tag { font-size: 9px; background: var(--teal); color: #fff; padding: 1px 6px; border-radius: 6px; font-weight: 700; }
 .cal-cell-body { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; }
-.cal-frac { font-size: 22px; font-weight: 800; line-height: 1; color: var(--ink); }
+.cal-count { font-size: 24px; font-weight: 800; line-height: 1; color: var(--ink); }
+.cal-frac { font-size: 21px; font-weight: 800; line-height: 1; }
 .cal-frac b { color: var(--teal-deep); }
 .cal-frac span { font-size: 13px; color: var(--ink-2); font-weight: 700; }
+.cal-frac.thieu b { color: var(--magenta); }
 .cal-nhom { display: flex; gap: 3px; }
 .cal-nhom-dot { font-size: 9.5px; font-weight: 700; padding: 0 5px; border-radius: 5px; line-height: 16px; }
 .cal-nhom-dot.n1 { background: rgba(20,33,58,.1); color: var(--ink); }
