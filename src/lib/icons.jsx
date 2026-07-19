@@ -18,3 +18,7 @@ export const IcAlert   = (p) => <I d="M12 3 2 20h20L12 3z M12 10v4 M12 17.5v.01"
 export const IcSearch  = (p) => <I d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M21 21l-4.7-4.7" {...p} />;
 export const IcBox     = (p) => <I d="M21 8 12 3 3 8v8l9 5 9-5V8z M3 8l9 5 9-5 M12 13v8" {...p} />;
 export const IcClock   = (p) => <I d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7v5l3.5 2" {...p} />;
+export const IcTrophy  = (p) => <I d="M8 4h8v6a4 4 0 0 1-8 0V4z M8 5H4v2a4 4 0 0 0 4 4 M16 5h4v2a4 4 0 0 1-4 4 M12 14v4 M8 21h8 M10 18h4" {...p} />;
+export const IcFlash   = (p) => <I d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" {...p} />;
+export const IcTarget  = (p) => <I d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z M12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" {...p} />;
+export const IcHeart   = (p) => <I d="M12 20s-7-4.6-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.4-9 9-9 9z" {...p} />;
