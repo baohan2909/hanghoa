@@ -388,7 +388,7 @@ function NhatKy() {
   const [rows, setRows] = useState(null);
   const [chiTiet, setChiTiet] = useState(null);       // ma_ch đang mở chi tiết
   const [ct, setCt] = useState(null);
-  const [sortC, setSortC] = useState({ col: 'so_luot', dir: 'desc' });
+  const [sortC, setSortC] = useState({ col: 'luot', dir: 'desc' });
   const [chiChoi, setChiChoi] = useState(false);       // lọc chỉ CH đã chơi
 
   const [loi, setLoi] = useState(null);
@@ -420,7 +420,7 @@ function NhatKy() {
     if (chiChoi) v = v.filter((r) => Number(r.so_luot) > 0);
     const g = { ten: (r) => r.ten_ch, luot: (r) => Number(r.so_luot), nguoi: (r) => Number(r.so_nguoi),
       max: (r) => r.diem_max, tb: (r) => Number(r.diem_tb), gan: (r) => r.lan_gan_nhat || '' }[sortC.col];
-    v.sort((a, b) => { const x = g(a), y = g(b); const c = typeof x === 'string' ? x.localeCompare(y) : (x > y ? 1 : x < y ? -1 : 0); return sortC.dir === 'asc' ? c : -c; });
+    if (g) v.sort((a, b) => { const x = g(a), y = g(b); const c = typeof x === 'string' ? x.localeCompare(y) : (x > y ? 1 : x < y ? -1 : 0); return sortC.dir === 'asc' ? c : -c; });
     return v;
   }, [rows, chiChoi, sortC]);
   const ds = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
