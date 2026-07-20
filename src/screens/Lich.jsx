@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { sb, rpcHet } from '../lib/supabase.js';
+import { sb, rpcHet, TRANG_THAI, fmtDT } from '../lib/supabase.js';
 import { DateBox, Sel, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
@@ -63,7 +63,7 @@ export default function Lich() {
       </div>
 
       <div className="nhom-tabs" style={{ marginTop: 14, marginBottom: 0 }}>
-        {[['LICH', 'Lịch tổng'], ['TUANTHU', 'Tuân thủ'], ['NHOM', 'Data nhóm'], ['AUTO', 'Ma trận & Tạo lịch']].map(([v, t]) => (
+        {[['LICH', 'Lịch tổng'], ['TUANTHU', 'Tuân thủ'], ['NHOM', 'Data nhóm'], ['AUTO', 'Ma trận & Tạo lịch'], ['PHIEU', 'Phiếu điều chuyển']].map(([v, t]) => (
           <button key={v} className={'nhom-tab' + (tab === v ? ' on' : '')} onClick={() => setTab(v)}>{t}</button>
         ))}
       </div>
@@ -72,6 +72,7 @@ export default function Lich() {
       {tab === 'TUANTHU' && <TabTuanThu {...{ tu, den, setTu, setDen }} />}
       {tab === 'NHOM' && <TabNhom {...{ tu, den, taiLai: tai }} />}
       {tab === 'AUTO' && <TabAuto {...{ rows, homNay, taiLai: tai }} />}
+      {tab === 'PHIEU' && <TabPhieu />}
     </>
   );
 }
@@ -613,3 +614,152 @@ function TabAuto({ rows, homNay, taiLai }) {
 }
 
 function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; } return h; }
+
+// ============ PHIẾU ĐIỀU CHUYỂN — thống kê mọi phiếu (định kỳ + khẩn cấp) ============
+function TabPhieu() {
+  const { baoToast } = useApp();
+  const [tu, setTu] = useState(iso(new Date(Date.now() - 13 * 864e5)));
+  const [den, setDen] = useState(iso());
+  const [rows, setRows] = useState(null);
+  const [loc, setLoc] = useState('ALL');            // ALL | DINH_KY | KHAN_CAP  (bấm thẻ KPI)
+  const [locCH, setLocCH] = useState('');           // mã CH
+  const [locTT, setLocTT] = useState('');           // trạng thái
+  const [q, setQ] = useState('');                   // tìm: số phiếu / tên CH / người gửi / lý do
+  const [sortC, setSortC] = useState({ col: 'gui', dir: 'desc' });
+
+  useEffect(() => { (async () => {
+    setRows(null);
+    const { data, error } = await rpcHet('fn_phieu_ds', { p_tu: tu, p_den: den });
+    if (error) { baoToast('Lỗi: ' + error.message); setRows([]); return; }
+    setRows(data || []);
+  })(); }, [tu, den]);   // eslint-disable-line
+
+  const dsCH = useMemo(() => {
+    const m = new Map();
+    (rows || []).forEach((r) => m.set(r.ma_ch, r.ten_ch));
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([v, t]) => ({ value: v, label: t }));
+  }, [rows]);
+  const dsTT = useMemo(() => {
+    const co = [...new Set((rows || []).map((r) => r.trang_thai))];
+    return co.map((v) => ({ value: v, label: TRANG_THAI[v] || v }));
+  }, [rows]);
+
+  const tk = useMemo(() => {
+    const v = rows || [];
+    return {
+      tong: v.length,
+      dk: v.filter((r) => r.loai === 'DINH_KY').length,
+      kc: v.filter((r) => r.loai === 'KHAN_CAP').length,
+      sp: v.reduce((s, r) => s + Number(r.tong_xin), 0),
+    };
+  }, [rows]);
+
+  const hien = useMemo(() => {
+    let v = [...(rows || [])];
+    if (loc !== 'ALL') v = v.filter((r) => r.loai === loc);
+    if (locCH) v = v.filter((r) => r.ma_ch === locCH);
+    if (locTT) v = v.filter((r) => r.trang_thai === locTT);
+    if (q.trim()) {
+      const t = q.trim().toLowerCase();
+      v = v.filter((r) => String(r.id).includes(t) || r.ten_ch.toLowerCase().includes(t)
+        || (r.nguoi_gui || '').toLowerCase().includes(t) || (r.ghi_chu || '').toLowerCase().includes(t)
+        || r.ma_ch.toLowerCase().includes(t) || (r.khu_vuc || '').toLowerCase().includes(t));
+    }
+    const g = { id: (r) => Number(r.id), ch: (r) => r.ten_ch, loai: (r) => r.loai,
+      tt: (r) => TRANG_THAI[r.trang_thai] || r.trang_thai, gui: (r) => r.ngay_gui,
+      nguoi: (r) => r.nguoi_gui || '', ma: (r) => Number(r.so_ma),
+      xin: (r) => Number(r.tong_xin), duyet: (r) => Number(r.tong_duyet) }[sortC.col];
+    if (g) v.sort((a, b) => { const x = g(a), y = g(b);
+      const c = typeof x === 'string' ? x.localeCompare(y) : (x > y ? 1 : x < y ? -1 : 0);
+      return sortC.dir === 'asc' ? c : -c; });
+    return v;
+  }, [rows, loc, locCH, locTT, q, sortC]);
+  const ds = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
+  const ic = (c) => sortC.col === c ? (sortC.dir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  const xuat = async () => {
+    const XLSX = await import('xlsx');
+    const hdr = ['Số phiếu', 'Loại', 'Cửa hàng', 'Mã CH', 'Khu vực', 'Trạng thái', 'Ngày gửi', 'Người gửi', 'Số mã', 'SL xin', 'SL duyệt', 'Lý do/Ghi chú'];
+    const data = hien.map((r) => ['#' + r.id, r.loai === 'KHAN_CAP' ? 'Khẩn cấp' : 'Định kỳ',
+      r.ten_ch, r.ma_ch, r.khu_vuc, TRANG_THAI[r.trang_thai] || r.trang_thai,
+      fmtDT(r.ngay_gui), r.nguoi_gui || '', Number(r.so_ma), Number(r.tong_xin),
+      Number(r.tong_duyet), r.ghi_chu || '']);
+    const ws = XLSX.utils.aoa_to_sheet([hdr, ...data]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Phiếu điều chuyển');
+    XLSX.writeFile(wb, `PhieuDieuChuyen_${tu}_${den}.xlsx`);
+  };
+
+  return (
+    <>
+      <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <DateBox label="Từ" value={tu} onChange={setTu} />
+        <DateBox label="Đến" value={den} onChange={setDen} />
+        <Sel value={locCH} onChange={setLocCH} timKiem placeholder="Tất cả cửa hàng"
+          options={[{ value: '', label: 'Tất cả cửa hàng' }, ...dsCH]} style={{ minWidth: 190 }} />
+        <Sel value={locTT} onChange={setLocTT} placeholder="Mọi trạng thái"
+          options={[{ value: '', label: 'Mọi trạng thái' }, ...dsTT]} style={{ minWidth: 160 }} />
+        <input className="flt-in" placeholder="Tìm số phiếu / CH / người gửi / lý do…" value={q}
+          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 220, flex: 1 }} />
+        <button className="btn btn-ghost" onClick={xuat}>Xuất Excel</button>
+      </div>
+
+      <div className="the-hang" style={{ marginTop: 12 }}>
+        <button className={'the-g' + (loc === 'ALL' ? ' on' : '')} onClick={() => setLoc('ALL')}>
+          <span className="the-g-n">{tk.tong}</span><span className="the-g-t">tổng phiếu</span>
+        </button>
+        <button className={'the-g' + (loc === 'DINH_KY' ? ' on' : '')} onClick={() => setLoc(loc === 'DINH_KY' ? 'ALL' : 'DINH_KY')}>
+          <span className="the-g-n" style={{ color: 'var(--teal-deep)' }}>{tk.dk}</span><span className="the-g-t">định kỳ</span>
+        </button>
+        <button className={'the-g' + (loc === 'KHAN_CAP' ? ' on' : '')} onClick={() => setLoc(loc === 'KHAN_CAP' ? 'ALL' : 'KHAN_CAP')}>
+          <span className="the-g-n" style={{ color: 'var(--magenta)' }}>{tk.kc}</span><span className="the-g-t">khẩn cấp</span>
+        </button>
+        <div className="the-g">
+          <span className="the-g-n">{tk.sp.toLocaleString('vi')}</span><span className="the-g-t">tổng SP đề nghị</span>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
+        <div className="tbl-wrap" style={{ maxHeight: '62vh', overflow: 'auto' }}>
+          <table className="tbl tbl-fit">
+            <thead><tr>
+              <th className="sortable" onClick={() => ds('id')}>Phiếu{ic('id')}</th>
+              <th className="sortable" onClick={() => ds('ch')}>Cửa hàng{ic('ch')}</th>
+              <th className="center sortable" onClick={() => ds('loai')}>Loại{ic('loai')}</th>
+              <th className="center sortable" onClick={() => ds('tt')}>Trạng thái{ic('tt')}</th>
+              <th className="sortable" onClick={() => ds('gui')}>Ngày gửi{ic('gui')}</th>
+              <th className="sortable" onClick={() => ds('nguoi')}>Người gửi{ic('nguoi')}</th>
+              <th className="num sortable" onClick={() => ds('ma')}>Số mã{ic('ma')}</th>
+              <th className="num sortable" onClick={() => ds('xin')}>SL xin{ic('xin')}</th>
+              <th className="num sortable" onClick={() => ds('duyet')}>SL duyệt{ic('duyet')}</th>
+              <th>Lý do / Ghi chú</th>
+            </tr></thead>
+            <tbody>
+              {rows === null ? (
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
+              ) : hien.length === 0 ? (
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Không có phiếu nào trong bộ lọc.</td></tr>
+              ) : hien.map((r) => (
+                <tr key={r.id}>
+                  <td className="mono" style={{ fontWeight: 700 }}>#{r.id}</td>
+                  <td><div style={{ fontWeight: 600 }}>{r.ten_ch}</div>
+                    <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}{r.nhom_ch ? ` · N${r.nhom_ch}` : ''}</div></td>
+                  <td className="center"><span className={'pdc-loai ' + (r.loai === 'KHAN_CAP' ? 'pdc-kc' : 'pdc-dk')}>
+                    {r.loai === 'KHAN_CAP' ? 'Khẩn cấp' : 'Định kỳ'}</span></td>
+                  <td className="center"><span className="pdc-tt">{TRANG_THAI[r.trang_thai] || r.trang_thai}</span></td>
+                  <td style={{ fontSize: 12 }}>{fmtDT(r.ngay_gui)}</td>
+                  <td style={{ fontSize: 12 }}>{r.nguoi_gui || '—'}</td>
+                  <td className="num">{Number(r.so_ma)}</td>
+                  <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{Number(r.tong_xin).toLocaleString('vi')}</td>
+                  <td className="num">{Number(r.tong_duyet) ? Number(r.tong_duyet).toLocaleString('vi') : '—'}</td>
+                  <td style={{ fontSize: 12, maxWidth: 220, color: 'var(--ink-2)' }}>{r.ghi_chu || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
