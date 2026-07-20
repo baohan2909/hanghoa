@@ -226,13 +226,19 @@ export default function XinHang() {
   }, [maCH]);
 
   // Lịch đề nghị của cửa hàng (banner nhắc + lịch sắp tới 14 ngày)
+  const [dckCH, setDckCH] = useState(null);   // trạng thái điều chuyển thật (mã DK) theo ngày
   useEffect(() => {
-    if (!maCH) { setLichCH(null); return; }
+    if (!maCH) { setLichCH(null); setDckCH(null); return; }
     (async () => {
       const homNay = isoVN();
       const den14 = isoVN(new Date(Date.now() + 14 * 864e5));
+      const tu14 = isoVN(new Date(Date.now() - 14 * 864e5));
       const { data } = await sb.rpc('fn_lich_cua_ch', { p_ma_ch: maCH, p_tu: homNay, p_den: den14 });
       setLichCH(data || []);
+      // trạng thái điều chuyển THẬT từ Odoo (app chỉ đọc) — 14 ngày gần
+      const { data: dck } = await sb.rpc('fn_dck_theo_ch', { p_ma_ch: maCH, p_tu: tu14, p_den: den14 });
+      const m = {}; (dck || []).forEach((x) => { m[x.ngay_tao] = x; });
+      setDckCH(m);
     })();
   }, [maCH]);
 
@@ -550,13 +556,18 @@ export default function XinHang() {
         const fmtDM2 = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
         const THU3 = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
         const thuCua = (iso) => THU3[new Date(iso + 'T00:00:00').getDay()];
+        const dckHom = dckCH && dckCH[homNay];   // phiếu điều chuyển thật hôm nay (mã DK)
+        // "Đã gửi" thật = đã có phiếu DK ngày đó (dù app đánh dấu hay chưa)
+        const daGuiThat = !!dckHom || (homNayLich && homNayLich.da_gui);
         return (
           <div className="lich-banner-thin" style={{
-            borderLeft: homNayLich && !homNayLich.da_gui ? '3px solid var(--gold)' : '3px solid var(--teal)' }}>
+            borderLeft: homNayLich && !daGuiThat ? '3px solid var(--gold)' : '3px solid var(--teal)' }}>
             {homNayLich ? (
-              homNayLich.da_gui
+              dckHom
+                ? <span className="lbt-txt" style={{ color: 'var(--teal-deep)', fontWeight: 700 }}>✓ Hôm nay đã gửi phiếu — kho: <b>{dckHom.trang_thai_gom}</b> ({dckHom.so_phieu} phiếu)</span>
+                : daGuiThat
                 ? <span className="lbt-txt" style={{ color: 'var(--teal-deep)', fontWeight: 700 }}>✓ Hôm nay tới lịch — đã gửi phiếu</span>
-                : <span className="lbt-txt" style={{ color: '#a8842c', fontWeight: 800 }}>📅 HÔM NAY tới lịch đề nghị — nhớ lập & gửi phiếu</span>
+                : <span className="lbt-txt" style={{ color: '#a8842c', fontWeight: 800 }}>📅 HÔM NAY tới lịch đề nghị — nhớ lập &amp; gửi phiếu</span>
             ) : (
               <span className="lbt-txt" style={{ color: 'var(--ink-2)' }}>📅 Lịch sắp tới:</span>
             )}

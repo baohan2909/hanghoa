@@ -63,7 +63,7 @@ export default function Lich() {
       </div>
 
       <div className="nhom-tabs" style={{ marginTop: 14, marginBottom: 0 }}>
-        {[['LICH', 'Lịch tổng'], ['TUANTHU', 'Tuân thủ'], ['NHOM', 'Data nhóm'], ['AUTO', 'Ma trận & Tạo lịch'], ['PHIEU', 'Phiếu điều chuyển']].map(([v, t]) => (
+        {[['LICH', 'Lịch tổng'], ['TUANTHU', 'Tuân thủ'], ['NHOM', 'Data nhóm'], ['AUTO', 'Ma trận & Tạo lịch'], ['PHIEU', 'Điều chuyển kho']].map(([v, t]) => (
           <button key={v} className={'nhom-tab' + (tab === v ? ' on' : '')} onClick={() => setTab(v)}>{t}</button>
         ))}
       </div>
@@ -616,144 +616,143 @@ function TabAuto({ rows, homNay, taiLai }) {
 function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; } return h; }
 
 // ============ PHIẾU ĐIỀU CHUYỂN — thống kê mọi phiếu (định kỳ + khẩn cấp) ============
+// ============ ĐIỀU CHUYỂN KHO — trạng thái THẬT từ Odoo (app chỉ đọc) ============
+// 4 trạng thái sheet: Chưa chuyển -> Chờ sẵn sàng -> Đã xuất -> Đã nhận.
+const DCK_TT = ['Chưa chuyển', 'Chờ sẵn sàng', 'Đã xuất', 'Đã nhận'];
+const dckClass = (tt) => ({ 'Chưa chuyển': 'dck-cho', 'Chờ sẵn sàng': 'dck-san',
+  'Đã xuất': 'dck-xuat', 'Đã nhận': 'dck-nhan' }[tt] || 'dck-cho');
+
 function TabPhieu() {
   const { baoToast } = useApp();
   const [tu, setTu] = useState(iso(new Date(Date.now() - 13 * 864e5)));
   const [den, setDen] = useState(iso());
   const [rows, setRows] = useState(null);
-  const [loc, setLoc] = useState('ALL');            // ALL | DINH_KY | KHAN_CAP  (bấm thẻ KPI)
-  const [locCH, setLocCH] = useState('');           // mã CH
-  const [locTT, setLocTT] = useState('');           // trạng thái
-  const [q, setQ] = useState('');                   // tìm: số phiếu / tên CH / người gửi / lý do
-  const [sortC, setSortC] = useState({ col: 'gui', dir: 'desc' });
+  const [locTT, setLocTT] = useState('');           // lọc trạng thái (bấm thẻ)
+  const [locCH, setLocCH] = useState('');
+  const [locKho, setLocKho] = useState('');         // kho nguồn
+  const [q, setQ] = useState('');
+  const [sortC, setSortC] = useState({ col: 'tao', dir: 'desc' });
 
   useEffect(() => { (async () => {
     setRows(null);
-    const { data, error } = await rpcHet('fn_phieu_ds', { p_tu: tu, p_den: den });
+    const { data, error } = await rpcHet('fn_dck_ds', { p_tu: tu, p_den: den });
     if (error) { baoToast('Lỗi: ' + error.message); setRows([]); return; }
     setRows(data || []);
   })(); }, [tu, den]);   // eslint-disable-line
 
   const dsCH = useMemo(() => {
     const m = new Map();
-    (rows || []).forEach((r) => m.set(r.ma_ch, r.ten_ch));
-    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([v, t]) => ({ value: v, label: t }));
+    (rows || []).forEach((r) => r.ma_ch && m.set(r.ma_ch, r.ten_ch || r.ma_ch));
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([v, t]) => ({ value: v, label: t }));
   }, [rows]);
-  const dsTT = useMemo(() => {
-    const co = [...new Set((rows || []).map((r) => r.trang_thai))];
-    return co.map((v) => ({ value: v, label: TRANG_THAI[v] || v }));
+  const dsKho = useMemo(() => {
+    const m = new Map();
+    (rows || []).forEach((r) => r.ma_kho_nguon && m.set(r.ma_kho_nguon, r.ten_kho_nguon || r.ma_kho_nguon));
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([v, t]) => ({ value: v, label: t }));
   }, [rows]);
 
   const tk = useMemo(() => {
     const v = rows || [];
-    return {
-      tong: v.length,
-      dk: v.filter((r) => r.loai === 'DINH_KY').length,
-      kc: v.filter((r) => r.loai === 'KHAN_CAP').length,
-      sp: v.reduce((s, r) => s + Number(r.tong_xin), 0),
-    };
+    const dem = (tt) => v.filter((r) => r.trang_thai === tt).length;
+    return { tong: v.length, cho: dem('Chưa chuyển'), san: dem('Chờ sẵn sàng'),
+      xuat: dem('Đã xuất'), nhan: dem('Đã nhận') };
   }, [rows]);
 
   const hien = useMemo(() => {
     let v = [...(rows || [])];
-    if (loc !== 'ALL') v = v.filter((r) => r.loai === loc);
-    if (locCH) v = v.filter((r) => r.ma_ch === locCH);
     if (locTT) v = v.filter((r) => r.trang_thai === locTT);
+    if (locCH) v = v.filter((r) => r.ma_ch === locCH);
+    if (locKho) v = v.filter((r) => r.ma_kho_nguon === locKho);
     if (q.trim()) {
       const t = q.trim().toLowerCase();
-      v = v.filter((r) => String(r.id).includes(t) || r.ten_ch.toLowerCase().includes(t)
-        || (r.nguoi_gui || '').toLowerCase().includes(t) || (r.ghi_chu || '').toLowerCase().includes(t)
-        || r.ma_ch.toLowerCase().includes(t) || (r.khu_vuc || '').toLowerCase().includes(t));
+      v = v.filter((r) => (r.ma_phieu || '').toLowerCase().includes(t)
+        || (r.ten_ch || '').toLowerCase().includes(t) || (r.ma_ch || '').toLowerCase().includes(t)
+        || (r.ten_kho_nguon || '').toLowerCase().includes(t) || (r.khu_vuc || '').toLowerCase().includes(t));
     }
-    const g = { id: (r) => Number(r.id), ch: (r) => r.ten_ch, loai: (r) => r.loai,
-      tt: (r) => TRANG_THAI[r.trang_thai] || r.trang_thai, gui: (r) => r.ngay_gui,
-      nguoi: (r) => r.nguoi_gui || '', ma: (r) => Number(r.so_ma),
-      xin: (r) => Number(r.tong_xin), duyet: (r) => Number(r.tong_duyet) }[sortC.col];
+    const g = { phieu: (r) => r.ma_phieu, ch: (r) => r.ten_ch || '', kho: (r) => r.ten_kho_nguon || '',
+      tt: (r) => DCK_TT.indexOf(r.trang_thai), tao: (r) => r.ngay_tao || '',
+      ma: (r) => Number(r.so_ma), nhu: (r) => Number(r.tong_nhu_cau) }[sortC.col];
     if (g) v.sort((a, b) => { const x = g(a), y = g(b);
       const c = typeof x === 'string' ? x.localeCompare(y) : (x > y ? 1 : x < y ? -1 : 0);
       return sortC.dir === 'asc' ? c : -c; });
     return v;
-  }, [rows, loc, locCH, locTT, q, sortC]);
+  }, [rows, locTT, locCH, locKho, q, sortC]);
   const ds = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
   const ic = (c) => sortC.col === c ? (sortC.dir === 'asc' ? ' ▲' : ' ▼') : '';
 
   const xuat = async () => {
     const XLSX = await import('xlsx');
-    const hdr = ['Số phiếu', 'Loại', 'Cửa hàng', 'Mã CH', 'Khu vực', 'Trạng thái', 'Ngày gửi', 'Người gửi', 'Số mã', 'SL xin', 'SL duyệt', 'Lý do/Ghi chú'];
-    const data = hien.map((r) => ['#' + r.id, r.loai === 'KHAN_CAP' ? 'Khẩn cấp' : 'Định kỳ',
-      r.ten_ch, r.ma_ch, r.khu_vuc, TRANG_THAI[r.trang_thai] || r.trang_thai,
-      fmtDT(r.ngay_gui), r.nguoi_gui || '', Number(r.so_ma), Number(r.tong_xin),
-      Number(r.tong_duyet), r.ghi_chu || '']);
-    const ws = XLSX.utils.aoa_to_sheet([hdr, ...data]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Phiếu điều chuyển');
-    XLSX.writeFile(wb, `PhieuDieuChuyen_${tu}_${den}.xlsx`);
+    const hdr = ['Mã phiếu', 'Trạng thái', 'Cửa hàng nhận', 'Mã CH', 'Khu vực', 'Kho nguồn', 'Ngày tạo', 'Ngày xuất', 'Số mã', 'Tổng nhu cầu', 'Đã nhập'];
+    const data = hien.map((r) => [r.ma_phieu, r.trang_thai, r.ten_ch, r.ma_ch, r.khu_vuc,
+      r.ten_kho_nguon, r.ngay_tao ? fmtDM(r.ngay_tao) + '/' + r.ngay_tao.slice(0,4) : '',
+      r.ngay_xuat ? fmtDM(r.ngay_xuat) + '/' + r.ngay_xuat.slice(0,4) : '',
+      Number(r.so_ma), Number(r.tong_nhu_cau), Number(r.tong_da_nhap)]);
+    const ws = XLSX.utils.aoa_to_sheet([hdr, ...data]); const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Điều chuyển kho'); XLSX.writeFile(wb, `DieuChuyenKho_${tu}_${den}.xlsx`);
   };
+  const bamTT = (tt) => setLocTT((v) => v === tt ? '' : tt);
 
   return (
     <>
       <div style={{ marginTop: 14, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <DateBox label="Từ" value={tu} onChange={setTu} />
         <DateBox label="Đến" value={den} onChange={setDen} />
-        <Sel value={locCH} onChange={setLocCH} timKiem placeholder="Tất cả cửa hàng"
-          options={[{ value: '', label: 'Tất cả cửa hàng' }, ...dsCH]} style={{ minWidth: 190 }} />
-        <Sel value={locTT} onChange={setLocTT} placeholder="Mọi trạng thái"
-          options={[{ value: '', label: 'Mọi trạng thái' }, ...dsTT]} style={{ minWidth: 160 }} />
-        <input className="flt-in" placeholder="Tìm số phiếu / CH / người gửi / lý do…" value={q}
-          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 220, flex: 1 }} />
+        <Sel value={locCH} onChange={setLocCH} timKiem placeholder="Tất cả CH nhận"
+          options={[{ value: '', label: 'Tất cả CH nhận' }, ...dsCH]} style={{ minWidth: 180 }} />
+        <Sel value={locKho} onChange={setLocKho} timKiem placeholder="Mọi kho nguồn"
+          options={[{ value: '', label: 'Mọi kho nguồn' }, ...dsKho]} style={{ minWidth: 170 }} />
+        <input className="flt-in" placeholder="Tìm mã phiếu / CH / kho…" value={q}
+          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 200, flex: 1 }} />
         <button className="btn btn-ghost" onClick={xuat}>Xuất Excel</button>
       </div>
 
       <div className="the-hang" style={{ marginTop: 12 }}>
-        <button className={'the-g' + (loc === 'ALL' ? ' on' : '')} onClick={() => setLoc('ALL')}>
-          <span className="the-g-n">{tk.tong}</span><span className="the-g-t">tổng phiếu</span>
+        <button className={'the-g' + (locTT === '' ? ' on' : '')} onClick={() => setLocTT('')}>
+          <span className="the-g-n">{tk.tong}</span><span className="the-g-t">tổng phiếu (mã DK)</span>
         </button>
-        <button className={'the-g' + (loc === 'DINH_KY' ? ' on' : '')} onClick={() => setLoc(loc === 'DINH_KY' ? 'ALL' : 'DINH_KY')}>
-          <span className="the-g-n" style={{ color: 'var(--teal-deep)' }}>{tk.dk}</span><span className="the-g-t">định kỳ</span>
+        <button className={'the-g' + (locTT === 'Chưa chuyển' ? ' on' : '')} onClick={() => bamTT('Chưa chuyển')}>
+          <span className="the-g-n" style={{ color: 'var(--ink-2)' }}>{tk.cho}</span><span className="the-g-t">chưa chuyển</span>
         </button>
-        <button className={'the-g' + (loc === 'KHAN_CAP' ? ' on' : '')} onClick={() => setLoc(loc === 'KHAN_CAP' ? 'ALL' : 'KHAN_CAP')}>
-          <span className="the-g-n" style={{ color: 'var(--magenta)' }}>{tk.kc}</span><span className="the-g-t">khẩn cấp</span>
+        <button className={'the-g' + (locTT === 'Chờ sẵn sàng' ? ' on' : '')} onClick={() => bamTT('Chờ sẵn sàng')}>
+          <span className="the-g-n" style={{ color: 'var(--gold)' }}>{tk.san}</span><span className="the-g-t">chờ sẵn sàng</span>
         </button>
-        <div className="the-g">
-          <span className="the-g-n">{tk.sp.toLocaleString('vi')}</span><span className="the-g-t">tổng SP đề nghị</span>
-        </div>
+        <button className={'the-g' + (locTT === 'Đã xuất' ? ' on' : '')} onClick={() => bamTT('Đã xuất')}>
+          <span className="the-g-n" style={{ color: 'var(--teal-deep)' }}>{tk.xuat}</span><span className="the-g-t">đã xuất</span>
+        </button>
+        <button className={'the-g' + (locTT === 'Đã nhận' ? ' on' : '')} onClick={() => bamTT('Đã nhận')}>
+          <span className="the-g-n" style={{ color: 'var(--magenta)' }}>{tk.nhan}</span><span className="the-g-t">đã nhận</span>
+        </button>
       </div>
 
       <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
-        <div className="tbl-wrap" style={{ maxHeight: '62vh', overflow: 'auto' }}>
+        <div className="tbl-wrap" style={{ maxHeight: '60vh', overflow: 'auto' }}>
           <table className="tbl tbl-fit">
             <thead><tr>
-              <th className="sortable" onClick={() => ds('id')}>Phiếu{ic('id')}</th>
-              <th className="sortable" onClick={() => ds('ch')}>Cửa hàng{ic('ch')}</th>
-              <th className="center sortable" onClick={() => ds('loai')}>Loại{ic('loai')}</th>
+              <th className="sortable" onClick={() => ds('phieu')}>Mã phiếu{ic('phieu')}</th>
               <th className="center sortable" onClick={() => ds('tt')}>Trạng thái{ic('tt')}</th>
-              <th className="sortable" onClick={() => ds('gui')}>Ngày gửi{ic('gui')}</th>
-              <th className="sortable" onClick={() => ds('nguoi')}>Người gửi{ic('nguoi')}</th>
+              <th className="sortable" onClick={() => ds('ch')}>Cửa hàng nhận{ic('ch')}</th>
+              <th className="sortable" onClick={() => ds('kho')}>Kho nguồn{ic('kho')}</th>
+              <th className="sortable" onClick={() => ds('tao')}>Ngày tạo{ic('tao')}</th>
               <th className="num sortable" onClick={() => ds('ma')}>Số mã{ic('ma')}</th>
-              <th className="num sortable" onClick={() => ds('xin')}>SL xin{ic('xin')}</th>
-              <th className="num sortable" onClick={() => ds('duyet')}>SL duyệt{ic('duyet')}</th>
-              <th>Lý do / Ghi chú</th>
+              <th className="num sortable" onClick={() => ds('nhu')}>Nhu cầu{ic('nhu')}</th>
+              <th className="num">Đã nhập</th>
             </tr></thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
               ) : hien.length === 0 ? (
-                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Không có phiếu nào trong bộ lọc.</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Chưa có phiếu điều chuyển (mã DK) trong khoảng này.</td></tr>
               ) : hien.map((r) => (
-                <tr key={r.id}>
-                  <td className="mono" style={{ fontWeight: 700 }}>#{r.id}</td>
+                <tr key={r.ma_phieu}>
+                  <td className="mono" style={{ fontWeight: 700, fontSize: 11 }}>{r.ma_phieu}</td>
+                  <td className="center"><span className={'dck-tt ' + dckClass(r.trang_thai)}>{r.trang_thai}</span></td>
                   <td><div style={{ fontWeight: 600 }}>{r.ten_ch}</div>
-                    <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}{r.nhom_ch ? ` · N${r.nhom_ch}` : ''}</div></td>
-                  <td className="center"><span className={'pdc-loai ' + (r.loai === 'KHAN_CAP' ? 'pdc-kc' : 'pdc-dk')}>
-                    {r.loai === 'KHAN_CAP' ? 'Khẩn cấp' : 'Định kỳ'}</span></td>
-                  <td className="center"><span className="pdc-tt">{TRANG_THAI[r.trang_thai] || r.trang_thai}</span></td>
-                  <td style={{ fontSize: 12 }}>{fmtDT(r.ngay_gui)}</td>
-                  <td style={{ fontSize: 12 }}>{r.nguoi_gui || '—'}</td>
+                    <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}</div></td>
+                  <td style={{ fontSize: 12 }}>{r.ten_kho_nguon}<div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_kho_nguon}</div></td>
+                  <td style={{ fontSize: 12 }}>{r.ngay_tao ? fmtDM(r.ngay_tao) : '—'}</td>
                   <td className="num">{Number(r.so_ma)}</td>
-                  <td className="num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{Number(r.tong_xin).toLocaleString('vi')}</td>
-                  <td className="num">{Number(r.tong_duyet) ? Number(r.tong_duyet).toLocaleString('vi') : '—'}</td>
-                  <td style={{ fontSize: 12, maxWidth: 220, color: 'var(--ink-2)' }}>{r.ghi_chu || '—'}</td>
+                  <td className="num" style={{ fontWeight: 700 }}>{Number(r.tong_nhu_cau)}</td>
+                  <td className="num" style={{ color: Number(r.tong_da_nhap) >= Number(r.tong_nhu_cau) ? 'var(--teal-deep)' : 'var(--ink-2)' }}>{Number(r.tong_da_nhap)}</td>
                 </tr>
               ))}
             </tbody>
