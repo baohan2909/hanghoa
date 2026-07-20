@@ -619,6 +619,15 @@ function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h << 
 // ============ ĐIỀU CHUYỂN KHO — trạng thái THẬT từ Odoo (app chỉ đọc) ============
 // 4 trạng thái sheet: Chưa chuyển -> Chờ sẵn sàng -> Đã xuất -> Đã nhận.
 const DCK_TT = ['Chưa chuyển', 'Chờ sẵn sàng', 'Đã xuất', 'Đã nhận'];
+// Chuẩn hóa trạng thái về tiếng Việt (phòng dữ liệu cũ còn tiếng Anh trong DB).
+const chuanDCK = (s) => {
+  const k = String(s || '').trim().toLowerCase();
+  if (k === 'not transfer') return 'Chưa chuyển';
+  if (k === 'waiting available') return 'Chờ sẵn sàng';
+  if (k === 'issued') return 'Đã xuất';
+  if (k === 'received') return 'Đã nhận';
+  return String(s || '').trim();
+};
 const dckClass = (tt) => ({ 'Chưa chuyển': 'dck-cho', 'Chờ sẵn sàng': 'dck-san',
   'Đã xuất': 'dck-xuat', 'Đã nhận': 'dck-nhan' }[tt] || 'dck-cho');
 
@@ -637,7 +646,7 @@ function TabPhieu() {
     setRows(null);
     const { data, error } = await rpcHet('fn_dck_ds', { p_tu: tu, p_den: den });
     if (error) { baoToast('Lỗi: ' + error.message); setRows([]); return; }
-    setRows(data || []);
+    setRows((data || []).map((r) => ({ ...r, trang_thai: chuanDCK(r.trang_thai) })));
   })(); }, [tu, den]);   // eslint-disable-line
 
   const dsCH = useMemo(() => {
