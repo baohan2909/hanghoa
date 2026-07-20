@@ -65,7 +65,7 @@ export default function DacBiet() {
   });
 
   const taiDS = async () => {
-    const { data, error } = await sb.rpc('fn_dacbiet_ds');
+    const { data, error } = await rpcHet('fn_dacbiet_ds');
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setDs(data || []);
   };
@@ -146,6 +146,13 @@ export default function DacBiet() {
       }
       setTienDo(null);
       baoToast(`Import xong: ${ok} mã thu hồi${loi ? `, ${loi} mã lỗi (không có trong sản phẩm)` : ''}`);
+      // Nếu có mã lỗi: xuất file để anh biết mã nào không khớp sản phẩm
+      if (loiMa.length) {
+        const ws2 = XLSX.utils.aoa_to_sheet([['Barcode không khớp sản phẩm'], ...loiMa.map((b) => [b])]);
+        const wb2 = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb2, ws2, 'Mã lỗi');
+        XLSX.writeFile(wb2, `MA_LOI_KHONG_KHOP_${loiMa.length}.xlsx`);
+      }
       taiDS();
     } catch (e) { setTienDo(null); baoToast('Lỗi đọc file: ' + e.message); }
   };
