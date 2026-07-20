@@ -528,10 +528,17 @@ export default function XinHang() {
           </div>
         )}
         {loai === 'KHAN_CAP' && (
-          <div className="row">
+          <div className="row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
             <input value={lyDoKhan} onChange={(e) => setLyDoKhan(e.target.value)}
               placeholder="Lý do khẩn cấp (bắt buộc): bán đột biến / sắp hết mã chạy / chương trình…"
+              autoComplete="off" autoCorrect="off" spellCheck={false} name="lydo-kc-ns"
               style={{ padding: '9px 12px', borderRadius: 10, border: 0, flex: 1, minWidth: 260 }} />
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {['Bán đột biến', 'Sắp hết mã chạy', 'Chương trình khuyến mãi', 'Lễ / cao điểm', 'Khách đặt trước'].map((g) => (
+                <button key={g} className="btn-mini btn-mini-teal" style={{ margin: 0 }}
+                  onClick={() => setLyDoKhan(g)}>{g}</button>
+              ))}
+            </div>
           </div>
         )}
       </div>

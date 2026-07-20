@@ -1049,3 +1049,10 @@ textarea.inp { height: auto; padding: 10px 12px; }
   background: linear-gradient(90deg, var(--teal), var(--teal-deep)); transition: width .25s ease; }
 .import-txt { margin-top: 12px; font-size: 14px; font-weight: 700; color: var(--teal-deep); }
 .import-hint { margin-top: 4px; font-size: 11.5px; color: var(--ink-2); }
+
+/* Chip cấp độ trong trận — đổi màu theo độ khó tăng dần */
+.dt-cap { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 10px; letter-spacing: .3px; }
+.dt-cap0 { background: #EEF6F5; color: var(--teal-deep); }
+.dt-cap1 { background: rgba(63,182,168,.22); color: var(--teal-deep); }
+.dt-cap2 { background: rgba(203,164,90,.25); color: #8a6a24; }
+.dt-cap3 { background: rgba(214,0,108,.14); color: var(--magenta); }
