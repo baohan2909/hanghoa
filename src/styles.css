@@ -822,9 +822,9 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .cal-today-tag { font-size: 9px; background: var(--teal); color: #fff; padding: 1px 6px; border-radius: 6px; font-weight: 700; }
 .cal-cell-body { margin-top: auto; display: flex; align-items: flex-end; justify-content: space-between; }
 .cal-count { font-size: 24px; font-weight: 800; line-height: 1; color: var(--magenta); }
-.cal-frac { font-size: 21px; font-weight: 800; line-height: 1; }
-.cal-frac b { color: var(--magenta); }
-.cal-frac span { font-size: 13px; color: var(--ink-2); font-weight: 700; }
+.cal-frac { font-size: 24px; font-weight: 800; line-height: 1; }
+.cal-frac b { color: var(--magenta); font-size: 24px; }
+.cal-frac span { font-size: 14px; color: var(--ink-2); font-weight: 700; }
 .cal-frac.thieu b { color: var(--magenta); }
 .cal-nhom { display: flex; gap: 3px; }
 .cal-nhom-dot { font-size: 9.5px; font-weight: 700; padding: 0 5px; border-radius: 5px; line-height: 16px; }
@@ -910,6 +910,9 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .mt2-o { text-align: center; min-width: 46px; height: 34px; cursor: pointer; font-size: 13px;
   color: var(--teal-deep); font-weight: 800; user-select: none; }
 .mt2-o.co { background: rgba(63,182,168,.12); }
+.mt2-o.mt2-ok { background: rgba(63,182,168,.2); color: var(--teal-deep); font-size: 11px; }
+.mt2-o.mt2-thieu { background: rgba(214,0,108,.12); color: var(--magenta); font-size: 11px; font-weight: 700; }
+.mt2-o.mt2-cho { color: var(--teal); opacity: .55; }
 .mt2-o.moi { background: rgba(203,164,90,.28); color: var(--gold); }
 .mt2-o:hover { outline: 2px solid var(--teal); outline-offset: -2px; }
 
@@ -1065,15 +1068,15 @@ textarea.inp { height: auto; padding: 10px 12px; }
   background: #F1F3F6; color: var(--ink-2); white-space: nowrap; }
 
 /* Câu ĐA HÌNH — lưới 2x2 hình bấm chọn */
-.dt-hinh-luoi { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; max-width: 300px; margin-left: auto; margin-right: auto; }
-.dt-hinh-o { border: 2px solid var(--line); border-radius: 12px; padding: 0; overflow: hidden;
-  background: #fff; cursor: pointer; height: 120px; position: relative; transition: transform .12s, border-color .12s; }
+.dt-hinh-luoi { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px auto 0; max-width: 380px; }
+.dt-hinh-o { border: 2px solid var(--line); border-radius: 14px; padding: 0; overflow: hidden;
+  background: #fff; cursor: pointer; aspect-ratio: 1 / 1; position: relative; transition: transform .12s, border-color .12s; }
 .dt-hinh-o img { width: 100%; height: 100%; object-fit: contain; display: block; background: #F7F8FA; }
 .dt-hinh-o:hover { border-color: var(--teal); transform: translateY(-2px); }
 .dt-hinh-o.dung { border-color: var(--teal-deep); box-shadow: 0 0 0 3px rgba(63,182,168,.3); }
 .dt-hinh-o.sai { border-color: var(--magenta); box-shadow: 0 0 0 3px rgba(214,0,108,.25); }
 .dt-hinh-o.mo { opacity: .4; }
-@media (max-width: 480px) { .dt-hinh-luoi { gap: 7px; } }
+@media (max-width: 480px) { .dt-hinh-luoi { gap: 8px; max-width: 100%; } }
 
 /* Badge trạng thái điều chuyển kho (4 bước Odoo) */
 .dck-tt { display: inline-block; padding: 2px 10px; border-radius: 9px; font-size: 11px; font-weight: 700; white-space: nowrap; }

@@ -26,6 +26,22 @@ const HUY_HIEU = {
   CHUYEN_CAN: { ten: 'Chuyên cần',    mota: 'Thi đấu 5 ngày khác nhau' },
 };
 const fmtVND = (n) => Number(n).toLocaleString('vi') + ' đ';
+// Lịch sử câu đã ra qua các VÁN GẦN ĐÂY (localStorage) — để ván mới luôn mới mẻ.
+const LS_KEY = 'dt_lichsu_cau';
+const LS_MAX = 220;   // nhớ ~220 câu gần nhất
+function loadLichSu() {
+  try { const a = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch { return []; }
+}
+function luuLichSu(chuKys) {
+  try {
+    const cu = loadLichSu();
+    // câu mới lên đầu, khử trùng, cắt còn LS_MAX
+    const gop = [...chuKys, ...cu];
+    const uniq = [...new Set(gop)].slice(0, LS_MAX);
+    localStorage.setItem(LS_KEY, JSON.stringify(uniq));
+  } catch { /* localStorage đầy/tắt -> bỏ qua, không lỗi game */ }
+}
 const goc = (u) => (typeof u === 'string' && /^https?:\/\//.test(u.trim())) ? u.trim() : '';
 // Ảnh gốc lỗi -> đánh dấu sẵn (không khung vỡ).
 function falbackGoc(e) { e.currentTarget.classList.add('san'); }
@@ -96,12 +112,12 @@ function sinhCau(pool, daDung, daCau, capDo = 0) {
     } else if (capDo === 2) {
       loai.push('GIA');
       if (coHinh) loai.push('TEN_KHO', 'TEN_KHO', 'TEN_KHO');
-      if (duHinh) loai.push('SOSANH', 'CHON_HINH_KHO', 'CHON_HINH_KHO', 'GIA_HINH');
+      if (duHinh) loai.push('SOSANH', 'CHON_HINH_KHO', 'CHON_HINH_KHO', 'GIA_HINH', 'CHON_SAI_DONG');
       if (pt && MAU_MA[pt.mau] && coHinh) loai.push('MA_NGUOC');
       loai.push('CHAYHANG');                              // 1 vé
     } else {
       if (coHinh) loai.push('TEN_KHO', 'TEN_KHO', 'TEN_KHO');
-      if (duHinh) loai.push('CHON_HINH_KHO', 'CHON_HINH_KHO', 'CHON_HINH_KHO', 'SOSANH_GAN', 'GIA_HINH', 'XEP_GIA_HINH');
+      if (duHinh) loai.push('CHON_HINH_KHO', 'CHON_HINH_KHO', 'CHON_HINH_KHO', 'SOSANH_GAN', 'GIA_HINH', 'XEP_GIA_HINH', 'CHON_SAI_DONG', 'CHON_RE_HINH');
       if (pt && MAU_MA[pt.mau] && coHinh) loai.push('MA_NGUOC', 'MA_NGUOC');
       loai.push('GIA', 'TONNHIEU_NGANH');                 // 1 vé mỗi loại
     }
@@ -121,19 +137,29 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
   const gia = Number(sp.gia);
 
   if (l === 'GIA') {
-    // Cấp 0: nhiễu lệch ≥30% | c1: 15-30% | c2: 8-18% | c3: 5-12% (càng cao càng sát)
-    const bien = [[0.3, 0.8], [0.15, 0.3], [0.08, 0.18], [0.05, 0.12]][capDo];
-    const nhieu = new Set();
-    let thu = 0;
-    while (nhieu.size < 3 && thu < 40) {
-      thu++;
-      const pct = bien[0] + Math.random() * (bien[1] - bien[0]);
-      const g = Math.round(gia * (Math.random() < 0.5 ? 1 - pct : 1 + pct) / 1000) * 1000;
-      if (g > 0 && g !== gia) nhieu.add(g);
+    // NHIỄU = giá THẬT của sản phẩm khác (đúng giá Nón Sơn, không phải số lẻ bịa).
+    // Càng lên cấp, nhiễu càng gần giá đúng (dễ nhầm hơn).
+    const bien = [[0.3, 0.9], [0.15, 0.35], [0.08, 0.2], [0.04, 0.14]][capDo];
+    const giaThat = [...new Set(pool.filter((x) => x.barcode !== sp.barcode && Number(x.gia) > 0
+      && Number(x.gia) !== gia).map((x) => Number(x.gia)))];
+    // lọc giá thật trong khoảng lệch mong muốn
+    const trongKhoang = giaThat.filter((g) => {
+      const d = Math.abs(g - gia) / gia; return d >= bien[0] && d <= bien[1];
+    });
+    let nhieu = xao(trongKhoang.length >= 3 ? trongKhoang : giaThat).slice(0, 3);
+    // nếu pool thiếu giá thật -> bù bằng giá làm tròn 1000 (vẫn dạng giá niêm yết)
+    if (nhieu.length < 3) {
+      const bu = new Set(nhieu); let thu = 0;
+      while (bu.size < 3 && thu < 40) { thu++;
+        const pct = bien[0] + Math.random() * (bien[1] - bien[0]);
+        const g = Math.round(gia * (Math.random() < 0.5 ? 1 - pct : 1 + pct) / 1000) * 1000;
+        if (g > 0 && g !== gia) bu.add(g);
+      }
+      nhieu = [...bu].slice(0, 3);
     }
-    if (nhieu.size < 3) return null;
+    if (nhieu.length < 3) return null;
     return { loai: l, hoi: `Giá niêm yết của “${sp.ten}” là?`, sp,
-      dapAn: xao([{ nhan: fmtVND(gia), dung: true }, ...[...nhieu].slice(0, 3).map((g) => ({ nhan: fmtVND(g), dung: false }))]) };
+      dapAn: xao([{ nhan: fmtVND(gia), dung: true }, ...nhieu.map((g) => ({ nhan: fmtVND(g), dung: false }))]) };
   }
 
   if (l === 'NGANH') {
@@ -291,19 +317,26 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
   }
 
   if (l === 'GIA_HINH') {
-    // Câu giá NHƯNG có hình sản phẩm to bên trên -> vừa nhìn hình vừa nhớ giá.
+    // Câu giá NHƯNG có hình sản phẩm -> nhiễu cũng là giá THẬT của SP khác.
     if (!coHinh) return null;
-    const bien = [[0.3, 0.8], [0.15, 0.3], [0.08, 0.18], [0.05, 0.12]][capDo];
-    const nhieu = new Set(); let thu = 0;
-    while (nhieu.size < 3 && thu < 40) { thu++;
-      const pct = bien[0] + Math.random() * (bien[1] - bien[0]);
-      const g = Math.round(gia * (Math.random() < 0.5 ? 1 - pct : 1 + pct) / 1000) * 1000;
-      if (g > 0 && g !== gia) nhieu.add(g);
+    const bien = [[0.3, 0.9], [0.15, 0.35], [0.08, 0.2], [0.04, 0.14]][capDo];
+    const giaThat = [...new Set(pool.filter((x) => x.barcode !== sp.barcode && Number(x.gia) > 0
+      && Number(x.gia) !== gia).map((x) => Number(x.gia)))];
+    const trongKhoang = giaThat.filter((g) => { const d = Math.abs(g - gia) / gia; return d >= bien[0] && d <= bien[1]; });
+    let nhieu = xao(trongKhoang.length >= 3 ? trongKhoang : giaThat).slice(0, 3);
+    if (nhieu.length < 3) {
+      const bu = new Set(nhieu); let thu = 0;
+      while (bu.size < 3 && thu < 40) { thu++;
+        const pct = bien[0] + Math.random() * (bien[1] - bien[0]);
+        const g = Math.round(gia * (Math.random() < 0.5 ? 1 - pct : 1 + pct) / 1000) * 1000;
+        if (g > 0 && g !== gia) bu.add(g);
+      }
+      nhieu = [...bu].slice(0, 3);
     }
-    if (nhieu.size < 3) return null;
+    if (nhieu.length < 3) return null;
     return { loai: 'GIA', hoi: 'Sản phẩm trong hình có giá niêm yết là bao nhiêu?', sp,
       hinh: nenHinh(sp.hinh_url), hinhGoc: goc(sp.hinh_url),
-      dapAn: xao([{ nhan: fmtVND(gia), dung: true }, ...[...nhieu].slice(0, 3).map((g) => ({ nhan: fmtVND(g), dung: false }))]) };
+      dapAn: xao([{ nhan: fmtVND(gia), dung: true }, ...nhieu.map((g) => ({ nhan: fmtVND(g), dung: false }))]) };
   }
 
   if (l === 'XEP_GIA_HINH') {
@@ -322,10 +355,41 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
     return null;
   }
 
-  return null;
-}
+  if (l === 'CHON_RE_HINH') {
+    // ĐẢO của XEP_GIA_HINH: 3 hình, chọn cái RẺ NHẤT.
+    if (!coHinh) return null;
+    const ds = xao(pool.filter((x) => hopLeHinh(x.hinh_url) && Number(x.gia) > 0));
+    for (let t = 0; t < 8; t++) {
+      const bo = xao(ds).slice(0, 3);
+      const gs = bo.map((x) => Number(x.gia)).sort((a, b) => a - b);
+      if (gs[1] >= gs[0] * 1.12 && gs[2] >= gs[1] * 1.12) {
+        const ming = gs[0];
+        return { loai: l, laHinhDapAn: true, hoi: 'Sản phẩm nào RẺ NHẤT? (chọn theo hình)', sp: bo[0],
+          dapAn: xao(bo.map((x) => ({ hinh: nenHinh(x.hinh_url), hinhGoc: goc(x.hinh_url), dung: Number(x.gia) === ming }))) };
+      }
+    }
+    return null;
+  }
 
-export default function DauTruong() {
+  if (l === 'CHON_SAI_DONG') {
+    // ĐẢO NGƯỢC: 3 mã CÙNG DÒNG + 1 mã KHÁC DÒNG -> chọn mã KHÔNG cùng dòng (câu "chọn cái sai").
+    if (!pt) return null;
+    const cungDong = pool.filter((x) => x.barcode !== sp.barcode && phanTichMa(x.ten)?.dong === pt.dong
+      && khoaMau(x.ten) !== khoaMau(sp.ten));
+    if (cungDong.length < 2) return null;
+    // sp + 2 mã cùng dòng = 3 mã cùng dòng; 1 mã khác dòng = đáp án "sai"
+    const khacDong = xao(pool.filter((x) => { const p = phanTichMa(x.ten); return p && p.dong !== pt.dong; }))[0];
+    if (!khacDong) return null;
+    const daMau = new Set([khoaMau(sp.ten)]); const cung = [sp.ten];
+    for (const x of xao(cungDong)) { const k = khoaMau(x.ten);
+      if (!daMau.has(k)) { daMau.add(k); cung.push(x.ten); } if (cung.length >= 3) break; }
+    if (cung.length < 3) return null;
+    return { loai: l, hoi: `3 mã cùng dòng ${pt.dong}, 1 mã KHÁC — chọn mã KHÔNG cùng dòng:`, sp,
+      dapAn: xao([{ nhan: khacDong.ten, dung: true }, ...cung.map((t) => ({ nhan: t, dung: false }))]) };
+  }
+
+  return null;
+}export default function DauTruong() {
   const { user, baoToast } = useApp();
   const [view, setView] = useState('SANH');          // SANH | DEM | CHOI | KETQUA
   const [sanhTab, setSanhTab] = useState('CHOI');    // CHOI | LOG (admin)
@@ -350,7 +414,9 @@ export default function DauTruong() {
   const [chon, setChon] = useState(null);            // index đã chọn (hiện feedback)
   const [kq, setKq] = useState(null);                // {hang, best}
   const daDung = useRef(new Set());
-  const daCau = useRef(new Set());     // chữ ký câu đã ra — KHÔNG BAO GIỜ lặp trong ván
+  const daCau = useRef(new Set());     // chữ ký câu đã ra — không lặp trong ván
+  const lichSuCau = useRef(loadLichSu());   // câu đã ra các VÁN GẦN ĐÂY (localStorage) — tránh lặp giữa ván
+  const cauVanNay = useRef(new Set());      // chỉ câu MỚI sinh trong ván này (để lưu vào lịch sử)
   const dangChoi = useRef(false);
   const tRef = useRef(null);
   const tCauRef = useRef(null);
@@ -382,7 +448,9 @@ export default function DauTruong() {
     data.filter((s) => nenHinh(s.hinh_url)).slice(0, 20)
       .forEach((s) => { const im = new Image(); im.src = nenHinh(s.hinh_url); });
     daDung.current = new Set();
-    daCau.current = new Set();
+    // Nạp câu đã ra các ván gần đây -> ván này tránh lặp lại chúng (mới mẻ giữa các lần chơi)
+    daCau.current = new Set(lichSuCau.current);
+    cauVanNay.current = new Set();
     setDiem(0); setSoCau(0); setSoDung(0); setCombo(0); setComboMax(0); setMang(3); setChon(null); setKq(null);
     setTgConLai(CHE_DO[cheDo].giay || 0); setTgCau(7);
     setDem(3); dangChoi.current = true; setView('DEM');
@@ -443,11 +511,24 @@ export default function DauTruong() {
       c = sinhCau(pool, daDung.current, daCau.current, capDo)
         || sinhCau(pool, daDung.current, daCau.current, Math.max(0, capDo - 1));
     }
+    if (!c) {
+      // Vẫn bí -> XẢ lịch sử ván cũ (giữ câu ván NÀY), thử lại. Tránh kẹt khi lịch sử phủ hết.
+      daCau.current = new Set(cauVanNay.current);
+      c = sinhCau(pool, daDung.current, daCau.current, capDo)
+        || sinhCau(pool, daDung.current, daCau.current, Math.max(0, capDo - 1));
+    }
     if (!c) { ketThuc(); return; }   // thật sự hết câu mới (cực hiếm) -> kết thúc đẹp
     daCau.current.add(c.chuKy);
+    cauVanNay.current.add(c.chuKy);   // để lưu vào lịch sử khi kết thúc ván
     daDung.current.add(c.sp.barcode);
     if (daDung.current.size > pool.length - 8) daDung.current = new Set();
-    // preload hình 4 SP ngẫu nhiên tiếp (mượt hơn)
+    // Preload NGAY mọi hình của CHÍNH câu này (câu.hinh + tất cả hình đáp án)
+    // -> không bao giờ thiếu hình cuối. Ảnh đã cache thì hiện tức thì.
+    const hinhCau = [];
+    if (c.hinh) hinhCau.push(c.hinh);
+    (c.dapAn || []).forEach((d) => { if (d.hinh) hinhCau.push(d.hinh); });
+    hinhCau.forEach((u) => { const im = new Image(); im.src = u; });
+    // preload thêm vài SP cho câu kế
     xao(pool).filter((s) => nenHinh(s.hinh_url)).slice(0, 4)
       .forEach((s) => { const im = new Image(); im.src = nenHinh(s.hinh_url); });
     setCau(c); setChon(null); setTgCau(7);
@@ -489,6 +570,10 @@ export default function DauTruong() {
     if (dangLuu.current) return; dangLuu.current = true; dangChoi.current = false;
     clearInterval(tRef.current); clearInterval(tCauRef.current);
     setView('KETQUA'); setCau(null);
+    // Lưu câu đã ra ván này vào lịch sử (ván sau tránh lặp) — chỉ chữ ký câu MỚI ván này,
+    // không gồm phần nạp từ lịch sử cũ (đã có sẵn trong localStorage).
+    luuLichSu([...cauVanNay.current]);
+    lichSuCau.current = loadLichSu();
     // đọc state mới nhất qua functional set (đảm bảo đúng số cuối)
     let d, sc, sd, cm;
     setDiem((x) => (d = x, x)); setSoCau((x) => (sc = x, x));

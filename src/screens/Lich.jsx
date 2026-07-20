@@ -588,6 +588,7 @@ function TabAuto({ rows, homNay, taiLai }) {
             <tbody>
               {hien.map((r) => {
                 const lich = new Set(r.ngay_lich || []);
+                const guiSet = new Set(r.ngay_gui || []);
                 return (
                   <tr key={r.ma_ch}>
                     <td className="mt2-ten"><div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.ten}</div>
@@ -595,10 +596,13 @@ function TabAuto({ rows, homNay, taiLai }) {
                     <td className="mt2-nhom center"><span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span></td>
                     {dsNgay.map((n) => {
                       const co = lich.has(n); const laMoi = preview && preview.has(r.ma_ch + '|' + n);
+                      const daGui = guiSet.has(n);
+                      // Ô có lịch: đã gửi -> OK (xanh) | quá ngày chưa gửi -> thiếu (đỏ) | chưa tới -> ✓ mờ
+                      const trangThai = co ? (daGui ? 'ok' : (n < homNay ? 'thieu' : 'cho')) : '';
                       return (
-                        <td key={n} className={'mt2-o' + (co ? ' co' : '') + (laMoi ? ' moi' : '') + (n === homNay ? ' homnay' : '')}
-                          onClick={() => tick(r, n, co)} title={r.ten + ' · ' + fmtDM(n)}>
-                          {laMoi ? '✦' : co ? '✓' : ''}
+                        <td key={n} className={'mt2-o center' + (co ? ' co' : '') + (trangThai ? ' mt2-' + trangThai : '') + (laMoi ? ' moi' : '') + (n === homNay ? ' homnay' : '')}
+                          onClick={() => tick(r, n, co)} title={r.ten + ' · ' + fmtDM(n) + (co ? (daGui ? ' · đã gửi' : ' · chưa gửi') : '')}>
+                          {laMoi ? '✦' : co ? (daGui ? 'OK' : (n < homNay ? 'thiếu' : '✓')) : ''}
                         </td>
                       );
                     })}
