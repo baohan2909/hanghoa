@@ -1065,9 +1065,9 @@ textarea.inp { height: auto; padding: 10px 12px; }
   background: #F1F3F6; color: var(--ink-2); white-space: nowrap; }
 
 /* Câu ĐA HÌNH — lưới 2x2 hình bấm chọn */
-.dt-hinh-luoi { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
-.dt-hinh-o { border: 2px solid var(--line); border-radius: 14px; padding: 0; overflow: hidden;
-  background: #fff; cursor: pointer; aspect-ratio: 1/1; position: relative; transition: transform .12s, border-color .12s; }
+.dt-hinh-luoi { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; max-width: 300px; margin-left: auto; margin-right: auto; }
+.dt-hinh-o { border: 2px solid var(--line); border-radius: 12px; padding: 0; overflow: hidden;
+  background: #fff; cursor: pointer; height: 120px; position: relative; transition: transform .12s, border-color .12s; }
 .dt-hinh-o img { width: 100%; height: 100%; object-fit: contain; display: block; background: #F7F8FA; }
 .dt-hinh-o:hover { border-color: var(--teal); transform: translateY(-2px); }
 .dt-hinh-o.dung { border-color: var(--teal-deep); box-shadow: 0 0 0 3px rgba(63,182,168,.3); }

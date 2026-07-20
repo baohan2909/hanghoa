@@ -26,21 +26,11 @@ const HUY_HIEU = {
   CHUYEN_CAN: { ten: 'Chuyên cần',    mota: 'Thi đấu 5 ngày khác nhau' },
 };
 const fmtVND = (n) => Number(n).toLocaleString('vi') + ' đ';
-// Ảnh nét cao của nonson.vn rất nặng -> tải trực tiếp chậm/timeout.
-// Nén qua weserv 300px webp q70: nhẹ ~15-30KB, nhanh cả lần đầu + cache toàn cầu.
-// Nếu proxy hỏng, <img onError> tự chuyển về ảnh gốc (goc()).
 const goc = (u) => (typeof u === 'string' && /^https?:\/\//.test(u.trim())) ? u.trim() : '';
-// Ảnh proxy lỗi -> chuyển 1 lần về ảnh gốc (không lặp vô hạn).
-function falbackGoc(e, hinhGoc) {
-  const img = e.currentTarget;
-  if (hinhGoc && img.src !== hinhGoc) { img.src = hinhGoc; }
-  else { img.classList.add('san'); }
-}
-const nenHinh = (u, w = 300) => {
-  const g = goc(u);
-  if (!g) return '';
-  return `https://images.weserv.nl/?url=${encodeURIComponent(g.replace(/^https?:\/\//, ''))}&w=${w}&q=70&output=webp&we`;
-};
+// Ảnh gốc lỗi -> đánh dấu sẵn (không khung vỡ).
+function falbackGoc(e) { e.currentTarget.classList.add('san'); }
+// Dùng ẢNH GỐC trực tiếp — bản proxy load chậm/lỗi hơn với ảnh nonson.vn.
+const nenHinh = (u) => goc(u);
 const xao = (a) => { const v = [...a]; for (let i = v.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [v[i], v[j]] = [v[j], v[i]]; } return v; };
 const lay = (a, n, loai) => xao(a.filter((x) => x !== loai)).slice(0, n);
 
@@ -87,33 +77,32 @@ function sinhCau(pool, daDung, daCau, capDo = 0) {
     const pt = phanTichMa(sp.ten);
 
     // ---- DANH MỤC DẠNG CÂU THEO CẤP ----
-    // Ưu tiên HÌNH ẢNH (anh yêu cầu). Câu BÁN/TỒN chỉ 1 vé mỗi loại (hiếm, đỡ nhàm).
-    // Càng lên cấp càng nhiều câu ĐA HÌNH (chọn hình / so nhiều hình).
+    // Ưu tiên HÌNH. Câu BÁN/TỒN chỉ 1 vé mỗi loại (hiếm).
+    // KHÔNG hỏi màu trực tiếp (quá dễ) — dùng mã màu để TẠO NHIỄU gần giống,
+    // buộc nhìn hình kỹ mới phân biệt (TEN/CHON_HINH cấp cao lấy nhiễu cùng dòng khác màu).
     const loai = [];
     const chonHinhDs = pool.filter((x) => hopLeHinh(x.hinh_url));
     const duHinh = chonHinhDs.length >= 4;
     if (capDo === 0) {
       loai.push('GIA', 'NGANH');
-      if (coHinh) loai.push('TEN', 'TEN', 'MAU_HINH');
-      if (duHinh) loai.push('CHON_HINH', 'CHON_HINH');   // cho tên chọn đúng hình
-      if (pt && MAU_MA[pt.mau]) loai.push('MA_MAU');
+      if (coHinh) loai.push('TEN', 'TEN');
+      if (duHinh) loai.push('CHON_HINH', 'CHON_HINH');
       loai.push('BANCHAY');                               // 1 vé
     } else if (capDo === 1) {
       loai.push('GIA');
-      if (coHinh) loai.push('TEN', 'TEN', 'MAU_HINH');
+      if (coHinh) loai.push('TEN', 'TEN_KHO');
       if (duHinh) loai.push('CHON_HINH', 'CHON_HINH', 'SOSANH');
-      if (pt && MAU_MA[pt.mau]) loai.push('MA_MAU');
       loai.push('BANCHAY');                               // 1 vé
     } else if (capDo === 2) {
       loai.push('GIA');
-      if (coHinh) loai.push('TEN_KHO', 'TEN_KHO', 'MAU_HINH');
+      if (coHinh) loai.push('TEN_KHO', 'TEN_KHO', 'TEN_KHO');
       if (duHinh) loai.push('SOSANH', 'CHON_HINH_KHO', 'CHON_HINH_KHO', 'GIA_HINH');
-      if (pt && MAU_MA[pt.mau]) loai.push('MA_NGUOC');
+      if (pt && MAU_MA[pt.mau] && coHinh) loai.push('MA_NGUOC');
       loai.push('CHAYHANG');                              // 1 vé
     } else {
-      if (coHinh) loai.push('TEN_KHO', 'TEN_KHO');
-      if (duHinh) loai.push('CHON_HINH_KHO', 'CHON_HINH_KHO', 'SOSANH_GAN', 'GIA_HINH', 'XEP_GIA_HINH', 'XEP_GIA_HINH');
-      if (pt && MAU_MA[pt.mau]) loai.push('MA_NGUOC');
+      if (coHinh) loai.push('TEN_KHO', 'TEN_KHO', 'TEN_KHO');
+      if (duHinh) loai.push('CHON_HINH_KHO', 'CHON_HINH_KHO', 'CHON_HINH_KHO', 'SOSANH_GAN', 'GIA_HINH', 'XEP_GIA_HINH');
+      if (pt && MAU_MA[pt.mau] && coHinh) loai.push('MA_NGUOC', 'MA_NGUOC');
       loai.push('GIA', 'TONNHIEU_NGANH');                 // 1 vé mỗi loại
     }
     const l = loai[Math.floor(Math.random() * loai.length)];
@@ -168,54 +157,41 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
   }
 
   if (l === 'TEN_KHO') {
-    // KHÓ: nhiễu CÙNG DÒNG khác màu/mẫu — phải thuộc bảng màu mới phân biệt được.
+    // KHÓ: nhiễu CÙNG DÒNG khác màu. Ưu tiên nhiễu CÙNG SỐ chỉ KHÁC MÀU
+    // (NS008ATG-ĐN052 vs NS008ATG-TR052) — khác đúng 2 ký tự màu, cực dễ nhầm.
     // TUYỆT ĐỐI không lấy nhiễu trùng mẫu chỉ khác size (mắt không nhìn ra size).
     if (!coHinh || !pt) return null;
     const kSp = khoaMau(sp.ten);
     const cungDong = pool.filter((x) => x.barcode !== sp.barcode
       && phanTichMa(x.ten)?.dong === pt.dong && khoaMau(x.ten) !== kSp);
-    // khử trùng mẫu giữa các nhiễu (2 size của cùng mẫu chỉ tính 1)
     const daMau = new Set([kSp]); const nhieu = [];
-    for (const x of xao(cungDong)) {
+    // (1) ƯU TIÊN: cùng dòng + cùng SỐ, chỉ khác màu (khó nhất)
+    for (const x of xao(cungDong.filter((x) => { const p = phanTichMa(x.ten); return p && p.so === pt.so && p.mau !== pt.mau; }))) {
       const k = khoaMau(x.ten);
       if (!daMau.has(k)) { daMau.add(k); nhieu.push(x.ten); }
       if (nhieu.length >= 3) break;
     }
-    // thiếu thì bù mã cùng ngành khác dòng
-    if (nhieu.length < 3) {
-      for (const x of xao(pool.filter((x) => x.barcode !== sp.barcode && x.nganh_3 === sp.nganh_3))) {
-        const k = khoaMau(x.ten);
-        if (!daMau.has(k)) { daMau.add(k); nhieu.push(x.ten); }
-        if (nhieu.length >= 3) break;
-      }
+    // (2) BÙ: cùng dòng khác màu/số bất kỳ
+    if (nhieu.length < 3) for (const x of xao(cungDong)) {
+      const k = khoaMau(x.ten);
+      if (!daMau.has(k)) { daMau.add(k); nhieu.push(x.ten); }
+      if (nhieu.length >= 3) break;
+    }
+    // (3) BÙ tiếp: cùng ngành khác dòng
+    if (nhieu.length < 3) for (const x of xao(pool.filter((x) => x.barcode !== sp.barcode && x.nganh_3 === sp.nganh_3))) {
+      const k = khoaMau(x.ten);
+      if (!daMau.has(k)) { daMau.add(k); nhieu.push(x.ten); }
+      if (nhieu.length >= 3) break;
     }
     if (nhieu.length < 3) return null;
     return { loai: l, hoi: 'Nhìn kỹ! Sản phẩm trong hình là mã nào? (các mã rất giống nhau)', sp, hinh: nenHinh(sp.hinh_url),
       dapAn: xao([{ nhan: sp.ten, dung: true }, ...nhieu.map((t) => ({ nhan: t, dung: false }))]) };
   }
 
-  if (l === 'MAU_HINH') {
-    // Nhìn hình + mã -> hỏi MÀU. Chỉ khi mã màu nằm trong bảng đã xác nhận.
-    if (!coHinh || !pt || !MAU_MA[pt.mau]) return null;
-    const dung = MAU_MA[pt.mau];
-    const nhieu = lay([...new Set(Object.values(MAU_MA))], 3, dung);
-    return { loai: l, hoi: `Theo mã sản phẩm, “${sp.ten}” là màu gì?`, sp, hinh: nenHinh(sp.hinh_url),
-      dapAn: xao([{ nhan: dung, dung: true }, ...nhieu.map((t) => ({ nhan: t, dung: false }))]) };
-  }
-
-  if (l === 'MA_MAU') {
-    // Học bảng mã: "'ĐN' trong mã là màu gì?" — không cần hình
-    if (!pt || !MAU_MA[pt.mau]) return null;
-    const dung = MAU_MA[pt.mau];
-    const nhieu = lay([...new Set(Object.values(MAU_MA))], 3, dung);
-    return { loai: l, hoi: `Trong mã “${sp.ten}”, ký hiệu “${pt.mau}” chỉ màu gì?`, sp,
-      dapAn: xao([{ nhan: dung, dung: true }, ...nhieu.map((t) => ({ nhan: t, dung: false }))]) };
-  }
-
   if (l === 'MA_NGUOC') {
-    // ĐỈNH: cho màu -> chọn đúng MÃ. 4 mã cùng dòng, chỉ 1 mã đúng màu hỏi.
-    if (!pt || !MAU_MA[pt.mau]) return null;
-    const cungDong = pool.filter((x) => x.barcode !== sp.barcode) 
+    // Cho MÀU + hình -> chọn đúng MÃ. Nhiễu là mã cùng dòng khác màu (mã có thực).
+    if (!pt || !MAU_MA[pt.mau] || !coHinh) return null;
+    const cungDong = pool.filter((x) => x.barcode !== sp.barcode)
       .map((x) => ({ x, p: phanTichMa(x.ten) }))
       .filter((o) => o.p && o.p.dong === pt.dong && o.p.mau !== pt.mau && MAU_MA[o.p.mau]);
     const daMau = new Set([khoaMau(sp.ten)]); const nhieu = [];
@@ -225,7 +201,7 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
       if (nhieu.length >= 3) break;
     }
     if (nhieu.length < 3) return null;
-    return { loai: l, hoi: `Mã nào dưới đây là bản màu ${MAU_MA[pt.mau].toUpperCase()} của dòng ${pt.dong}?`, sp,
+    return { loai: l, hoi: `Hình này là bản màu ${MAU_MA[pt.mau].toUpperCase()} — mã nào đúng?`, sp, hinh: nenHinh(sp.hinh_url),
       dapAn: xao([{ nhan: sp.ten, dung: true }, ...nhieu.map((t) => ({ nhan: t, dung: false }))]) };
   }
 
@@ -563,7 +539,7 @@ export default function DauTruong() {
             {cau.dapAn.map((a, i) => (
               <button key={i} onClick={() => traLoi(i)}
                 className={'dt-hinh-o' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
-                <img src={a.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e, a.hinhGoc)} />
+                <img src={a.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e)} />
               </button>
             ))}
           </div>
@@ -572,7 +548,7 @@ export default function DauTruong() {
             {cau.dapAn.map((a, i) => (
               <button key={i} onClick={() => traLoi(i)}
                 className={'dt-ss-the' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
-                <div className="dt-ss-hinh"><img src={a.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e, a.hinhGoc)} /></div>
+                <div className="dt-ss-hinh"><img src={a.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e)} /></div>
                 <div className="dt-ss-ten">{a.nhan}</div>
               </button>
             ))}
@@ -581,7 +557,7 @@ export default function DauTruong() {
           <>
             {cau.hinh && <div className="dt-hinh"><img src={cau.hinh} alt="" loading="eager"
               className="dt-hinh-img" onLoad={(e) => e.currentTarget.classList.add('san')}
-              onError={(e) => falbackGoc(e, cau.hinhGoc)} /></div>}
+              onError={(e) => falbackGoc(e)} /></div>}
             <div className="dt-dapan">
               {cau.dapAn.map((a, i) => (
                 <button key={i} onClick={() => traLoi(i)}
