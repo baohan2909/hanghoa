@@ -1088,3 +1088,8 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* thẻ KPI điều chuyển cho phép xuống hàng khi nhiều trạng thái */
 .the-hang-wrap { flex-wrap: wrap; }
 .the-hang-wrap .the-g { min-width: 120px; }
+
+/* Điều chuyển theo cửa hàng: dòng bấm xổ + mini badge tiến độ */
+.dck-ch-row:hover { background: #F3F7F9; }
+.dck-mini { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.dck-mini .dck-tt { font-size: 10px; padding: 1px 7px; }
