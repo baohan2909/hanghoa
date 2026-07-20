@@ -767,6 +767,10 @@ export default function XinHang() {
                             : 'tt-thuong')}>
                             {r.tinh_trang.startsWith('Hết hàng ') && r.tinh_trang !== 'Hết hàng, chưa từng bán'
                               ? <>Hết hàng<br/>{r.tinh_trang.replace('Hết hàng ', '')}</>
+                              : r.tinh_trang.startsWith('Hàng thu hồi')
+                              ? <>Hàng thu hồi<br/>ĐP xử lý</>
+                              : r.tinh_trang.startsWith('Hàng mới')
+                              ? <>Hàng mới<br/>{r.tinh_trang.replace(/^Hàng mới\s*[—-]\s*/, '')}</>
                               : r.tinh_trang}
                           </span>
                         )}

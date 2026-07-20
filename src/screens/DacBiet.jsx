@@ -7,7 +7,13 @@ import BaoCaoMaMoi from './BaoCaoMaMoi.jsx';
 
 // ===== HÀNG ĐẶC BIỆT — Thu hồi & Hàng mới (Điều phối kiểm soát, KHÔNG chia tự động) =====
 const fmtVND = (n) => (n || 0).toLocaleString('vi-VN') + 'đ';
-const fmtNgay = (d) => d ? String(d).split('T')[0].split('-').reverse().join('/') : '—';
+const fmtNgay = (d) => {
+  if (!d) return '—';
+  const x = new Date(d);
+  if (isNaN(x)) return String(d).split('T')[0].split('-').reverse().join('/');
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(x.getDate())}/${p(x.getMonth() + 1)}/${x.getFullYear()} ${p(x.getHours())}:${p(x.getMinutes())}`;
+};
 const laBH = (n1) => (n1 || '').includes('bảo hiểm') || (n1 || '').includes('Mũ');
 
 const BadgeNganh = ({ n1 }) => {
@@ -302,7 +308,7 @@ export default function DacBiet() {
                 <th className="col-sp">Sản phẩm</th><th className="center">Ngành</th>
                 {tab === 'THU_HOI' && <th className="center">Áp dụng</th>}
                 <th className="center">Giá</th><th className="center">Kho tổng</th>
-                <th className="center">Người thêm</th><th className="center">Ngày thêm</th><th className="center">Gỡ</th>
+                <th className="center">Người thêm</th><th className="center">Thêm lúc</th><th className="center">Gỡ</th>
               </tr></thead>
               <tbody>
                 {dsTab.map((r) => (
