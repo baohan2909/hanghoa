@@ -82,7 +82,7 @@ function phanTichMa(ten) {
 const khoaMau = (ten) => { const p = phanTichMa(ten); return p ? `${p.dong}|${p.mau}|${p.so}` : ten; };
 
 // ---- Sinh 1 câu hỏi: pool, sp đã dùng, chữ ký câu đã ra, cấp độ 0-3 ----
-function sinhCau(pool, daDung, daCau, capDo = 0) {
+function sinhCau(pool, daDung, daCau, capDo = 0, loaiTruoc = []) {
   const hopLeHinh = (u) => typeof u === 'string' && /^https?:\/\//.test(u.trim());
 
   // Thử tối đa 30 lần tìm câu CHƯA TỪNG RA trong ván (chữ ký loai|đáp án đúng)
@@ -121,7 +121,17 @@ function sinhCau(pool, daDung, daCau, capDo = 0) {
       if (pt && MAU_MA[pt.mau] && coHinh) loai.push('MA_NGUOC', 'MA_NGUOC');
       loai.push('GIA', 'TONNHIEU_NGANH');                 // 1 vé mỗi loại
     }
-    const l = loai[Math.floor(Math.random() * loai.length)];
+    // CẤU TRÚC ĐỔI LIÊN TỤC: tránh lặp dạng câu 2 câu gần nhất (nếu còn dạng khác để chọn).
+    // GIA/TEN_KHO/CHON_HINH_KHO gộp chung "họ" để không ra 3 câu-hình hay 3 câu-giá liền nhau.
+    const hoCua = (x) => x === 'GIA' || x === 'GIA_HINH' ? 'GIA'
+      : (x === 'TEN' || x === 'TEN_KHO') ? 'TEN'
+      : (x === 'CHON_HINH' || x === 'CHON_HINH_KHO') ? 'CHONHINH'
+      : (x === 'XEP_GIA_HINH' || x === 'CHON_RE_HINH') ? 'XEPGIA'
+      : x;
+    const hoTruoc = new Set(loaiTruoc.map(hoCua));
+    const loaiKhac = loai.filter((x) => !hoTruoc.has(hoCua(x)));
+    const nguon = loaiKhac.length ? loaiKhac : loai;   // nếu lọc hết thì dùng nguyên
+    const l = nguon[Math.floor(Math.random() * nguon.length)];
     const cau = thuSinh(l, sp, pool, capDo, coHinh, pt);
     if (!cau) continue;
     const kyDung = cau.dapAn.find((d) => d.dung)?.nhan || cau.dapAn.find((d) => d.dung)?.hinhGoc || cau.sp?.barcode || '';
@@ -417,6 +427,7 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
   const daCau = useRef(new Set());     // chữ ký câu đã ra — không lặp trong ván
   const lichSuCau = useRef(loadLichSu());   // câu đã ra các VÁN GẦN ĐÂY (localStorage) — tránh lặp giữa ván
   const cauVanNay = useRef(new Set());      // chỉ câu MỚI sinh trong ván này (để lưu vào lịch sử)
+  const loaiGanDay = useRef([]);            // 2 dạng câu gần nhất — tránh lặp cấu trúc liền nhau
   const dangChoi = useRef(false);
   const tRef = useRef(null);
   const tCauRef = useRef(null);
@@ -451,6 +462,7 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
     // Nạp câu đã ra các ván gần đây -> ván này tránh lặp lại chúng (mới mẻ giữa các lần chơi)
     daCau.current = new Set(lichSuCau.current);
     cauVanNay.current = new Set();
+    loaiGanDay.current = [];
     setDiem(0); setSoCau(0); setSoDung(0); setCombo(0); setComboMax(0); setMang(3); setChon(null); setKq(null);
     setTgConLai(CHE_DO[cheDo].giay || 0); setTgCau(7);
     setDem(3); dangChoi.current = true; setView('DEM');
@@ -504,22 +516,25 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
   const cauMoi = () => {
     // Cấp độ tăng theo tiến trình ván: câu 1-4 = C1 ... 13+ = C4 (khó nhất)
     const capDo = Math.min(3, Math.floor(soCau / 4));
-    let c = sinhCau(pool, daDung.current, daCau.current, capDo);
+    const lt = loaiGanDay.current;   // 2 dạng câu gần nhất -> tránh lặp
+    let c = sinhCau(pool, daDung.current, daCau.current, capDo, lt);
     if (!c) {
       // pool cạn SP mới -> nới daDung nhưng GIỮ daCau (vẫn cấm trùng câu)
       daDung.current = new Set();
-      c = sinhCau(pool, daDung.current, daCau.current, capDo)
-        || sinhCau(pool, daDung.current, daCau.current, Math.max(0, capDo - 1));
+      c = sinhCau(pool, daDung.current, daCau.current, capDo, lt)
+        || sinhCau(pool, daDung.current, daCau.current, Math.max(0, capDo - 1), lt);
     }
     if (!c) {
       // Vẫn bí -> XẢ lịch sử ván cũ (giữ câu ván NÀY), thử lại. Tránh kẹt khi lịch sử phủ hết.
       daCau.current = new Set(cauVanNay.current);
-      c = sinhCau(pool, daDung.current, daCau.current, capDo)
-        || sinhCau(pool, daDung.current, daCau.current, Math.max(0, capDo - 1));
+      c = sinhCau(pool, daDung.current, daCau.current, capDo, lt)
+        || sinhCau(pool, daDung.current, daCau.current, Math.max(0, capDo - 1), lt);
     }
     if (!c) { ketThuc(); return; }   // thật sự hết câu mới (cực hiếm) -> kết thúc đẹp
     daCau.current.add(c.chuKy);
     cauVanNay.current.add(c.chuKy);   // để lưu vào lịch sử khi kết thúc ván
+    // nhớ 2 dạng gần nhất (cho câu kế tránh lặp cấu trúc)
+    loaiGanDay.current = [c.loai, ...loaiGanDay.current].slice(0, 2);
     daDung.current.add(c.sp.barcode);
     if (daDung.current.size > pool.length - 8) daDung.current = new Set();
     // Preload NGAY mọi hình của CHÍNH câu này (câu.hinh + tất cả hình đáp án)

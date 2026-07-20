@@ -762,31 +762,25 @@ function DckTheoCH({ tu, den, baoToast }) {
                     <td style={{ fontSize: 12 }}>{r.ngay_gan_nhat ? fmtDM(r.ngay_gan_nhat) : '—'}</td>
                   </tr>
                   {moCH === r.ma_ch && (
-                    <tr key={r.ma_ch + '-x'}><td colSpan={6} style={{ padding: 0, background: '#F7F9FB' }}>
+                    <tr key={r.ma_ch + '-x'}><td colSpan={6} style={{ padding: 0 }}>
                       {!phieu[r.ma_ch] ? (
                         <div style={{ padding: 14, color: 'var(--ink-2)', fontSize: 12 }}>Đang tải phiếu…</div>
                       ) : (
-                        <table className="tbl" style={{ margin: 0, background: 'transparent' }}>
-                          <thead><tr>
-                            <th style={{ fontSize: 11 }}>Mã phiếu</th><th className="center" style={{ fontSize: 11 }}>Trạng thái</th>
-                            <th style={{ fontSize: 11 }}>Kho nguồn</th><th style={{ fontSize: 11 }}>Ngày tạo</th>
-                            <th className="num" style={{ fontSize: 11 }}>Số mã</th><th className="num" style={{ fontSize: 11 }}>Nhu cầu</th>
-                            <th className="num" style={{ fontSize: 11 }}>Đã nhập</th>
-                          </tr></thead>
-                          <tbody>
-                            {phieu[r.ma_ch].map((f) => (
-                              <tr key={f.ma_phieu}>
-                                <td className="mono" style={{ fontSize: 11, fontWeight: 700 }}>{f.ma_phieu}</td>
-                                <td className="center"><span className={'dck-tt ' + dckClass(f.trang_thai)}>{f.trang_thai}</span></td>
-                                <td style={{ fontSize: 11 }}>{f.ten_kho_nguon}<div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{f.ma_kho_nguon}</div></td>
-                                <td style={{ fontSize: 11 }}>{f.ngay_tao ? fmtDM(f.ngay_tao) : '—'}</td>
-                                <td className="num">{Number(f.so_ma)}</td>
-                                <td className="num">{Number(f.tong_nhu_cau)}</td>
-                                <td className="num" style={{ color: Number(f.tong_da_nhap) >= Number(f.tong_nhu_cau) ? 'var(--teal-deep)' : 'var(--ink-2)' }}>{Number(f.tong_da_nhap)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        <div className="dck-phieu-wrap">
+                          {phieu[r.ma_ch].map((f) => (
+                            <div key={f.ma_phieu} className="dck-phieu-card">
+                              <div className="dck-phieu-l">
+                                <span className="mono dck-phieu-ma">{f.ma_phieu}</span>
+                                <span className={'dck-tt ' + dckClass(f.trang_thai)}>{f.trang_thai}</span>
+                              </div>
+                              <div className="dck-phieu-r">
+                                <span className="dck-phieu-kv">{f.ten_kho_nguon} <span className="mono" style={{ color: 'var(--ink-3)' }}>({f.ma_kho_nguon})</span></span>
+                                <span className="dck-phieu-so">{f.ngay_tao ? fmtDM(f.ngay_tao) : '—'} · {Number(f.so_ma)} mã · NC {Number(f.tong_nhu_cau)}
+                                  <b style={{ color: Number(f.tong_da_nhap) >= Number(f.tong_nhu_cau) ? 'var(--teal-deep)' : 'var(--ink-2)', marginLeft: 4 }}>· nhập {Number(f.tong_da_nhap)}</b></span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </td></tr>
                   )}
