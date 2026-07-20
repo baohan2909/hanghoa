@@ -618,18 +618,21 @@ function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h << 
 // ============ PHIẾU ĐIỀU CHUYỂN — thống kê mọi phiếu (định kỳ + khẩn cấp) ============
 // ============ ĐIỀU CHUYỂN KHO — trạng thái THẬT từ Odoo (app chỉ đọc) ============
 // 4 trạng thái sheet: Chưa chuyển -> Chờ sẵn sàng -> Đã xuất -> Đã nhận.
-const DCK_TT = ['Chưa chuyển', 'Chờ sẵn sàng', 'Đã xuất', 'Đã nhận'];
+const DCK_TT = ['Chưa chuyển', 'Chờ sẵn sàng', 'Một phần', 'Đã xuất', 'Chưa nhận', 'Đã nhận'];
 // Chuẩn hóa trạng thái về tiếng Việt (phòng dữ liệu cũ còn tiếng Anh trong DB).
 const chuanDCK = (s) => {
   const k = String(s || '').trim().toLowerCase();
   if (k === 'not transfer') return 'Chưa chuyển';
   if (k === 'waiting available') return 'Chờ sẵn sàng';
+  if (k === 'partially') return 'Một phần';
   if (k === 'issued') return 'Đã xuất';
+  if (k === 'not receive') return 'Chưa nhận';
   if (k === 'received') return 'Đã nhận';
   return String(s || '').trim();
 };
 const dckClass = (tt) => ({ 'Chưa chuyển': 'dck-cho', 'Chờ sẵn sàng': 'dck-san',
-  'Đã xuất': 'dck-xuat', 'Đã nhận': 'dck-nhan' }[tt] || 'dck-cho');
+  'Một phần': 'dck-phan', 'Đã xuất': 'dck-xuat', 'Chưa nhận': 'dck-chuanhan',
+  'Đã nhận': 'dck-nhan' }[tt] || 'dck-cho');
 
 function TabPhieu() {
   const { baoToast } = useApp();
@@ -664,7 +667,7 @@ function TabPhieu() {
     const v = rows || [];
     const dem = (tt) => v.filter((r) => r.trang_thai === tt).length;
     return { tong: v.length, cho: dem('Chưa chuyển'), san: dem('Chờ sẵn sàng'),
-      xuat: dem('Đã xuất'), nhan: dem('Đã nhận') };
+      phan: dem('Một phần'), xuat: dem('Đã xuất'), chuanhan: dem('Chưa nhận'), nhan: dem('Đã nhận') };
   }, [rows]);
 
   const hien = useMemo(() => {
@@ -715,7 +718,7 @@ function TabPhieu() {
         <button className="btn btn-ghost" onClick={xuat}>Xuất Excel</button>
       </div>
 
-      <div className="the-hang" style={{ marginTop: 12 }}>
+      <div className="the-hang the-hang-wrap" style={{ marginTop: 12 }}>
         <button className={'the-g' + (locTT === '' ? ' on' : '')} onClick={() => setLocTT('')}>
           <span className="the-g-n">{tk.tong}</span><span className="the-g-t">tổng phiếu (mã DK)</span>
         </button>
@@ -725,8 +728,14 @@ function TabPhieu() {
         <button className={'the-g' + (locTT === 'Chờ sẵn sàng' ? ' on' : '')} onClick={() => bamTT('Chờ sẵn sàng')}>
           <span className="the-g-n" style={{ color: 'var(--gold)' }}>{tk.san}</span><span className="the-g-t">chờ sẵn sàng</span>
         </button>
+        <button className={'the-g' + (locTT === 'Một phần' ? ' on' : '')} onClick={() => bamTT('Một phần')}>
+          <span className="the-g-n" style={{ color: '#c47a1e' }}>{tk.phan}</span><span className="the-g-t">một phần</span>
+        </button>
         <button className={'the-g' + (locTT === 'Đã xuất' ? ' on' : '')} onClick={() => bamTT('Đã xuất')}>
           <span className="the-g-n" style={{ color: 'var(--teal-deep)' }}>{tk.xuat}</span><span className="the-g-t">đã xuất</span>
+        </button>
+        <button className={'the-g' + (locTT === 'Chưa nhận' ? ' on' : '')} onClick={() => bamTT('Chưa nhận')}>
+          <span className="the-g-n" style={{ color: '#7a6bd6' }}>{tk.chuanhan}</span><span className="the-g-t">chưa nhận</span>
         </button>
         <button className={'the-g' + (locTT === 'Đã nhận' ? ' on' : '')} onClick={() => bamTT('Đã nhận')}>
           <span className="the-g-n" style={{ color: 'var(--magenta)' }}>{tk.nhan}</span><span className="the-g-t">đã nhận</span>

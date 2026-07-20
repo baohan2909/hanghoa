@@ -1081,3 +1081,10 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .dck-san { background: rgba(203,164,90,.2); color: #8a6a24; }
 .dck-xuat { background: #EEF6F5; color: var(--teal-deep); }
 .dck-nhan { background: rgba(214,0,108,.12); color: var(--magenta); }
+
+/* 2 trạng thái điều chuyển bổ sung */
+.dck-phan { background: rgba(196,122,30,.18); color: #b06a12; }
+.dck-chuanhan { background: rgba(122,107,214,.16); color: #5b4bc4; }
+/* thẻ KPI điều chuyển cho phép xuống hàng khi nhiều trạng thái */
+.the-hang-wrap { flex-wrap: wrap; }
+.the-hang-wrap .the-g { min-width: 120px; }
