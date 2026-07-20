@@ -26,10 +26,20 @@ const HUY_HIEU = {
   CHUYEN_CAN: { ten: 'Chuyên cần',    mota: 'Thi đấu 5 ngày khác nhau' },
 };
 const fmtVND = (n) => Number(n).toLocaleString('vi') + ' đ';
-// Dùng ảnh gốc trực tiếp (proxy nén lần đầu chậm hơn với ảnh nét). Chỉ validate URL http.
-const nenHinh = (u) => {
-  if (typeof u !== 'string' || !/^https?:\/\//.test(u.trim())) return '';
-  return u.trim();
+// Ảnh nét cao của nonson.vn rất nặng -> tải trực tiếp chậm/timeout.
+// Nén qua weserv 300px webp q70: nhẹ ~15-30KB, nhanh cả lần đầu + cache toàn cầu.
+// Nếu proxy hỏng, <img onError> tự chuyển về ảnh gốc (goc()).
+const goc = (u) => (typeof u === 'string' && /^https?:\/\//.test(u.trim())) ? u.trim() : '';
+// Ảnh proxy lỗi -> chuyển 1 lần về ảnh gốc (không lặp vô hạn).
+function falbackGoc(e, hinhGoc) {
+  const img = e.currentTarget;
+  if (hinhGoc && img.src !== hinhGoc) { img.src = hinhGoc; }
+  else { img.classList.add('san'); }
+}
+const nenHinh = (u, w = 300) => {
+  const g = goc(u);
+  if (!g) return '';
+  return `https://images.weserv.nl/?url=${encodeURIComponent(g.replace(/^https?:\/\//, ''))}&w=${w}&q=70&output=webp&we`;
 };
 const xao = (a) => { const v = [...a]; for (let i = v.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [v[i], v[j]] = [v[j], v[i]]; } return v; };
 const lay = (a, n, loai) => xao(a.filter((x) => x !== loai)).slice(0, n);
@@ -76,28 +86,40 @@ function sinhCau(pool, daDung, daCau, capDo = 0) {
     const coHinh = hopLeHinh(sp.hinh_url);
     const pt = phanTichMa(sp.ten);
 
-    // ---- danh mục dạng câu theo cấp (dạng có hình nhân đôi trọng số) ----
+    // ---- DANH MỤC DẠNG CÂU THEO CẤP ----
+    // Ưu tiên HÌNH ẢNH (anh yêu cầu). Câu BÁN/TỒN chỉ 1 vé mỗi loại (hiếm, đỡ nhàm).
+    // Càng lên cấp càng nhiều câu ĐA HÌNH (chọn hình / so nhiều hình).
     const loai = [];
+    const chonHinhDs = pool.filter((x) => hopLeHinh(x.hinh_url));
+    const duHinh = chonHinhDs.length >= 4;
     if (capDo === 0) {
-      loai.push('GIA', 'NGANH', 'BANCHAY');
+      loai.push('GIA', 'NGANH');
       if (coHinh) loai.push('TEN', 'TEN', 'MAU_HINH');
+      if (duHinh) loai.push('CHON_HINH', 'CHON_HINH');   // cho tên chọn đúng hình
       if (pt && MAU_MA[pt.mau]) loai.push('MA_MAU');
+      loai.push('BANCHAY');                               // 1 vé
     } else if (capDo === 1) {
-      loai.push('GIA', 'BANCHAY', 'CHAYHANG');
-      if (coHinh) loai.push('TEN', 'TEN', 'MAU_HINH', 'MAU_HINH', 'SOSANH');
+      loai.push('GIA');
+      if (coHinh) loai.push('TEN', 'TEN', 'MAU_HINH');
+      if (duHinh) loai.push('CHON_HINH', 'CHON_HINH', 'SOSANH');
       if (pt && MAU_MA[pt.mau]) loai.push('MA_MAU');
+      loai.push('BANCHAY');                               // 1 vé
     } else if (capDo === 2) {
-      loai.push('GIA', 'TONNHIEU_NGANH', 'CHAYHANG');
-      if (coHinh) loai.push('TEN_KHO', 'TEN_KHO', 'SOSANH', 'MAU_HINH');
-    } else {
-      loai.push('GIA', 'TONNHIEU_NGANH');
-      if (coHinh) loai.push('TEN_KHO', 'TEN_KHO', 'TEN_KHO', 'SOSANH_GAN');
+      loai.push('GIA');
+      if (coHinh) loai.push('TEN_KHO', 'TEN_KHO', 'MAU_HINH');
+      if (duHinh) loai.push('SOSANH', 'CHON_HINH_KHO', 'CHON_HINH_KHO', 'GIA_HINH');
       if (pt && MAU_MA[pt.mau]) loai.push('MA_NGUOC');
+      loai.push('CHAYHANG');                              // 1 vé
+    } else {
+      if (coHinh) loai.push('TEN_KHO', 'TEN_KHO');
+      if (duHinh) loai.push('CHON_HINH_KHO', 'CHON_HINH_KHO', 'SOSANH_GAN', 'GIA_HINH', 'XEP_GIA_HINH', 'XEP_GIA_HINH');
+      if (pt && MAU_MA[pt.mau]) loai.push('MA_NGUOC');
+      loai.push('GIA', 'TONNHIEU_NGANH');                 // 1 vé mỗi loại
     }
     const l = loai[Math.floor(Math.random() * loai.length)];
     const cau = thuSinh(l, sp, pool, capDo, coHinh, pt);
     if (!cau) continue;
-    const kyDung = cau.dapAn.find((d) => d.dung)?.nhan || '';
+    const kyDung = cau.dapAn.find((d) => d.dung)?.nhan || cau.dapAn.find((d) => d.dung)?.hinhGoc || cau.sp?.barcode || '';
     cau.chuKy = `${cau.loai}|${kyDung}`;
     if (daCau.has(cau.chuKy)) continue;   // câu này RA RỒI -> thử câu khác
     return cau;
@@ -267,9 +289,65 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
     return null;
   }
 
+  if (l === 'CHON_HINH' || l === 'CHON_HINH_KHO') {
+    // Cho TÊN mã -> chọn đúng HÌNH trong 4 hình. Đảo ngược câu nhận diện.
+    // CHON_HINH: 4 hình khác dòng (dễ). CHON_HINH_KHO: 4 hình CÙNG DÒNG khác màu (khó).
+    if (!coHinh) return null;
+    let nhieuSp;
+    if (l === 'CHON_HINH_KHO' && pt) {
+      const kSp = khoaMau(sp.ten);
+      const daMau = new Set([kSp]); nhieuSp = [];
+      for (const x of xao(pool.filter((x) => x.barcode !== sp.barcode && hopLeHinh(x.hinh_url)
+        && phanTichMa(x.ten)?.dong === pt.dong && khoaMau(x.ten) !== kSp))) {
+        const k = khoaMau(x.ten);
+        if (!daMau.has(k)) { daMau.add(k); nhieuSp.push(x); }
+        if (nhieuSp.length >= 3) break;
+      }
+    } else {
+      nhieuSp = xao(pool.filter((x) => x.barcode !== sp.barcode && hopLeHinh(x.hinh_url)
+        && (!pt || phanTichMa(x.ten)?.dong !== pt.dong))).slice(0, 3);
+    }
+    if (nhieuSp.length < 3) return null;
+    return { loai: l, laHinhDapAn: true,
+      hoi: l === 'CHON_HINH_KHO' ? `Chọn đúng HÌNH của mã “${sp.ten}” (các mã cùng dòng, nhìn kỹ màu)` : `Đâu là hình của “${sp.ten}”?`,
+      sp, dapAn: xao([{ hinh: nenHinh(sp.hinh_url), hinhGoc: goc(sp.hinh_url), dung: true },
+        ...nhieuSp.map((x) => ({ hinh: nenHinh(x.hinh_url), hinhGoc: goc(x.hinh_url), dung: false }))]) };
+  }
+
+  if (l === 'GIA_HINH') {
+    // Câu giá NHƯNG có hình sản phẩm to bên trên -> vừa nhìn hình vừa nhớ giá.
+    if (!coHinh) return null;
+    const bien = [[0.3, 0.8], [0.15, 0.3], [0.08, 0.18], [0.05, 0.12]][capDo];
+    const nhieu = new Set(); let thu = 0;
+    while (nhieu.size < 3 && thu < 40) { thu++;
+      const pct = bien[0] + Math.random() * (bien[1] - bien[0]);
+      const g = Math.round(gia * (Math.random() < 0.5 ? 1 - pct : 1 + pct) / 1000) * 1000;
+      if (g > 0 && g !== gia) nhieu.add(g);
+    }
+    if (nhieu.size < 3) return null;
+    return { loai: 'GIA', hoi: 'Sản phẩm trong hình có giá niêm yết là bao nhiêu?', sp,
+      hinh: nenHinh(sp.hinh_url), hinhGoc: goc(sp.hinh_url),
+      dapAn: xao([{ nhan: fmtVND(gia), dung: true }, ...[...nhieu].slice(0, 3).map((g) => ({ nhan: fmtVND(g), dung: false }))]) };
+  }
+
+  if (l === 'XEP_GIA_HINH') {
+    // 3 HÌNH -> chọn hình sản phẩm ĐẮT NHẤT (đa hình, cấp cao). Giá phải cách nhau ≥12%.
+    if (!coHinh) return null;
+    const ds = xao(pool.filter((x) => hopLeHinh(x.hinh_url) && Number(x.gia) > 0));
+    for (let t = 0; t < 8; t++) {
+      const bo = xao(ds).slice(0, 3);
+      const gs = bo.map((x) => Number(x.gia)).sort((a, b) => b - a);
+      if (gs[0] >= gs[1] * 1.12 && gs[1] >= gs[2] * 1.12) {
+        const maxg = gs[0];
+        return { loai: l, laHinhDapAn: true, hoi: 'Sản phẩm nào ĐẮT NHẤT? (chọn theo hình)', sp: bo[0],
+          dapAn: xao(bo.map((x) => ({ hinh: nenHinh(x.hinh_url), hinhGoc: goc(x.hinh_url), dung: Number(x.gia) === maxg }))) };
+      }
+    }
+    return null;
+  }
+
   return null;
 }
-
 
 export default function DauTruong() {
   const { user, baoToast } = useApp();
@@ -479,13 +557,22 @@ export default function DauTruong() {
 
         <div className="dt-hoi">{cau.hoi}</div>
 
-        {cau.loai === 'SOSANH' ? (
+        {cau.laHinhDapAn ? (
+          // ĐÁP ÁN LÀ HÌNH: lưới 2x2 hình bấm chọn
+          <div className="dt-hinh-luoi">
+            {cau.dapAn.map((a, i) => (
+              <button key={i} onClick={() => traLoi(i)}
+                className={'dt-hinh-o' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
+                <img src={a.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e, a.hinhGoc)} />
+              </button>
+            ))}
+          </div>
+        ) : cau.loai === 'SOSANH' ? (
           <div className="dt-sosanh">
             {cau.dapAn.map((a, i) => (
               <button key={i} onClick={() => traLoi(i)}
                 className={'dt-ss-the' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
-                <div className="dt-ss-hinh"><img src={a.hinh} alt="" loading="eager"
-                  onError={() => { if (chon === null) cauMoi(); }} /></div>
+                <div className="dt-ss-hinh"><img src={a.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e, a.hinhGoc)} /></div>
                 <div className="dt-ss-ten">{a.nhan}</div>
               </button>
             ))}
@@ -494,7 +581,7 @@ export default function DauTruong() {
           <>
             {cau.hinh && <div className="dt-hinh"><img src={cau.hinh} alt="" loading="eager"
               className="dt-hinh-img" onLoad={(e) => e.currentTarget.classList.add('san')}
-              onError={() => { if (chon === null) cauMoi(); }} /></div>}
+              onError={(e) => falbackGoc(e, cau.hinhGoc)} /></div>}
             <div className="dt-dapan">
               {cau.dapAn.map((a, i) => (
                 <button key={i} onClick={() => traLoi(i)}
