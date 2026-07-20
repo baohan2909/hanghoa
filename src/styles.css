@@ -1096,3 +1096,8 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .dck-ch-row:hover { background: #F3F7F9; }
 .dck-mini { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
 .dck-mini .dck-tt { font-size: 10px; padding: 1px 7px; }
+
+/* Badge nhóm cạnh mã khi đang tìm (đề nghị hàng) */
+.chip-nhom { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; background: rgba(63,182,168,.15); color: var(--teal-deep);
+  vertical-align: middle; }

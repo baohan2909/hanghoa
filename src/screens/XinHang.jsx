@@ -16,6 +16,8 @@ const NHOM = [
   { id: 'PK',   ten: 'Phụ kiện',         nhom: 'PK', sale: false },
 ];
 const nhomCua = (r) => r.nhom_hang === 'PK' ? 'PK' : (r.nhom_hang === 'BH' ? 'BH' : 'NV') + '_' + (r.la_hang_sale ? 'S' : 'C');
+// Nhãn ngắn cho badge nhóm (hiện khi đang tìm)
+const TEN_NHOM = { BH_C: 'BH chính', BH_S: 'BH sale', NV_C: 'NV chính', NV_S: 'NV sale', PK: 'Phụ kiện' };
 const KEY = (ma) => 'nsflow_draft_' + ma;
 
 // Ô chọn cửa hàng: gõ trực tiếp để lọc; dropdown render FIXED nên không bị đè/cắt (lỗi 1)
@@ -299,7 +301,10 @@ export default function XinHang() {
     // Loại hàng "Kho hết — cần sản xuất" (tồn 0 + kho tổng 0 + có bán): giai đoạn này
     // không đưa vào gợi ý chia; chúng nằm ở màn Giám sát > Cần sản xuất.
     const base = rows.filter((r) => !(r.nguon === 'CH' && r.ton_truoc === 0 && (r.kho_tong ?? 0) <= 0 && r.tinh_trang === 'Kho hết — cần sản xuất'));
-    let v = nhomXem === 'ALL' ? base : base.filter((r) => nhomCua(r) === nhomXem);
+    // Khi ĐANG TÌM (có từ khóa): tìm xuyên TẤT CẢ nhóm (gõ mã là ra, kể cả mã sale ở tab khác).
+    // Không tìm: lọc theo nhóm tab đang xem.
+    const dangTim = q.trim() !== '';
+    let v = (dangTim || nhomXem === 'ALL') ? base : base.filter((r) => nhomCua(r) === nhomXem);
     if (q) {
       const k = q.toUpperCase();
       v = v.filter((r) => [r.barcode, r.sku, r.ma_tham_chieu].some((x) => (x || '').toUpperCase().includes(k)));
@@ -620,6 +625,9 @@ export default function XinHang() {
                 onChange={(e) => setQ(e.target.value)} style={{ paddingLeft: 34, width: 220 }} />
               <span style={{ position: 'absolute', left: 10, top: 10, color: 'var(--ink-2)' }}><IcSearch /></span>
             </div>
+            {q.trim() && <span className="chip" style={{ background: 'rgba(63,182,168,.14)', color: 'var(--teal-deep)' }}
+              title="Khi tìm, hệ thống tìm trong TẤT CẢ nhóm (BH chính, BH sale, Nón vải, Phụ kiện) — không chỉ tab đang xem">
+              🔍 tìm trong tất cả nhóm</span>}
             <button className="btn btn-ghost" onClick={() => { setSortBy(null); baoToast('Đã xếp lại theo thứ tự ưu tiên mặc định'); }}
               disabled={!sortBy} title="Quay lại thứ tự ưu tiên ban đầu (cần cấp → đang bán → hàng chậm → kho tổng)">
               <IcRefresh /> Xếp mặc định</button>
@@ -722,7 +730,9 @@ export default function XinHang() {
                                 onMouseLeave={() => setHoverAnh(null)} />
                             : <div className="noimg"><IcBox /></div>}
                           <div>
-                            <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
+                            <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}
+                              {q.trim() && <span className="chip-nhom" title="Nhóm của mã này">{TEN_NHOM[nhomCua(r)] || nhomCua(r)}</span>}
+                            </div>
                             <div className="sp-desc" style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}</div>
                           </div>
                         </div>
