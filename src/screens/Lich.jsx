@@ -637,6 +637,8 @@ const chuanDCK = (s) => {
 const dckClass = (tt) => ({ 'Chưa chuyển': 'dck-cho', 'Chờ sẵn sàng': 'dck-san',
   'Một phần': 'dck-phan', 'Đã xuất': 'dck-xuat', 'Chưa nhận': 'dck-chuanhan',
   'Đã nhận': 'dck-nhan' }[tt] || 'dck-cho');
+const ctClass = (ct) => ({ 'Yêu cầu điều chuyển': 'dck-nhap', 'Chờ xét duyệt': 'dck-choduyet',
+  'Bị từ chối': 'dck-tuchoi', 'Bị hủy': 'dck-huy', 'Điều chuyển kho': 'dck-xuat', 'Đã khoá': 'dck-nhan' }[ct] || 'dck-nhap');
 
 function TabPhieu() {
   const { baoToast } = useApp();
@@ -726,10 +728,12 @@ function DckTheoCH({ tu, den, baoToast }) {
   const xuat = async () => {
     const XLSX = await import('xlsx');
     const hdr = ['Mã CH', 'Cửa hàng', 'Khu vực', 'Nhóm', 'Số phiếu', 'Số mã', 'Nhu cầu',
-      'Chưa chuyển', 'Chờ sẵn sàng', 'Một phần', 'Đã xuất', 'Chưa nhận', 'Đã nhận', 'Gần nhất'];
+      'Chưa chuyển', '↳ Yêu cầu', '↳ Chờ duyệt', '↳ Từ chối', '↳ Hủy',
+      'Chờ sẵn sàng', 'Một phần', 'Đã xuất', 'Chưa nhận', 'Đã nhận', 'Gần nhất'];
     const data = hien.map((r) => [r.ma_ch, r.ten_ch, r.khu_vuc, r.nhom_ch ? 'N' + r.nhom_ch : '',
       Number(r.so_phieu), Number(r.so_ma), Number(r.tong_nhu_cau),
-      Number(r.so_chua_chuyen), Number(r.so_cho), Number(r.so_mot_phan),
+      Number(r.so_chua_chuyen), Number(r.so_ct_yeucau), Number(r.so_ct_choduyet), Number(r.so_ct_tuchoi), Number(r.so_ct_huy),
+      Number(r.so_cho), Number(r.so_mot_phan),
       Number(r.so_da_xuat), Number(r.so_chua_nhan), Number(r.so_da_nhan),
       r.ngay_gan_nhat ? fmtDM(r.ngay_gan_nhat) : '']);
     const ws = XLSX.utils.aoa_to_sheet([hdr, ...data]); const wb = XLSX.utils.book_new();
@@ -811,7 +815,13 @@ function DckTheoCH({ tu, den, baoToast }) {
                     <td style={{ width: '1%', whiteSpace: 'nowrap', fontWeight: 800, fontSize: 15, color: 'var(--teal-deep)', textAlign: 'left' }}>{Number(r.so_phieu)}</td>
                     <td>
                       <div className="dck-tien">
-                        {Number(r.so_chua_chuyen) > 0 && <span className="dck-tt dck-nhap" title="Chưa chuyển — đơn nháp, không tính tiến độ">{r.so_chua_chuyen} nháp</span>}
+                        {Number(r.so_ct_yeucau) > 0 && <span className="dck-tt dck-nhap" title="Chưa chuyển · Yêu cầu điều chuyển (nháp)">{r.so_ct_yeucau} yêu cầu</span>}
+                        {Number(r.so_ct_choduyet) > 0 && <span className="dck-tt dck-choduyet" title="Chưa chuyển · Chờ xét duyệt">{r.so_ct_choduyet} chờ duyệt</span>}
+                        {Number(r.so_ct_tuchoi) > 0 && <span className="dck-tt dck-tuchoi" title="Chưa chuyển · Bị từ chối">{r.so_ct_tuchoi} từ chối</span>}
+                        {Number(r.so_ct_huy) > 0 && <span className="dck-tt dck-huy" title="Chưa chuyển · Bị hủy">{r.so_ct_huy} hủy</span>}
+                        {/* phiếu Chưa chuyển không có chi tiết -> badge nháp chung */}
+                        {Number(r.so_chua_chuyen) > (Number(r.so_ct_yeucau) + Number(r.so_ct_choduyet) + Number(r.so_ct_tuchoi) + Number(r.so_ct_huy)) &&
+                          <span className="dck-tt dck-nhap">{Number(r.so_chua_chuyen) - (Number(r.so_ct_yeucau) + Number(r.so_ct_choduyet) + Number(r.so_ct_tuchoi) + Number(r.so_ct_huy))} nháp</span>}
                         {Number(r.so_cho) > 0 && <span className="dck-tt dck-san">{r.so_cho} chờ</span>}
                         {Number(r.so_mot_phan) > 0 && <span className="dck-tt dck-phan">{r.so_mot_phan} một phần</span>}
                         {Number(r.so_da_xuat) > 0 && <span className="dck-tt dck-xuat">{r.so_da_xuat} đã xuất</span>}
@@ -834,6 +844,8 @@ function DckTheoCH({ tu, den, baoToast }) {
                               <div className="dck-phieu-l">
                                 <span className="mono dck-phieu-ma">{f.ma_phieu}</span>
                                 <span className={'dck-tt ' + dckClass(f.trang_thai)}>{f.trang_thai}</span>
+                                {f.trang_thai === 'Chưa chuyển' && f.trang_thai_chi_tiet && f.trang_thai_chi_tiet !== 'Yêu cầu điều chuyển' &&
+                                  <span className={'dck-tt ' + ctClass(f.trang_thai_chi_tiet)}>{f.trang_thai_chi_tiet}</span>}
                               </div>
                               <div className="dck-phieu-r">
                                 <span className="dck-phieu-kv">{f.ten_kho_nguon} <span className="mono" style={{ color: 'var(--ink-3)' }}>({f.ma_kho_nguon})</span></span>

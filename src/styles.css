@@ -1196,3 +1196,8 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* Tiến độ 1 hàng thẳng */
 .dck-tien { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 .dck-tt.dck-nhap { background: #EEF0F2; color: var(--ink-3); }
+
+/* Badge chi tiết trạng thái (nhóm Chưa chuyển) */
+.dck-tt.dck-choduyet { background: rgba(120,90,210,.14); color: #6A4BC0; }
+.dck-tt.dck-tuchoi { background: rgba(214,90,40,.14); color: #C24A18; }
+.dck-tt.dck-huy { background: rgba(120,120,130,.16); color: #6A6A72; text-decoration: line-through; }
