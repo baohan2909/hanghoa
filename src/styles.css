@@ -1155,7 +1155,50 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ycdp-row:hover { background: #F3F7F9; }
 
 /* Điều chuyển theo CH: cột Tiến độ chia 2 cụm rõ ràng (đang xử lý | hoàn tất) */
-.dck-td2 { display: grid; grid-template-columns: 1fr auto; gap: 0; align-items: center; }
-.dck-td-trai { display: flex; flex-wrap: wrap; gap: 4px; padding-right: 10px; border-right: 1.5px solid var(--line); }
-.dck-td-phai { display: flex; padding-left: 10px; justify-content: flex-end; }
 .dck-tt.dck-nhap { background: #EEF0F2; color: var(--ink-3); }   /* đơn nháp — không tính lịch */
+
+/* ===== THANH TIẾN ĐỘ KHO — hiệu ứng sóng năng lượng chạy ===== */
+.kho-tiendo { margin-top: 14px; background: linear-gradient(135deg, #0E4A4E, #1E5F63 55%, #2A7A6E);
+  border-radius: 16px; padding: 16px 20px; color: #fff; position: relative; overflow: hidden;
+  box-shadow: 0 8px 30px rgba(14,74,78,.3); }
+.kho-tiendo::before {   /* ánh sáng nền lướt chéo */
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.08) 45%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.08) 55%, transparent 70%);
+  background-size: 250% 100%; animation: ktSweep 3.2s linear infinite; }
+@keyframes ktSweep { from { background-position: 200% 0; } to { background-position: -50% 0; } }
+.kt-info { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; position: relative; z-index: 1; }
+.kt-nhan { font-size: 12px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; opacity: .85; }
+.kt-so { font-size: 15px; } .kt-so b { font-size: 26px; font-weight: 800; font-family: var(--font-mono); }
+.kt-so span { opacity: .8; font-size: 12.5px; margin-left: 2px; }
+.kt-bar { height: 18px; background: rgba(255,255,255,.14); border-radius: 10px; position: relative; overflow: hidden; z-index: 1; }
+.kt-fill { height: 100%; border-radius: 10px; position: relative; overflow: hidden;
+  background: linear-gradient(90deg, #3FB6A8, #6FE0C8, #A8F0D8); transition: width .6s cubic-bezier(.22,.61,.36,1);
+  box-shadow: 0 0 20px rgba(111,224,200,.7); min-width: 8px; }
+.kt-song {   /* sóng lung linh chạy trong thanh fill */
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+  background-size: 40% 100%; background-repeat: no-repeat; animation: ktSong 1.5s linear infinite; }
+@keyframes ktSong { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+.kt-pct { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 2;
+  font-size: 11.5px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.kt-nhap-note { margin-top: 8px; font-size: 11px; opacity: .7; position: relative; z-index: 1; }
+
+/* ===== THẺ TRẠNG THÁI — nhỏ gọn, bấm lọc ===== */
+.dck-the-hang { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.dck-the { flex: 1; min-width: 92px; border: 1.5px solid var(--line); background: #fff; border-radius: 12px;
+  padding: 8px 10px; cursor: pointer; display: flex; flex-direction: column; gap: 1px; align-items: flex-start;
+  transition: border-color .14s, transform .14s, box-shadow .14s; }
+.dck-the:hover { transform: translateY(-2px); box-shadow: 0 5px 14px rgba(20,33,58,.1); }
+.dck-the.on { border-color: var(--teal); box-shadow: 0 5px 16px rgba(63,182,168,.25); }
+.dck-the-so { font-size: 20px; font-weight: 800; font-family: var(--font-mono); line-height: 1; }
+.dck-the-ten { font-size: 11px; color: var(--ink-2); font-weight: 600; }
+.dck-the.the-all .dck-the-so { color: var(--ink); }
+.dck-the.the-san .dck-the-so { color: #C77D1A; }
+.dck-the.the-phan .dck-the-so { color: #E08A00; }
+.dck-the.the-xuat .dck-the-so { color: var(--teal-deep); }
+.dck-the.the-chuanhan .dck-the-so { color: #7A4FD0; }
+.dck-the.the-nhan .dck-the-so { color: var(--magenta); }
+
+/* Tiến độ 1 hàng thẳng */
+.dck-tien { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.dck-tt.dck-nhap { background: #EEF0F2; color: var(--ink-3); }

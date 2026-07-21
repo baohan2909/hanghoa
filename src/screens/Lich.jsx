@@ -667,6 +667,7 @@ function DckTheoCH({ tu, den, baoToast }) {
   const [moCH, setMoCH] = useState(null);          // ma_ch đang mở xổ phiếu
   const [phieu, setPhieu] = useState({});          // ma_ch -> danh sách phiếu
   const [sortC, setSortC] = useState({ col: 'phieu', dir: 'desc' });
+  const [fltTT, setFltTT] = useState(null);    // lọc theo trạng thái (null = tất cả)
 
   useEffect(() => { (async () => {
     setRows(null); setMoCH(null); setPhieu({});
@@ -684,24 +685,34 @@ function DckTheoCH({ tu, den, baoToast }) {
     }
   };
 
+  const TT_KEY = { cho: 'so_cho', phan: 'so_mot_phan', xuat: 'so_da_xuat', chuanhan: 'so_chua_nhan', nhan: 'so_da_nhan' };
   const hien = useMemo(() => {
     let v = [...(rows || [])];
     if (q.trim()) { const t = q.trim().toLowerCase();
       v = v.filter((r) => (r.ten_ch || '').toLowerCase().includes(t) || (r.ma_ch || '').toLowerCase().includes(t)
         || (r.khu_vuc || '').toLowerCase().includes(t)); }
+    if (fltTT && TT_KEY[fltTT]) v = v.filter((r) => Number(r[TT_KEY[fltTT]]) > 0);   // chỉ CH có phiếu ở trạng thái này
     const g = { ch: (r) => r.ten_ch || '', kv: (r) => r.khu_vuc || '', phieu: (r) => Number(r.so_phieu), ma: (r) => Number(r.so_ma),
       nhu: (r) => Number(r.tong_nhu_cau), ngay: (r) => r.ngay_gan_nhat || '' }[sortC.col];
     if (g) v.sort((a, b) => { const x = g(a), y = g(b);
       const c = typeof x === 'string' ? x.localeCompare(y) : (x > y ? 1 : x < y ? -1 : 0);
       return sortC.dir === 'asc' ? c : -c; });
     return v;
-  }, [rows, q, sortC]);
+  }, [rows, q, sortC, fltTT]);
   const ds = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
   const ic = (c) => sortC.col === c ? (sortC.dir === 'asc' ? ' ▲' : ' ▼') : '';
 
+  // Tổng mọi trạng thái (theo phiếu) — cho thanh tiến độ + thẻ. Nháp KHÔNG tính vào tiến độ.
   const tong = useMemo(() => {
     const v = rows || [];
-    return { ch: v.length, phieu: v.reduce((s, r) => s + Number(r.so_phieu), 0) };
+    const s = (k) => v.reduce((a, r) => a + Number(r[k] || 0), 0);
+    const nhap = s('so_chua_chuyen'), cho = s('so_cho'), phan = s('so_mot_phan');
+    const xuat = s('so_da_xuat'), chuanhan = s('so_chua_nhan'), nhan = s('so_da_nhan');
+    const tongPhieu = s('so_phieu');
+    const thuc = tongPhieu - nhap;                    // đơn thật (trừ nháp)
+    const daXuat = xuat + chuanhan + nhan;            // đã rời kho (issued trở đi)
+    return { ch: v.length, phieu: tongPhieu, nhap, cho, phan, xuat, chuanhan, nhan,
+      thuc, daXuat, pct: thuc > 0 ? Math.round(100 * daXuat / thuc) : 0 };
   }, [rows]);
 
   const xuat = async () => {
@@ -726,15 +737,48 @@ function DckTheoCH({ tu, den, baoToast }) {
         <button className="btn btn-ghost" onClick={xuat}>Xuất Excel</button>
       </div>
 
+      {/* THANH TIẾN ĐỘ KHO — tổng đơn đã xuất / tổng đơn thật (trừ nháp), hiệu ứng sóng chạy */}
+      <div className="kho-tiendo">
+        <div className="kt-info">
+          <div className="kt-nhan">Tiến độ xuất kho</div>
+          <div className="kt-so"><b>{tong.daXuat}</b> / {tong.thuc} <span>đơn đã xuất</span></div>
+        </div>
+        <div className="kt-bar">
+          <div className="kt-fill" style={{ width: (tong.thuc > 0 ? tong.pct : 0) + '%' }}>
+            <div className="kt-song" />
+          </div>
+          <span className="kt-pct">{tong.pct}%</span>
+        </div>
+        {tong.nhap > 0 && <div className="kt-nhap-note">{tong.nhap} đơn nháp (chưa chuyển) — không tính tiến độ</div>}
+      </div>
+
+      {/* THẺ TRẠNG THÁI — nhỏ gọn, bấm lọc (trừ nháp) */}
+      <div className="dck-the-hang">
+        {[
+          { k: null, ten: 'Tất cả', so: tong.thuc, cl: 'the-all' },
+          { k: 'cho', ten: 'Chờ sẵn sàng', so: tong.cho, cl: 'the-san' },
+          { k: 'phan', ten: 'Một phần', so: tong.phan, cl: 'the-phan' },
+          { k: 'xuat', ten: 'Đã xuất', so: tong.xuat, cl: 'the-xuat' },
+          { k: 'chuanhan', ten: 'Chưa nhận', so: tong.chuanhan, cl: 'the-chuanhan' },
+          { k: 'nhan', ten: 'Đã nhận', so: tong.nhan, cl: 'the-nhan' },
+        ].map((t) => (
+          <button key={t.ten} className={'dck-the ' + t.cl + (fltTT === t.k ? ' on' : '')}
+            onClick={() => setFltTT(t.k)}>
+            <span className="dck-the-so">{t.so}</span>
+            <span className="dck-the-ten">{t.ten}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
         <div className="tbl-wrap" style={{ maxHeight: '62vh', overflow: 'auto' }}>
           <table className="tbl tbl-fit">
             <thead><tr>
-              <th className="num" style={{ width: 40 }}>#</th>
+              <th style={{ width: 30, padding: '0 4px' }}></th>
               <th className="sortable" onClick={() => ds('ch')}>Cửa hàng nhận{ic('ch')}</th>
-              <th className="sortable" onClick={() => ds('kv')}>Khu vực{ic('kv')}</th>
+              <th className="sortable" style={{ width: 110 }} onClick={() => ds('kv')}>Khu vực{ic('kv')}</th>
               <th className="num sortable" onClick={() => ds('phieu')}>Số phiếu{ic('phieu')}</th>
-              <th className="center">Tiến độ</th>
+              <th>Tiến độ</th>
               <th className="num sortable" onClick={() => ds('ma')}>Số mã{ic('ma')}</th>
               <th className="num sortable" onClick={() => ds('nhu')}>Nhu cầu{ic('nhu')}</th>
               <th className="sortable" onClick={() => ds('ngay')}>Gần nhất{ic('ngay')}</th>
@@ -743,30 +787,24 @@ function DckTheoCH({ tu, den, baoToast }) {
               {rows === null ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
               ) : hien.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Chưa có cửa hàng nào có phiếu điều chuyển (mã DK) trong khoảng này.</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>{fltTT ? 'Không có cửa hàng nào ở trạng thái này.' : 'Chưa có cửa hàng nào có phiếu điều chuyển (mã DK) trong khoảng này.'}</td></tr>
               ) : hien.map((r, i) => (
                 <Fragment key={r.ma_ch}>
                   <tr className="dck-ch-row" onClick={() => xoPhieu(r.ma_ch)} style={{ cursor: 'pointer' }}>
-                    <td className="num" style={{ color: 'var(--ink-3)', fontSize: 12 }}>{i + 1}</td>
+                    <td style={{ color: 'var(--ink-3)', fontSize: 11.5, padding: '0 4px', textAlign: 'right' }}>{i + 1}</td>
                     <td><span style={{ marginRight: 6, color: 'var(--teal-deep)' }}>{moCH === r.ma_ch ? '▼' : '▶'}</span>
                       <b>{r.ten_ch}</b>
                       <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)', marginLeft: 18 }}>{r.ma_ch}{r.nhom_ch ? ` · N${r.nhom_ch}` : ''}</div></td>
                     <td style={{ fontSize: 12.5 }}>{r.khu_vuc || '—'}</td>
                     <td className="num" style={{ fontWeight: 800, fontSize: 15, color: 'var(--teal-deep)' }}>{Number(r.so_phieu)}</td>
                     <td>
-                      <div className="dck-td2">
-                        <div className="dck-td-trai">
-                          {Number(r.so_chua_chuyen) > 0 && <span className="dck-tt dck-nhap" title="Chưa chuyển — đơn nháp, không tính lịch">{r.so_chua_chuyen} nháp</span>}
-                          {Number(r.so_cho) > 0 && <span className="dck-tt dck-san">{r.so_cho} chờ</span>}
-                          {Number(r.so_mot_phan) > 0 && <span className="dck-tt dck-phan">{r.so_mot_phan} một phần</span>}
-                          {Number(r.so_da_xuat) > 0 && <span className="dck-tt dck-xuat">{r.so_da_xuat} đã xuất</span>}
-                          {Number(r.so_chua_nhan) > 0 && <span className="dck-tt dck-chuanhan">{r.so_chua_nhan} chưa nhận</span>}
-                          {!(Number(r.so_chua_chuyen) || Number(r.so_cho) || Number(r.so_mot_phan) || Number(r.so_da_xuat) || Number(r.so_chua_nhan)) && <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>—</span>}
-                        </div>
-                        <div className="dck-td-phai">
-                          {Number(r.so_da_nhan) > 0 ? <span className="dck-tt dck-nhan">{r.so_da_nhan} đã nhận</span>
-                            : <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>—</span>}
-                        </div>
+                      <div className="dck-tien">
+                        {Number(r.so_chua_chuyen) > 0 && <span className="dck-tt dck-nhap" title="Chưa chuyển — đơn nháp, không tính tiến độ">{r.so_chua_chuyen} nháp</span>}
+                        {Number(r.so_cho) > 0 && <span className="dck-tt dck-san">{r.so_cho} chờ</span>}
+                        {Number(r.so_mot_phan) > 0 && <span className="dck-tt dck-phan">{r.so_mot_phan} một phần</span>}
+                        {Number(r.so_da_xuat) > 0 && <span className="dck-tt dck-xuat">{r.so_da_xuat} đã xuất</span>}
+                        {Number(r.so_chua_nhan) > 0 && <span className="dck-tt dck-chuanhan">{r.so_chua_nhan} chưa nhận</span>}
+                        {Number(r.so_da_nhan) > 0 && <span className="dck-tt dck-nhan">{r.so_da_nhan} đã nhận</span>}
                       </div>
                     </td>
                     <td className="num">{Number(r.so_ma)}</td>
