@@ -837,7 +837,7 @@ export default function XinHang() {
                           </span>
                         )}
                         {/* Mã hết (CH=0 + kho tổng=0): nút Yêu cầu điều phối — chỉ cửa hàng bấm */}
-                        {user.vai_tro === 'CH' && (r.ton_truoc ?? 0) === 0 && (r.kho_tong ?? 0) <= 0
+                        {maCH && (r.ton_truoc ?? 0) === 0 && (r.kho_tong ?? 0) <= 0
                           && (r.tinh_trang === 'Kho hết — cần sản xuất' || r.tinh_trang.startsWith('Hết hàng')) && (
                           <div className="ycdp-box">
                             {ycdp[r.barcode] ? (

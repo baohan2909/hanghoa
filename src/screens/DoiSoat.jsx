@@ -28,13 +28,15 @@ export default function DoiSoat() {
   const lechClass = (khop) => khop ? 'ds-ok' : 'ds-lech';
 
   return (
-    <div className="wrap">
-      <div className="page-head">
-        <div>
+    <>
+      <div className="cmdbar">
+        <div className="cmd-title">
           <h2>Đối soát dữ liệu</h2>
           <p>So số liệu đã đồng bộ (Supabase) với data gốc trên Google Sheet. Lệch = cần kiểm tra sync.</p>
         </div>
-        <button className="btn btn-ai" onClick={tai} disabled={dangTai}>{dangTai ? 'Đang tải…' : '↻ Làm mới'}</button>
+        <div className="cmd-row">
+          <button className="btn btn-ai" onClick={tai} disabled={dangTai}>{dangTai ? 'Đang tải…' : '↻ Làm mới'}</button>
+        </div>
       </div>
 
       {/* Thẻ trạng thái mới nhất mỗi bảng */}
@@ -95,6 +97,6 @@ export default function DoiSoat() {
           </table>
         </div>
       </div>
-    </div>
+    </>
   );
 }

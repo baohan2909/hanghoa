@@ -64,8 +64,8 @@ input, select { font-family: inherit; font-size: 14px; }
   overflow: hidden; z-index: 60;
   /* đổi width tức thì: 1 reflow duy nhất, không kéo giật qua nhiều khung hình */
 }
-.side-nav { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0;
-  scrollbar-width: none; }
+.side-nav { flex: 1 1 auto; overflow-y: auto; overflow-x: visible; min-height: 0;
+  padding-right: 4px; margin-right: -4px; scrollbar-width: none; }
 .side-nav::-webkit-scrollbar { width: 0; height: 0; }
 /* ---- Chế độ THU GỌN: chỉ icon, mượt ---- */
 .sidebar.gon { width: 72px; padding: 14px 8px; }
@@ -103,7 +103,7 @@ input, select { font-family: inherit; font-size: 14px; }
 /* QUY TẮC: thẻ đang chọn = gradient chủ đạo + bóng mờ glow */
 .side-item.on {
   background: var(--grad); color: #fff;
-  box-shadow: 0 6px 18px rgba(30,95,99,.38), 0 2px 6px rgba(20,33,58,.22);
+  box-shadow: 0 4px 14px rgba(30,95,99,.34);
 }
 .side-user { margin-top: auto; border-top: 1px solid var(--line); padding: 12px 12px 4px; }
 .side-user .n { font-weight: 600; font-size: 13px; }
