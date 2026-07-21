@@ -715,6 +715,14 @@ function DckTheoCH({ tu, den, baoToast }) {
       thuc, daXuat, pct: thuc > 0 ? Math.round(100 * daXuat / thuc) : 0 };
   }, [rows]);
 
+  // Gợi ý tìm: khu vực (đầu danh sách) + tên cửa hàng
+  const dsGoiY = useMemo(() => {
+    const v = rows || [];
+    const kv = [...new Set(v.map((r) => r.khu_vuc).filter(Boolean))].sort();
+    const ch = [...new Set(v.map((r) => r.ten_ch).filter(Boolean))].sort();
+    return [...kv, ...ch];
+  }, [rows]);
+
   const xuat = async () => {
     const XLSX = await import('xlsx');
     const hdr = ['Mã CH', 'Cửa hàng', 'Khu vực', 'Nhóm', 'Số phiếu', 'Số mã', 'Nhu cầu',
@@ -730,13 +738,6 @@ function DckTheoCH({ tu, den, baoToast }) {
 
   return (
     <>
-      <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input className="flt-in" placeholder="Tìm cửa hàng / khu vực…" value={q}
-          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 220, flex: 1 }} />
-        <span className="sla-chip">{tong.ch} cửa hàng · {tong.phieu} phiếu</span>
-        <button className="btn btn-ghost" onClick={xuat}>Xuất Excel</button>
-      </div>
-
       {/* THANH TIẾN ĐỘ KHO — tổng đơn đã xuất / tổng đơn thật (trừ nháp), hiệu ứng sóng chạy */}
       <div className="kho-tiendo">
         <div className="kt-info">
@@ -768,6 +769,17 @@ function DckTheoCH({ tu, den, baoToast }) {
             <span className="dck-the-ten">{t.ten}</span>
           </button>
         ))}
+      </div>
+
+      {/* Thanh tìm (dưới thẻ) — gợi ý cửa hàng + khu vực khi gõ */}
+      <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input className="flt-in" placeholder="Tìm cửa hàng / khu vực…" value={q} list="dck-goiy"
+          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 240, flex: 1 }} />
+        <datalist id="dck-goiy">
+          {dsGoiY.map((g) => <option key={g} value={g} />)}
+        </datalist>
+        <span className="sla-chip">{tong.ch} cửa hàng · {tong.phieu} phiếu</span>
+        <button className="btn btn-ghost" onClick={xuat}>Xuất Excel</button>
       </div>
 
       <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
