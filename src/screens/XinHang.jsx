@@ -298,12 +298,14 @@ export default function XinHang() {
 
   const hienAll = useMemo(() => {
     if (!rows) return [];
-    // Loại hàng "Kho hết — cần sản xuất" (tồn 0 + kho tổng 0 + có bán): giai đoạn này
-    // không đưa vào gợi ý chia; chúng nằm ở màn Giám sát > Cần sản xuất.
-    const base = rows.filter((r) => !(r.nguon === 'CH' && r.ton_truoc === 0 && (r.kho_tong ?? 0) <= 0 && r.tinh_trang === 'Kho hết — cần sản xuất'));
-    // Khi ĐANG TÌM (có từ khóa): tìm xuyên TẤT CẢ nhóm (gõ mã là ra, kể cả mã sale ở tab khác).
-    // Không tìm: lọc theo nhóm tab đang xem.
+    // Loại hàng "Kho hết — cần sản xuất" (tồn 0 + kho tổng 0 + có bán) KHỎI danh sách mặc định:
+    // giai đoạn này không đưa vào gợi ý chia; chúng nằm ở màn Giám sát > Cần sản xuất.
+    // NHƯNG khi ĐANG TÌM -> cho hiện luôn (gõ mã là ra, kèm nhãn tình trạng "cần sản xuất").
     const dangTim = q.trim() !== '';
+    const base = dangTim ? rows
+      : rows.filter((r) => !(r.nguon === 'CH' && r.ton_truoc === 0 && (r.kho_tong ?? 0) <= 0 && r.tinh_trang === 'Kho hết — cần sản xuất'));
+    // Khi tìm: tìm xuyên TẤT CẢ nhóm (gõ mã là ra, kể cả mã sale ở tab khác).
+    // Không tìm: lọc theo nhóm tab đang xem.
     let v = (dangTim || nhomXem === 'ALL') ? base : base.filter((r) => nhomCua(r) === nhomXem);
     if (q) {
       const k = q.toUpperCase();
