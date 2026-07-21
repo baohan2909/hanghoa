@@ -789,7 +789,7 @@ function DckTheoCH({ tu, den, baoToast }) {
               <th></th>
               <th className="sortable" onClick={() => ds('ch')}>Cửa hàng nhận{ic('ch')}</th>
               <th className="sortable" style={{ width: 110 }} onClick={() => ds('kv')}>Khu vực{ic('kv')}</th>
-              <th className="num sortable" onClick={() => ds('phieu')}>Số phiếu{ic('phieu')}</th>
+              <th className="sortable" style={{ width: 70, textAlign: 'left' }} onClick={() => ds('phieu')}>Số phiếu{ic('phieu')}</th>
               <th>Tiến độ</th>
               <th className="num sortable" onClick={() => ds('ma')}>Số mã{ic('ma')}</th>
               <th className="num sortable" onClick={() => ds('nhu')}>Nhu cầu{ic('nhu')}</th>
@@ -808,7 +808,7 @@ function DckTheoCH({ tu, den, baoToast }) {
                       <b>{r.ten_ch}</b>
                       <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)', marginLeft: 18 }}>{r.ma_ch}{r.nhom_ch ? ` · N${r.nhom_ch}` : ''}</div></td>
                     <td style={{ fontSize: 12.5 }}>{r.khu_vuc || '—'}</td>
-                    <td className="num" style={{ fontWeight: 800, fontSize: 15, color: 'var(--teal-deep)' }}>{Number(r.so_phieu)}</td>
+                    <td style={{ fontWeight: 800, fontSize: 15, color: 'var(--teal-deep)', textAlign: 'left' }}>{Number(r.so_phieu)}</td>
                     <td>
                       <div className="dck-tien">
                         {Number(r.so_chua_chuyen) > 0 && <span className="dck-tt dck-nhap" title="Chưa chuyển — đơn nháp, không tính tiến độ">{r.so_chua_chuyen} nháp</span>}
