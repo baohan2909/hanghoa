@@ -784,16 +784,16 @@ function DckTheoCH({ tu, den, baoToast }) {
 
       <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
         <div className="tbl-wrap" style={{ maxHeight: '62vh', overflow: 'auto' }}>
-          <table className="tbl tbl-fit2">
+          <table className="tbl">
             <thead><tr>
-              <th></th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center', padding: '8px 10px' }}>#</th>
               <th className="sortable" onClick={() => ds('ch')}>Cửa hàng nhận{ic('ch')}</th>
-              <th className="sortable" style={{ width: 110 }} onClick={() => ds('kv')}>Khu vực{ic('kv')}</th>
+              <th className="sortable" style={{ width: '1%', whiteSpace: 'nowrap' }} onClick={() => ds('kv')}>Khu vực{ic('kv')}</th>
               <th className="sortable" style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'left' }} onClick={() => ds('phieu')}>Số phiếu{ic('phieu')}</th>
-              <th>Tiến độ</th>
+              <th style={{ width: '1%', whiteSpace: 'nowrap' }}>Tiến độ</th>
               <th className="num sortable" onClick={() => ds('ma')}>Số mã{ic('ma')}</th>
               <th className="num sortable" onClick={() => ds('nhu')}>Nhu cầu{ic('nhu')}</th>
-              <th className="sortable" onClick={() => ds('ngay')}>Gần nhất{ic('ngay')}</th>
+              <th className="sortable" style={{ width: '1%', whiteSpace: 'nowrap' }} onClick={() => ds('ngay')}>Gần nhất{ic('ngay')}</th>
             </tr></thead>
             <tbody>
               {rows === null ? (
@@ -803,11 +803,11 @@ function DckTheoCH({ tu, den, baoToast }) {
               ) : hien.map((r, i) => (
                 <Fragment key={r.ma_ch}>
                   <tr className="dck-ch-row" onClick={() => xoPhieu(r.ma_ch)} style={{ cursor: 'pointer' }}>
-                    <td style={{ color: 'var(--ink-3)', fontSize: 11.5 }}>{i + 1}</td>
+                    <td style={{ width: '1%', whiteSpace: 'nowrap', textAlign: 'center', color: 'var(--ink-3)', fontSize: 11.5, padding: '7px 10px' }}>{i + 1}</td>
                     <td><span style={{ marginRight: 6, color: 'var(--teal-deep)' }}>{moCH === r.ma_ch ? '▼' : '▶'}</span>
                       <b>{r.ten_ch}</b>
                       <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)', marginLeft: 18 }}>{r.ma_ch}{r.nhom_ch ? ` · N${r.nhom_ch}` : ''}</div></td>
-                    <td style={{ fontSize: 12.5 }}>{r.khu_vuc || '—'}</td>
+                    <td style={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{r.khu_vuc || '—'}</td>
                     <td style={{ width: '1%', whiteSpace: 'nowrap', fontWeight: 800, fontSize: 15, color: 'var(--teal-deep)', textAlign: 'left' }}>{Number(r.so_phieu)}</td>
                     <td>
                       <div className="dck-tien">
