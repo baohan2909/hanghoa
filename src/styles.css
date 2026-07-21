@@ -1129,3 +1129,13 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ds-delta { color: var(--magenta); }
 .ds-card-luc { margin-top: 10px; font-size: 11px; color: var(--ink-3); }
 .ds-row-lech { background: rgba(214,0,108,.04); }
+
+/* Nút Yêu cầu điều phối (mã hết hàng, cửa hàng bấm) */
+.ycdp-box { display: flex; gap: 5px; align-items: stretch; margin-top: 8px; }
+.ycdp-sl { width: 48px; text-align: center; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; padding: 4px; }
+.ycdp-btn { background: linear-gradient(135deg, var(--teal), var(--teal-deep)); color: #fff; border: 0;
+  border-radius: 8px; font-size: 10.5px; font-weight: 700; line-height: 1.15; padding: 4px 10px; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(63,182,168,.35); }
+.ycdp-btn:hover { filter: brightness(1.06); }
+.ycdp-done { background: rgba(63,182,168,.16); color: var(--teal-deep); box-shadow: none; padding: 6px 12px; }
+.ycdp-row:hover { background: #F3F7F9; }

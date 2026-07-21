@@ -191,6 +191,29 @@ export default function XinHang() {
     s && s.col === col ? (s.dir === 'asc' ? { col, dir: 'desc' } : null) : { col, dir: 'asc' });
   const luuTimer = useRef(null);
   const napDraft = useRef(null);   // số đã nhập từ nháp, áp sau khi engine trả rows
+  const [ycdp, setYcdp] = useState({});      // barcode -> {so_luong} các mã ĐANG xin điều phối
+  const [slXin, setSlXin] = useState({});    // barcode -> số lượng đang gõ (chưa gửi)
+
+  // Nạp các mã cửa hàng đang xin điều phối (để hiện nút "✓ Đã gửi")
+  const taiYcdp = async (ch) => {
+    if (!ch) return;
+    const { data } = await sb.rpc('fn_ycdp_cua_ch', { p_ma_ch: ch });
+    setYcdp(Object.fromEntries((data || []).map((x) => [x.barcode, { so_luong: x.so_luong }])));
+  };
+  const guiYcdp = async (r) => {
+    const sl = parseInt(slXin[r.barcode]) || ycdp[r.barcode]?.so_luong || 1;
+    const { data, error } = await sb.rpc('fn_ycdp_gui', {
+      p_ma_ch: maCH, p_barcode: r.barcode, p_so_luong: sl,
+      p_ma_tham_chieu: r.ma_tham_chieu || null, p_ten_sp: r.ten || null, p_nganh_1: r.nhom_hang || null });
+    if (error) { baoToast('Lỗi gửi yêu cầu: ' + error.message); return; }
+    setYcdp((m) => ({ ...m, [r.barcode]: { so_luong: sl } }));
+    baoToast('Đã gửi yêu cầu điều phối: ' + (r.ma_tham_chieu || r.barcode) + ' × ' + sl);
+  };
+  const huyYcdp = async (r) => {
+    await sb.rpc('fn_ycdp_huy', { p_ma_ch: maCH, p_barcode: r.barcode });
+    setYcdp((m) => { const n = { ...m }; delete n[r.barcode]; return n; });
+    baoToast('Đã hủy yêu cầu');
+  };
 
   useEffect(() => {
     if (user.vai_tro !== 'CH') {
@@ -241,6 +264,7 @@ export default function XinHang() {
       const { data: dck } = await sb.rpc('fn_dck_theo_ch', { p_ma_ch: maCH, p_tu: tu14, p_den: den14 });
       const m = {}; (dck || []).forEach((x) => { m[x.ngay_tao] = x; });
       setDckCH(m);
+      taiYcdp(maCH);   // nạp mã đang xin điều phối
     })();
   }, [maCH]);
 
@@ -301,9 +325,10 @@ export default function XinHang() {
     // Loại hàng "Kho hết — cần sản xuất" (tồn 0 + kho tổng 0 + có bán) KHỎI danh sách mặc định:
     // giai đoạn này không đưa vào gợi ý chia; chúng nằm ở màn Giám sát > Cần sản xuất.
     // NHƯNG khi ĐANG TÌM -> cho hiện luôn (gõ mã là ra, kèm nhãn tình trạng "cần sản xuất").
+    // Mã "Kho hết — cần sản xuất" (CH hết + kho tổng hết + đã bán): KHÔNG ẩn nữa,
+    // cho hiện CUỐI nhóm (sort tt=0 đẩy xuống) kèm nút "Yêu cầu điều phối" từng dòng.
     const dangTim = q.trim() !== '';
-    const base = dangTim ? rows
-      : rows.filter((r) => !(r.nguon === 'CH' && r.ton_truoc === 0 && (r.kho_tong ?? 0) <= 0 && r.tinh_trang === 'Kho hết — cần sản xuất'));
+    const base = rows;
     // Khi tìm: tìm xuyên TẤT CẢ nhóm (gõ mã là ra, kể cả mã sale ở tab khác).
     // Không tìm: lọc theo nhóm tab đang xem.
     let v = (dangTim || nhomXem === 'ALL') ? base : base.filter((r) => nhomCua(r) === nhomXem);
@@ -377,6 +402,13 @@ export default function XinHang() {
         const c = typeof x === 'string' ? x.localeCompare(y) : x - y;
         return sortBy.dir === 'asc' ? c : -c;
       });
+    } else {
+      // Thứ tự mặc định: mã "Kho hết — cần sản xuất" (chỉ yêu cầu điều phối được,
+      // không đề nghị được) đẩy xuống CUỐI nhóm — engine vốn xếp hết-hàng lên ĐẦU
+      // (bậc 1 khẩn cấp) nhưng nhóm này không có nguồn để chia nên nằm cuối theo ý anh.
+      const laCSX = (r) => r.nguon === 'CH' && (r.ton_truoc ?? 0) === 0
+        && (r.kho_tong ?? 0) <= 0 && r.tinh_trang === 'Kho hết — cần sản xuất';
+      v = [...v.filter((r) => !laCSX(r)), ...v.filter(laCSX)];
     }
     return v;
   }, [rows, nhomXem, q, sortBy, flt]);
@@ -803,6 +835,22 @@ export default function XinHang() {
                               ? <>Hàng mới<br/>{r.tinh_trang.replace(/^Hàng mới\s*[—-]\s*/, '')}</>
                               : r.tinh_trang}
                           </span>
+                        )}
+                        {/* Mã hết (CH=0 + kho tổng=0): nút Yêu cầu điều phối — chỉ cửa hàng bấm */}
+                        {user.vai_tro === 'CH' && (r.ton_truoc ?? 0) === 0 && (r.kho_tong ?? 0) <= 0
+                          && (r.tinh_trang === 'Kho hết — cần sản xuất' || r.tinh_trang.startsWith('Hết hàng')) && (
+                          <div className="ycdp-box">
+                            {ycdp[r.barcode] ? (
+                              <button className="ycdp-btn ycdp-done" onClick={() => huyYcdp(r)}
+                                title="Đã gửi yêu cầu — bấm để hủy">✓ Đã gửi ({ycdp[r.barcode].so_luong})</button>
+                            ) : (
+                              <>
+                                <input type="number" min="1" className="ycdp-sl" placeholder="SL"
+                                  value={slXin[r.barcode] ?? ''} onChange={(e) => setSlXin((m) => ({ ...m, [r.barcode]: e.target.value }))} />
+                                <button className="ycdp-btn" onClick={() => guiYcdp(r)}>Yêu cầu<br/>điều phối</button>
+                              </>
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>
