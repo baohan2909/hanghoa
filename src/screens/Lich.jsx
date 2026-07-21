@@ -689,7 +689,7 @@ function DckTheoCH({ tu, den, baoToast }) {
     if (q.trim()) { const t = q.trim().toLowerCase();
       v = v.filter((r) => (r.ten_ch || '').toLowerCase().includes(t) || (r.ma_ch || '').toLowerCase().includes(t)
         || (r.khu_vuc || '').toLowerCase().includes(t)); }
-    const g = { ch: (r) => r.ten_ch || '', phieu: (r) => Number(r.so_phieu), ma: (r) => Number(r.so_ma),
+    const g = { ch: (r) => r.ten_ch || '', kv: (r) => r.khu_vuc || '', phieu: (r) => Number(r.so_phieu), ma: (r) => Number(r.so_ma),
       nhu: (r) => Number(r.tong_nhu_cau), ngay: (r) => r.ngay_gan_nhat || '' }[sortC.col];
     if (g) v.sort((a, b) => { const x = g(a), y = g(b);
       const c = typeof x === 'string' ? x.localeCompare(y) : (x > y ? 1 : x < y ? -1 : 0);
@@ -730,39 +730,51 @@ function DckTheoCH({ tu, den, baoToast }) {
         <div className="tbl-wrap" style={{ maxHeight: '62vh', overflow: 'auto' }}>
           <table className="tbl tbl-fit">
             <thead><tr>
+              <th className="num" style={{ width: 40 }}>#</th>
               <th className="sortable" onClick={() => ds('ch')}>Cửa hàng nhận{ic('ch')}</th>
+              <th className="sortable" onClick={() => ds('kv')}>Khu vực{ic('kv')}</th>
               <th className="num sortable" onClick={() => ds('phieu')}>Số phiếu{ic('phieu')}</th>
-              <th className="center">Tiến độ (theo phiếu)</th>
+              <th className="center">Tiến độ</th>
               <th className="num sortable" onClick={() => ds('ma')}>Số mã{ic('ma')}</th>
               <th className="num sortable" onClick={() => ds('nhu')}>Nhu cầu{ic('nhu')}</th>
               <th className="sortable" onClick={() => ds('ngay')}>Gần nhất{ic('ngay')}</th>
             </tr></thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
               ) : hien.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Chưa có cửa hàng nào có phiếu điều chuyển (mã DK) trong khoảng này.</td></tr>
-              ) : hien.map((r) => (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Chưa có cửa hàng nào có phiếu điều chuyển (mã DK) trong khoảng này.</td></tr>
+              ) : hien.map((r, i) => (
                 <Fragment key={r.ma_ch}>
                   <tr className="dck-ch-row" onClick={() => xoPhieu(r.ma_ch)} style={{ cursor: 'pointer' }}>
+                    <td className="num" style={{ color: 'var(--ink-3)', fontSize: 12 }}>{i + 1}</td>
                     <td><span style={{ marginRight: 6, color: 'var(--teal-deep)' }}>{moCH === r.ma_ch ? '▼' : '▶'}</span>
                       <b>{r.ten_ch}</b>
-                      <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)', marginLeft: 18 }}>{r.ma_ch} · {r.khu_vuc}{r.nhom_ch ? ` · N${r.nhom_ch}` : ''}</div></td>
+                      <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)', marginLeft: 18 }}>{r.ma_ch}{r.nhom_ch ? ` · N${r.nhom_ch}` : ''}</div></td>
+                    <td style={{ fontSize: 12.5 }}>{r.khu_vuc || '—'}</td>
                     <td className="num" style={{ fontWeight: 800, fontSize: 15, color: 'var(--teal-deep)' }}>{Number(r.so_phieu)}</td>
-                    <td className="center"><div className="dck-mini">
-                      {Number(r.so_chua_chuyen) > 0 && <span className="dck-tt dck-cho">{r.so_chua_chuyen} chưa chuyển</span>}
-                      {Number(r.so_cho) > 0 && <span className="dck-tt dck-san">{r.so_cho} chờ</span>}
-                      {Number(r.so_mot_phan) > 0 && <span className="dck-tt dck-phan">{r.so_mot_phan} một phần</span>}
-                      {Number(r.so_da_xuat) > 0 && <span className="dck-tt dck-xuat">{r.so_da_xuat} đã xuất</span>}
-                      {Number(r.so_chua_nhan) > 0 && <span className="dck-tt dck-chuanhan">{r.so_chua_nhan} chưa nhận</span>}
-                      {Number(r.so_da_nhan) > 0 && <span className="dck-tt dck-nhan">{r.so_da_nhan} đã nhận</span>}
-                    </div></td>
+                    <td>
+                      <div className="dck-td2">
+                        <div className="dck-td-trai">
+                          {Number(r.so_chua_chuyen) > 0 && <span className="dck-tt dck-nhap" title="Chưa chuyển — đơn nháp, không tính lịch">{r.so_chua_chuyen} nháp</span>}
+                          {Number(r.so_cho) > 0 && <span className="dck-tt dck-san">{r.so_cho} chờ</span>}
+                          {Number(r.so_mot_phan) > 0 && <span className="dck-tt dck-phan">{r.so_mot_phan} một phần</span>}
+                          {Number(r.so_da_xuat) > 0 && <span className="dck-tt dck-xuat">{r.so_da_xuat} đã xuất</span>}
+                          {Number(r.so_chua_nhan) > 0 && <span className="dck-tt dck-chuanhan">{r.so_chua_nhan} chưa nhận</span>}
+                          {!(Number(r.so_chua_chuyen) || Number(r.so_cho) || Number(r.so_mot_phan) || Number(r.so_da_xuat) || Number(r.so_chua_nhan)) && <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>—</span>}
+                        </div>
+                        <div className="dck-td-phai">
+                          {Number(r.so_da_nhan) > 0 ? <span className="dck-tt dck-nhan">{r.so_da_nhan} đã nhận</span>
+                            : <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>—</span>}
+                        </div>
+                      </div>
+                    </td>
                     <td className="num">{Number(r.so_ma)}</td>
                     <td className="num" style={{ fontWeight: 700 }}>{Number(r.tong_nhu_cau)}</td>
                     <td style={{ fontSize: 12 }}>{r.ngay_gan_nhat ? fmtDM(r.ngay_gan_nhat) : '—'}</td>
                   </tr>
                   {moCH === r.ma_ch && (
-                    <tr key={r.ma_ch + '-x'}><td colSpan={6} style={{ padding: 0 }}>
+                    <tr key={r.ma_ch + '-x'}><td colSpan={8} style={{ padding: 0 }}>
                       {!phieu[r.ma_ch] ? (
                         <div style={{ padding: 14, color: 'var(--ink-2)', fontSize: 12 }}>Đang tải phiếu…</div>
                       ) : (
