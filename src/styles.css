@@ -1167,12 +1167,12 @@ textarea.inp { height: auto; padding: 10px 12px; }
   box-shadow: inset 0 1px 3px rgba(20,33,58,.08); }
 .kt-fill { height: 100%; border-radius: 11px; position: relative; overflow: hidden;
   background: var(--grad); transition: width .6s cubic-bezier(.22,.61,.36,1);
-  box-shadow: 0 0 18px rgba(63,182,168,.6); min-width: 10px; }
-.kt-song {   /* sóng lung linh chạy trong thanh fill */
+  box-shadow: 0 0 12px rgba(63,182,168,.45); min-width: 10px; }
+.kt-song {   /* sóng lung linh chạy chậm, dịu mắt */
   position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
-  background-size: 40% 100%; background-repeat: no-repeat; animation: ktSong 1.5s linear infinite; }
-@keyframes ktSong { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.4), transparent);
+  background-size: 55% 100%; background-repeat: no-repeat; animation: ktSong 3.6s cubic-bezier(.45,.05,.55,.95) infinite; }
+@keyframes ktSong { 0% { background-position: -55% 0; } 100% { background-position: 155% 0; } }
 .kt-pct { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 2;
   font-size: 11.5px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.35); }
 .kt-nhap-note { margin-top: 7px; font-size: 11px; color: var(--ink-3); }

@@ -784,9 +784,9 @@ function DckTheoCH({ tu, den, baoToast }) {
 
       <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
         <div className="tbl-wrap" style={{ maxHeight: '62vh', overflow: 'auto' }}>
-          <table className="tbl tbl-fit">
+          <table className="tbl tbl-fit2">
             <thead><tr>
-              <th style={{ width: 30, padding: '0 4px' }}></th>
+              <th></th>
               <th className="sortable" onClick={() => ds('ch')}>Cửa hàng nhận{ic('ch')}</th>
               <th className="sortable" style={{ width: 110 }} onClick={() => ds('kv')}>Khu vực{ic('kv')}</th>
               <th className="num sortable" onClick={() => ds('phieu')}>Số phiếu{ic('phieu')}</th>
@@ -803,7 +803,7 @@ function DckTheoCH({ tu, den, baoToast }) {
               ) : hien.map((r, i) => (
                 <Fragment key={r.ma_ch}>
                   <tr className="dck-ch-row" onClick={() => xoPhieu(r.ma_ch)} style={{ cursor: 'pointer' }}>
-                    <td style={{ color: 'var(--ink-3)', fontSize: 11.5, padding: '0 4px', textAlign: 'right' }}>{i + 1}</td>
+                    <td style={{ color: 'var(--ink-3)', fontSize: 11.5 }}>{i + 1}</td>
                     <td><span style={{ marginRight: 6, color: 'var(--teal-deep)' }}>{moCH === r.ma_ch ? '▼' : '▶'}</span>
                       <b>{r.ten_ch}</b>
                       <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)', marginLeft: 18 }}>{r.ma_ch}{r.nhom_ch ? ` · N${r.nhom_ch}` : ''}</div></td>
