@@ -61,15 +61,16 @@ export default function YeuCauDieuPhoi() {
           <h2>Yêu cầu điều phối</h2>
           <p>Nhu cầu hàng cửa hàng báo về (mã đã bán nhưng hết tồn). Hệ thống chỉ ghi nhu cầu — bộ phận liên quan chủ động xử lý.</p>
         </div>
-        <div className="cmd-row">
-          <DateBox label="Từ" value={tu} onChange={setTu} />
-          <DateBox label="Đến" value={den} onChange={setDen} />
-          <input className="flt-in" placeholder="Tìm mã / sản phẩm / cửa hàng…" value={q}
-            onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 200 }} />
-          <span className="sla-chip">{tong.ma} mã · {tong.sl} cái · {tong.ch} cửa hàng</span>
-          <button className="btn btn-ghost" onClick={xuat}>Xuất Excel</button>
-          <button className="btn btn-ai" onClick={tai}>↻ Làm mới</button>
-        </div>
+      </div>
+
+      <div className="toolbar">
+        <DateBox label="Từ" value={tu} onChange={setTu} />
+        <DateBox label="Đến" value={den} onChange={setDen} />
+        <input className="flt-in" placeholder="Tìm mã / sản phẩm / cửa hàng…" value={q}
+          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 200, flex: 1 }} />
+        <span className="sla-chip">{tong.ma} mã · {tong.sl} cái · {tong.ch} cửa hàng</span>
+        <button className="btn btn-ghost" onClick={xuat}>Xuất Excel</button>
+        <button className="btn btn-ai" onClick={tai}>↻ Làm mới</button>
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
