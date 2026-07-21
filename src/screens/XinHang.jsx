@@ -819,39 +819,41 @@ export default function XinHang() {
                           : <span style={{ color: 'var(--ink-2)' }}>—</span>}
                       </td>
                       <td className="center">
-                        {r.tinh_trang && (
-                          <span className={'tt ' + (
-                            r.tinh_trang.startsWith('Hàng thu hồi') ? 'tt-dp-thuhoi'
-                            : r.tinh_trang.startsWith('Hàng mới') ? 'tt-dp-moi'
-                            : r.tinh_trang.startsWith('Hết hàng') || r.tinh_trang === 'Vừa hết hàng' ? 'tt-het'
-                            : r.tinh_trang === 'Đang bán tốt' ? 'tt-tot'
-                            : r.tinh_trang === 'Bán chậm' || r.tinh_trang.startsWith('Không bán') ? 'tt-cham'
-                            : 'tt-thuong')}>
-                            {r.tinh_trang.startsWith('Hết hàng ') && r.tinh_trang !== 'Hết hàng, chưa từng bán'
-                              ? <>Hết hàng<br/>{r.tinh_trang.replace('Hết hàng ', '')}</>
-                              : r.tinh_trang.startsWith('Hàng thu hồi')
-                              ? <>Hàng thu hồi<br/>ĐP xử lý</>
-                              : r.tinh_trang.startsWith('Hàng mới')
-                              ? <>Hàng mới<br/>{r.tinh_trang.replace(/^Hàng mới\s*[—-]\s*/, '')}</>
-                              : r.tinh_trang}
-                          </span>
-                        )}
-                        {/* Mã hết (CH=0 + kho tổng=0): nút Yêu cầu điều phối — chỉ cửa hàng bấm */}
-                        {maCH && (r.ton_truoc ?? 0) === 0 && (r.kho_tong ?? 0) <= 0
-                          && (r.tinh_trang === 'Kho hết — cần sản xuất' || r.tinh_trang.startsWith('Hết hàng')) && (
-                          <div className="ycdp-box">
-                            {ycdp[r.barcode] ? (
+                        {(() => {
+                          // Mã hết sạch (CH=0 + kho tổng=0, không đề nghị được): THAY chữ trạng thái
+                          // bằng nút Yêu cầu điều phối + ô số lượng (căn giữa).
+                          const canYeuCau = maCH && (r.ton_truoc ?? 0) === 0 && (r.kho_tong ?? 0) <= 0
+                            && (r.tinh_trang === 'Kho hết — cần sản xuất' || (r.tinh_trang || '').startsWith('Hết hàng'));
+                          if (canYeuCau) {
+                            return ycdp[r.barcode] ? (
                               <button className="ycdp-btn ycdp-done" onClick={() => huyYcdp(r)}
-                                title="Đã gửi yêu cầu — bấm để hủy">✓ Đã gửi ({ycdp[r.barcode].so_luong})</button>
+                                title="Đã gửi yêu cầu — bấm để hủy">✓ Đã gửi · {ycdp[r.barcode].so_luong}</button>
                             ) : (
-                              <>
+                              <div className="ycdp-box">
                                 <input type="number" min="1" className="ycdp-sl" placeholder="SL"
                                   value={slXin[r.barcode] ?? ''} onChange={(e) => setSlXin((m) => ({ ...m, [r.barcode]: e.target.value }))} />
-                                <button className="ycdp-btn" onClick={() => guiYcdp(r)}>Yêu cầu<br/>điều phối</button>
-                              </>
-                            )}
-                          </div>
-                        )}
+                                <button className="ycdp-btn" onClick={() => guiYcdp(r)}>Yêu cầu điều phối</button>
+                              </div>
+                            );
+                          }
+                          if (!r.tinh_trang) return null;
+                          const t = r.tinh_trang;
+                          const cls = t.startsWith('Hàng thu hồi') ? 'tt-dp-thuhoi'
+                            : t.startsWith('Hàng mới') ? 'tt-dp-moi'
+                            : t.startsWith('Hết hàng') || t === 'Vừa hết hàng' ? 'tt-het'
+                            : t === 'Đang bán tốt' ? 'tt-tot'
+                            : t === 'Bán chậm' || t.startsWith('Không bán') ? 'tt-cham'
+                            : 'tt-thuong';
+                          // Chữ dài -> xuống hàng cho gọn cột
+                          let noiDung;
+                          if (t.startsWith('Hết hàng ') && t !== 'Hết hàng, chưa từng bán')
+                            noiDung = <>Hết hàng<br/>{t.replace('Hết hàng ', '')}</>;
+                          else if (t.startsWith('Hàng thu hồi')) noiDung = <>Hàng thu hồi<br/>ĐP xử lý</>;
+                          else if (t.startsWith('Hàng mới')) noiDung = <>Hàng mới<br/>{t.replace(/^Hàng mới\s*[—-]\s*/, '')}</>;
+                          else if (t.startsWith('Không bán')) noiDung = <>Không bán<br/>{t.replace('Không bán ', '')}</>;
+                          else noiDung = t;
+                          return <span className={'tt ' + cls}>{noiDung}</span>;
+                        })()}
                       </td>
                     </tr>
                   );

@@ -962,30 +962,40 @@ textarea.inp { height: auto; padding: 10px 12px; }
 @keyframes dtPop { 0% { transform: scale(.3); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
 
 /* Màn chơi */
-.dt-choi { max-width: 760px; margin: 14px auto 0; }
-.dt-bar { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
-.dt-bar-tg { flex: 1; height: 26px; background: #EDEDE8; border-radius: 13px; position: relative; overflow: hidden; }
-.dt-bar-fill { height: 100%; border-radius: 13px; transition: width .1s linear; }
+.dt-choi { max-width: 720px; margin: 0 auto; min-height: calc(100vh - 130px);
+  display: flex; flex-direction: column; justify-content: center; padding: 16px 4px; }
+.dt-bar { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+.dt-bar-tg { flex: 1; height: 30px; background: #EAEEF0; border-radius: 15px; position: relative; overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(20,33,58,.1); }
+.dt-bar-fill { height: 100%; border-radius: 15px; transition: width .1s linear; box-shadow: 0 0 16px rgba(63,182,168,.5); }
 .dt-bar-txt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 13px; color: var(--ink); font-family: var(--font-mono); }
-.dt-diem { font-size: 26px; font-weight: 800; font-family: var(--font-mono); color: var(--ink); min-width: 90px; text-align: right; }
+.dt-diem { font-size: 28px; font-weight: 800; font-family: var(--font-mono); color: var(--ink); min-width: 90px;
+  text-align: right; font-variant-numeric: tabular-nums; }
 .dt-combo { background: var(--gold); color: #fff; font-weight: 800; padding: 3px 11px; border-radius: 12px;
   font-size: 14px; animation: dtPop .3s ease; }
 .dt-mang { display: flex; gap: 3px; }
-.dt-hoi { font-size: 19px; font-weight: 800; text-align: center; margin-bottom: 14px; line-height: 1.4; }
-.dt-hinh { width: 240px; height: 240px; margin: 0 auto 16px; border-radius: 16px; background: #fff;
-  box-shadow: 0 4px 18px rgba(20,33,58,.1), inset 0 0 0 1px var(--line); overflow: hidden;
+.dt-hoi { font-size: 22px; font-weight: 800; text-align: center; margin-bottom: 22px; line-height: 1.4;
+  letter-spacing: -.2px; }
+/* Animation: mỗi câu mới trượt lên + mờ dần vào; đáp án hiện lần lượt (stagger) */
+.dt-cau { animation: dtCauVao .34s cubic-bezier(.22,.61,.36,1); }
+@keyframes dtCauVao { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+.dt-vao { animation: dtDaVao .34s cubic-bezier(.22,.61,.36,1) backwards; }
+@keyframes dtDaVao { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.dt-hinh { width: 260px; height: 260px; margin: 0 auto 22px; border-radius: 20px; background: #fff;
+  box-shadow: 0 8px 30px rgba(20,33,58,.1), inset 0 0 0 1px var(--line); overflow: hidden;
   display: flex; align-items: center; justify-content: center; }
 .dt-hinh img { width: 100%; height: 100%; object-fit: contain; }
-.dt-dapan { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dt-dapan { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 560px) { .dt-dapan { grid-template-columns: 1fr; } }
-.dt-da { border: 0; border-radius: 12px; padding: 15px 16px; font: inherit; font-size: 14.5px; font-weight: 700;
-  background: #fff; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line), 0 1px 3px rgba(20,33,58,.05);
-  cursor: pointer; transition: all .12s; text-align: center; }
-.dt-da:hover { box-shadow: inset 0 0 0 2px var(--teal), 0 3px 10px rgba(63,182,168,.18); }
-.dt-da.dung { background: var(--grad); color: #fff; box-shadow: 0 6px 18px rgba(30,95,99,.35); }
+.dt-da { border: 0; border-radius: 14px; padding: 17px 16px; font: inherit; font-size: 15px; font-weight: 700;
+  background: #fff; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line), 0 2px 6px rgba(20,33,58,.05);
+  cursor: pointer; transition: box-shadow .14s, transform .14s; text-align: center; }
+.dt-da:hover { box-shadow: inset 0 0 0 2px var(--teal), 0 6px 16px rgba(63,182,168,.22); transform: translateY(-2px); }
+.dt-da:active { transform: translateY(0); }
+.dt-da.dung { background: var(--grad); color: #fff; box-shadow: 0 8px 24px rgba(30,95,99,.4); transform: scale(1.03); }
 .dt-da.sai { background: var(--magenta); color: #fff; animation: dtRung .3s ease; }
-.dt-da.mo { opacity: .4; }
+.dt-da.mo { opacity: .38; }
 @keyframes dtRung { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 
 /* So sánh 2 sản phẩm */
@@ -1130,12 +1140,16 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ds-card-luc { margin-top: 10px; font-size: 11px; color: var(--ink-3); }
 .ds-row-lech { background: rgba(214,0,108,.04); }
 
-/* Nút Yêu cầu điều phối (mã hết hàng, cửa hàng bấm) */
-.ycdp-box { display: flex; gap: 5px; align-items: stretch; margin-top: 8px; }
-.ycdp-sl { width: 48px; text-align: center; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; padding: 4px; }
-.ycdp-btn { background: linear-gradient(135deg, var(--teal), var(--teal-deep)); color: #fff; border: 0;
-  border-radius: 8px; font-size: 10.5px; font-weight: 700; line-height: 1.15; padding: 4px 10px; cursor: pointer;
-  box-shadow: 0 2px 8px rgba(63,182,168,.35); }
-.ycdp-btn:hover { filter: brightness(1.06); }
-.ycdp-done { background: rgba(63,182,168,.16); color: var(--teal-deep); box-shadow: none; padding: 6px 12px; }
+/* Nút Yêu cầu điều phối (mã hết hàng) — gradient + glow, ô số căn giữa */
+.ycdp-box { display: flex; gap: 6px; align-items: center; justify-content: center; }
+.ycdp-sl { width: 44px; height: 34px; text-align: center; border: 1px solid var(--line);
+  border-radius: 9px; font-size: 13px; font-weight: 600; padding: 0; background: #fff; }
+.ycdp-sl:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(63,182,168,.18); }
+.ycdp-btn { background: var(--grad); color: #fff; border: 0; border-radius: 9px;
+  font-size: 11px; font-weight: 700; line-height: 1.2; padding: 7px 12px; cursor: pointer; white-space: nowrap;
+  box-shadow: 0 3px 12px rgba(63,182,168,.42), 0 1px 3px rgba(20,33,58,.15); transition: filter .12s, transform .12s; }
+.ycdp-btn:hover { filter: brightness(1.07); transform: translateY(-1px); }
+.ycdp-btn:active { transform: translateY(0); }
+.ycdp-done { background: rgba(63,182,168,.16); color: var(--teal-deep); box-shadow: none; }
+.ycdp-done:hover { filter: none; transform: none; background: rgba(214,0,108,.1); color: var(--magenta); }
 .ycdp-row:hover { background: #F3F7F9; }

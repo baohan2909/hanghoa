@@ -631,14 +631,15 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
           )}
         </div>
 
+        <div className="dt-cau" key={soCau}>
         <div className="dt-hoi">{cau.hoi}</div>
 
         {cau.laHinhDapAn ? (
           // ĐÁP ÁN LÀ HÌNH: lưới 2x2 hình bấm chọn
           <div className="dt-hinh-luoi">
             {cau.dapAn.map((a, i) => (
-              <button key={i} onClick={() => traLoi(i)}
-                className={'dt-hinh-o' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
+              <button key={i} onClick={() => traLoi(i)} style={{ animationDelay: (i * 60) + 'ms' }}
+                className={'dt-hinh-o dt-vao' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
                 <img src={a.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e)} />
               </button>
             ))}
@@ -646,8 +647,8 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
         ) : cau.loai === 'SOSANH' ? (
           <div className="dt-sosanh">
             {cau.dapAn.map((a, i) => (
-              <button key={i} onClick={() => traLoi(i)}
-                className={'dt-ss-the' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
+              <button key={i} onClick={() => traLoi(i)} style={{ animationDelay: (i * 60) + 'ms' }}
+                className={'dt-ss-the dt-vao' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
                 <div className="dt-ss-hinh"><img src={a.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e)} /></div>
                 <div className="dt-ss-ten">{a.nhan}</div>
               </button>
@@ -660,14 +661,15 @@ function thuSinh(l, sp, pool, capDo, coHinh, pt) {
               onError={(e) => falbackGoc(e)} /></div>}
             <div className="dt-dapan">
               {cau.dapAn.map((a, i) => (
-                <button key={i} onClick={() => traLoi(i)}
-                  className={'dt-da' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
+                <button key={i} onClick={() => traLoi(i)} style={{ animationDelay: (i * 55) + 'ms' }}
+                  className={'dt-da dt-vao' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
                   {a.nhan}
                 </button>
               ))}
             </div>
           </>
         )}
+        </div>
       </div>
     );
   }
