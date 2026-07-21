@@ -26,8 +26,8 @@ export default function ChiaHangMoi() {
   useEffect(() => {
     sb.from('cua_hang').select('ma_ch, ten')
       .then(({ data }) => setTenCH(Object.fromEntries((data || []).map((c) => [c.ma_ch, c.ten]))));
-    sb.from('san_pham').select('nganh_3').not('nganh_3', 'is', null)
-      .then(({ data }) => setDsNganh3([...new Set((data || []).map((x) => x.nganh_3))].sort()));
+    sb.rpc('fn_ds_nganh3')
+      .then(({ data }) => setDsNganh3((data || []).map((x) => x.nganh_3)));
     sb.from('tham_so').select('gia_tri').eq('key', 'kho_tong_ma').eq('pham_vi', 'GLOBAL').single()
       .then(({ data }) => setKhoMap(data?.gia_tri || {}));
   }, []);

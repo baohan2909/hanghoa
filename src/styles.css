@@ -1113,3 +1113,19 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .dck-phieu-so { font-size: 11px; color: var(--ink-2); }
 /* cột đầu bảng CH không dãn quá rộng */
 .dck-ch-row td:first-child { width: 34%; }
+
+/* Màn Đối soát dữ liệu */
+.ds-card { flex: 1; min-width: 240px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; border-left: 4px solid var(--teal); }
+.ds-card.ds-lech { border-left-color: var(--magenta); background: rgba(214,0,108,.03); }
+.ds-card.ds-ok { border-left-color: var(--teal-deep); }
+.ds-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.ds-card-ten { font-weight: 800; font-size: 15px; }
+.ds-badge { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+.ds-badge-ok { background: rgba(63,182,168,.16); color: var(--teal-deep); }
+.ds-badge-lech { background: rgba(214,0,108,.14); color: var(--magenta); }
+.ds-card-body { display: flex; flex-direction: column; gap: 5px; }
+.ds-line { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--ink); }
+.ds-line > span:first-child { color: var(--ink-2); }
+.ds-delta { color: var(--magenta); }
+.ds-card-luc { margin-top: 10px; font-size: 11px; color: var(--ink-3); }
+.ds-row-lech { background: rgba(214,0,108,.04); }
