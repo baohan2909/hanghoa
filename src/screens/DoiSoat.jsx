@@ -13,28 +13,28 @@ export default function DoiSoat() {
   const [syncLS, setSyncLS] = useState(null);        // lịch sử đồng bộ
   const [dangTai, setDangTai] = useState(false);
 
-  const tai = async () => {
-    setDangTai(true);
+  const tai = async (imLang) => {
+    if (!imLang) setDangTai(true);
     const [a, b, c, d] = await Promise.all([
       sb.rpc('fn_doi_soat_moi_nhat'),
       sb.rpc('fn_doi_soat_lich_su', { p_gioi_han: 50 }),
       sb.rpc('fn_sync_tinh_trang'),
       sb.rpc('fn_sync_lich_su', { p_gioi_han: 40 }),
     ]);
-    if (a.error) baoToast('Lỗi: ' + a.error.message);
+    if (a.error && !imLang) baoToast('Lỗi: ' + a.error.message);
     setMoiNhat(a.data || []);
     setLichSu(b.data || []);
     setSyncTT(c.data || []);
     setSyncLS(d.data || []);
-    setDangTai(false);
+    if (!imLang) setDangTai(false);
   };
   useEffect(() => { tai(); }, []);   // eslint-disable-line
 
-  // Đang có bước "đang đồng bộ" -> tự làm mới mỗi 5s để thấy tiến độ nhích, xong thì ngừng
+  // LUÔN tự làm mới khi màn đang mở, để bắt được cả lúc sync mới bắt đầu (không chỉ khi
+  // đã thấy "đang chạy"). Đang chạy -> 3s cho mượt %; rảnh -> 8s cho nhẹ.
   const dangChay = (syncTT || []).some((s) => s.trang_thai === 'DANG_CHAY');
   useEffect(() => {
-    if (!dangChay) return;
-    const t = setInterval(() => { tai(); }, 5000);
+    const t = setInterval(() => { tai(true); }, dangChay ? 3000 : 8000);
     return () => clearInterval(t);
   }, [dangChay]);   // eslint-disable-line
 
