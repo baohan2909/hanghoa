@@ -1248,3 +1248,12 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .dck-kc { display: inline-block; margin-left: 6px; background: rgba(214,0,108,.12); color: var(--magenta);
   font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 6px; vertical-align: middle;
   letter-spacing: .3px; }
+
+/* Đang đồng bộ — banner + thẻ nhấp nháy */
+.sync-dangchay { background: rgba(63,182,168,.14); color: var(--teal-deep); border-radius: 12px;
+  padding: 11px 16px; font-weight: 700; font-size: 13.5px; border-left: 4px solid var(--teal);
+  animation: syncPulse 1.4s ease-in-out infinite; }
+@keyframes syncPulse { 0%,100% { opacity: 1; } 50% { opacity: .72; } }
+.sync-tudong { font-weight: 500; font-size: 11.5px; color: var(--ink-2); }
+.sync-the.sync-dc { border: 1.5px solid var(--teal); animation: syncPulse 1.4s ease-in-out infinite; }
+.sync-the.sync-dc .the-g-so { color: var(--teal-deep); }

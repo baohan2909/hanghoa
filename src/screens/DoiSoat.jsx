@@ -30,6 +30,14 @@ export default function DoiSoat() {
   };
   useEffect(() => { tai(); }, []);   // eslint-disable-line
 
+  // Đang có bước "đang đồng bộ" -> tự làm mới mỗi 5s để thấy tiến độ nhích, xong thì ngừng
+  const dangChay = (syncTT || []).some((s) => s.trang_thai === 'DANG_CHAY');
+  useEffect(() => {
+    if (!dangChay) return;
+    const t = setInterval(() => { tai(); }, 5000);
+    return () => clearInterval(t);
+  }, [dangChay]);   // eslint-disable-line
+
   const fmtSL = (n) => n == null ? '—' : Number(n).toLocaleString('vi');
   const lechClass = (khop) => khop ? 'ds-ok' : 'ds-lech';
 
@@ -51,23 +59,26 @@ export default function DoiSoat() {
           cua_hang: 'Cửa hàng', syncTonKho: 'Tồn kho', syncBanHang: 'Bán hàng', syncDieuChuyen: 'Điều chuyển',
           syncCuaHang: 'Cửa hàng', syncSale: 'Hàng sale', syncHinhAnh: 'Hình ảnh', syncTaiKhoan: 'Tài khoản', tong: 'Tổng thể' };
         const coLoi = syncTT.filter((s) => s.trang_thai === 'LOI');
+        const dangCh = syncTT.filter((s) => s.trang_thai === 'DANG_CHAY');
         const fmtPhut = (p) => p == null ? '' : p < 1 ? 'vừa xong' : p < 60 ? Math.round(p) + ' phút trước'
           : p < 1440 ? Math.round(p / 60) + ' giờ trước' : Math.round(p / 1440) + ' ngày trước';
         return (
           <div style={{ marginBottom: 14 }}>
-            {coLoi.length > 0 ? (
+            {dangCh.length > 0 ? (
+              <div className="sync-dangchay">🔄 Đang đồng bộ: {dangCh.map((s) => (TEN[s.buoc] || s.buoc) + (s.chi_tiet ? ' — ' + s.chi_tiet : '')).join(' · ')} <span className="sync-tudong">(tự cập nhật…)</span></div>
+            ) : coLoi.length > 0 ? (
               <div className="sync-canhbao">⚠ Có {coLoi.length} bước đồng bộ đang LỖI: {coLoi.map((s) => TEN[s.buoc] || s.buoc).join(', ')}. Kiểm tra bên dưới.</div>
             ) : (
               <div className="sync-ok">✓ Đồng bộ đang bình thường — tất cả các bước chạy OK.</div>
             )}
             <div className="the-hang the-hang-wrap" style={{ marginTop: 8 }}>
               {syncTT.filter((s) => s.buoc !== 'tong').map((s) => (
-                <div key={s.buoc} className={'the-g sync-the ' + (s.trang_thai === 'LOI' ? 'sync-loi' : s.trang_thai === 'BO_LUOT' ? 'sync-bo' : 'sync-tot')}>
+                <div key={s.buoc} className={'the-g sync-the ' + (s.trang_thai === 'DANG_CHAY' ? 'sync-dc' : s.trang_thai === 'LOI' ? 'sync-loi' : s.trang_thai === 'BO_LUOT' ? 'sync-bo' : 'sync-tot')}>
                   <div className="the-g-nhan">{TEN[s.buoc] || s.buoc}</div>
                   <div className="the-g-so" style={{ fontSize: 15 }}>
-                    {s.trang_thai === 'OK' ? '✓ OK' : s.trang_thai === 'BO_LUOT' ? '⏸ Bỏ lượt' : '✕ Lỗi'}
+                    {s.trang_thai === 'DANG_CHAY' ? '🔄 Đang chạy' : s.trang_thai === 'OK' ? '✓ OK' : s.trang_thai === 'BO_LUOT' ? '⏸ Bỏ lượt' : '✕ Lỗi'}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{fmtPhut(s.phut_truoc)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{s.trang_thai === 'DANG_CHAY' ? s.chi_tiet : fmtPhut(s.phut_truoc)}</div>
                   {s.trang_thai === 'LOI' && s.chi_tiet && <div className="sync-loi-ct" title={s.chi_tiet}>{s.chi_tiet}</div>}
                 </div>
               ))}
