@@ -213,7 +213,7 @@ export default function App() {
             <div className="t">ĐIỀU PHỐI HÀNG HÓA</div>
           </div>
           <main className="main">
-            <ErrBound key={tab}><Screen /></ErrBound>
+            <ErrBound key={tab}><Screen chonTab={chonTab} /></ErrBound>
           </main>
         </div>
         {toast && <div className="toast" role="status">{toast}</div>}
