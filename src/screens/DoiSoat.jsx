@@ -57,29 +57,34 @@ export default function DoiSoat() {
       {syncTT && syncTT.length > 0 && (() => {
         const TEN = { ton_kho: 'Tồn kho', ban_hang: 'Bán hàng', dieu_chuyen: 'Điều chuyển', san_pham: 'Sản phẩm',
           cua_hang: 'Cửa hàng', syncTonKho: 'Tồn kho', syncBanHang: 'Bán hàng', syncDieuChuyen: 'Điều chuyển',
-          syncCuaHang: 'Cửa hàng', syncSale: 'Hàng sale', syncHinhAnh: 'Hình ảnh', syncTaiKhoan: 'Tài khoản', tong: 'Tổng thể' };
-        const coLoi = syncTT.filter((s) => s.trang_thai === 'LOI');
-        const dangCh = syncTT.filter((s) => s.trang_thai === 'DANG_CHAY');
+          syncCuaHang: 'Cửa hàng', syncSale: 'Hàng sale', syncHinhAnh: 'Hình ảnh', syncTaiKhoan: 'Tài khoản' };
+        // CHỈ hiện bước sync thật (có tên trong TEN) — bỏ dòng test (kiem_*), bỏ 'tong'
+        const hienTT = syncTT.filter((s) => TEN[s.buoc]);
+        if (!hienTT.length) return null;
+        const coLoi = hienTT.filter((s) => s.trang_thai === 'LOI');
+        const dangCh = hienTT.filter((s) => s.trang_thai === 'DANG_CHAY');
         const fmtPhut = (p) => p == null ? '' : p < 1 ? 'vừa xong' : p < 60 ? Math.round(p) + ' phút trước'
           : p < 1440 ? Math.round(p / 60) + ' giờ trước' : Math.round(p / 1440) + ' ngày trước';
         return (
-          <div style={{ marginBottom: 14 }}>
+          <div className="card sync-khoi">
+            <div className="sync-khoi-tit">Tình trạng đồng bộ</div>
             {dangCh.length > 0 ? (
               <div className="sync-dangchay">🔄 Đang đồng bộ: {dangCh.map((s) => (TEN[s.buoc] || s.buoc) + (s.chi_tiet ? ' — ' + s.chi_tiet : '')).join(' · ')} <span className="sync-tudong">(tự cập nhật…)</span></div>
             ) : coLoi.length > 0 ? (
-              <div className="sync-canhbao">⚠ Có {coLoi.length} bước đồng bộ đang LỖI: {coLoi.map((s) => TEN[s.buoc] || s.buoc).join(', ')}. Kiểm tra bên dưới.</div>
+              <div className="sync-canhbao">⚠ Có {coLoi.length} bước đồng bộ đang LỖI: {coLoi.map((s) => TEN[s.buoc] || s.buoc).join(', ')}.</div>
             ) : (
-              <div className="sync-ok">✓ Đồng bộ đang bình thường — tất cả các bước chạy OK.</div>
+              <div className="sync-ok">✓ Đồng bộ bình thường — tất cả các bước chạy OK.</div>
             )}
-            <div className="the-hang the-hang-wrap" style={{ marginTop: 8 }}>
-              {syncTT.filter((s) => s.buoc !== 'tong').map((s) => (
-                <div key={s.buoc} className={'the-g sync-the ' + (s.trang_thai === 'DANG_CHAY' ? 'sync-dc' : s.trang_thai === 'LOI' ? 'sync-loi' : s.trang_thai === 'BO_LUOT' ? 'sync-bo' : 'sync-tot')}>
-                  <div className="the-g-nhan">{TEN[s.buoc] || s.buoc}</div>
-                  <div className="the-g-so" style={{ fontSize: 15 }}>
-                    {s.trang_thai === 'DANG_CHAY' ? '🔄 Đang chạy' : s.trang_thai === 'OK' ? '✓ OK' : s.trang_thai === 'BO_LUOT' ? '⏸ Bỏ lượt' : '✕ Lỗi'}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{s.trang_thai === 'DANG_CHAY' ? s.chi_tiet : fmtPhut(s.phut_truoc)}</div>
-                  {s.trang_thai === 'LOI' && s.chi_tiet && <div className="sync-loi-ct" title={s.chi_tiet}>{s.chi_tiet}</div>}
+            <div className="sync-ds">
+              {hienTT.map((s) => (
+                <div key={s.buoc} className="sync-dong">
+                  <span className={'sync-dot ' + (s.trang_thai === 'DANG_CHAY' ? 'dc' : s.trang_thai === 'LOI' ? 'loi' : s.trang_thai === 'BO_LUOT' ? 'bo' : 'ok')} />
+                  <span className="sync-dong-ten">{TEN[s.buoc] || s.buoc}</span>
+                  <span className={'sync-dong-tt ' + (s.trang_thai === 'DANG_CHAY' ? 'dc' : s.trang_thai === 'LOI' ? 'loi' : s.trang_thai === 'BO_LUOT' ? 'bo' : 'ok')}>
+                    {s.trang_thai === 'DANG_CHAY' ? 'Đang chạy' : s.trang_thai === 'OK' ? 'OK' : s.trang_thai === 'BO_LUOT' ? 'Bỏ lượt' : 'Lỗi'}
+                  </span>
+                  <span className="sync-dong-luc">{s.trang_thai === 'DANG_CHAY' ? s.chi_tiet : fmtPhut(s.phut_truoc)}</span>
+                  {s.trang_thai === 'LOI' && s.chi_tiet && <span className="sync-dong-ct" title={s.chi_tiet}>{s.chi_tiet}</span>}
                 </div>
               ))}
             </div>
