@@ -26,12 +26,13 @@ export default function Lich() {
   };
   useEffect(() => { tai(); }, [tu, den]);
 
-  // ngày -> [{ch, daGui}]
+  // ngày -> [{ch, daGui, daKdn}]
   const theoNgay = useMemo(() => {
     const m = {};
     (rows || []).forEach((r) => {
       const gui = new Set(r.ngay_gui || []);
-      (r.ngay_lich || []).forEach((n) => (m[n] || (m[n] = [])).push({ ...r, daGui: gui.has(n) }));
+      const kdn = new Set(r.ngay_kdn || []);
+      (r.ngay_lich || []).forEach((n) => (m[n] || (m[n] = [])).push({ ...r, daGui: gui.has(n), daKdn: !gui.has(n) && kdn.has(n) }));
     });
     return m;
   }, [rows]);
@@ -121,6 +122,7 @@ function TabLich({ theoNgay, homNay, tu, den, setTu, setDen, toggleO, chuyenO, s
           {tuan.map((week) => week.map((n) => {
             const d = dow(n); const cuoiTuan = d === 0 || d === 6;
             const ds = loc(theoNgay[n]); const gui = ds.filter((r) => r.daGui).length;
+            const kdnSo = ds.filter((r) => r.daKdn).length;
             const inRange = n >= tu && n <= den;
             return (
               <div key={n} className={'cal-cell' + (n === homNay ? ' homnay' : '') + (cuoiTuan ? ' cuoi' : '') + (!inRange ? ' mo' : '') + (ds.length ? ' co' : '')}
@@ -132,7 +134,7 @@ function TabLich({ theoNgay, homNay, tu, den, setTu, setDen, toggleO, chuyenO, s
                 {ds.length > 0 && (
                   <div className="cal-cell-body">
                     {n <= homNay
-                      ? <div className="cal-frac"><b>{gui}</b><span>/{ds.length}</span></div>
+                      ? <div className="cal-frac"><b>{gui}</b><span>/{ds.length}</span>{kdnSo > 0 && <span className="cal-kdn" title={kdnSo + ' cửa hàng xác nhận không đề nghị'}>⊘{kdnSo}</span>}</div>
                       : <div className="cal-count">{ds.length}</div>}
                     <div className="cal-nhom">
                       {[1, 2, 3].map((nn) => { const c = ds.filter((r) => r.nhom_ch === nn).length;
@@ -184,10 +186,12 @@ function NgayModal({ ngay, theoNgay, loc, homNay, rows, onClose, onNav, toggleO,
         <div className="modal-body" style={{ maxHeight: '62vh', overflow: 'auto' }}>
           <div className="lich2-list">
             {ds.map((r) => (
-              <div key={r.ma_ch} className={'lich2-item' + (r.daGui ? ' ok' : ngay < homNay ? ' warn' : '')}>
+              <div key={r.ma_ch} className={'lich2-item' + (r.daGui ? ' ok' : r.daKdn ? ' kdn' : ngay < homNay ? ' warn' : '')}>
                 <span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span>
                 <div className="lich2-item-ten"><div>{r.ten}</div><div className="lich2-item-sub">{r.ma_ch} · {r.khu_vuc}</div></div>
-                {r.daGui ? <span className="lich2-tick">✓ đã gửi</span> : ngay < homNay ? <span className="lich2-x">✕ bỏ lỡ</span> : null}
+                {r.daGui ? <span className="lich2-tick">✓ đã gửi</span>
+                  : r.daKdn ? <span className="lich2-kdn" title="Cửa hàng xác nhận đủ hàng, không đề nghị — BQL kiểm tra lại">⊘ không đề nghị</span>
+                  : ngay < homNay ? <span className="lich2-x">✕ bỏ lỡ</span> : null}
                 {suaDuoc && (chuyen === r.ma_ch
                   ? <span className="lich2-chuyen-wrap" onClick={(e) => e.stopPropagation()}>
                       <DateBox value={ngay} onChange={(nv) => { chuyenO(r.ma_ch, ngay, nv); setChuyen(null); }} />
@@ -244,7 +248,7 @@ function TabTuanThu({ tu, den, setTu, setDen }) {
     else if (loc === 'NGOAI') v = v.filter((r) => r.ngoai_lich > 0);
     else if (loc === 'TOT') v = v.filter((r) => r.pct != null && r.pct >= 80);
     const g = { ten: (r) => r.ten, nhom: (r) => r.nhom_ch, lich: (r) => r.so_lich, dung: (r) => r.dung_lich,
-      lo: (r) => r.bo_lo, ngoai: (r) => r.ngoai_lich, pct: (r) => r.pct ?? -1 }[sortC.col];
+      kdn: (r) => Number(r.khong_dn || 0), lo: (r) => r.bo_lo, ngoai: (r) => r.ngoai_lich, pct: (r) => r.pct ?? -1 }[sortC.col];
     v.sort((a, b) => { const x = g(a), y = g(b); const c = typeof x === 'string' ? x.localeCompare(y) : x - y; return sortC.dir === 'asc' ? c : -c; });
     return v;
   }, [rows, loc, sortC]);
@@ -276,6 +280,7 @@ function TabTuanThu({ tu, den, setTu, setDen }) {
               <th className="center sortable" onClick={() => ds('nhom')}>Nhóm{ic('nhom')}</th>
               <th className="num sortable" onClick={() => ds('lich')}>Số lịch{ic('lich')}</th>
               <th className="num sortable" onClick={() => ds('dung')}>Đúng{ic('dung')}</th>
+              <th className="num sortable" onClick={() => ds('kdn')}>Không ĐN{ic('kdn')}</th>
               <th className="num sortable" onClick={() => ds('lo')}>Bỏ lỡ{ic('lo')}</th>
               <th className="num sortable" onClick={() => ds('ngoai')}>Ngoài lịch{ic('ngoai')}</th>
               <th className="num sortable" onClick={() => ds('pct')}>Tuân thủ{ic('pct')}</th>
@@ -287,12 +292,14 @@ function TabTuanThu({ tu, den, setTu, setDen }) {
                   <td className="center"><span className={'tag-n tag-n' + r.nhom_ch}>N{r.nhom_ch}</span></td>
                   <td className="num">{r.so_lich}</td>
                   <td className="num" style={{ color: 'var(--teal-deep)', fontWeight: 700 }}>{r.dung_lich}</td>
+                  <td className="num" style={{ color: Number(r.khong_dn) > 0 ? 'var(--ink-2)' : 'var(--ink-3)', fontWeight: Number(r.khong_dn) > 0 ? 700 : 400 }}
+                    title="Cửa hàng xác nhận đủ hàng, không đề nghị — BQL kiểm tra lại">{r.khong_dn ?? 0}</td>
                   <td className="num" style={{ color: r.bo_lo > 0 ? 'var(--magenta)' : undefined, fontWeight: r.bo_lo > 0 ? 700 : 400 }}>{r.bo_lo}</td>
                   <td className="num">{r.ngoai_lich}</td>
                   <td className="num"><PctBar pct={r.pct} /></td>
                 </tr>
               ))}
-              {hien.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--ink-2)' }}>Không có dữ liệu.</td></tr>}
+              {hien.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: 'var(--ink-2)' }}>Không có dữ liệu.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -589,6 +596,7 @@ function TabAuto({ rows, homNay, taiLai }) {
               {hien.map((r) => {
                 const lich = new Set(r.ngay_lich || []);
                 const guiSet = new Set(r.ngay_gui || []);
+                const kdnSet = new Set(r.ngay_kdn || []);
                 return (
                   <tr key={r.ma_ch}>
                     <td className="mt2-ten"><div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.ten}</div>
@@ -597,12 +605,13 @@ function TabAuto({ rows, homNay, taiLai }) {
                     {dsNgay.map((n) => {
                       const co = lich.has(n); const laMoi = preview && preview.has(r.ma_ch + '|' + n);
                       const daGui = guiSet.has(n);
-                      // Ô có lịch: đã gửi -> OK (xanh) | quá ngày chưa gửi -> thiếu (đỏ) | chưa tới -> ✓ mờ
-                      const trangThai = co ? (daGui ? 'ok' : (n < homNay ? 'thieu' : 'cho')) : '';
+                      const kdn = !daGui && kdnSet.has(n);   // xác nhận không đề nghị (gửi thắng)
+                      // Ô có lịch: đã gửi -> OK | không đề nghị -> KĐN (xám) | quá ngày chưa gửi -> thiếu (đỏ) | chưa tới -> ✓ mờ
+                      const trangThai = co ? (daGui ? 'ok' : kdn ? 'kdn' : (n < homNay ? 'thieu' : 'cho')) : '';
                       return (
                         <td key={n} className={'mt2-o center' + (co ? ' co' : '') + (trangThai ? ' mt2-' + trangThai : '') + (laMoi ? ' moi' : '') + (n === homNay ? ' homnay' : '')}
-                          onClick={() => tick(r, n, co)} title={r.ten + ' · ' + fmtDM(n) + (co ? (daGui ? ' · đã gửi' : ' · chưa gửi') : '')}>
-                          {laMoi ? '✦' : co ? (daGui ? 'OK' : (n < homNay ? 'thiếu' : '✓')) : ''}
+                          onClick={() => tick(r, n, co)} title={r.ten + ' · ' + fmtDM(n) + (co ? (daGui ? ' · đã gửi' : kdn ? ' · CH xác nhận không đề nghị — BQL kiểm tra' : ' · chưa gửi') : '')}>
+                          {laMoi ? '✦' : co ? (daGui ? 'OK' : kdn ? 'KĐN' : (n < homNay ? 'thiếu' : '✓')) : ''}
                         </td>
                       );
                     })}

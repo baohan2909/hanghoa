@@ -183,6 +183,7 @@ export default function XinHang() {
   const [hoverAnh, setHoverAnh] = useState(null);   // {url, x, y} hover phóng gấp 4
   const [giuInfo, setGiuInfo] = useState(null);     // {het_han, phut} — đang giữ hàng
   const [lichCH, setLichCH] = useState(null);       // lịch đề nghị của CH (banner nhắc)
+  const [moKdn, setMoKdn] = useState(false);        // modal xác nhận KHÔNG đề nghị hàng
   const [sortBy, setSortBy] = useState(null);        // {col, dir} — sort cột (mục 7)
   const [flt, setFlt] = useState({});                // filter gõ theo từng cột
   const datFlt = (col, val) => setFlt((f) => ({ ...f, [col]: val }));
@@ -213,6 +214,30 @@ export default function XinHang() {
     await sb.rpc('fn_ycdp_huy', { p_ma_ch: maCH, p_barcode: r.barcode });
     setYcdp((m) => { const n = { ...m }; delete n[r.barcode]; return n; });
     baoToast('Đã hủy yêu cầu');
+  };
+
+  // KHÔNG ĐỀ NGHỊ HÀNG — cửa hàng đủ hàng, xác nhận không đề nghị hôm nay (có truy vết)
+  const guiKdn = async () => {
+    const { error } = await sb.rpc('fn_kdn_gui', { p_ma_ch: maCH, p_nguoi: user.ma_dang_nhap });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    setMoKdn(false);
+    const homNay = isoVN();
+    setLichCH((ds) => (ds || []).map((l) => l.ngay === homNay ? { ...l, khong_dn: true } : l));
+    baoToast('Đã ghi nhận: hôm nay KHÔNG đề nghị hàng — BQL sẽ kiểm tra lại');
+  };
+  const huyKdn = async () => {
+    const { error } = await sb.rpc('fn_kdn_huy', { p_ma_ch: maCH });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    const homNay = isoVN();
+    setLichCH((ds) => (ds || []).map((l) => l.ngay === homNay ? { ...l, khong_dn: false } : l));
+    baoToast('Đã hủy xác nhận — hôm nay vẫn cần đề nghị hàng');
+  };
+  // Gửi đơn thật thì tự bỏ xác nhận không-đề-nghị (đơn thật thắng)
+  const huyKdnNeuCo = async () => {
+    const homNay = isoVN();
+    const l = (lichCH || []).find((x) => x.ngay === homNay);
+    if (l?.khong_dn) { try { await sb.rpc('fn_kdn_huy', { p_ma_ch: maCH }); } catch {}
+      setLichCH((ds) => (ds || []).map((x) => x.ngay === homNay ? { ...x, khong_dn: false } : x)); }
   };
 
   useEffect(() => {
@@ -488,6 +513,7 @@ export default function XinHang() {
         baoToast(`Đã xuất ${dsN.length} dòng — GIỮ HÀNG đến ${gio} (${kq.phut} phút)`);
       } else baoToast(`Đã xuất ${dsN.length} dòng — kho ${khoMa}`);
     } catch { baoToast(`Đã xuất ${dsN.length} dòng — kho ${khoMa}`); }
+    huyKdnNeuCo();
   };
   const xuatTatCa = async () => {
     const dsAll = rows.filter((r) => r.sl_xin > 0);
@@ -527,6 +553,7 @@ export default function XinHang() {
       setGiuInfo({ het_han: hetHan, phut });
       baoToast(`Đã xuất ${dsAll.length} dòng (1 file) — GIỮ HÀNG đến ${gio}`);
     } else baoToast(`Đã xuất ${dsAll.length} dòng (1 file tổng)`);
+    huyKdnNeuCo();
   };
   const giaiPhong = async () => {
     const { data, error } = await sb.rpc('fn_giai_phong', { p_token: user.token, p_ma_ch: maCH });
@@ -598,28 +625,58 @@ export default function XinHang() {
         const dckHom = dckCH && dckCH[homNay];   // phiếu điều chuyển thật hôm nay (mã DK)
         // "Đã gửi" thật = đã có phiếu DK ngày đó (dù app đánh dấu hay chưa)
         const daGuiThat = !!dckHom || (homNayLich && homNayLich.da_gui);
+        const kdnHom = homNayLich && homNayLich.khong_dn && !daGuiThat;   // đã xác nhận không đề nghị (đơn thật thắng)
         return (
           <div className="lich-banner-thin" style={{
-            borderLeft: homNayLich && !daGuiThat ? '3px solid var(--gold)' : '3px solid var(--teal)' }}>
+            borderLeft: kdnHom ? '3px solid var(--ink-3)'
+              : homNayLich && !daGuiThat ? '3px solid var(--gold)' : '3px solid var(--teal)' }}>
             {homNayLich ? (
               dckHom
                 ? <span className="lbt-txt" style={{ color: 'var(--teal-deep)', fontWeight: 700 }}>✓ Hôm nay đã gửi phiếu — kho: <b>{dckHom.trang_thai_gom}</b> ({dckHom.so_phieu} phiếu)</span>
                 : daGuiThat
                 ? <span className="lbt-txt" style={{ color: 'var(--teal-deep)', fontWeight: 700 }}>✓ Hôm nay tới lịch — đã gửi phiếu</span>
-                : <span className="lbt-txt" style={{ color: '#a8842c', fontWeight: 800 }}>📅 HÔM NAY tới lịch đề nghị — nhớ lập &amp; gửi phiếu</span>
+                : kdnHom
+                ? <span className="lbt-txt" style={{ color: 'var(--ink-2)', fontWeight: 700 }}>
+                    ⊘ Hôm nay cửa hàng xác nhận <b>KHÔNG đề nghị hàng</b> (đủ hàng) — BQL sẽ kiểm tra lại.
+                    <button className="kdn-huy" onClick={huyKdn}>Hủy xác nhận</button>
+                  </span>
+                : <span className="lbt-txt" style={{ color: '#a8842c', fontWeight: 800 }}>📅 HÔM NAY tới lịch đề nghị — nhớ lập &amp; gửi phiếu
+                    <button className="kdn-btn" onClick={() => setMoKdn(true)}
+                      title="Cửa hàng đã đủ hàng — xác nhận không đề nghị hôm nay">Không đề nghị hàng</button>
+                  </span>
             ) : (
               <span className="lbt-txt" style={{ color: 'var(--ink-2)' }}>📅 Lịch sắp tới:</span>
             )}
             <div className="lbt-chips">
               {sapToi.map((l) => (
-                <span key={l.ngay} className={'lbt-chip' + (l.da_gui ? ' gui' : '')}>
-                  {thuCua(l.ngay)} {fmtDM2(l.ngay)}{l.da_gui ? ' ✓' : ''}
+                <span key={l.ngay} className={'lbt-chip' + (l.da_gui ? ' gui' : '') + (l.khong_dn && !l.da_gui ? ' kdn' : '')}>
+                  {thuCua(l.ngay)} {fmtDM2(l.ngay)}{l.da_gui ? ' ✓' : l.khong_dn ? ' ⊘' : ''}
                 </span>
               ))}
             </div>
           </div>
         );
       })()}
+
+      {/* MODAL cảnh báo KHÔNG ĐỀ NGHỊ HÀNG — phải xác nhận mới ghi (có truy vết người bấm) */}
+      {moKdn && (
+        <div className="kdn-overlay" onClick={() => setMoKdn(false)}>
+          <div className="kdn-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="kdn-tit">⚠ Xác nhận không đề nghị hàng</div>
+            <div className="kdn-noidung">
+              Bạn đã <b>kiểm tra kỹ lượng hàng</b> của cửa hàng và xác nhận <b>KHÔNG đề nghị hàng</b> cho lịch hôm nay.
+              <br /><br />
+              Ban quản lý sẽ <b>kiểm tra lại trường hợp này</b>. Nếu cửa hàng thiếu hàng bán do không đề nghị,
+              trưởng ca xác nhận chịu trách nhiệm.
+              <div className="kdn-nguoi">Người xác nhận: <b>{user.ten}</b> ({user.ma_dang_nhap}) · {maCH}</div>
+            </div>
+            <div className="kdn-hang-nut">
+              <button className="btn btn-ghost" onClick={() => setMoKdn(false)}>Quay lại kiểm tra</button>
+              <button className="btn kdn-xacnhan" onClick={guiKdn}>Tôi xác nhận không đề nghị</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {rows && boSot.length > 0 && (
         <div className="card" style={{ marginBottom: 12, borderLeft: '4px solid var(--magenta)' }}>
