@@ -1362,3 +1362,39 @@ textarea.inp { height: auto; padding: 10px 12px; }
   padding: 5px 12px; border-radius: 9px; background: #F7F6F1; color: var(--ink); }
 .tq-sk-muc:hover { background: #F1EFE8; }
 .tq-sk-muc svg { width: 13px; height: 13px; }
+
+/* ===== Tổng quan v2: chart chồng ngành + cảnh báo nơi bán + cơ cấu ===== */
+.tq-bar-nv { fill: rgba(217,166,46,.55); transition: fill .15s; }
+.tq-bar-nv:hover { fill: rgba(217,166,46,.8); }
+
+.tq-cb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 20px; }
+@media (max-width: 1120px) { .tq-cb-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 720px) { .tq-cb-grid { grid-template-columns: 1fr; } }
+.tq-cb-nhom { min-width: 0; }
+.tq-cb-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.tq-cb-so { font-size: 17px; font-weight: 800; padding: 1px 9px; border-radius: 9px; }
+.tq-cb-so.do   { color: var(--magenta); background: rgba(214,0,108,.1); }
+.tq-cb-so.cam  { color: #c25e1e; background: rgba(214,110,30,.12); }
+.tq-cb-so.vang { color: #a8842c; background: rgba(217,166,46,.14); }
+.tq-cb-so.xam  { color: var(--ink-2); background: #F1EFE8; }
+.tq-cb-so.xanh { color: var(--teal-deep); background: rgba(63,182,168,.13); }
+.tq-cb-ten { font-size: 12px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+.tq-cb-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.tq-cb-chip { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 8px;
+  background: #F7F6F1; color: var(--ink); max-width: 100%; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.tq-cb-chip.do   { background: rgba(214,0,108,.08); color: #a3004f; }
+.tq-cb-chip.cam  { background: rgba(214,110,30,.1); color: #9c4d16; }
+.tq-cb-chip.vang { background: rgba(217,166,46,.12); color: #8a6a1e; }
+.tq-cb-chip.xanh { background: rgba(63,182,168,.11); color: var(--teal-deep); }
+.tq-cb-chip.mo   { color: var(--ink-2); }
+
+.tq-cocau { margin-bottom: 12px; }
+.tq-cocau-bar { display: flex; height: 12px; border-radius: 7px; overflow: hidden; }
+.tq-cocau-bar .bh { background: var(--teal); }
+.tq-cocau-bar .nv { background: rgba(217,166,46,.75); }
+.tq-cocau-nhan { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px;
+  margin-top: 6px; font-size: 11px; color: var(--ink-2); }
+.tq-cham { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 4px; }
+.tq-cham.bh { background: var(--teal); }
+.tq-cham.nv { background: rgba(217,166,46,.75); }
