@@ -812,7 +812,7 @@ function DckTheoCH({ tu, den, baoToast }) {
               {rows === null ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
               ) : hien.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>{fltTT ? 'Không có cửa hàng nào ở trạng thái này.' : 'Chưa có cửa hàng nào có phiếu điều chuyển (mã DK) trong khoảng này.'}</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>{fltTT ? 'Không có cửa hàng nào ở trạng thái này.' : 'Chưa có cửa hàng nào có phiếu điều chuyển (DK/KC) trong khoảng này.'}</td></tr>
               ) : hien.map((r, i) => (
                 <Fragment key={r.ma_ch}>
                   <tr className="dck-ch-row" onClick={() => xoPhieu(r.ma_ch)} style={{ cursor: 'pointer' }}>
@@ -852,6 +852,7 @@ function DckTheoCH({ tu, den, baoToast }) {
                             <div key={f.ma_phieu} className="dck-phieu-card">
                               <div className="dck-phieu-l">
                                 <span className="mono dck-phieu-ma">{f.ma_phieu}</span>
+                                {(f.ma_phieu || '').startsWith('KC') && <span className="dck-kc" title="Phiếu khẩn cấp">KHẨN CẤP</span>}
                                 <span className={'dck-tt ' + dckClass(f.trang_thai)}>{f.trang_thai}</span>
                                 {f.trang_thai === 'Chưa chuyển' && f.trang_thai_chi_tiet && f.trang_thai_chi_tiet !== 'Yêu cầu điều chuyển' &&
                                   <span className={'dck-tt ' + ctClass(f.trang_thai_chi_tiet)}>{f.trang_thai_chi_tiet}</span>}
@@ -984,10 +985,11 @@ function DckTheoPhieu({ tu, den, baoToast }) {
               {rows === null ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
               ) : hien.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Chưa có phiếu điều chuyển (mã DK) trong khoảng này.</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Chưa có phiếu điều chuyển (DK/KC) trong khoảng này.</td></tr>
               ) : hien.map((r) => (
                 <tr key={r.ma_phieu}>
-                  <td className="mono" style={{ fontWeight: 700, fontSize: 11 }}>{r.ma_phieu}</td>
+                  <td className="mono" style={{ fontWeight: 700, fontSize: 11 }}>{r.ma_phieu}
+                    {(r.ma_phieu || '').startsWith('KC') && <span className="dck-kc" title="Phiếu khẩn cấp">KC</span>}</td>
                   <td className="center"><span className={'dck-tt ' + dckClass(r.trang_thai)}>{r.trang_thai}</span></td>
                   <td><div style={{ fontWeight: 600 }}>{r.ten_ch}</div>
                     <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}</div></td>

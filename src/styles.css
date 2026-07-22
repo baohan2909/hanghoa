@@ -1243,3 +1243,8 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .sync-the.sync-bo .the-g-so { color: #a8842c; }
 .sync-loi-ct { font-size: 10.5px; color: var(--magenta); margin-top: 4px; max-width: 180px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Badge phiếu KHẨN CẤP (mã KC) — phân biệt với DK định kỳ */
+.dck-kc { display: inline-block; margin-left: 6px; background: rgba(214,0,108,.12); color: var(--magenta);
+  font-size: 9.5px; font-weight: 800; padding: 1px 6px; border-radius: 6px; vertical-align: middle;
+  letter-spacing: .3px; }
