@@ -45,7 +45,7 @@ export default function GiamSat() {
 
   useEffect(() => {
     if (user.vai_tro !== 'CH') {
-      sb.from('cua_hang').select('ma_ch, ten').like('ma_ch', 'CH%')
+      sb.from('cua_hang').select('ma_ch, ten').or('ma_ch.like.CH%,ma_ch.like.DB%')
         .eq('hoat_dong', true).order('ten').then(({ data }) => setDsCH(data || []));
       sb.rpc('fn_ds_khu_vuc').then(({ data }) => setDsKV(data || []));
     }
@@ -75,6 +75,7 @@ export default function GiamSat() {
       if (!g) g = m[r.barcode] = {
         barcode: r.barcode, sku: r.sku, ma_tham_chieu: r.ma_tham_chieu,
         nganh_3: r.nganh_3, nhom_hang: r.nhom_hang, la_hang_sale: r.la_hang_sale,
+        dac_biet: r.dac_biet,
         gia_niem_yet: r.gia_niem_yet, gia_sale: r.gia_sale, hinh_url: r.hinh_url,
         kho_tong: r.kho_tong, ton_ch_khac: r.ton_ch_khac,
         so_ch_het: 0, so_ch_canh: 0, ban_tong: 0, ds_ch: [],
@@ -407,7 +408,10 @@ function RowSP({ r, anhProps, moNguon, nhieuCH }) {
             {r.hinh_url ? <img src={r.hinh_url} alt="" onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.insertAdjacentHTML('beforeend', '<span style="color:var(--ink-2)">▢</span>'); }} /> : <IcBox />}
           </div>
           <div>
-            <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}</div>
+            <div className="mono" style={{ fontWeight: 600 }}>{r.ma_tham_chieu || r.sku}
+              {r.dac_biet === 'THU_HOI' && <span className="db-badge thu-hoi" title="Hàng thu hồi — phòng Điều phối xử lý">Thu hồi</span>}
+              {r.dac_biet === 'HANG_MOI' && <span className="db-badge hang-moi" title="Mã mới — phòng Điều phối chia trực tiếp">Mã mới · ĐP chia</span>}
+            </div>
             <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{r.nganh_3}{r.la_hang_sale ? ' · sale' : ''}</div>
           </div>
         </div>

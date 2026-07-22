@@ -242,7 +242,7 @@ export default function XinHang() {
 
   useEffect(() => {
     if (user.vai_tro !== 'CH') {
-      sb.from('cua_hang').select('ma_ch, ten').like('ma_ch', 'CH%')
+      sb.from('cua_hang').select('ma_ch, ten').or('ma_ch.like.CH%,ma_ch.like.DB%')
         .eq('hoat_dong', true).order('ten').then(({ data }) => setDsCH(data || []));
     }
   }, []);

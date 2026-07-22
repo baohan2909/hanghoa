@@ -1280,3 +1280,9 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .sync-dong-luc { margin-left: auto; font-size: 11px; color: var(--ink-2); white-space: nowrap; }
 .sync-dong-ct { font-size: 10.5px; color: var(--magenta); max-width: 160px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
+
+/* Badge trạng thái đặc biệt ở Thiếu hàng (đồng bộ Đề nghị hàng) */
+.db-badge { display: inline-block; margin-left: 7px; font-size: 9.5px; font-weight: 800;
+  padding: 1px 7px; border-radius: 7px; vertical-align: middle; letter-spacing: .2px; }
+.db-badge.thu-hoi { background: rgba(214,0,108,.12); color: var(--magenta); }
+.db-badge.hang-moi { background: rgba(63,182,168,.14); color: var(--teal-deep); }
