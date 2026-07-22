@@ -9,17 +9,23 @@ export default function DoiSoat() {
   const { baoToast } = useApp();
   const [moiNhat, setMoiNhat] = useState(null);
   const [lichSu, setLichSu] = useState(null);
+  const [syncTT, setSyncTT] = useState(null);        // tình trạng đồng bộ mỗi bước
+  const [syncLS, setSyncLS] = useState(null);        // lịch sử đồng bộ
   const [dangTai, setDangTai] = useState(false);
 
   const tai = async () => {
     setDangTai(true);
-    const [a, b] = await Promise.all([
+    const [a, b, c, d] = await Promise.all([
       sb.rpc('fn_doi_soat_moi_nhat'),
       sb.rpc('fn_doi_soat_lich_su', { p_gioi_han: 50 }),
+      sb.rpc('fn_sync_tinh_trang'),
+      sb.rpc('fn_sync_lich_su', { p_gioi_han: 40 }),
     ]);
     if (a.error) baoToast('Lỗi: ' + a.error.message);
     setMoiNhat(a.data || []);
     setLichSu(b.data || []);
+    setSyncTT(c.data || []);
+    setSyncLS(d.data || []);
     setDangTai(false);
   };
   useEffect(() => { tai(); }, []);   // eslint-disable-line
@@ -39,7 +45,37 @@ export default function DoiSoat() {
         </div>
       </div>
 
-      {/* Thẻ trạng thái mới nhất mỗi bảng */}
+      {/* ===== TÌNH TRẠNG ĐỒNG BỘ — xem ngay sync có lỗi không ===== */}
+      {syncTT && syncTT.length > 0 && (() => {
+        const TEN = { ton_kho: 'Tồn kho', ban_hang: 'Bán hàng', dieu_chuyen: 'Điều chuyển', san_pham: 'Sản phẩm',
+          cua_hang: 'Cửa hàng', syncTonKho: 'Tồn kho', syncBanHang: 'Bán hàng', syncDieuChuyen: 'Điều chuyển',
+          syncCuaHang: 'Cửa hàng', syncSale: 'Hàng sale', syncHinhAnh: 'Hình ảnh', syncTaiKhoan: 'Tài khoản', tong: 'Tổng thể' };
+        const coLoi = syncTT.filter((s) => s.trang_thai === 'LOI');
+        const fmtPhut = (p) => p == null ? '' : p < 1 ? 'vừa xong' : p < 60 ? Math.round(p) + ' phút trước'
+          : p < 1440 ? Math.round(p / 60) + ' giờ trước' : Math.round(p / 1440) + ' ngày trước';
+        return (
+          <div style={{ marginBottom: 14 }}>
+            {coLoi.length > 0 ? (
+              <div className="sync-canhbao">⚠ Có {coLoi.length} bước đồng bộ đang LỖI: {coLoi.map((s) => TEN[s.buoc] || s.buoc).join(', ')}. Kiểm tra bên dưới.</div>
+            ) : (
+              <div className="sync-ok">✓ Đồng bộ đang bình thường — tất cả các bước chạy OK.</div>
+            )}
+            <div className="the-hang the-hang-wrap" style={{ marginTop: 8 }}>
+              {syncTT.filter((s) => s.buoc !== 'tong').map((s) => (
+                <div key={s.buoc} className={'the-g sync-the ' + (s.trang_thai === 'LOI' ? 'sync-loi' : s.trang_thai === 'BO_LUOT' ? 'sync-bo' : 'sync-tot')}>
+                  <div className="the-g-nhan">{TEN[s.buoc] || s.buoc}</div>
+                  <div className="the-g-so" style={{ fontSize: 15 }}>
+                    {s.trang_thai === 'OK' ? '✓ OK' : s.trang_thai === 'BO_LUOT' ? '⏸ Bỏ lượt' : '✕ Lỗi'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{fmtPhut(s.phut_truoc)}</div>
+                  {s.trang_thai === 'LOI' && s.chi_tiet && <div className="sync-loi-ct" title={s.chi_tiet}>{s.chi_tiet}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="the-hang the-hang-wrap" style={{ marginTop: 4 }}>
         {moiNhat === null ? <div style={{ padding: 16, color: 'var(--ink-2)' }}>Đang tải…</div>
           : moiNhat.length === 0 ? <div style={{ padding: 16, color: 'var(--ink-2)' }}>Chưa có dữ liệu đối soát. Chạy sync để tạo.</div>

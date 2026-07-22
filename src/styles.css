@@ -1230,3 +1230,16 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .cal-kdn { margin-left: 5px; font-size: 11px; color: var(--ink-3); font-weight: 700; }
 .lich2-item.kdn { border-left: 3px solid var(--ink-3); }
 .lich2-kdn { font-size: 11.5px; font-weight: 700; color: var(--ink-3); white-space: nowrap; }
+
+/* ===== TÌNH TRẠNG ĐỒNG BỘ (màn Đối soát) ===== */
+.sync-canhbao { background: rgba(214,0,108,.1); color: var(--magenta); border-radius: 12px;
+  padding: 11px 16px; font-weight: 700; font-size: 13.5px; border-left: 4px solid var(--magenta); }
+.sync-ok { background: rgba(63,182,168,.12); color: var(--teal-deep); border-radius: 12px;
+  padding: 11px 16px; font-weight: 700; font-size: 13.5px; border-left: 4px solid var(--teal); }
+.sync-the { position: relative; }
+.sync-the.sync-tot .the-g-so { color: var(--teal-deep); }
+.sync-the.sync-loi { border: 1.5px solid var(--magenta); }
+.sync-the.sync-loi .the-g-so { color: var(--magenta); }
+.sync-the.sync-bo .the-g-so { color: #a8842c; }
+.sync-loi-ct { font-size: 10.5px; color: var(--magenta); margin-top: 4px; max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
