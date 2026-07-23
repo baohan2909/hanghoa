@@ -28,6 +28,12 @@ export default function VanDon() {
   const [mo, setMo] = useState(null);
   const [ht, setHt] = useState(null);
   const [quet, setQuet] = useState(false);
+  const [moCC, setMoCC] = useState(false);
+  const [txtMa, setTxtMa] = useState('');
+  const [txtHoc, setTxtHoc] = useState('');
+  const [diem, setDiem] = useState([]);
+  const [dsCH, setDsCH] = useState([]);
+  const [dangCC, setDangCC] = useState(false);
 
   const tai = async () => {
     const [a, b, c] = await Promise.all([
@@ -40,6 +46,65 @@ export default function VanDon() {
     setWh(c.data || null);
   };
   useEffect(() => { tai(); }, [tu, den, nhom]);   // eslint-disable-line
+
+  const taiDiem = async () => {
+    const [a, b] = await Promise.all([
+      sb.rpc('fn_vd_diem_chua_map'),
+      sb.from('cua_hang').select('ma_ch, ten').or('ma_ch.like.CH%,ma_ch.like.DB%')
+        .eq('hoat_dong', true).order('ten'),
+    ]);
+    setDiem(a.data || []);
+    setDsCH(b.data || []);
+  };
+  useEffect(() => { if (moCC) taiDiem(); }, [moCC]);   // eslint-disable-line
+
+  // Nạp danh sách mã đơn cũ: ghi mã vào DB rồi nhờ GHTK trả chi tiết
+  const napMa = async () => {
+    const ds = txtMa.split(/[\n,;\t]+/).map((x) => x.trim())
+      .filter((x) => x.length > 8);
+    if (!ds.length) { baoToast('Chưa có mã nào hợp lệ'); return; }
+    setDangCC(true);
+    const { data, error } = await sb.rpc('fn_vd_nap_ma', { p: ds });
+    if (error) { baoToast('Lỗi: ' + error.message); setDangCC(false); return; }
+    baoToast(`Đã ghi nhận ${data?.da_nhan ?? 0} mã — đang hỏi GHTK…`);
+    try {
+      const res = await fetch(GHTK_QUET_FN, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + SUPABASE_ANON },
+        body: JSON.stringify({ ma: ds }),
+      });
+      const j = await res.json();
+      baoToast(j.error ? 'GHTK lỗi: ' + j.error
+        : `Xong: hỏi ${j.so_luong} đơn · cập nhật ${j.cap_nhat}${j.loi ? ` · lỗi ${j.loi}` : ''}`);
+    } catch (e) { baoToast('Không gọi được GHTK: ' + e.message); }
+    setTxtMa(''); setDangCC(false); tai(); taiDiem();
+  };
+
+  // Học ánh xạ điểm giao từ danh sách "mã đơn <tab> tên cửa hàng"
+  const hocDiem = async () => {
+    const rows = txtHoc.split(/\n+/).map((d) => {
+      const c = d.split(/\t|;|\s{2,}|,(?=\s*[A-ZĐ])/).map((x) => x.trim()).filter(Boolean);
+      if (c.length < 2) return null;
+      const label = c.find((x) => /^S\d/.test(x)) || c[0];
+      const ten = c.filter((x) => x !== label).join(' ').trim();
+      return label && ten ? { label, ten } : null;
+    }).filter(Boolean);
+    if (!rows.length) { baoToast('Không đọc được dòng nào (cần: mã đơn + tên cửa hàng)'); return; }
+    setDangCC(true);
+    const { data, error } = await sb.rpc('fn_vd_hoc_diem', { p: rows });
+    setDangCC(false);
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Học được ${data?.khop ?? 0} điểm giao${data?.hong ? ` · ${data.hong} dòng không khớp tên` : ''}`);
+    setTxtHoc(''); tai(); taiDiem();
+  };
+
+  const ganDiem = async (ma_diem, ma_ch) => {
+    if (!ma_ch) return;
+    const { error } = await sb.rpc('fn_vd_gan_diem', { p_ma_diem: ma_diem, p_ma_ch: ma_ch });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast('Đã gán ' + ma_diem);
+    tai(); taiDiem();
+  };
 
   const xoHT = async (r) => {
     if (mo === r.label_id) { setMo(null); setHt(null); return; }
@@ -83,6 +148,7 @@ export default function VanDon() {
         <input className="flt-in" placeholder="Tìm mã vận đơn / cửa hàng…" value={q}
           onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 200, flex: 1 }} />
         {tk?.chua_map > 0 && <span className="sla-chip vd-canhbao">{tk.chua_map} đơn chưa nhận diện cửa hàng</span>}
+        <button className="btn btn-ghost" onClick={() => setMoCC(!moCC)}>⚙ Nạp &amp; ánh xạ</button>
         <button className="btn btn-ai" onClick={chayQuet} disabled={quet}>
           {quet ? 'Đang hỏi GHTK…' : '↻ Cập nhật từ GHTK'}
         </button>
@@ -107,6 +173,58 @@ export default function VanDon() {
               <b>Chưa nhận được tin nào từ GHTK</b>
               <span className="tq-ghi">Kiểm tra lại cấu hình webhook bên GHTK (URL + header X-NS-Key)</span>
             </>
+          )}
+        </div>
+      )}
+
+      {moCC && (
+        <div className="card vd-cc">
+          <div className="vd-cc-luoi">
+            <div>
+              <div className="tq-card-tit">1 · Nạp đơn cũ</div>
+              <div className="tq-ghi" style={{ marginBottom: 6 }}>
+                Dán danh sách mã vận đơn (mỗi dòng một mã, hoặc phân cách bằng dấu phẩy).
+                Hệ thống sẽ hỏi GHTK để lấy trạng thái &amp; ngày tháng.
+              </div>
+              <textarea className="flt-in vd-ta" rows={5} value={txtMa}
+                onChange={(e) => setTxtMa(e.target.value)}
+                placeholder={'S22987195.MN6-06-E100.1238155346\nS22987195.MN14-01-S1.1046975540'} />
+              <button className="btn btn-ai" onClick={napMa} disabled={dangCC} style={{ marginTop: 8 }}>
+                {dangCC ? 'Đang xử lý…' : 'Nạp danh sách'}
+              </button>
+            </div>
+            <div>
+              <div className="tq-card-tit">2 · Dạy hệ thống nhận diện cửa hàng</div>
+              <div className="tq-ghi" style={{ marginBottom: 6 }}>
+                GHTK không trả tên nơi nhận, nhưng mã đơn có chứa mã điểm giao cố định.
+                Dán từ file kho: <b>mã đơn</b> và <b>tên cửa hàng</b> trên cùng một dòng — chỉ cần làm một lần.
+              </div>
+              <textarea className="flt-in vd-ta" rows={5} value={txtHoc}
+                onChange={(e) => setTxtHoc(e.target.value)}
+                placeholder={'S22987195.MN13-09-D00.1987295283\tAGG Cái Dầu (Cửa Hàng Nón Sơn)'} />
+              <button className="btn btn-ai" onClick={hocDiem} disabled={dangCC} style={{ marginTop: 8 }}>
+                {dangCC ? 'Đang xử lý…' : 'Học ánh xạ'}
+              </button>
+            </div>
+          </div>
+
+          {diem.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div className="tq-card-tit">Điểm giao chưa nhận diện · {diem.length}</div>
+              <div className="vd-diem-luoi">
+                {diem.map((d) => (
+                  <div key={d.ma_diem} className="vd-diem-o">
+                    <div className="mono vd-diem-ma">{d.ma_diem}</div>
+                    <div className="tq-ghi">{d.so_don} đơn</div>
+                    <select className="flt-in" defaultValue=""
+                      onChange={(e) => ganDiem(d.ma_diem, e.target.value)}>
+                      <option value="">— chọn cửa hàng —</option>
+                      {dsCH.map((c) => <option key={c.ma_ch} value={c.ma_ch}>{c.ten}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
