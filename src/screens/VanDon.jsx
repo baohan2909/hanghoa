@@ -22,6 +22,7 @@ export default function VanDon() {
   const [den, setDen] = useState(isoVN());
   const [rows, setRows] = useState(null);
   const [tk, setTk] = useState(null);
+  const [wh, setWh] = useState(null);
   const [nhom, setNhom] = useState(null);
   const [q, setQ] = useState('');
   const [mo, setMo] = useState(null);
@@ -29,12 +30,14 @@ export default function VanDon() {
   const [quet, setQuet] = useState(false);
 
   const tai = async () => {
-    const [a, b] = await Promise.all([
+    const [a, b, c] = await Promise.all([
       sb.rpc('fn_vd_ds', { p_tu: tu, p_den: den, p_ma_ch: null, p_nhom: nhom }),
       sb.rpc('fn_vd_tk', { p_tu: tu, p_den: den }),
+      sb.rpc('fn_vd_wh_tinh_trang'),
     ]);
     setRows(a.data || []);
     setTk(b.data || null);
+    setWh(c.data || null);
   };
   useEffect(() => { tai(); }, [tu, den, nhom]);   // eslint-disable-line
 
@@ -84,6 +87,29 @@ export default function VanDon() {
           {quet ? 'Đang hỏi GHTK…' : '↻ Cập nhật từ GHTK'}
         </button>
       </div>
+
+      {wh && (
+        <div className={'vd-wh' + (wh.tong_24h > 0 && !wh.loi_24h ? ' ok' : wh.loi_24h > 0 ? ' loi' : ' cho')}>
+          <span className="vd-wh-den" />
+          {wh.lan_cuoi ? (
+            <>
+              <b>Webhook GHTK đang hoạt động</b>
+              <span className="tq-ghi">
+                nhận {fmtN(wh.tong_24h)} tin trong 24 giờ · gần nhất{' '}
+                {wh.phut_truoc < 1 ? 'vừa xong'
+                  : wh.phut_truoc < 60 ? Math.round(wh.phut_truoc) + ' phút trước'
+                  : Math.round(wh.phut_truoc / 60) + ' giờ trước'}
+                {wh.loi_24h > 0 ? ` · ${fmtN(wh.loi_24h)} tin lỗi` : ''}
+              </span>
+            </>
+          ) : (
+            <>
+              <b>Chưa nhận được tin nào từ GHTK</b>
+              <span className="tq-ghi">Kiểm tra lại cấu hình webhook bên GHTK (URL + header X-NS-Key)</span>
+            </>
+          )}
+        </div>
+      )}
 
       {tk && (
         <div className="the-hang the-hang-wrap" style={{ marginBottom: 14 }}>
