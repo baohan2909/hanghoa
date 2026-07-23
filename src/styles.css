@@ -1563,3 +1563,9 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .vd-diem-o select { width: 100%; height: 32px; margin-top: 6px; font-size: 11.5px; }
 .vd-goiy { width: 100%; margin-top: 6px; font-size: 11px; height: 30px; justify-content: flex-start;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Ô chọn cửa hàng trong lưới gán tên — dùng Sel chuẩn, chiếm trọn bề ngang */
+.vd-diem-sel { margin-top: 6px; }
+.vd-diem-sel .sel-btn { width: 100%; min-width: 0; height: 34px; font-size: 12px; }
+.vd-diem-sel .sel-btn span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vd-dang-gan { color: var(--teal-deep); font-weight: 700; }

@@ -331,7 +331,12 @@ export default function VanDon() {
                 {daGan.map((g) => (
                   <div key={g.ten_nhan} className="vd-diem-o">
                     <div className="vd-diem-ma" title={g.ten_nhan}>{tenGon(g.ten_nhan)}</div>
-                    <div className="tq-ghi">→ {g.ten_ch} · {g.so_don} đơn</div>
+                    <div className="tq-ghi vd-dang-gan">→ {g.ten_ch} · {g.so_don} đơn</div>
+                    <div className="vd-diem-sel">
+                      <Sel value={g.ma_ch} onChange={(v) => ganDiem(g.ten_nhan, v)} timKiem
+                        placeholder="Đổi cửa hàng…" style={{ width: '100%' }}
+                        options={dsCH.map((c) => ({ value: c.ma_ch, label: c.ten }))} />
+                    </div>
                     <button className="btn btn-ghost vd-goiy" onClick={() => goGan(g.ten_nhan)}>✕ Gỡ gán</button>
                   </div>
                 ))}
@@ -355,10 +360,11 @@ export default function VanDon() {
                       <button className="btn btn-ghost vd-goiy" onClick={() => ganDiem(d.ten_nhan, d.goi_y_ma)}
                         title="Gán nhanh theo gợi ý">→ {d.goi_y_ten}</button>
                     )}
-                    <select className="flt-in" defaultValue="" onChange={(e) => ganDiem(d.ten_nhan, e.target.value)}>
-                      <option value="">— chọn cửa hàng —</option>
-                      {dsCH.map((c) => <option key={c.ma_ch} value={c.ma_ch}>{c.ten}</option>)}
-                    </select>
+                    <div className="vd-diem-sel">
+                      <Sel value="" onChange={(v) => ganDiem(d.ten_nhan, v)} timKiem
+                        placeholder="Chọn cửa hàng…" style={{ width: '100%' }}
+                        options={dsCH.map((c) => ({ value: c.ma_ch, label: c.ten }))} />
+                    </div>
                   </div>
                 ))}
               </div>
