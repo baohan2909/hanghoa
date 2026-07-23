@@ -55,11 +55,9 @@ export default function DoiSoat() {
 
       {/* ===== TÌNH TRẠNG ĐỒNG BỘ — xem ngay sync có lỗi không ===== */}
       {syncTT && syncTT.length > 0 && (() => {
-        // Tách rõ 2 loại mốc: bước trong lượt tổng (syncXxx) vs chi tiết ghi dữ liệu (ton_kho…)
-        const TEN = { ban_hang: 'Bán hàng', dieu_chuyen: 'Điều chuyển', san_pham: 'Sản phẩm',
+        const TEN = { ton_kho: 'Tồn kho', ban_hang: 'Bán hàng', dieu_chuyen: 'Điều chuyển', san_pham: 'Sản phẩm',
           cua_hang: 'Cửa hàng', syncTonKho: 'Tồn kho', syncBanHang: 'Bán hàng', syncDieuChuyen: 'Điều chuyển',
-          syncCuaHang: 'Cửa hàng', syncSale: 'Hàng sale', syncHinhAnh: 'Hình ảnh', syncTaiKhoan: 'Tài khoản',
-          ton_kho: 'Tồn kho — ghi dữ liệu', van_don_nhan: 'Vận đơn' };
+          syncCuaHang: 'Cửa hàng', syncSale: 'Hàng sale', syncHinhAnh: 'Hình ảnh', syncTaiKhoan: 'Tài khoản' };
         // CHỈ hiện bước sync thật (có tên trong TEN) — bỏ dòng test (kiem_*), bỏ 'tong'
         const hienTT = syncTT.filter((s) => TEN[s.buoc]);
         if (!hienTT.length) return null;
@@ -86,9 +84,7 @@ export default function DoiSoat() {
                     {s.trang_thai === 'DANG_CHAY' ? 'Đang chạy' : s.trang_thai === 'OK' ? 'OK' : s.trang_thai === 'BO_LUOT' ? 'Bỏ lượt' : 'Lỗi'}
                   </span>
                   <span className="sync-dong-luc">{s.trang_thai === 'DANG_CHAY' ? s.chi_tiet : fmtPhut(s.phut_truoc)}</span>
-                  {s.trang_thai === 'LOI' && s.chi_tiet &&
-                    <span className="sync-dong-ct" title={s.chi_tiet}
-                      onClick={() => baoToast(s.chi_tiet)} style={{ cursor: 'pointer' }}>{s.chi_tiet}</span>}
+                  {s.trang_thai === 'LOI' && s.chi_tiet && <span className="sync-dong-ct" title={s.chi_tiet}>{s.chi_tiet}</span>}
                 </div>
               ))}
             </div>
