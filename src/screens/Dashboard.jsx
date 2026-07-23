@@ -1,193 +1,185 @@
 import { useEffect, useState } from 'react';
 import { sb } from '../lib/supabase.js';
-import { IcRefresh, IcAlert, IcClock, IcBox, IcTruck, IcPulse } from '../lib/icons.jsx';
-import TqHangHoa from './TqHangHoa.jsx';
+import { IcRefresh, IcAlert, IcClock, IcBox, IcPulse } from '../lib/icons.jsx';
 
 const fmtN = (n) => n == null ? '—' : Number(n).toLocaleString('vi');
-const thuVN = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-const nhanNgay = (iso) => { const d = new Date(iso + 'T00:00:00'); return thuVN[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth() + 1); };
+const fmtTr = (n) => { const v = Number(n) || 0; return v >= 1e6 ? (v / 1e6).toFixed(v % 1e6 ? 1 : 0).replace('.', ',') + ' triệu' : fmtN(v); };
 
-function Delta({ nay, truoc }) {
-  if (!truoc) return null;
-  const pct = Math.round(((nay - truoc) / truoc) * 100);
-  if (!pct) return <span className="tq-delta bang">= kỳ trước</span>;
-  return <span className={'tq-delta ' + (pct > 0 ? 'tang' : 'giam')}>{pct > 0 ? '▲' : '▼'} {Math.abs(pct)}%</span>;
+/* Ảnh sản phẩm: rê chuột phóng to, bấm xem toàn màn hình */
+function AnhSP({ url, ten, onMo }) {
+  if (!url) return <span className="tqa tqa-trong"><IcBox /></span>;
+  return (
+    <span className="tqa-boc">
+      <img className="tqa" src={url} alt="" loading="lazy" onClick={() => onMo(url, ten)}
+        onError={(e) => { e.target.style.visibility = 'hidden'; }} />
+      <span className="tqa-to"><img src={url} alt="" /></span>
+    </span>
+  );
 }
 
-// ===== Biểu đồ cột CHỒNG (BH + NV) — SVG thuần =====
-function ChartBan({ data }) {
-  if (!data?.length) return null;
-  const W = 700, H = 210, PAD = 30, BW = (W - PAD * 2) / data.length;
-  const maxSL = Math.max(...data.map((d) => d.bh + d.nv), 1);
+function Delta({ nay, truoc, nhan }) {
+  if (!truoc) return <span className="tq-ghi">{nhan}</span>;
+  const pct = Math.round(((nay - truoc) / truoc) * 100);
   return (
-    <svg viewBox={`0 0 ${W} ${H + 36}`} className="tq-chart" preserveAspectRatio="xMidYMid meet">
-      {[0.25, 0.5, 0.75, 1].map((p) => (
-        <g key={p}>
-          <line x1={PAD} x2={W - PAD} y1={H - H * p * 0.88} y2={H - H * p * 0.88} className="tq-grid" />
-          <text x={PAD - 5} y={H - H * p * 0.88 + 3} className="tq-truc" textAnchor="end">{fmtN(Math.round(maxSL * p))}</text>
-        </g>
+    <span className={'tq-delta ' + (pct > 3 ? 'tang' : pct < -3 ? 'giam' : 'bang')}>
+      {pct > 0 ? '▲' : pct < 0 ? '▼' : '='} {Math.abs(pct)}% <i>{nhan}</i>
+    </span>
+  );
+}
+
+/* Biểu đồ 14 ngày — số nằm TRONG cột, tổng ở trên */
+function Chart({ data }) {
+  if (!data?.length) return null;
+  const W = 760, H = 230, PAD = 30, BW = (W - PAD * 2) / data.length;
+  const max = Math.max(...data.map((d) => d.bh + d.nv), 1);
+  return (
+    <svg viewBox={`0 0 ${W} ${H + 38}`} className="tq-chart" preserveAspectRatio="xMidYMid meet">
+      {[0.5, 1].map((p) => (
+        <line key={p} x1={PAD} x2={W - PAD} y1={H - H * p * 0.84} y2={H - H * p * 0.84} className="tq-grid" />
       ))}
       {data.map((d, i) => {
         const tong = d.bh + d.nv;
-        const hB = (d.bh / maxSL) * H * 0.88, hN = (d.nv / maxSL) * H * 0.88;
-        const x = PAD + i * BW + BW * 0.16, w = BW * 0.68;
+        const hB = (d.bh / max) * H * 0.84, hN = (d.nv / max) * H * 0.84;
+        const x = PAD + i * BW + BW * 0.14, w = BW * 0.72;
         const cuoi = i === data.length - 1;
         return (
           <g key={d.ngay}>
-            <title>{nhanNgay(d.ngay)}: {fmtN(tong)} sp (BH {fmtN(d.bh)} · NV {fmtN(d.nv)})</title>
+            <title>{d.ngay}: {fmtN(tong)} sp — mũ bảo hiểm {fmtN(d.bh)}, nón vải {fmtN(d.nv)}</title>
             {d.nv > 0 && <rect x={x} y={H - hB - hN} width={w} height={Math.max(hN, 2)} rx={3} className="tq-bar-nv" />}
             {d.bh > 0 && <rect x={x} y={H - hB} width={w} height={Math.max(hB, 2)} rx={3}
               className={'tq-bar' + (cuoi ? ' nay' : '')} />}
-            {(cuoi || tong === maxSL) && tong > 0 &&
-              <text x={x + w / 2} y={H - hB - hN - 6} className="tq-bar-so" textAnchor="middle">{fmtN(tong)}</text>}
+            {tong > 0 && <text x={x + w / 2} y={H - hB - hN - 6} className="tq-bar-tong" textAnchor="middle">{fmtN(tong)}</text>}
+            {hB > 18 && <text x={x + w / 2} y={H - hB / 2 + 4} className="tq-bar-so" textAnchor="middle">{fmtN(d.bh)}</text>}
+            {hN > 18 && <text x={x + w / 2} y={H - hB - hN / 2 + 4} className="tq-bar-so nv" textAnchor="middle">{fmtN(d.nv)}</text>}
             <text x={x + w / 2} y={H + 15} className="tq-truc" textAnchor="middle">{d.ngay.slice(8, 10)}/{d.ngay.slice(5, 7)}</text>
           </g>
         );
       })}
-      <g>
-        <rect x={PAD} y={H + 24} width={10} height={10} rx={3} className="tq-bar" />
-        <text x={PAD + 15} y={H + 33} className="tq-truc">Mũ bảo hiểm</text>
-        <rect x={PAD + 95} y={H + 24} width={10} height={10} rx={3} className="tq-bar-nv" />
-        <text x={PAD + 110} y={H + 33} className="tq-truc">Nón vải</text>
-      </g>
+      <rect x={PAD} y={H + 26} width={10} height={10} rx={3} className="tq-bar" />
+      <text x={PAD + 15} y={H + 35} className="tq-truc">Mũ bảo hiểm</text>
+      <rect x={PAD + 100} y={H + 26} width={10} height={10} rx={3} className="tq-bar-nv" />
+      <text x={PAD + 115} y={H + 35} className="tq-truc">Nón vải</text>
     </svg>
-  );
-}
-
-function BarNgang({ pct, mau }) {
-  return <div className="tq-bn"><div className={'tq-bn-fill' + (mau ? ' ' + mau : '')} style={{ width: Math.max(pct, 3) + '%' }} /></div>;
-}
-
-// Nhóm cảnh báo nơi bán: tiêu đề + danh sách chip
-function NhomCB({ ten, mau, n, items, rong }) {
-  return (
-    <div className="tq-cb-nhom">
-      <div className="tq-cb-head">
-        <span className={'tq-cb-so ' + mau}>{fmtN(n)}</span>
-        <span className="tq-cb-ten">{ten}</span>
-      </div>
-      <div className="tq-cb-chips">
-        {(items || []).slice(0, 6).map((x, i) => (
-          <span key={i} className={'tq-cb-chip ' + mau} title={x.title || ''}>{x.nhan}</span>
-        ))}
-        {n > 6 && <span className="tq-cb-chip mo">+{n - 6}</span>}
-        {!n && <span className="tq-ghi">{rong || 'Không có — tốt'}</span>}
-      </div>
-    </div>
   );
 }
 
 export default function Dashboard({ chonTab = () => {} }) {
   const [d, setD] = useState(null);
   const [luc, setLuc] = useState(null);
-  const [dangTai, setDangTai] = useState(false);
+  const [tai, setTai] = useState(false);
+  const [anh, setAnh] = useState(null);
+  const [modal, setModal] = useState(null);      // { loai, ds }
 
-  const tai = async (imLang) => {
-    if (!imLang) setDangTai(true);
-    const { data, error } = await sb.rpc('fn_tong_quan');
-    if (!error && data) { setD(data); setLuc(new Date()); }
-    setDangTai(false);
+  const nap = async (im) => {
+    if (!im) setTai(true);
+    const { data } = await sb.rpc('fn_tong_quan');
+    if (data) { setD(data); setLuc(new Date()); }
+    setTai(false);
   };
-  useEffect(() => { tai(); const t = setInterval(() => tai(true), 120000); return () => clearInterval(t); }, []);
+  useEffect(() => { nap(); const t = setInterval(() => nap(true), 120000); return () => clearInterval(t); }, []);
+
+  const moMa = async (loai) => {
+    setModal({ loai, ds: null });
+    const { data } = await sb.rpc('fn_tq_ma_van_de', { p_loai: loai });
+    setModal({ loai, ds: data || [] });
+  };
 
   if (!d) return (
     <>
-      <div className="cmdbar"><div className="cmd-title"><h2>Tổng quan hệ thống</h2><p>Đang tải dữ liệu…</p></div></div>
-      <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-2)' }}>
-        {dangTai ? 'Đang tổng hợp toàn hệ thống…' : 'Không tải được dữ liệu. Bấm làm mới.'}
-      </div>
+      <div className="cmdbar"><div className="cmd-title"><h2>Tổng quan hàng hóa</h2><p>Đang tải…</p></div></div>
+      <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--ink-2)' }}>Đang tổng hợp…</div>
     </>
   );
 
-  const k = d.kpi || {};
-  const lich = d.lich_hn || {};
-  const cb = d.canh_bao || {};
-  const cc = d.co_cau || {};
-  const tra = d.tra || {};
-  const chuaGui = Math.max((lich.so_lich || 0) - (lich.da_gui || 0) - (lich.kdn || 0), 0);
-  const syncLoi = (d.sync || []).filter((s) => s.tt === 'LOI');
-  const dsLech = (d.doi_soat || []).filter((x) => !x.khop);
-  const heThongOK = !syncLoi.length && !dsLech.length;
-  const maxTopCH = Math.max(...(d.top_ch || []).map((c) => c.sl), 1);
-  const maxKV = Math.max(...(d.khu_vuc || []).map((c) => c.sl), 1);
-  const tongCC = (cc.bh_7n || 0) + (cc.nv_7n || 0);
-  const pctBH = tongCC ? Math.round((cc.bh_7n / tongCC) * 100) : 0;
+  const hn = d.hom_nay || {}, ct = d.cung_thu || {}, th = d.thieu || {},
+        cc = d.cao_cap || {}, li = d.lich || {}, kc = d.kc || {}, cl = d.cldn || {};
+  const chuaGui = Math.max((li.so_lich || 0) - (li.da_gui || 0) - (li.kdn || 0), 0);
+  const heThongOK = !(d.sync || []).some((s) => s.tt === 'LOI') && !(d.doi_soat || []).some((x) => !x.khop);
 
   return (
     <>
       <div className="cmdbar">
         <div className="cmd-title">
-          <h2>Tổng quan hệ thống</h2>
-          <p>{fmtN(k.tong_noi_ban)} nơi bán (CH + điểm bán) · sản phẩm chính, không gồm phụ kiện</p>
+          <h2>Tổng quan hàng hóa</h2>
+          <p>Hàng có đủ không · thiếu ở đâu · mã nào đang có vấn đề</p>
         </div>
         <div className="cmd-row">
-          <span className="sla-chip"><IcClock /> {luc ? luc.toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-          <button className="btn btn-ghost" onClick={() => tai()}><IcRefresh /> Làm mới</button>
+          <span className="hd-gio"><IcClock /> {luc ? luc.toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+          <button className="btn-hd" onClick={() => nap()} disabled={tai}>
+            <IcRefresh /> {tai ? 'Đang tải…' : 'Làm mới'}
+          </button>
         </div>
       </div>
 
-      {/* ===== TẦNG 1: KPI ===== */}
-      <div className="the-hang the-hang-wrap tq-kpi">
-        <div className="the-g">
-          <div className="the-g-nhan">Bán hôm nay</div>
-          <div className="the-g-so">{fmtN(k.ban_hn)} <span className="tq-dv">sp</span></div>
-          <Delta nay={k.ban_hn} truoc={k.ban_hq} />
+      {/* ===== TẦNG 1: NHỊP BÁN HÔM NAY + CẢNH BÁO HÀNG ===== */}
+      <div className="tq-kpi4">
+        <div className="tq-lon">
+          <div className="tq-lon-nhan">Bán hôm nay</div>
+          <div className="tq-lon-so">{fmtN(hn.tong)}<i>sp</i></div>
+          <Delta nay={hn.tong} truoc={ct.tb} nhan="so cùng thứ 4 tuần" />
+          <div className="tq-tach">
+            <span><b>{fmtN(hn.bh)}</b> mũ bảo hiểm <Delta nay={hn.bh} truoc={ct.tb_bh} nhan="" /></span>
+            <span><b>{fmtN(hn.nv)}</b> nón vải <Delta nay={hn.nv} truoc={ct.tb_nv} nhan="" /></span>
+          </div>
         </div>
-        <div className="the-g">
-          <div className="the-g-nhan">Bán 7 ngày</div>
-          <div className="the-g-so">{fmtN(k.ban_7n)} <span className="tq-dv">sp</span></div>
-          <Delta nay={k.ban_7n} truoc={k.ban_7n_truoc} />
+
+        <div className="tq-lon canh-bao tq-bam" onClick={() => chonTab('giamsat')}>
+          <div className="tq-lon-nhan">Cửa hàng đang thiếu hàng</div>
+          <div className="tq-lon-so">{fmtN(th.so_ch)}<i>/{fmtN(th.tong_ch)} nơi</i></div>
+          <div className="tq-ghi">còn hụt <b>{fmtN(th.sp_hut)}</b> sản phẩm so định mức tối thiểu</div>
         </div>
-        <div className="the-g">
-          <div className="the-g-nhan">Nơi bán có giao dịch</div>
-          <div className="the-g-so">{fmtN(k.ch_ban_hn)}<span className="tq-dv">/{fmtN(k.tong_noi_ban)}</span></div>
-          <div className="tq-ghi">hôm nay</div>
+
+        <div className="tq-lon canh-bao tq-bam" onClick={() => moMa('CHAY')}>
+          <div className="tq-lon-nhan">Mã cháy hàng — kho còn</div>
+          <div className="tq-lon-so">{fmtN(d.chay_hang)}<i>mã</i></div>
+          <div className="tq-ghi">bán được nhưng nơi bán đã hết · <b>bấm xem ngay</b></div>
         </div>
-        <div className="the-g">
-          <div className="the-g-nhan">Tồn nơi bán</div>
-          <div className="the-g-so">{fmtN(k.ton_noi_ban)}</div>
-          <div className="tq-ghi">{k.ngay_ton ? '≈ ' + fmtN(k.ngay_ton) + ' ngày bán' : ''}</div>
-        </div>
-        <div className="the-g">
-          <div className="the-g-nhan">Tồn kho tổng</div>
-          <div className="the-g-so">{fmtN(k.ton_kho_tong)}</div>
-          <div className="tq-ghi">4 kho BH/NV chính + sale</div>
-        </div>
-        <div className="the-g tq-bam" onClick={() => chonTab('lich')} title="Xem chi tiết tuân thủ">
-          <div className="the-g-nhan">Tuân thủ lịch 7 ngày</div>
-          <div className="the-g-so">{k.tuan_thu == null ? '—' : k.tuan_thu + '%'}</div>
-          <div className="tq-ghi">trung bình toàn hệ thống</div>
+
+        <div className="tq-lon tq-bam" onClick={() => moMa('SX')}>
+          <div className="tq-lon-nhan">Hết sạch toàn hệ thống</div>
+          <div className="tq-lon-so">{fmtN(d.can_sx)}<i>mã</i></div>
+          <div className="tq-ghi">kho tổng cũng không còn · cần sản xuất</div>
         </div>
       </div>
 
-      {/* ===== TẦNG 2: xu hướng + kiểm soát hôm nay ===== */}
+      {/* ===== TẦNG 2: BIỂU ĐỒ + KIỂM SOÁT ===== */}
       <div className="tq-hang2">
         <div className="card tq-card">
-          <div className="tq-card-tit"><IcPulse /> Sản lượng bán 14 ngày · mũ bảo hiểm + nón vải</div>
-          <ChartBan data={d.ban_14n} />
+          <div className="tq-card-tit"><IcPulse /> Sản lượng 14 ngày</div>
+          <Chart data={d.ban_14n} />
         </div>
 
         <div className="card tq-card">
-          <div className="tq-card-tit"><IcAlert /> Kiểm soát hôm nay</div>
+          <div className="tq-card-tit"><IcAlert /> Đề nghị hàng hôm nay</div>
+
+          <div className="tq-dn">
+            <div className="tq-dn-o">
+              <div className="tq-dn-n">{fmtN(li.da_gui)}<span>/{fmtN(li.so_lich)}</span></div>
+              <div className="tq-dn-t">Đã gửi theo lịch</div>
+              {chuaGui > 0 && <div className="tq-dn-c">còn {fmtN(chuaGui)} nơi chưa gửi</div>}
+              {li.kdn > 0 && <div className="tq-ghi">⊘ {fmtN(li.kdn)} báo không cần</div>}
+            </div>
+            <div className={'tq-dn-o' + ((kc.phieu_hn || 0) + (kc.app_hn || 0) > 0 ? ' khan' : '')}>
+              <div className="tq-dn-n">{fmtN((kc.phieu_hn || 0) + (kc.app_hn || 0))}</div>
+              <div className="tq-dn-t">Đơn khẩn cấp hôm nay</div>
+              <div className="tq-ghi">7 ngày: <b>{fmtN(kc.phieu_7n)}</b> phiếu · <b>{fmtN(kc.ch_7n)}</b> nơi bán</div>
+            </div>
+          </div>
+
           <div className="tq-ks">
-            <div className="tq-ks-dong tq-bam" onClick={() => chonTab('lich')}>
-              <span className="tq-ks-ten">Lịch đề nghị hôm nay</span>
+            <div className="tq-ks-dong">
+              <span className="tq-ks-ten">Chất lượng đề nghị hôm nay</span>
               <span className="tq-ks-so">
-                {lich.so_lich ? <>
-                  <b className="ok">{fmtN(lich.da_gui)} gửi</b>
-                  {lich.kdn > 0 && <b className="kdn"> · {fmtN(lich.kdn)} ⊘</b>}
-                  {chuaGui > 0 ? <b className="xau"> · {fmtN(chuaGui)} chưa</b> : null}
-                  <span className="tq-ghi"> /{fmtN(lich.so_lich)} CH</span>
-                </> : <span className="tq-ghi">không có lịch</span>}
+                {cl.so_dn > 0 ? <>
+                  <b className="ok">{fmtN(cl.dat)} đủ</b>
+                  {cl.con_thieu > 0 && <b className="xau"> · {fmtN(cl.con_thieu)} vẫn thiếu</b>}
+                  <span className="tq-ghi"> /{fmtN(cl.so_dn)} nơi</span>
+                </> : <span className="tq-ghi">chưa có đơn</span>}
               </span>
             </div>
-            <div className="tq-ks-dong tq-bam" onClick={() => chonTab('giamsat')}>
-              <span className="tq-ks-ten">Mã cháy hàng — kho còn, cần chia gấp</span>
-              <span className="tq-ks-so"><b className={d.chay_hang > 0 ? 'xau' : 'ok'}>{fmtN(d.chay_hang)}</b></span>
-            </div>
-            <div className="tq-ks-dong tq-bam" onClick={() => chonTab('giamsat')}>
-              <span className="tq-ks-ten">Mã cần sản xuất — hết toàn hệ thống</span>
-              <span className="tq-ks-so"><b className={d.can_sx > 0 ? 'xau' : 'ok'}>{fmtN(d.can_sx)}</b></span>
+            <div className="tq-ks-dong tq-bam" onClick={() => chonTab('chatluong')}>
+              <span className="tq-ks-ten">Xem chi tiết đánh giá đề nghị</span>
+              <span className="tq-ks-so tq-ghi">→</span>
             </div>
             <div className="tq-ks-dong tq-bam" onClick={() => chonTab('ycdp')}>
               <span className="tq-ks-ten">Yêu cầu điều phối chờ xử lý</span>
@@ -195,136 +187,140 @@ export default function Dashboard({ chonTab = () => {} }) {
             </div>
             <div className="tq-ks-dong tq-bam" onClick={() => chonTab('lich')}>
               <span className="tq-ks-ten">Phiếu điều chuyển đang chạy</span>
-              <span className="tq-ks-so">
-                <b>{fmtN(d.dck?.dang_chay)}</b>
-                {d.dck?.kc > 0 && <b className="xau"> · {fmtN(d.dck.kc)} khẩn cấp</b>}
-              </span>
-            </div>
-            <div className="tq-ks-dong">
-              <span className="tq-ks-ten">Hàng khách trả</span>
-              <span className="tq-ks-so">
-                <b className={tra.hom_nay > 0 ? 'xau' : 'ok'}>{fmtN(tra.hom_nay)}</b><span className="tq-ghi"> hôm nay</span>
-                <b style={{ marginLeft: 8 }}>{fmtN(tra.bay_ngay)}</b><span className="tq-ghi"> 7 ngày</span>
-              </span>
-            </div>
-            <div className="tq-ks-dong tq-bam" onClick={() => chonTab('dacbiet')}>
-              <span className="tq-ks-ten">Hàng đặc biệt đang hiệu lực</span>
-              <span className="tq-ks-so">
-                <b className="xau">{fmtN(d.thu_hoi)}</b><span className="tq-ghi"> thu hồi</span>
-                <b className="ok" style={{ marginLeft: 8 }}>{fmtN(d.hang_moi)}</b><span className="tq-ghi"> mã mới</span>
-              </span>
+              <span className="tq-ks-so"><b>{fmtN(d.dck_chay)}</b>
+                <span className="tq-ghi"> · 7 ngày {fmtN(kc.dk_7n)} định kỳ / {fmtN(kc.phieu_7n)} khẩn</span></span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ===== TẦNG 3: CẢNH BÁO NƠI BÁN ===== */}
+      {/* ===== TẦNG 3: HÀNG CAO CẤP ===== */}
       <div className="card tq-card" style={{ marginBottom: 14 }}>
-        <div className="tq-card-tit"><IcAlert /> Cảnh báo nơi bán · cần để mắt</div>
-        <div className="tq-cb-grid">
-          <NhomCB ten="Im lặng ≥2 ngày (không có giao dịch)" mau="do"
-            n={cb.im_lang_n || 0}
-            items={(cb.im_lang || []).map((x) => ({ nhan: `${x.ten} · ${x.so_ngay >= 99 ? '14+' : x.so_ngay} ngày`, title: 'Kiểm tra POS / nhập bán' }))} />
-          <NhomCB ten="Sụt mạnh ≥40% so tuần trước" mau="cam"
-            n={(cb.sut || []).length}
-            items={(cb.sut || []).map((x) => ({ nhan: `${x.ten} ${x.pct}%`, title: `${x.truoc} → ${x.nay} sp` }))} />
-          <NhomCB ten="Sắp trống kệ (tồn dưới 3 ngày bán)" mau="vang"
-            n={(cb.trong_ke || []).length}
-            items={(cb.trong_ke || []).map((x) => ({ nhan: `${x.ten} · ${x.ngay_ton}ng`, title: `Tồn ${x.ton} · bán 7n ${x.ban7}` }))} />
-          <NhomCB ten="Ứ đọng (tồn ≥100, tuần bán ≤5)" mau="xam"
-            n={(cb.u_dong || []).length}
-            items={(cb.u_dong || []).map((x) => ({ nhan: `${x.ten} · tồn ${fmtN(x.ton)}`, title: `Bán 7 ngày: ${x.ban7} sp` }))} />
-          <NhomCB ten="Tuân thủ lịch kém nhất tuần" mau="cam"
-            n={(cb.tth_thap || []).length}
-            items={(cb.tth_thap || []).map((x) => ({ nhan: `${x.ten} · ${x.pct}%` }))}
-            rong="Tất cả đạt 100%" />
-          <NhomCB ten="Tăng trưởng mạnh (đáng khen)" mau="xanh"
-            n={(cb.tang || []).length}
-            items={(cb.tang || []).map((x) => ({ nhan: `${x.ten}${x.pct != null ? ' +' + x.pct + '%' : ''}`, title: `${x.truoc} → ${x.nay} sp` }))}
-            rong="Chưa có đột biến" />
+        <div className="tq-card-tit">
+          Hàng cao cấp từ {fmtTr(cc.nguong)} — bán hôm nay
+          <span className="tq-tit-phu">{fmtN(cc.ma_hn)} mã · {fmtN(cc.sl_hn)} sản phẩm</span>
         </div>
-      </div>
-
-      {/* ===== KIỂM SOÁT HÀNG HÓA CHUYÊN SÂU ===== */}
-      <TqHangHoa chonTab={chonTab} />
-
-      {/* ===== TẦNG 4: top động lực + cơ cấu ===== */}
-      <div className="tq-hang3">
-        <div className="card tq-card">
-          <div className="tq-card-tit">Top nơi bán · 7 ngày</div>
-          {(d.top_ch || []).map((c, i) => (
-            <div key={c.ma_ch} className="tq-top-dong">
-              <span className="tq-top-stt">{i + 1}</span>
-              <div className="tq-top-tt">
-                <div className="tq-top-ten">{c.ten}</div>
-                <BarNgang pct={(c.sl / maxTopCH) * 100} />
+        {(cc.ds || []).length ? (
+          <div className="tq-luoi-sp">
+            {cc.ds.map((s) => (
+              <div key={s.ma_tham_chieu} className="tq-sp-o">
+                <AnhSP url={s.hinh_url} ten={s.ma_tham_chieu} onMo={(u, t) => setAnh({ u, t })} />
+                <div className="tq-sp-tt">
+                  <div className="mono tq-sp-ma">{s.ma_tham_chieu}</div>
+                  <div className="tq-ghi">{s.nganh_3 || ''} · {fmtTr(s.gia)}</div>
+                </div>
+                <div className="tq-sp-sl"><b>{fmtN(s.sl)}</b><span>sp</span></div>
               </div>
-              <div className="tq-top-so"><b>{fmtN(c.sl)}</b><span className="tq-ghi">sp</span></div>
-            </div>
-          ))}
-        </div>
-
-        <div className="card tq-card">
-          <div className="tq-card-tit">Top sản phẩm · 7 ngày</div>
-          {(d.top_sp || []).map((s, i) => (
-            <div key={s.ma_tham_chieu} className="tq-top-dong">
-              <span className="tq-top-stt">{i + 1}</span>
-              {s.hinh_url
-                ? <img className="tq-sp-anh" src={s.hinh_url} alt="" loading="lazy"
-                    onError={(e) => { e.target.style.visibility = 'hidden'; }} />
-                : <span className="tq-sp-anh trong"><IcBox /></span>}
-              <div className="tq-top-tt">
-                <div className="tq-top-ten mono">{s.ma_tham_chieu}</div>
-                <div className="tq-ghi">{s.nganh_3 || ''}</div>
-              </div>
-              <div className="tq-top-so"><b>{fmtN(s.sl)}</b><span className="tq-ghi">sp</span></div>
-            </div>
-          ))}
-        </div>
-
-        <div className="card tq-card">
-          <div className="tq-card-tit">Khu vực &amp; cơ cấu · 7 ngày</div>
-          <div className="tq-cocau">
-            <div className="tq-cocau-bar">
-              <div className="bh" style={{ width: pctBH + '%' }} />
-              <div className="nv" style={{ width: (100 - pctBH) + '%' }} />
-            </div>
-            <div className="tq-cocau-nhan">
-              <span><i className="tq-cham bh" /> Mũ bảo hiểm {fmtN(cc.bh_7n)} sp ({pctBH}%)</span>
-              <span><i className="tq-cham nv" /> Nón vải {fmtN(cc.nv_7n)} sp ({100 - pctBH}%)</span>
-            </div>
+            ))}
           </div>
-          {(d.khu_vuc || []).map((v) => (
-            <div key={v.khu_vuc} className="tq-top-dong">
-              <div className="tq-top-tt">
-                <div className="tq-top-ten">{v.khu_vuc} <span className="tq-ghi">· {v.so_ch} nơi bán</span></div>
-                <BarNgang pct={(v.sl / maxKV) * 100} />
-              </div>
-              <div className="tq-top-so"><b>{fmtN(v.sl)}</b><span className="tq-ghi">sp</span></div>
-            </div>
-          ))}
+        ) : <div className="tq-ghi">Hôm nay chưa bán mã cao cấp nào</div>}
+      </div>
+
+      {/* ===== TẦNG 4: PHÂN BỔ CHƯA HỢP LÝ + CH THIẾU ===== */}
+      <div className="tq-hang2">
+        <div className="card tq-card">
+          <div className="tq-card-tit">Mã phân bổ chưa hợp lý — nhiều nơi cần mà hết hàng</div>
+          {(d.thieu_ma || []).length ? (
+            <table className="tbl hh-tbl">
+              <thead><tr><th></th><th>Mã</th><th className="num">Nơi hết</th>
+                <th className="num">Bán 30n</th><th className="num">Kho tổng</th></tr></thead>
+              <tbody>
+                {d.thieu_ma.map((r) => (
+                  <tr key={r.ma_tham_chieu}>
+                    <td style={{ width: 40 }}>
+                      <AnhSP url={r.hinh_url} ten={r.ma_tham_chieu} onMo={(u, t) => setAnh({ u, t })} />
+                    </td>
+                    <td className="mono">{r.ma_tham_chieu}<div className="tq-ghi">{r.nganh_3 || ''}</div></td>
+                    <td className="num"><b className="hh-do">{r.ch_het}</b></td>
+                    <td className="num">{fmtN(r.ban_30)}</td>
+                    <td className="num">
+                      <b className={r.ton_kho > 0 ? 'hh-ok' : 'hh-do'}>{fmtN(r.ton_kho)}</b>
+                      {r.ton_kho > 0 ? <div className="tq-ghi">chia được</div> : <div className="tq-ghi">hết</div>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <div className="tq-ghi">Phân bổ đang hợp lý</div>}
+        </div>
+
+        <div className="card tq-card">
+          <div className="tq-card-tit">Nơi bán thiếu nhiều nhất so định mức</div>
+          {(th.top_ch || []).length ? (
+            <table className="tbl hh-tbl">
+              <thead><tr><th>Nơi bán</th><th>Khu vực</th>
+                <th className="num">Mũ BH</th><th className="num">Nón vải</th><th className="num">Hụt</th></tr></thead>
+              <tbody>
+                {th.top_ch.map((r, i) => (
+                  <tr key={i}>
+                    <td><b>{r.ten}</b></td>
+                    <td className="tq-ghi">{r.khu_vuc}</td>
+                    <td className="num"><span className={r.ton_bh < r.bh_min ? 'hh-do' : ''}>{fmtN(r.ton_bh)}</span>
+                      <span className="tq-ghi">/{fmtN(r.bh_min)}</span></td>
+                    <td className="num"><span className={r.ton_nv < r.nv_min ? 'hh-do' : ''}>{fmtN(r.ton_nv)}</span>
+                      <span className="tq-ghi">/{fmtN(r.nv_min)}</span></td>
+                    <td className="num"><b className="hh-do">{fmtN(r.hut)}</b></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : <div className="tq-ghi">Mọi nơi đều đạt định mức</div>}
         </div>
       </div>
 
-      {/* ===== TẦNG 5: sức khỏe hệ thống ===== */}
+      {/* Sức khỏe hệ thống */}
       <div className={'card tq-suckhoe' + (heThongOK ? '' : ' loi')}>
         <div className="tq-sk-trai">
           <span className={'tq-sk-den' + (heThongOK ? '' : ' do')} />
-          <b>{heThongOK ? 'Hệ thống vận hành bình thường' : 'Hệ thống có vấn đề cần kiểm tra'}</b>
-          {!heThongOK && <span className="tq-ghi">
-            {syncLoi.length > 0 && ` · ${syncLoi.length} bước đồng bộ lỗi`}
-            {dsLech.length > 0 && ` · ${dsLech.length} bảng lệch đối soát`}
-          </span>}
+          <b>{heThongOK ? 'Dữ liệu đồng bộ bình thường' : 'Dữ liệu có vấn đề — cần kiểm tra'}</b>
         </div>
-        <div className="tq-sk-phai">
-          <span className="tq-sk-muc tq-bam" onClick={() => chonTab('doisoat')}>
-            Đồng bộ &amp; đối soát {heThongOK ? '✓' : '⚠'}
-          </span>
-          <span className="tq-sk-muc tq-bam" onClick={() => chonTab('online')}>
-            <IcTruck /> {fmtN(d.online)} đang online
-          </span>
-        </div>
+        <span className="tq-sk-muc tq-bam" onClick={() => chonTab('doisoat')}>Xem đối soát →</span>
       </div>
+
+      {/* Xem ảnh toàn màn hình */}
+      {anh && (
+        <div className="tq-anh-full" onClick={() => setAnh(null)}>
+          <img src={anh.u} alt="" />
+          <div className="tq-anh-ten">{anh.t}</div>
+        </div>
+      )}
+
+      {/* Danh sách mã cháy hàng / cần sản xuất */}
+      {modal && (
+        <div className="tq-modal" onClick={() => setModal(null)}>
+          <div className="tq-modal-in" onClick={(e) => e.stopPropagation()}>
+            <div className="tq-modal-tit">
+              {modal.loai === 'CHAY' ? 'Mã cháy hàng — kho tổng còn, cần chia gấp'
+                                     : 'Mã hết sạch toàn hệ thống — cần sản xuất'}
+              <button className="btn btn-ghost" onClick={() => setModal(null)}>Đóng</button>
+            </div>
+            {modal.ds === null ? <div className="tq-ghi">Đang tải…</div> : (
+              <div className="tq-modal-body">
+                <div className="tq-ghi" style={{ marginBottom: 8 }}>{fmtN(modal.ds.length)} mã</div>
+                <table className="tbl hh-tbl">
+                  <thead><tr><th></th><th>Mã</th><th>Nhóm</th><th className="num">Bán 30n</th>
+                    <th className="num">Nơi từng bán</th><th className="num">Tồn nơi bán</th><th className="num">Kho tổng</th></tr></thead>
+                  <tbody>
+                    {modal.ds.map((r) => (
+                      <tr key={r.ma_tham_chieu}>
+                        <td style={{ width: 40 }}>
+                          <AnhSP url={r.hinh_url} ten={r.ma_tham_chieu} onMo={(u, t) => setAnh({ u, t })} />
+                        </td>
+                        <td className="mono">{r.ma_tham_chieu}</td>
+                        <td className="tq-ghi">{r.nganh_3 || ''}</td>
+                        <td className="num"><b>{fmtN(r.ban_30)}</b></td>
+                        <td className="num">{fmtN(r.so_ch_ban)}</td>
+                        <td className="num"><b className="hh-do">{fmtN(r.ton_nb)}</b></td>
+                        <td className="num"><b className={r.ton_kho > 0 ? 'hh-ok' : 'hh-do'}>{fmtN(r.ton_kho)}</b></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
