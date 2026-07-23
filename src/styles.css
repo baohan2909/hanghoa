@@ -1398,3 +1398,95 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .tq-cham { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 4px; }
 .tq-cham.bh { background: var(--teal); }
 .tq-cham.nv { background: rgba(217,166,46,.75); }
+
+/* ===================== HÀNG HÓA CHUYÊN SÂU (hh-) ===================== */
+.hh-hang1 { display: grid; grid-template-columns: 1fr 1.15fr; gap: 14px; margin-bottom: 14px; }
+@media (max-width: 980px) { .hh-hang1 { grid-template-columns: 1fr; } }
+
+/* ô xoay vòng bảng vàng */
+.hh-vang { padding: 16px 18px; background: linear-gradient(135deg, #FFF9EC 0%, #FFFDF7 60%, #FFF6F9 100%);
+  border: 1.5px solid rgba(217,166,46,.32); }
+.hh-vang.trong { background: var(--card); border-color: transparent; }
+.hh-vang-tit { display: flex; align-items: center; justify-content: space-between; font-size: 13px;
+  font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: #8a6a1e; margin-bottom: 12px; }
+.hh-vang-dem { font-size: 10.5px; font-weight: 700; color: var(--ink-2); letter-spacing: 0; }
+.hh-vang-body { display: flex; align-items: center; gap: 14px; animation: hhVao .45s cubic-bezier(.22,.9,.3,1); }
+@keyframes hhVao { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+.hh-vang-hang { font-size: 26px; font-weight: 900; color: rgba(217,166,46,.85); flex: none; min-width: 40px; }
+.hh-vang-anh { width: 78px; height: 78px; border-radius: 14px; object-fit: cover; flex: none;
+  background: #fff; box-shadow: 0 3px 12px rgba(0,0,0,.08); }
+.hh-vang-anh.trong { display: flex; align-items: center; justify-content: center; color: var(--ink-2); }
+.hh-vang-tt { min-width: 0; flex: 1; }
+.hh-vang-ma { font-size: 15px; font-weight: 800; color: var(--ink); }
+.hh-vang-so { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 7px; font-size: 11.5px; color: var(--ink-2); }
+.hh-vang-so b { font-size: 15px; font-weight: 800; color: var(--magenta); margin-right: 3px; }
+.hh-vang-so .het b { color: #c25e1e; }
+.hh-vang-dots { display: flex; gap: 5px; margin-top: 12px; }
+.hh-vang-dots i { width: 16px; height: 4px; border-radius: 3px; background: rgba(0,0,0,.1); cursor: pointer; transition: background .2s; }
+.hh-vang-dots i.on { background: rgba(217,166,46,.85); }
+
+/* sức khỏe tồn */
+.hh-sk-dong { display: flex; align-items: center; gap: 9px; padding: 6px 0; font-size: 12.5px; }
+.hh-sk-cham { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.hh-sk-ten { flex: none; min-width: 190px; font-weight: 600; color: var(--ink); }
+.hh-sk-bar { flex: 1; height: 7px; background: #F1EFE8; border-radius: 4px; overflow: hidden; }
+.hh-sk-bar .f { height: 100%; border-radius: 4px; }
+.hh-sk-so { flex: none; min-width: 34px; text-align: right; font-weight: 800; }
+.hh-sk-cham.do, .hh-sk-bar .f.do { background: var(--magenta); }
+.hh-sk-cham.xanh, .hh-sk-bar .f.xanh { background: var(--teal); }
+.hh-sk-cham.vang, .hh-sk-bar .f.vang { background: rgba(217,166,46,.85); }
+.hh-sk-cham.cam, .hh-sk-bar .f.cam { background: #d9772e; }
+.hh-sk-cham.xam, .hh-sk-bar .f.xam { background: #b9b3a5; }
+
+/* thanh cơ cấu định mức */
+.hh-cc-wrap { margin-top: 14px; padding-top: 12px; border-top: 1px solid #F1EFE8; }
+.hh-cc + .hh-cc { margin-top: 10px; }
+.hh-cc-nhan { font-size: 11.5px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.hh-cc-bar { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: #F1EFE8; }
+.hh-cc-bar .thieu { background: var(--magenta); }
+.hh-cc-bar .dat { background: var(--teal); }
+.hh-cc-bar .vuot { background: #d9772e; }
+.hh-cc-so { display: flex; gap: 12px; margin-top: 4px; font-size: 10.5px; font-weight: 700; }
+.hh-cc-so .do { color: var(--magenta); } .hh-cc-so .ok { color: var(--teal-deep); } .hh-cc-so .cam { color: #c25e1e; }
+
+/* bảng nhỏ */
+.hh-bang { margin-bottom: 14px; }
+.hh-tbl { font-size: 12px; }
+.hh-tbl th { font-size: 10.5px; }
+.hh-tbl td { padding: 6px 8px; }
+.hh-do { color: var(--magenta); font-weight: 700; }
+.hh-cam { color: #c25e1e; font-weight: 700; }
+.hh-ok { color: var(--teal-deep); }
+.hh-up { color: var(--teal-deep); font-weight: 800; }
+.hh-down { color: var(--magenta); font-weight: 800; }
+.hh-lau-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.hh-lau-tong { display: flex; gap: 12px; font-size: 11.5px; color: var(--ink-2); align-items: baseline; }
+.hh-lau-tong b { font-size: 15px; font-weight: 800; color: var(--magenta); margin-right: 3px; }
+.hh-tabs { margin-left: auto; display: flex; gap: 5px; }
+.hh-tab { font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 9px; border: none;
+  background: #F1EFE8; color: var(--ink-2); cursor: pointer; }
+.hh-tab.on { background: var(--grad); color: #fff; }
+
+/* ===================== CHẤT LƯỢNG ĐỀ NGHỊ (cl-) ===================== */
+.cl-on { outline: 2px solid var(--teal); outline-offset: -2px; }
+.cl-so-thieu { color: var(--magenta); } .cl-so-dat { color: var(--teal-deep); }
+.cl-so-vuot { color: #c25e1e; } .cl-so-chua { color: var(--ink-2); }
+.cl-row { cursor: pointer; }
+.cl-row:hover { background: #F9F8F4; }
+.cl-dn { color: var(--teal-deep); }
+.cl-hut { display: block; font-size: 10px; color: var(--magenta); font-weight: 700; }
+.cl-badge { display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 9px; border-radius: 8px; white-space: nowrap; }
+.cl-badge.cl-dat { background: rgba(63,182,168,.13); color: var(--teal-deep); }
+.cl-badge.cl-thieu { background: rgba(214,0,108,.1); color: var(--magenta); }
+.cl-badge.cl-vuot { background: rgba(214,110,30,.12); color: #9c4d16; }
+.cl-badge.cl-chua { background: #F1EFE8; color: var(--ink-2); }
+.cl-xo td { background: #FAF9F5; }
+.cl-nhom-tit { font-size: 12px; font-weight: 800; color: var(--ink); margin: 4px 0 9px; }
+.cl-nhom-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+.cl-nhom-o { background: #fff; border-radius: 10px; padding: 9px 11px; border: 1px solid #EFEDE5; }
+.cl-nhom-o.trong { border-color: rgba(214,0,108,.3); }
+.cl-nhom-ten { font-size: 11.5px; font-weight: 700; color: var(--ink); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.cl-nhom-so { display: flex; align-items: baseline; gap: 6px; margin: 2px 0; }
+.cl-nhom-so b { font-size: 16px; font-weight: 800; color: var(--magenta); }
+.cl-nhom-cb { font-size: 10px; font-weight: 700; color: var(--magenta); margin-top: 3px; }

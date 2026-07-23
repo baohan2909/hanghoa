@@ -3,6 +3,7 @@ import { sb } from './lib/supabase.js';
 import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy } from './lib/icons.jsx';
 import Login from './screens/Login.jsx';
 import Dashboard from './screens/Dashboard.jsx';
+import ChatLuongDN from './screens/ChatLuongDN.jsx';
 import XinHang from './screens/XinHang.jsx';
 import Duyet from './screens/Duyet.jsx';
 import Kho from './screens/Kho.jsx';
@@ -25,6 +26,7 @@ export const useApp = () => useContext(Ctx);
 const MENU = [
   { nhom: 'VẬN HÀNH', items: [
     { id: 'dashboard', ten: 'Tổng quan',      Ic: IcPulse, roles: ['DIEU_PHOI', 'ADMIN'] },
+    { id: 'chatluong', ten: 'Chất lượng ĐN', Ic: IcAlert, roles: ['DIEU_PHOI', 'ADMIN', 'KHO'] },
     { id: 'xinhang',   ten: 'Đề nghị hàng',   Ic: IcCart,  roles: ['CH', 'DIEU_PHOI', 'ADMIN'] },
     { id: 'duyet',     ten: 'Điều phối',      Ic: IcCheck, roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'ycdp',      ten: 'Yêu cầu ĐP',     Ic: IcCart,  roles: ['DIEU_PHOI', 'KHO', 'ADMIN'] },
@@ -146,7 +148,7 @@ export default function App() {
   if (!user) return <Login onOk={(u) => { localStorage.setItem('nsflow_user', JSON.stringify(u)); localStorage.setItem('nsflow_login_at', String(Date.now())); setUser(u); }} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich, dautruong: DauTruong,
-    giamsat: GiamSat, chiamoi: ChiaHangMoi, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi }[tab]
+    giamsat: GiamSat, chiamoi: ChiaHangMoi, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN }[tab]
     || (user.vai_tro === 'KHO' ? Kho : XinHang);
   const tabDem = user.vai_tro === 'KHO' ? 'kho' : 'duyet';
   const chonTab = (id) => { setTab(id); setMoMenu(false); };

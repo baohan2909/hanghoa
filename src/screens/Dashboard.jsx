@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcRefresh, IcAlert, IcClock, IcBox, IcTruck, IcPulse } from '../lib/icons.jsx';
+import TqHangHoa from './TqHangHoa.jsx';
 
 const fmtN = (n) => n == null ? '—' : Number(n).toLocaleString('vi');
 const thuVN = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -243,6 +244,9 @@ export default function Dashboard({ chonTab = () => {} }) {
             rong="Chưa có đột biến" />
         </div>
       </div>
+
+      {/* ===== KIỂM SOÁT HÀNG HÓA CHUYÊN SÂU ===== */}
+      <TqHangHoa chonTab={chonTab} />
 
       {/* ===== TẦNG 4: top động lực + cơ cấu ===== */}
       <div className="tq-hang3">
