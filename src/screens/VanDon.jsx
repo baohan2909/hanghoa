@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { sb } from '../lib/supabase.js';
-import { isoVN, DateBox } from '../lib/ui.jsx';
+import { isoVN, DateBox, Sel } from '../lib/ui.jsx';
 import { GHTK_QUET_FN, GHTK_NHAN_FN, SUPABASE_ANON } from '../config.js';
 import { useApp } from '../App.jsx';
 import { IcTruck, IcSearch } from '../lib/icons.jsx';
@@ -35,17 +35,20 @@ export default function VanDon() {
   const [nhom, setNhom] = useState(null);
   const [q, setQ] = useState('');
   const [kv, setKv] = useState('');
+  const [ch, setCh] = useState('');
   const [chiCham, setChiCham] = useState(false);
   const [sort, setSort] = useState({ c: 'action_time', d: 'desc' });
   const [mo, setMo] = useState(null);
   const [ht, setHt] = useState(null);
   const [quet, setQuet] = useState(false);
+  const [lanCuoi, setLanCuoi] = useState(null);
   const [moCC, setMoCC] = useState(false);
   const [txtMa, setTxtMa] = useState('');
   const [txtHoc, setTxtHoc] = useState('');
   const [diem, setDiem] = useState([]);
   const [dsCH, setDsCH] = useState([]);
   const [dangCC, setDangCC] = useState(false);
+  const [daGan, setDaGan] = useState([]);
 
   const tai = async () => {
     const [a, b, c] = await Promise.all([
@@ -56,6 +59,12 @@ export default function VanDon() {
     setRows(a.data || []); setTk(b.data || null); setWh(c.data || null);
   };
   useEffect(() => { tai(); }, [tu, den]);   // eslint-disable-line
+  // Làm mới số liệu mỗi 2 phút; tự gọi cập nhật từ hãng vận chuyển mỗi 15 phút
+  useEffect(() => {
+    const t1 = setInterval(() => { tai(); }, 120000);
+    const t2 = setInterval(() => { chayQuet(true); }, 900000);
+    return () => { clearInterval(t1); clearInterval(t2); };
+  }, []);   // eslint-disable-line
 
   const taiDiem = async () => {
     const [a, b] = await Promise.all([
@@ -64,6 +73,15 @@ export default function VanDon() {
         .eq('hoat_dong', true).order('ten'),
     ]);
     setDiem(a.data || []); setDsCH(b.data || []);
+    const g = await sb.rpc('fn_vd_ten_da_gan');
+    setDaGan(g.data || []);
+  };
+
+  const goGan = async (ten) => {
+    const { data, error } = await sb.rpc('fn_vd_go_gan', { p_ten: ten });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã gỡ ${data ?? 0} đơn — hệ thống sẽ tự xác định lại`);
+    tai(); taiDiem();
   };
   useEffect(() => { if (moCC) taiDiem(); }, [moCC]);   // eslint-disable-line
 
@@ -83,19 +101,22 @@ export default function VanDon() {
     return res.json();
   };
 
-  const chayQuet = async () => {
+  const chayQuet = async (imLang) => {
     setQuet(true);
     try {
       const a = await goi(GHTK_QUET_FN, { so: 150 });
-      if (a.error) { baoToast('Lỗi lấy trạng thái: ' + a.error); setQuet(false); return; }
-      baoToast(`Đã cập nhật ${a.cap_nhat ?? 0}/${a.so_luong ?? 0} đơn — đang xác định cửa hàng…`);
+      if (a.error) { if (!imLang) baoToast('Lỗi lấy trạng thái: ' + a.error); setQuet(false); return; }
+      if (!imLang) baoToast(`Đã cập nhật ${a.cap_nhat ?? 0}/${a.so_luong ?? 0} đơn — đang xác định cửa hàng…`);
       tai();
       const b = await goi(GHTK_NHAN_FN, { so: 200 });
-      if (b.error) baoToast('Lỗi xác định cửa hàng: ' + b.error);
-      else if ((b.can_xu_ly ?? 0) === 0) baoToast('Xong — mọi đơn đã rõ cửa hàng');
-      else baoToast(`Xong — xác định thêm ${b.ro_cua_hang ?? 0} đơn${b.chua_ro ? ` · ${b.chua_ro} chưa rõ` : ''}`);
-      tai(); taiDiem();
-    } catch (e) { baoToast('Không gọi được: ' + e.message); }
+      if (!imLang) {
+        if (b.error) baoToast('Lỗi xác định cửa hàng: ' + b.error);
+        else if ((b.can_xu_ly ?? 0) === 0) baoToast('Xong — mọi đơn đã rõ cửa hàng');
+        else baoToast(`Xong — xác định thêm ${b.ro_cua_hang ?? 0} đơn${b.chua_ro ? ` · ${b.chua_ro} chưa rõ` : ''}`);
+      }
+      setLanCuoi(new Date());
+      tai(); if (moCC) taiDiem();
+    } catch (e) { if (!imLang) baoToast('Không gọi được: ' + e.message); }
     setQuet(false);
   };
 
@@ -140,10 +161,13 @@ export default function VanDon() {
 
   // ===== lọc + sắp xếp =====
   const dsKV = useMemo(() => [...new Set((rows || []).map((r) => r.khu_vuc).filter(Boolean))].sort(), [rows]);
+  const dsNoi = useMemo(() => [...new Set((rows || [])
+    .map((r) => r.ten_ch || tenGon(r.ten_nhan)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi')), [rows]);
   const ds = useMemo(() => {
     let x = (rows || []).filter((r) =>
       (!nhom || r.nhom === nhom) &&
       (!kv || r.khu_vuc === kv) &&
+      (!ch || (r.ten_ch || tenGon(r.ten_nhan)) === ch) &&
       (!chiCham || (r.so_ngay != null && r.so_ngay >= 5)) &&
       (!q.trim() || (r.label_id + ' ' + (r.ten_ch || '') + ' ' + tenGon(r.ten_nhan) + ' ' + (r.khu_vuc || ''))
         .toLowerCase().includes(q.trim().toLowerCase())));
@@ -155,7 +179,7 @@ export default function VanDon() {
       if (va === vb) return 0;
       return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'vi')) * h;
     });
-  }, [rows, nhom, kv, chiCham, q, sort]);
+  }, [rows, nhom, kv, ch, chiCham, q, sort]);
 
   const doiSort = (c) => setSort((s) => s.c === c ? { c, d: s.d === 'asc' ? 'desc' : 'asc' } : { c, d: 'asc' });
   const Th = ({ c, children, num }) => (
@@ -176,17 +200,7 @@ export default function VanDon() {
           <h2>Vận đơn</h2>
           <p>Theo dõi hàng đi từ kho tới cửa hàng — cập nhật tự động</p>
         </div>
-        <div className="cmd-row">
-          {wh && (
-            <span className={'sla-chip ' + (wh.lan_cuoi ? 'vd-ok' : 'vd-canhbao')}>
-              <i className="vd-cham" /> {wh.lan_cuoi ? 'Đã kết nối' : 'Chưa có kết nối'}
-            </span>
-          )}
-          <button className="btn btn-ghost" onClick={() => setMoCC(!moCC)}>⚙ Công cụ</button>
-          <button className="btn btn-ai" onClick={chayQuet} disabled={quet}>
-            {quet ? 'Đang cập nhật…' : '↻ Cập nhật'}
-          </button>
-        </div>
+
       </div>
 
       {/* ===== LỘ TRÌNH GIAO HÀNG — xe chạy trên thanh tiến độ ===== */}
@@ -194,7 +208,12 @@ export default function VanDon() {
         <div className="card vd-lotrinh">
           <div className="kt-info">
             <span className="kt-nhan">Lộ trình giao hàng</span>
-            <span className="kt-so"><b>{fmtN(xong)}</b><span>/{fmtN(tong)} đơn đã tới cửa hàng</span></span>
+            <span className="vd-lt-phai">
+              <span className="kt-so"><b>{fmtN(xong)}</b><span>/{fmtN(tong)} đơn đã tới cửa hàng</span></span>
+              <button className="btn btn-ai vd-btn-nho" onClick={() => chayQuet()} disabled={quet}>
+                {quet ? 'Đang cập nhật…' : '↻ Cập nhật ngay'}
+              </button>
+            </span>
           </div>
           <div className="vd-duong">
             <div className="kt-bar">
@@ -211,6 +230,13 @@ export default function VanDon() {
             <span><b>{fmtN(tk.cho_lay)}</b> chờ lấy tại kho</span>
             <span><b>{fmtN(tk.dang_giao)}</b> đang trên đường</span>
             <span><b>{fmtN(xong)}</b> đã tới nơi</span>
+          </div>
+          <div className="vd-chan">
+            <span className={'vd-ket-noi' + (wh?.lan_cuoi ? '' : ' tat')}>
+              <i className="vd-cham" />{wh?.lan_cuoi ? 'Đã kết nối' : 'Chưa có kết nối'}
+            </span>
+            <span className="tq-ghi">Tự cập nhật mỗi 15 phút{lanCuoi ? ' · vừa chạy ' +
+              lanCuoi.toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
           </div>
         </div>
       )}
@@ -244,10 +270,11 @@ export default function VanDon() {
       <div className="toolbar vd-loc">
         <DateBox label="Từ" value={tu} onChange={setTu} />
         <DateBox label="Đến" value={den} onChange={setDen} />
-        <select className="flt-in" value={kv} onChange={(e) => setKv(e.target.value)} style={{ height: 40 }}>
-          <option value="">Tất cả khu vực</option>
-          {dsKV.map((k) => <option key={k} value={k}>{k}</option>)}
-        </select>
+        <Sel value={kv} onChange={setKv} placeholder="Tất cả khu vực" style={{ minWidth: 168 }}
+          options={[{ value: '', label: 'Tất cả khu vực' }, ...dsKV.map((k) => ({ value: k, label: k }))]} />
+        <Sel value={ch} onChange={setCh} placeholder="Tất cả cửa hàng" style={{ minWidth: 190 }} timKiem
+          options={[{ value: '', label: 'Tất cả cửa hàng' },
+            ...dsNoi.map((n) => ({ value: n, label: n }))]} />
         <div className="vd-tim">
           <IcSearch />
           <input className="flt-in" placeholder="Tìm mã đơn, cửa hàng, khu vực…" value={q}
@@ -256,9 +283,10 @@ export default function VanDon() {
         <span className="sla-chip">{fmtN(ds.length)} đơn</span>
         {tk?.chua_map > 0 && (
           <span className="sla-chip vd-canhbao" onClick={() => setMoCC(true)} style={{ cursor: 'pointer' }}>
-            {tk.chua_map} đơn chưa rõ cửa hàng
+            {tk.chua_map} chưa rõ cửa hàng
           </span>
         )}
+        <button className="btn btn-ghost" onClick={() => setMoCC(!moCC)}>⚙ Công cụ</button>
       </div>
 
       {/* ===== CÔNG CỤ ===== */}
@@ -292,6 +320,24 @@ export default function VanDon() {
               </button>
             </div>
           </div>
+
+          {daGan.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div className="tq-card-tit">Đã gán thủ công · {daGan.length}</div>
+              <div className="tq-ghi" style={{ marginBottom: 8 }}>
+                Gán nhầm thì gỡ ra, hệ thống sẽ tự xác định lại theo tên trên phiếu.
+              </div>
+              <div className="vd-diem-luoi">
+                {daGan.map((g) => (
+                  <div key={g.ten_nhan} className="vd-diem-o">
+                    <div className="vd-diem-ma" title={g.ten_nhan}>{tenGon(g.ten_nhan)}</div>
+                    <div className="tq-ghi">→ {g.ten_ch} · {g.so_don} đơn</div>
+                    <button className="btn btn-ghost vd-goiy" onClick={() => goGan(g.ten_nhan)}>✕ Gỡ gán</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {diem.length > 0 && (
             <div style={{ marginTop: 16 }}>
