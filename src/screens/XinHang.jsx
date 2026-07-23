@@ -488,7 +488,10 @@ export default function XinHang() {
     const dsN = rows.filter((r) => nhomCua(r) === nhomId && r.sl_xin > 0);
     if (!dsN.length) { baoToast(`Nhóm ${info.ten} chưa có dòng nào`); return; }
     const khoMa = dsN[0].kho_ma || nhomId;
-    const maKho = taoMaKho(khoMa, 1);   // xuất 1 nhóm = 1 đơn
+    // Xin số thứ tự phiếu từ hệ thống — mỗi lần xuất trong ngày số chạy tiếp, không trùng
+    const { data: soBD, error: eSo } = await sb.rpc('fn_cap_so_phieu', { p_ma_ch: maCH, p_so_luong: 1 });
+    if (eSo) { baoToast('Không cấp được số phiếu: ' + eSo.message); return; }
+    const maKho = taoMaKho(khoMa, soBD || 1);   // xuất 1 nhóm = 1 đơn
     // Template điều chuyển: Kho nguồn | Kho đích | SKU/Barcode | Số lượng | Mã kho
     const rowsX = dsN.map((r) => ({
       'Kho nguồn': r.kho_ma || khoMa,
@@ -520,7 +523,12 @@ export default function XinHang() {
     if (!dsAll.length) { baoToast('Chưa có số lượng nào để xuất'); return; }
     const XLSX = await import('xlsx');
     // Mỗi KHO NGUỒN = 1 đơn -> mã kho riêng, thứ tự tăng dần theo thứ tự kho
-    const khoThuTu = {}; let stt = 0;
+    // Đếm trước số kho cần cấp mã, xin đúng ngần ấy số liền nhau
+    const khoCan = [...new Set(dsAll.map((r) => r.kho_ma || nhomCua(r)))];
+    const { data: soBD2, error: eSo2 } = await sb.rpc('fn_cap_so_phieu',
+      { p_ma_ch: maCH, p_so_luong: khoCan.length });
+    if (eSo2) { baoToast('Không cấp được số phiếu: ' + eSo2.message); return; }
+    const khoThuTu = {}; let stt = (soBD2 || 1) - 1;
     dsAll.forEach((r) => { const k = r.kho_ma || nhomCua(r);
       if (!(k in khoThuTu)) { stt++; khoThuTu[k] = taoMaKho(k, stt); } });
     // 1 FILE TỔNG — mỗi dòng ghi rõ Kho nguồn + Mã kho riêng

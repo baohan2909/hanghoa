@@ -167,7 +167,7 @@ export default function Dashboard({ chonTab = () => {} }) {
           </div>
 
           <div className="tq-ks">
-            <div className="tq-ks-dong">
+            <div className="tq-ks-dong tq-cl-dong">
               <span className="tq-ks-ten">Chất lượng đề nghị hôm nay</span>
               <span className="tq-ks-so">
                 {cl.so_dn > 0 ? <>

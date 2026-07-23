@@ -1666,3 +1666,4 @@ textarea.inp { height: auto; padding: 10px 12px; }
   border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 800; color: var(--ink); }
 .tq-modal-tit .btn { margin-left: auto; }
 .tq-modal-body { overflow: auto; padding: 12px 18px 18px; }
+.tq-cl-dong { background: rgba(63,182,168,.06); border-radius: 10px; }
