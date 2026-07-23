@@ -9,6 +9,19 @@ const fmtN = (n) => n == null ? '—' : Number(n).toLocaleString('vi');
 const tenGon = (t) => (t || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
 const fmtNg = (d) => d ? d.slice(8, 10) + '/' + d.slice(5, 7) : '—';
 const fmtGio = (t) => t ? new Date(t).toLocaleString('vi', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+// "16:49 23-07" — giờ trước, ngày sau
+const fmtLuc = (t) => {
+  if (!t) return '—';
+  const d = new Date(t);
+  const hai = (n) => String(n).padStart(2, '0');
+  return `${hai(d.getHours())}:${hai(d.getMinutes())} ${hai(d.getDate())}-${hai(d.getMonth() + 1)}`;
+};
+const cachDay = (t) => {
+  if (!t) return null;
+  const p = Math.round((Date.now() - new Date(t).getTime()) / 60000);
+  return p < 1 ? 'vừa xong' : p < 60 ? p + ' phút trước'
+    : p < 1440 ? Math.round(p / 60) + ' giờ trước' : Math.round(p / 1440) + ' ngày trước';
+};
 
 // 4 chặng của lộ trình giao hàng
 const CHANG = [
@@ -387,6 +400,7 @@ export default function VanDon() {
               <Th c="deliver_date" num>Giao</Th>
               <Th c="so_luong" num>SL</Th>
               <Th c="so_ngay" num>Ngày đi</Th>
+              <Th c="action_time" num>Cập nhật</Th>
             </tr></thead>
             <tbody>
               {ds.map((r) => (
@@ -407,9 +421,12 @@ export default function VanDon() {
                       {r.so_ngay == null ? '—'
                         : <b className={r.so_ngay >= 5 ? 'hh-do' : r.so_ngay >= 3 ? 'hh-cam' : ''}>{r.so_ngay}</b>}
                     </td>
+                    <td className="num vd-luc" title={cachDay(r.action_time) || ''}>
+                      {fmtLuc(r.action_time)}
+                    </td>
                   </tr>
                   {mo === r.label_id && (
-                    <tr className="cl-xo"><td colSpan={9}>
+                    <tr className="cl-xo"><td colSpan={10}>
                       <div className="cl-nhom-tit">Hành trình {r.label_id}
                         {(r.ten_ch || r.ten_nhan) ? ' — ' + (r.ten_ch || tenGon(r.ten_nhan)) : ''}</div>
                       {ht === null ? <div className="tq-ghi">Đang tải…</div>
@@ -430,7 +447,7 @@ export default function VanDon() {
                   )}
                 </Fragment>
               ))}
-              {!ds.length && <tr><td colSpan={9} className="tq-ghi" style={{ padding: 16 }}>
+              {!ds.length && <tr><td colSpan={10} className="tq-ghi" style={{ padding: 16 }}>
                 Không có đơn nào khớp bộ lọc.
               </td></tr>}
             </tbody>

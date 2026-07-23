@@ -1569,3 +1569,6 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .vd-diem-sel .sel-btn { width: 100%; min-width: 0; height: 34px; font-size: 12px; }
 .vd-diem-sel .sel-btn span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vd-dang-gan { color: var(--teal-deep); font-weight: 700; }
+
+/* Cột thời gian cập nhật gần nhất */
+.vd-luc { font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); white-space: nowrap; }
