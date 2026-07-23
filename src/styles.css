@@ -1491,50 +1491,65 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .cl-nhom-so b { font-size: 16px; font-weight: 800; color: var(--magenta); }
 .cl-nhom-cb { font-size: 10px; font-weight: 700; color: var(--magenta); margin-top: 3px; }
 
-/* ===================== VẬN ĐƠN GHTK (vd-) ===================== */
+
+/* ===================== VẬN ĐƠN (vd-) ===================== */
+/* Chip kết nối */
+.sla-chip.vd-ok { background: rgba(63,182,168,.13); color: var(--teal-deep); }
+.sla-chip.vd-canhbao { background: rgba(214,110,30,.13); color: #9c4d16; }
+.vd-cham { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px;
+  background: currentColor; box-shadow: 0 0 7px currentColor; animation: syncPulse 2.2s ease-in-out infinite; }
+
+/* Lộ trình — xe hàng chạy trên thanh tiến độ */
+.vd-lotrinh { padding: 16px 20px 14px; margin-bottom: 14px; }
+.vd-duong { position: relative; padding-top: 22px; }
+.vd-xe { position: absolute; top: 0; width: 32px; height: 22px; display: flex; align-items: center;
+  justify-content: center; color: var(--teal-deep);
+  transition: left .8s cubic-bezier(.34,.83,.42,1); animation: vdRung 1.6s ease-in-out infinite; }
+.vd-xe svg { width: 24px; height: 24px; filter: drop-shadow(0 2px 5px rgba(63,182,168,.5)); }
+@keyframes vdRung { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.vd-moc { display: flex; justify-content: space-between; margin-top: 9px; font-size: 11.5px; color: var(--ink-2); }
+.vd-moc b { font-family: var(--font-mono); font-size: 14px; font-weight: 800; color: var(--ink); margin-right: 3px; }
+.vd-moc span:nth-child(2) { text-align: center; }
+.vd-moc span:last-child { text-align: right; }
+.vd-moc span:last-child b { color: var(--teal-deep); }
+
+/* Hàng thẻ + bộ lọc */
+.vd-the-hang { margin-bottom: 12px; }
+.vd-the-hang .the-g { min-width: 132px; }
+.vd-loc { align-items: center; }
+.vd-tim { position: relative; display: flex; align-items: center; flex: 1; min-width: 190px; }
+.vd-tim svg { position: absolute; left: 11px; width: 15px; height: 15px; color: var(--ink-2); pointer-events: none; }
+.vd-tim .flt-in { width: 100%; height: 40px; padding-left: 33px; }
+
+/* Nhãn trạng thái trong bảng */
 .vd-badge { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 2px 9px;
   border-radius: 8px; white-space: nowrap; }
-.vd-cho  { color: #a8842c; } .vd-badge.vd-cho  { background: rgba(217,166,46,.14); }
-.vd-giao { color: var(--teal-deep); } .vd-badge.vd-giao { background: rgba(63,182,168,.13); }
-.vd-xong { color: #2e7d5b; } .vd-badge.vd-xong { background: rgba(46,125,91,.12); }
-.vd-suco { color: var(--magenta); } .vd-badge.vd-suco { background: rgba(214,0,108,.1); }
-.vd-tra  { color: #c25e1e; } .vd-badge.vd-tra  { background: rgba(214,110,30,.12); }
-.vd-huy  { color: var(--ink-2); } .vd-badge.vd-huy  { background: #F1EFE8; }
+.vd-badge.vd-cho  { background: rgba(217,166,46,.15); color: #8a6a1e; }
+.vd-badge.vd-giao { background: rgba(63,182,168,.14); color: var(--teal-deep); }
+.vd-badge.vd-xong { background: rgba(46,125,91,.13); color: #2e7d5b; }
+.vd-badge.vd-suco { background: rgba(214,0,108,.1); color: var(--magenta); }
+.vd-badge.vd-tra  { background: rgba(214,110,30,.13); color: #9c4d16; }
+.vd-badge.vd-huy  { background: #F1EFE8; color: var(--ink-2); }
 .vd-lydo { font-size: 10px; color: var(--magenta); max-width: 190px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
-.vd-canhbao { background: rgba(214,110,30,.12) !important; color: #9c4d16 !important; }
+
+/* Hành trình dạng mốc thời gian */
 .vd-ht { padding: 2px 0 4px; }
-.vd-ht-b { display: flex; gap: 11px; align-items: flex-start; position: relative;
-  padding: 0 0 13px 3px; }
-.vd-ht-b::before { content: ''; position: absolute; left: 6px; top: 13px; bottom: 0; width: 2px;
-  background: #E8E5DC; }
+.vd-ht-b { display: flex; gap: 11px; align-items: flex-start; position: relative; padding: 0 0 13px 3px; }
+.vd-ht-b::before { content: ''; position: absolute; left: 6px; top: 13px; bottom: 0; width: 2px; background: #E8E5DC; }
 .vd-ht-b.cuoi::before { display: none; }
-.vd-ht-cham { width: 11px; height: 11px; border-radius: 50%; background: #D8D4C8; flex: none;
-  margin-top: 2px; z-index: 1; }
+.vd-ht-cham { width: 11px; height: 11px; border-radius: 50%; background: #D8D4C8; flex: none; margin-top: 2px; z-index: 1; }
 .vd-ht-b.cuoi .vd-ht-cham { background: var(--teal); box-shadow: 0 0 7px rgba(63,182,168,.55); }
 .vd-ht-tt { font-size: 12.5px; font-weight: 700; color: var(--ink); }
 
-/* Thanh tình trạng webhook GHTK */
-.vd-wh { display: flex; align-items: center; gap: 9px; padding: 10px 16px; border-radius: 12px;
-  margin-bottom: 12px; font-size: 13px; flex-wrap: wrap; }
-.vd-wh.ok  { background: rgba(63,182,168,.1); }
-.vd-wh.loi { background: rgba(214,0,108,.08); }
-.vd-wh.cho { background: #F1EFE8; }
-.vd-wh-den { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-.vd-wh.ok .vd-wh-den  { background: var(--teal); box-shadow: 0 0 8px rgba(63,182,168,.6);
-  animation: syncPulse 2.2s ease-in-out infinite; }
-.vd-wh.loi .vd-wh-den { background: var(--magenta); box-shadow: 0 0 8px rgba(214,0,108,.6); }
-.vd-wh.cho .vd-wh-den { background: #b9b3a5; }
-
-/* Công cụ nạp đơn cũ + ánh xạ điểm giao */
+/* Công cụ */
 .vd-cc { padding: 16px 18px; margin-bottom: 14px; }
 .vd-cc-luoi { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media (max-width: 900px) { .vd-cc-luoi { grid-template-columns: 1fr; } }
-.vd-ta { width: 100%; font-family: ui-monospace, monospace; font-size: 11.5px; padding: 9px 11px;
-  line-height: 1.5; resize: vertical; }
+.vd-ta { width: 100%; font-family: var(--font-mono); font-size: 11.5px; padding: 9px 11px; line-height: 1.5; resize: vertical; }
 .vd-diem-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 9px; }
 .vd-diem-o { background: #FAF9F5; border-radius: 11px; padding: 10px 12px; border: 1px solid #EFEDE5; }
-.vd-diem-ma { font-size: 12px; font-weight: 800; color: var(--ink); }
+.vd-diem-ma { font-size: 12px; font-weight: 800; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vd-diem-o select { width: 100%; height: 32px; margin-top: 6px; font-size: 11.5px; }
 .vd-goiy { width: 100%; margin-top: 6px; font-size: 11px; height: 30px; justify-content: flex-start;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,22 +1,29 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { isoVN, DateBox } from '../lib/ui.jsx';
 import { GHTK_QUET_FN, GHTK_NHAN_FN, SUPABASE_ANON } from '../config.js';
 import { useApp } from '../App.jsx';
+import { IcTruck, IcSearch } from '../lib/icons.jsx';
 
 const fmtN = (n) => n == null ? '—' : Number(n).toLocaleString('vi');
-const NHOM = {
-  CHO_LAY:   { t: 'Chờ lấy',    c: 'vd-cho' },
-  DANG_CHAY: { t: 'Đang giao',  c: 'vd-giao' },
-  GIAO_XONG: { t: 'Đã giao',    c: 'vd-xong' },
-  SU_CO:     { t: 'Sự cố',      c: 'vd-suco' },
-  TRA_HANG:  { t: 'Trả hàng',   c: 'vd-tra' },
-  HUY:       { t: 'Đã hủy',     c: 'vd-huy' },
-};
-const fmtNg = (d) => d ? d.slice(8, 10) + '/' + d.slice(5, 7) : '—';
-// Bỏ phần trong ngoặc ở cuối tên — "CH Gia Nghĩa (Cửa Hàng Nón Sơn)" -> "CH Gia Nghĩa"
 const tenGon = (t) => (t || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+const fmtNg = (d) => d ? d.slice(8, 10) + '/' + d.slice(5, 7) : '—';
 const fmtGio = (t) => t ? new Date(t).toLocaleString('vi', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
+// 4 chặng của lộ trình giao hàng
+const CHANG = [
+  { k: 'CHO_LAY',   t: 'Chờ lấy' },
+  { k: 'DANG_CHAY', t: 'Đang giao' },
+  { k: 'GIAO_XONG', t: 'Đã giao' },
+];
+const NHOM = {
+  CHO_LAY:   { t: 'Chờ lấy',   c: 'vd-cho' },
+  DANG_CHAY: { t: 'Đang giao', c: 'vd-giao' },
+  GIAO_XONG: { t: 'Đã giao',   c: 'vd-xong' },
+  SU_CO:     { t: 'Sự cố',     c: 'vd-suco' },
+  TRA_HANG:  { t: 'Trả hàng',  c: 'vd-tra' },
+  HUY:       { t: 'Đã hủy',    c: 'vd-huy' },
+};
 
 export default function VanDon() {
   const { baoToast } = useApp();
@@ -27,6 +34,9 @@ export default function VanDon() {
   const [wh, setWh] = useState(null);
   const [nhom, setNhom] = useState(null);
   const [q, setQ] = useState('');
+  const [kv, setKv] = useState('');
+  const [chiCham, setChiCham] = useState(false);
+  const [sort, setSort] = useState({ c: 'action_time', d: 'desc' });
   const [mo, setMo] = useState(null);
   const [ht, setHt] = useState(null);
   const [quet, setQuet] = useState(false);
@@ -39,15 +49,13 @@ export default function VanDon() {
 
   const tai = async () => {
     const [a, b, c] = await Promise.all([
-      sb.rpc('fn_vd_ds', { p_tu: tu, p_den: den, p_ma_ch: null, p_nhom: nhom }),
+      sb.rpc('fn_vd_ds', { p_tu: tu, p_den: den, p_ma_ch: null, p_nhom: null }),
       sb.rpc('fn_vd_tk', { p_tu: tu, p_den: den }),
       sb.rpc('fn_vd_wh_tinh_trang'),
     ]);
-    setRows(a.data || []);
-    setTk(b.data || null);
-    setWh(c.data || null);
+    setRows(a.data || []); setTk(b.data || null); setWh(c.data || null);
   };
-  useEffect(() => { tai(); }, [tu, den, nhom]);   // eslint-disable-line
+  useEffect(() => { tai(); }, [tu, den]);   // eslint-disable-line
 
   const taiDiem = async () => {
     const [a, b] = await Promise.all([
@@ -55,58 +63,9 @@ export default function VanDon() {
       sb.from('cua_hang').select('ma_ch, ten').or('ma_ch.like.CH%,ma_ch.like.DB%')
         .eq('hoat_dong', true).order('ten'),
     ]);
-    setDiem(a.data || []);
-    setDsCH(b.data || []);
+    setDiem(a.data || []); setDsCH(b.data || []);
   };
   useEffect(() => { if (moCC) taiDiem(); }, [moCC]);   // eslint-disable-line
-
-  // Nạp danh sách mã đơn cũ: ghi mã vào DB rồi nhờ GHTK trả chi tiết
-  const napMa = async () => {
-    const ds = txtMa.split(/[\n,;\t]+/).map((x) => x.trim())
-      .filter((x) => x.length > 8);
-    if (!ds.length) { baoToast('Chưa có mã nào hợp lệ'); return; }
-    setDangCC(true);
-    const { data, error } = await sb.rpc('fn_vd_nap_ma', { p: ds });
-    if (error) { baoToast('Lỗi: ' + error.message); setDangCC(false); return; }
-    baoToast(`Đã ghi nhận ${data?.da_nhan ?? 0} mã — đang hỏi GHTK…`);
-    try {
-      const res = await fetch(GHTK_QUET_FN, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + SUPABASE_ANON },
-        body: JSON.stringify({ ma: ds }),
-      });
-      const j = await res.json();
-      baoToast(j.error ? 'GHTK lỗi: ' + j.error
-        : `Xong: hỏi ${j.so_luong} đơn · cập nhật ${j.cap_nhat}${j.loi ? ` · lỗi ${j.loi}` : ''}`);
-    } catch (e) { baoToast('Không gọi được GHTK: ' + e.message); }
-    setTxtMa(''); setDangCC(false); tai(); taiDiem();
-  };
-
-  // Học ánh xạ điểm giao từ danh sách "mã đơn <tab> tên cửa hàng"
-  const hocDiem = async () => {
-    const rows = txtHoc.split(/\n+/).map((d) => {
-      const c = d.split(/\t|;|\s{2,}|,(?=\s*[A-ZĐ])/).map((x) => x.trim()).filter(Boolean);
-      if (c.length < 2) return null;
-      const label = c.find((x) => /^S\d/.test(x)) || c[0];
-      const ten = c.filter((x) => x !== label).join(' ').trim();
-      return label && ten ? { label, ten } : null;
-    }).filter(Boolean);
-    if (!rows.length) { baoToast('Không đọc được dòng nào (cần: mã đơn + tên cửa hàng)'); return; }
-    setDangCC(true);
-    const { data, error } = await sb.rpc('fn_vd_gan_ten', { p: rows });
-    setDangCC(false);
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Gán được ${data?.map_duoc ?? 0} đơn${data?.chua_map ? ` · ${data.chua_map} tên chưa khớp cửa hàng` : ''}`);
-    setTxtHoc(''); tai(); taiDiem();
-  };
-
-  const ganDiem = async (ten, ma_ch) => {
-    if (!ma_ch) return;
-    const { data, error } = await sb.rpc('fn_vd_gan_ten_ch', { p_ten: ten, p_ma_ch: ma_ch });
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã gán ${data ?? 0} đơn cho cửa hàng này`);
-    tai(); taiDiem();
-  };
 
   const xoHT = async (r) => {
     if (mo === r.label_id) { setMo(null); setHt(null); return; }
@@ -124,83 +83,197 @@ export default function VanDon() {
     return res.json();
   };
 
-  // Cập nhật: (1) lấy trạng thái mới nhất, (2) nhận diện cửa hàng cho đơn còn thiếu
   const chayQuet = async () => {
     setQuet(true);
     try {
       const a = await goi(GHTK_QUET_FN, { so: 150 });
       if (a.error) { baoToast('Lỗi lấy trạng thái: ' + a.error); setQuet(false); return; }
-      baoToast(`Đã cập nhật trạng thái ${a.cap_nhat ?? 0}/${a.so_luong ?? 0} đơn — đang nhận diện cửa hàng…`);
+      baoToast(`Đã cập nhật ${a.cap_nhat ?? 0}/${a.so_luong ?? 0} đơn — đang xác định cửa hàng…`);
       tai();
       const b = await goi(GHTK_NHAN_FN, { so: 200 });
-      if (b.error) baoToast('Lỗi nhận diện cửa hàng: ' + b.error);
+      if (b.error) baoToast('Lỗi xác định cửa hàng: ' + b.error);
       else if ((b.can_xu_ly ?? 0) === 0) baoToast('Xong — mọi đơn đã rõ cửa hàng');
-      else baoToast(`Xong — nhận diện thêm ${b.ro_cua_hang ?? 0} đơn${b.chua_ro ? ` · ${b.chua_ro} chưa rõ` : ''}`);
+      else baoToast(`Xong — xác định thêm ${b.ro_cua_hang ?? 0} đơn${b.chua_ro ? ` · ${b.chua_ro} chưa rõ` : ''}`);
       tai(); taiDiem();
     } catch (e) { baoToast('Không gọi được: ' + e.message); }
     setQuet(false);
   };
 
-  const ds = (rows || []).filter((r) => !q.trim() ||
-    (r.label_id + ' ' + (r.ten_ch || '') + ' ' + tenGon(r.ten_nhan) + ' ' + (r.khu_vuc || ''))
-      .toLowerCase().includes(q.trim().toLowerCase()));
+  const napMa = async () => {
+    const ds = txtMa.split(/[\n,;\t]+/).map((x) => x.trim()).filter((x) => x.length > 8);
+    if (!ds.length) { baoToast('Chưa có mã nào hợp lệ'); return; }
+    setDangCC(true);
+    const { data, error } = await sb.rpc('fn_vd_nap_ma', { p: ds });
+    if (error) { baoToast('Lỗi: ' + error.message); setDangCC(false); return; }
+    baoToast(`Đã thêm ${data?.da_nhan ?? 0} đơn — đang lấy trạng thái…`);
+    try {
+      const j = await goi(GHTK_QUET_FN, { ma: ds });
+      baoToast(j.error ? 'Lỗi: ' + j.error : `Xong: cập nhật ${j.cap_nhat}/${j.so_luong} đơn`);
+    } catch (e) { baoToast('Không gọi được: ' + e.message); }
+    setTxtMa(''); setDangCC(false); tai(); taiDiem();
+  };
+
+  const hocDiem = async () => {
+    const ds = txtHoc.split(/\n+/).map((d) => {
+      const c = d.split(/\t|;|\s{2,}/).map((x) => x.trim()).filter(Boolean);
+      if (c.length < 2) return null;
+      const label = c.find((x) => /^S\d/.test(x)) || c[0];
+      const ten = c.filter((x) => x !== label).join(' ').trim();
+      return label && ten ? { label, ten } : null;
+    }).filter(Boolean);
+    if (!ds.length) { baoToast('Cần: mã đơn và tên cửa hàng trên cùng một dòng'); return; }
+    setDangCC(true);
+    const { data, error } = await sb.rpc('fn_vd_gan_ten', { p: ds });
+    setDangCC(false);
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã xử lý ${data?.map_duoc ?? 0} đơn${data?.chua_map ? ` · ${data.chua_map} chưa rõ cửa hàng` : ''}`);
+    setTxtHoc(''); tai(); taiDiem();
+  };
+
+  const ganDiem = async (ten, ma_ch) => {
+    if (!ma_ch) return;
+    const { data, error } = await sb.rpc('fn_vd_gan_ten_ch', { p_ten: ten, p_ma_ch: ma_ch });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã gán ${data ?? 0} đơn`);
+    tai(); taiDiem();
+  };
+
+  // ===== lọc + sắp xếp =====
+  const dsKV = useMemo(() => [...new Set((rows || []).map((r) => r.khu_vuc).filter(Boolean))].sort(), [rows]);
+  const ds = useMemo(() => {
+    let x = (rows || []).filter((r) =>
+      (!nhom || r.nhom === nhom) &&
+      (!kv || r.khu_vuc === kv) &&
+      (!chiCham || (r.so_ngay != null && r.so_ngay >= 5)) &&
+      (!q.trim() || (r.label_id + ' ' + (r.ten_ch || '') + ' ' + tenGon(r.ten_nhan) + ' ' + (r.khu_vuc || ''))
+        .toLowerCase().includes(q.trim().toLowerCase())));
+    const { c, d } = sort, h = d === 'asc' ? 1 : -1;
+    const val = (r) => c === 'noi' ? (r.ten_ch || tenGon(r.ten_nhan) || '')
+      : c === 'so_ngay' || c === 'so_luong' ? (r[c] ?? -1) : (r[c] ?? '');
+    return x.sort((a, b) => {
+      const va = val(a), vb = val(b);
+      if (va === vb) return 0;
+      return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'vi')) * h;
+    });
+  }, [rows, nhom, kv, chiCham, q, sort]);
+
+  const doiSort = (c) => setSort((s) => s.c === c ? { c, d: s.d === 'asc' ? 'desc' : 'asc' } : { c, d: 'asc' });
+  const Th = ({ c, children, num }) => (
+    <th className={'sortable' + (num ? ' num' : '')} onClick={() => doiSort(c)}>
+      {children}{sort.c === c ? (sort.d === 'asc' ? ' ▲' : ' ▼') : ''}
+    </th>
+  );
+
+  // ===== lộ trình =====
+  const tong = tk?.tong || 0;
+  const xong = tk?.giao_xong || 0;
+  const pct = tong ? Math.round((xong / tong) * 100) : 0;
 
   return (
     <>
       <div className="cmdbar">
         <div className="cmd-title">
-          <h2>Vận đơn GHTK</h2>
-          <p>Theo dõi hàng đi từ kho tới cửa hàng — cập nhật tự động từ Giao Hàng Tiết Kiệm</p>
+          <h2>Vận đơn</h2>
+          <p>Theo dõi hàng đi từ kho tới cửa hàng — cập nhật tự động</p>
+        </div>
+        <div className="cmd-row">
+          {wh && (
+            <span className={'sla-chip ' + (wh.lan_cuoi ? 'vd-ok' : 'vd-canhbao')}>
+              <i className="vd-cham" /> {wh.lan_cuoi ? 'Đã kết nối' : 'Chưa có kết nối'}
+            </span>
+          )}
+          <button className="btn btn-ghost" onClick={() => setMoCC(!moCC)}>⚙ Công cụ</button>
+          <button className="btn btn-ai" onClick={chayQuet} disabled={quet}>
+            {quet ? 'Đang cập nhật…' : '↻ Cập nhật'}
+          </button>
         </div>
       </div>
 
-      <div className="toolbar">
-        <DateBox label="Từ" value={tu} onChange={setTu} />
-        <DateBox label="Đến" value={den} onChange={setDen} />
-        <input className="flt-in" placeholder="Tìm mã vận đơn / cửa hàng…" value={q}
-          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 200, flex: 1 }} />
-        {tk?.chua_map > 0 && <span className="sla-chip vd-canhbao">{tk.chua_map} đơn chưa rõ cửa hàng</span>}
-        <button className="btn btn-ghost" onClick={() => setMoCC(!moCC)}>⚙ Công cụ</button>
-        <button className="btn btn-ai" onClick={chayQuet} disabled={quet}>
-          {quet ? 'Đang cập nhật…' : '↻ Cập nhật'}
-        </button>
-      </div>
-
-      {wh && (
-        <div className={'vd-wh' + (wh.tong_24h > 0 && !wh.loi_24h ? ' ok' : wh.loi_24h > 0 ? ' loi' : ' cho')}>
-          <span className="vd-wh-den" />
-          {wh.lan_cuoi ? (
-            <>
-              <b>Đang nhận tin từ Giao Hàng Tiết Kiệm</b>
-              <span className="tq-ghi">
-                {fmtN(wh.tong_24h)} cập nhật trong 24 giờ · mới nhất{' '}
-                {wh.phut_truoc < 1 ? 'vừa xong'
-                  : wh.phut_truoc < 60 ? Math.round(wh.phut_truoc) + ' phút trước'
-                  : Math.round(wh.phut_truoc / 60) + ' giờ trước'}
-                {wh.loi_24h > 0 ? ` · ${fmtN(wh.loi_24h)} tin chưa xử lý được` : ''}
-              </span>
-            </>
-          ) : (
-            <>
-              <b>Chưa nhận được cập nhật nào từ Giao Hàng Tiết Kiệm</b>
-              <span className="tq-ghi">Đơn mới sẽ tự hiện ở đây khi có thay đổi trạng thái</span>
-            </>
-          )}
+      {/* ===== LỘ TRÌNH GIAO HÀNG — xe chạy trên thanh tiến độ ===== */}
+      {tk && (
+        <div className="card vd-lotrinh">
+          <div className="kt-info">
+            <span className="kt-nhan">Lộ trình giao hàng</span>
+            <span className="kt-so"><b>{fmtN(xong)}</b><span>/{fmtN(tong)} đơn đã tới cửa hàng</span></span>
+          </div>
+          <div className="vd-duong">
+            <div className="kt-bar">
+              <div className="kt-fill" style={{ width: Math.max(pct, 2) + '%' }}>
+                <span className="kt-song" />
+              </div>
+              <span className="kt-pct">{pct}%</span>
+            </div>
+            <span className="vd-xe" style={{ left: `calc(${Math.min(Math.max(pct, 2), 97)}% - 16px)` }}>
+              <IcTruck />
+            </span>
+          </div>
+          <div className="vd-moc">
+            <span><b>{fmtN(tk.cho_lay)}</b> chờ lấy tại kho</span>
+            <span><b>{fmtN(tk.dang_giao)}</b> đang trên đường</span>
+            <span><b>{fmtN(xong)}</b> đã tới nơi</span>
+          </div>
         </div>
       )}
 
+      {/* ===== THẺ LỌC ===== */}
+      <div className="the-hang the-hang-wrap vd-the-hang">
+        <button className={'the-g' + (!nhom && !chiCham ? ' on' : '')}
+          onClick={() => { setNhom(null); setChiCham(false); }}>
+          <span className="the-g-n">{fmtN(tong)}</span>
+          <span className="the-g-t">Tất cả<small>{fmtN(tk?.dang_chay)} chưa xong</small></span>
+        </button>
+        {[['CHO_LAY', 'Chờ lấy', tk?.cho_lay, 'chưa rời kho'],
+          ['DANG_CHAY', 'Đang giao', tk?.dang_giao, 'trên đường'],
+          ['GIAO_XONG', 'Đã giao', tk?.giao_xong, 'tới cửa hàng'],
+          ['SU_CO', 'Sự cố', tk?.su_co, 'cần xử lý'],
+          ['TRA_HANG', 'Trả hàng', tk?.tra_hang, 'quay về kho']].map(([k, t, n, g]) => (
+          <button key={k} className={'the-g' + (nhom === k ? ' on' : '')}
+            onClick={() => { setNhom(nhom === k ? null : k); setChiCham(false); }}>
+            <span className="the-g-n">{fmtN(n)}</span>
+            <span className="the-g-t">{t}<small>{g}</small></span>
+          </button>
+        ))}
+        <button className={'the-g' + (chiCham ? ' on' : '')}
+          onClick={() => { setChiCham(!chiCham); setNhom(null); }}>
+          <span className="the-g-n">{fmtN(tk?.cham)}</span>
+          <span className="the-g-t">Đi lâu<small>từ 5 ngày trở lên</small></span>
+        </button>
+      </div>
+
+      {/* ===== BỘ LỌC ===== */}
+      <div className="toolbar vd-loc">
+        <DateBox label="Từ" value={tu} onChange={setTu} />
+        <DateBox label="Đến" value={den} onChange={setDen} />
+        <select className="flt-in" value={kv} onChange={(e) => setKv(e.target.value)} style={{ height: 40 }}>
+          <option value="">Tất cả khu vực</option>
+          {dsKV.map((k) => <option key={k} value={k}>{k}</option>)}
+        </select>
+        <div className="vd-tim">
+          <IcSearch />
+          <input className="flt-in" placeholder="Tìm mã đơn, cửa hàng, khu vực…" value={q}
+            onChange={(e) => setQ(e.target.value)} />
+        </div>
+        <span className="sla-chip">{fmtN(ds.length)} đơn</span>
+        {tk?.chua_map > 0 && (
+          <span className="sla-chip vd-canhbao" onClick={() => setMoCC(true)} style={{ cursor: 'pointer' }}>
+            {tk.chua_map} đơn chưa rõ cửa hàng
+          </span>
+        )}
+      </div>
+
+      {/* ===== CÔNG CỤ ===== */}
       {moCC && (
         <div className="card vd-cc">
           <div className="vd-cc-luoi">
             <div>
               <div className="tq-card-tit">Thêm đơn cũ</div>
               <div className="tq-ghi" style={{ marginBottom: 6 }}>
-                Đơn phát sinh <b>trước khi kết nối</b> sẽ không tự về. Dán mã đơn vào đây
-                (mỗi dòng một mã) để bổ sung — hệ thống tự lấy trạng thái và ngày giao.
+                Đơn phát sinh trước khi kết nối sẽ không tự về. Dán mã đơn (mỗi dòng một mã)
+                để bổ sung — hệ thống tự lấy trạng thái và cửa hàng.
               </div>
-              <textarea className="flt-in vd-ta" rows={5} value={txtMa}
+              <textarea className="flt-in vd-ta" rows={4} value={txtMa}
                 onChange={(e) => setTxtMa(e.target.value)}
-                placeholder={'S22987195.MN6-06-E100.1238155346\nS22987195.MN14-01-S1.1046975540'} />
+                placeholder={'S22987195.MN6-06-E100.1238155346'} />
               <button className="btn btn-ai" onClick={napMa} disabled={dangCC} style={{ marginTop: 8 }}>
                 {dangCC ? 'Đang xử lý…' : 'Thêm vào hệ thống'}
               </button>
@@ -208,15 +281,14 @@ export default function VanDon() {
             <div>
               <div className="tq-card-tit">Thêm đơn kèm sẵn tên cửa hàng</div>
               <div className="tq-ghi" style={{ marginBottom: 6 }}>
-                Nếu có sẵn file ghi <b>mã đơn</b> và <b>tên cửa hàng</b> (cách nhau bằng Tab),
-                dán vào đây để nhận diện ngay lập tức. Bình thường không cần dùng —
-                hệ thống tự nhận diện cửa hàng cho mọi đơn.
+                Nếu có file ghi mã đơn và tên cửa hàng (cách nhau bằng Tab), dán vào đây
+                để xác định ngay. Bình thường không cần — hệ thống tự làm.
               </div>
-              <textarea className="flt-in vd-ta" rows={5} value={txtHoc}
+              <textarea className="flt-in vd-ta" rows={4} value={txtHoc}
                 onChange={(e) => setTxtHoc(e.target.value)}
-                placeholder={'S22987195.MN13-09-D00.1987295283\tAGG Cái Dầu (Cửa Hàng Nón Sơn)'} />
+                placeholder={'S22987195.MN13-09-D00.1987295283\tAGG Cái Dầu'} />
               <button className="btn btn-ai" onClick={hocDiem} disabled={dangCC} style={{ marginTop: 8 }}>
-                {dangCC ? 'Đang xử lý…' : 'Thêm và nhận diện'}
+                {dangCC ? 'Đang xử lý…' : 'Thêm và xác định'}
               </button>
             </div>
           </div>
@@ -225,8 +297,8 @@ export default function VanDon() {
             <div style={{ marginTop: 16 }}>
               <div className="tq-card-tit">Chưa xác định được cửa hàng · {diem.length} tên</div>
               <div className="tq-ghi" style={{ marginBottom: 8 }}>
-                Tên ghi trên phiếu giao không trùng với tên cửa hàng trong hệ thống.
-                Chọn đúng cửa hàng một lần, các đơn cùng tên sẽ tự gán theo.
+                Tên ghi trên phiếu giao không trùng tên cửa hàng trong hệ thống.
+                Chọn đúng một lần, mọi đơn cùng tên sẽ tự theo.
               </div>
               <div className="vd-diem-luoi">
                 {diem.map((d) => (
@@ -234,12 +306,10 @@ export default function VanDon() {
                     <div className="vd-diem-ma" title={d.ten_nhan}>{tenGon(d.ten_nhan)}</div>
                     <div className="tq-ghi">{d.so_don} đơn</div>
                     {d.goi_y_ma && (
-                      <button className="btn btn-ghost vd-goiy"
-                        onClick={() => ganDiem(d.ten_nhan, d.goi_y_ma)}
+                      <button className="btn btn-ghost vd-goiy" onClick={() => ganDiem(d.ten_nhan, d.goi_y_ma)}
                         title="Gán nhanh theo gợi ý">→ {d.goi_y_ten}</button>
                     )}
-                    <select className="flt-in" defaultValue=""
-                      onChange={(e) => ganDiem(d.ten_nhan, e.target.value)}>
+                    <select className="flt-in" defaultValue="" onChange={(e) => ganDiem(d.ten_nhan, e.target.value)}>
                       <option value="">— chọn cửa hàng —</option>
                       {dsCH.map((c) => <option key={c.ma_ch} value={c.ma_ch}>{c.ten}</option>)}
                     </select>
@@ -251,42 +321,20 @@ export default function VanDon() {
         </div>
       )}
 
-      {tk && (
-        <div className="the-hang the-hang-wrap" style={{ marginBottom: 14 }}>
-          <div className={'the-g tq-bam' + (nhom === null ? ' cl-on' : '')} onClick={() => setNhom(null)}>
-            <div className="the-g-nhan">Tổng vận đơn</div>
-            <div className="the-g-so">{fmtN(tk.tong)}</div>
-            <div className="tq-ghi">{fmtN(tk.dang_chay)} đang chạy</div>
-          </div>
-          {[['CHO_LAY', 'Chờ lấy', tk.cho_lay], ['DANG_CHAY', 'Đang giao', tk.dang_giao],
-            ['GIAO_XONG', 'Đã giao', tk.giao_xong], ['SU_CO', 'Sự cố', tk.su_co],
-            ['TRA_HANG', 'Trả hàng', tk.tra_hang], ['HUY', 'Đã hủy', tk.huy]].map(([k, t, n]) => (
-            <div key={k} className={'the-g tq-bam' + (nhom === k ? ' cl-on' : '')} onClick={() => setNhom(nhom === k ? null : k)}>
-              <div className="the-g-nhan">{t}</div>
-              <div className="the-g-so">{fmtN(n)}</div>
-            </div>
-          ))}
-          <div className="the-g">
-            <div className="the-g-nhan">Chậm ≥5 ngày</div>
-            <div className="the-g-so">{fmtN(tk.cham)}</div>
-            <div className="tq-ghi">chưa chốt</div>
-          </div>
-        </div>
-      )}
-
+      {/* ===== BẢNG ===== */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="tbl-wrap" style={{ maxHeight: '62vh', overflow: 'auto' }}>
           <table className="tbl">
             <thead><tr>
-              <th>Mã vận đơn</th>
-              <th>Nơi nhận</th>
-              <th>Khu vực</th>
-              <th>Trạng thái</th>
-              <th className="num" style={{ width: '1%' }}>Tạo</th>
-              <th className="num" style={{ width: '1%' }}>Lấy</th>
-              <th className="num" style={{ width: '1%' }}>Giao</th>
-              <th className="num" style={{ width: '1%' }}>SL</th>
-              <th className="num" style={{ width: '1%' }}>Ngày chạy</th>
+              <Th c="label_id">Mã đơn</Th>
+              <Th c="noi">Nơi nhận</Th>
+              <Th c="khu_vuc">Khu vực</Th>
+              <Th c="nhom">Trạng thái</Th>
+              <Th c="ngay_tao" num>Tạo</Th>
+              <Th c="pick_date" num>Lấy</Th>
+              <Th c="deliver_date" num>Giao</Th>
+              <Th c="so_luong" num>SL</Th>
+              <Th c="so_ngay" num>Ngày đi</Th>
             </tr></thead>
             <tbody>
               {ds.map((r) => (
@@ -310,7 +358,7 @@ export default function VanDon() {
                   </tr>
                   {mo === r.label_id && (
                     <tr className="cl-xo"><td colSpan={9}>
-                      <div className="cl-nhom-tit">Hành trình đơn {r.label_id}
+                      <div className="cl-nhom-tit">Hành trình {r.label_id}
                         {(r.ten_ch || r.ten_nhan) ? ' — ' + (r.ten_ch || tenGon(r.ten_nhan)) : ''}</div>
                       {ht === null ? <div className="tq-ghi">Đang tải…</div>
                         : ht.length ? (
@@ -331,7 +379,7 @@ export default function VanDon() {
                 </Fragment>
               ))}
               {!ds.length && <tr><td colSpan={9} className="tq-ghi" style={{ padding: 16 }}>
-                Chưa có đơn giao nào trong khoảng thời gian này.
+                Không có đơn nào khớp bộ lọc.
               </td></tr>}
             </tbody>
           </table>
