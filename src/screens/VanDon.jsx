@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { isoVN, DateBox } from '../lib/ui.jsx';
-import { GHTK_QUET_FN, SUPABASE_ANON } from '../config.js';
+import { GHTK_QUET_FN, GHTK_NHAN_FN, SUPABASE_ANON } from '../config.js';
 import { useApp } from '../App.jsx';
 
 const fmtN = (n) => n == null ? '—' : Number(n).toLocaleString('vi');
@@ -113,18 +113,28 @@ export default function VanDon() {
     setHt(data || []);
   };
 
+  const goi = async (url, payload) => {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + SUPABASE_ANON },
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  };
+
+  // Cập nhật: (1) lấy trạng thái mới nhất, (2) nhận diện cửa hàng cho đơn còn thiếu
   const chayQuet = async () => {
     setQuet(true);
     try {
-      const res = await fetch(GHTK_QUET_FN, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + SUPABASE_ANON },
-        body: JSON.stringify({ so: 150 }),
-      });
-      const j = await res.json();
-      if (j.error) baoToast('GHTK lỗi: ' + j.error);
-      else baoToast(`Đã hỏi GHTK ${j.so_luong} đơn · cập nhật ${j.cap_nhat}${j.loi ? ` · lỗi ${j.loi}` : ''}`);
+      const a = await goi(GHTK_QUET_FN, { so: 150 });
+      if (a.error) { baoToast('Lỗi lấy trạng thái: ' + a.error); setQuet(false); return; }
+      baoToast(`Đã cập nhật trạng thái ${a.cap_nhat ?? 0}/${a.so_luong ?? 0} đơn — đang nhận diện cửa hàng…`);
       tai();
+      const b = await goi(GHTK_NHAN_FN, { so: 200 });
+      if (b.error) baoToast('Lỗi nhận diện cửa hàng: ' + b.error);
+      else if ((b.can_xu_ly ?? 0) === 0) baoToast('Xong — mọi đơn đã rõ cửa hàng');
+      else baoToast(`Xong — nhận diện thêm ${b.ro_cua_hang ?? 0} đơn${b.chua_ro ? ` · ${b.chua_ro} chưa rõ` : ''}`);
+      tai(); taiDiem();
     } catch (e) { baoToast('Không gọi được: ' + e.message); }
     setQuet(false);
   };
