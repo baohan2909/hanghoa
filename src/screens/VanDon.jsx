@@ -91,10 +91,10 @@ export default function VanDon() {
     }).filter(Boolean);
     if (!rows.length) { baoToast('Không đọc được dòng nào (cần: mã đơn + tên cửa hàng)'); return; }
     setDangCC(true);
-    const { data, error } = await sb.rpc('fn_vd_hoc_diem', { p: rows });
+    const { data, error } = await sb.rpc('fn_vd_gan_ten', { p: rows });
     setDangCC(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Học được ${data?.khop ?? 0} điểm giao${data?.hong ? ` · ${data.hong} dòng không khớp tên` : ''}`);
+    baoToast(`Gán được ${data?.map_duoc ?? 0} đơn${data?.chua_map ? ` · ${data.chua_map} tên chưa khớp cửa hàng` : ''}`);
     setTxtHoc(''); tai(); taiDiem();
   };
 
@@ -194,14 +194,18 @@ export default function VanDon() {
               </button>
             </div>
             <div>
-              <div className="tq-card-tit">2 · Nhận diện cửa hàng</div>
-              <div className="tq-ghi">
-                Hệ thống <b>tự đọc nhãn giao hàng</b> của GHTK (mục "Người nhận") để biết đơn đi cửa hàng nào —
-                chạy tự động mỗi giờ, không cần thao tác.
-                <br /><br />
-                Mã đơn <b>không</b> dùng để nhận diện: phần giữa mã là <b>mã tuyến giao</b>,
-                một tuyến phục vụ nhiều cửa hàng (đã kiểm chứng trên 3.334 đơn thật — sai tới 12,5%).
+              <div className="tq-card-tit">2 · Gán cửa hàng từ file có sẵn</div>
+              <div className="tq-ghi" style={{ marginBottom: 6 }}>
+                Nếu đã có file kèm tên cửa hàng, dán vào đây để gán ngay — <b>khỏi phải đọc nhãn</b>.
+                Mỗi dòng: <b>mã đơn</b> rồi <b>tên cửa hàng</b> (cách nhau bằng Tab).
+                Đơn nào không có trong file thì hệ thống tự đọc nhãn mỗi giờ.
               </div>
+              <textarea className="flt-in vd-ta" rows={5} value={txtHoc}
+                onChange={(e) => setTxtHoc(e.target.value)}
+                placeholder={'S22987195.MN13-09-D00.1987295283\tAGG Cái Dầu (Cửa Hàng Nón Sơn)'} />
+              <button className="btn btn-ai" onClick={hocDiem} disabled={dangCC} style={{ marginTop: 8 }}>
+                {dangCC ? 'Đang xử lý…' : 'Gán cửa hàng'}
+              </button>
             </div>
           </div>
 
