@@ -138,7 +138,7 @@ export default function VanDon() {
       <div className="cmdbar">
         <div className="cmd-title">
           <h2>Vận đơn GHTK</h2>
-          <p>Trạng thái &amp; hành trình cập nhật trực tiếp từ Giao Hàng Tiết Kiệm</p>
+          <p>Theo dõi hàng đi từ kho tới cửa hàng — cập nhật tự động từ Giao Hàng Tiết Kiệm</p>
         </div>
       </div>
 
@@ -147,10 +147,10 @@ export default function VanDon() {
         <DateBox label="Đến" value={den} onChange={setDen} />
         <input className="flt-in" placeholder="Tìm mã vận đơn / cửa hàng…" value={q}
           onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 200, flex: 1 }} />
-        {tk?.chua_map > 0 && <span className="sla-chip vd-canhbao">{tk.chua_map} đơn chưa nhận diện cửa hàng</span>}
-        <button className="btn btn-ghost" onClick={() => setMoCC(!moCC)}>⚙ Nạp &amp; ánh xạ</button>
+        {tk?.chua_map > 0 && <span className="sla-chip vd-canhbao">{tk.chua_map} đơn chưa rõ cửa hàng</span>}
+        <button className="btn btn-ghost" onClick={() => setMoCC(!moCC)}>⚙ Công cụ</button>
         <button className="btn btn-ai" onClick={chayQuet} disabled={quet}>
-          {quet ? 'Đang hỏi GHTK…' : '↻ Cập nhật từ GHTK'}
+          {quet ? 'Đang cập nhật…' : '↻ Cập nhật'}
         </button>
       </div>
 
@@ -159,19 +159,19 @@ export default function VanDon() {
           <span className="vd-wh-den" />
           {wh.lan_cuoi ? (
             <>
-              <b>Webhook GHTK đang hoạt động</b>
+              <b>Đang nhận tin từ Giao Hàng Tiết Kiệm</b>
               <span className="tq-ghi">
-                nhận {fmtN(wh.tong_24h)} tin trong 24 giờ · gần nhất{' '}
+                {fmtN(wh.tong_24h)} cập nhật trong 24 giờ · mới nhất{' '}
                 {wh.phut_truoc < 1 ? 'vừa xong'
                   : wh.phut_truoc < 60 ? Math.round(wh.phut_truoc) + ' phút trước'
                   : Math.round(wh.phut_truoc / 60) + ' giờ trước'}
-                {wh.loi_24h > 0 ? ` · ${fmtN(wh.loi_24h)} tin lỗi` : ''}
+                {wh.loi_24h > 0 ? ` · ${fmtN(wh.loi_24h)} tin chưa xử lý được` : ''}
               </span>
             </>
           ) : (
             <>
-              <b>Chưa nhận được tin nào từ GHTK</b>
-              <span className="tq-ghi">Kiểm tra lại cấu hình webhook bên GHTK (URL + header X-NS-Key)</span>
+              <b>Chưa nhận được cập nhật nào từ Giao Hàng Tiết Kiệm</b>
+              <span className="tq-ghi">Đơn mới sẽ tự hiện ở đây khi có thay đổi trạng thái</span>
             </>
           )}
         </div>
@@ -181,42 +181,51 @@ export default function VanDon() {
         <div className="card vd-cc">
           <div className="vd-cc-luoi">
             <div>
-              <div className="tq-card-tit">1 · Nạp đơn cũ</div>
+              <div className="tq-card-tit">Thêm đơn cũ</div>
               <div className="tq-ghi" style={{ marginBottom: 6 }}>
-                Dán danh sách mã vận đơn (mỗi dòng một mã, hoặc phân cách bằng dấu phẩy).
-                Hệ thống sẽ hỏi GHTK để lấy trạng thái &amp; ngày tháng.
+                Đơn phát sinh <b>trước khi kết nối</b> sẽ không tự về. Dán mã đơn vào đây
+                (mỗi dòng một mã) để bổ sung — hệ thống tự lấy trạng thái và ngày giao.
               </div>
               <textarea className="flt-in vd-ta" rows={5} value={txtMa}
                 onChange={(e) => setTxtMa(e.target.value)}
                 placeholder={'S22987195.MN6-06-E100.1238155346\nS22987195.MN14-01-S1.1046975540'} />
               <button className="btn btn-ai" onClick={napMa} disabled={dangCC} style={{ marginTop: 8 }}>
-                {dangCC ? 'Đang xử lý…' : 'Nạp danh sách'}
+                {dangCC ? 'Đang xử lý…' : 'Thêm vào hệ thống'}
               </button>
             </div>
             <div>
-              <div className="tq-card-tit">2 · Gán cửa hàng từ file có sẵn</div>
+              <div className="tq-card-tit">Thêm đơn kèm sẵn tên cửa hàng</div>
               <div className="tq-ghi" style={{ marginBottom: 6 }}>
-                Nếu đã có file kèm tên cửa hàng, dán vào đây để gán ngay — <b>khỏi phải đọc nhãn</b>.
-                Mỗi dòng: <b>mã đơn</b> rồi <b>tên cửa hàng</b> (cách nhau bằng Tab).
-                Đơn nào không có trong file thì hệ thống tự đọc nhãn mỗi giờ.
+                Nếu có sẵn file ghi <b>mã đơn</b> và <b>tên cửa hàng</b> (cách nhau bằng Tab),
+                dán vào đây để nhận diện ngay lập tức. Bình thường không cần dùng —
+                hệ thống tự nhận diện cửa hàng cho mọi đơn.
               </div>
               <textarea className="flt-in vd-ta" rows={5} value={txtHoc}
                 onChange={(e) => setTxtHoc(e.target.value)}
                 placeholder={'S22987195.MN13-09-D00.1987295283\tAGG Cái Dầu (Cửa Hàng Nón Sơn)'} />
               <button className="btn btn-ai" onClick={hocDiem} disabled={dangCC} style={{ marginTop: 8 }}>
-                {dangCC ? 'Đang xử lý…' : 'Gán cửa hàng'}
+                {dangCC ? 'Đang xử lý…' : 'Thêm và nhận diện'}
               </button>
             </div>
           </div>
 
           {diem.length > 0 && (
             <div style={{ marginTop: 16 }}>
-              <div className="tq-card-tit">Tên trên nhãn chưa khớp cửa hàng nào · {diem.length}</div>
+              <div className="tq-card-tit">Chưa xác định được cửa hàng · {diem.length} tên</div>
+              <div className="tq-ghi" style={{ marginBottom: 8 }}>
+                Tên ghi trên phiếu giao không trùng với tên cửa hàng trong hệ thống.
+                Chọn đúng cửa hàng một lần, các đơn cùng tên sẽ tự gán theo.
+              </div>
               <div className="vd-diem-luoi">
                 {diem.map((d) => (
                   <div key={d.ten_nhan} className="vd-diem-o">
                     <div className="vd-diem-ma">{d.ten_nhan}</div>
                     <div className="tq-ghi">{d.so_don} đơn</div>
+                    {d.goi_y_ma && (
+                      <button className="btn btn-ghost vd-goiy"
+                        onClick={() => ganDiem(d.ten_nhan, d.goi_y_ma)}
+                        title="Gán nhanh theo gợi ý">→ {d.goi_y_ten}</button>
+                    )}
                     <select className="flt-in" defaultValue=""
                       onChange={(e) => ganDiem(d.ten_nhan, e.target.value)}>
                       <option value="">— chọn cửa hàng —</option>
@@ -242,12 +251,12 @@ export default function VanDon() {
             ['TRA_HANG', 'Trả hàng', tk.tra_hang], ['HUY', 'Đã hủy', tk.huy]].map(([k, t, n]) => (
             <div key={k} className={'the-g tq-bam' + (nhom === k ? ' cl-on' : '')} onClick={() => setNhom(nhom === k ? null : k)}>
               <div className="the-g-nhan">{t}</div>
-              <div className={'the-g-so ' + (NHOM[k]?.c || '')}>{fmtN(n)}</div>
+              <div className="the-g-so">{fmtN(n)}</div>
             </div>
           ))}
           <div className="the-g">
             <div className="the-g-nhan">Chậm ≥5 ngày</div>
-            <div className="the-g-so vd-suco">{fmtN(tk.cham)}</div>
+            <div className="the-g-so">{fmtN(tk.cham)}</div>
             <div className="tq-ghi">chưa chốt</div>
           </div>
         </div>
@@ -303,13 +312,13 @@ export default function VanDon() {
                               </div>
                             ))}
                           </div>
-                        ) : <div className="tq-ghi">Chưa có chặng nào — hành trình được ghi từ khi bật webhook.</div>}
+                        ) : <div className="tq-ghi">Chưa ghi nhận chặng nào cho đơn này.</div>}
                     </td></tr>
                   )}
                 </Fragment>
               ))}
               {!ds.length && <tr><td colSpan={9} className="tq-ghi" style={{ padding: 16 }}>
-                Chưa có vận đơn nào trong khoảng này. Bấm "Cập nhật từ GHTK" để nạp.
+                Chưa có đơn giao nào trong khoảng thời gian này.
               </td></tr>}
             </tbody>
           </table>
