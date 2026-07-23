@@ -1,142 +1,174 @@
-import { useEffect, useState } from 'react';
-import { sb, fmtDT, TRANG_THAI } from '../lib/supabase.js';
-import { IcTruck, IcRefresh, IcCheck } from '../lib/icons.jsx';
-import { GHTK_FN, SUPABASE_ANON } from '../config.js';
+import { Fragment, useEffect, useState } from 'react';
+import { sb } from '../lib/supabase.js';
+import { isoVN, DateBox } from '../lib/ui.jsx';
+import { GHTK_QUET_FN, SUPABASE_ANON } from '../config.js';
 import { useApp } from '../App.jsx';
 
+const fmtN = (n) => n == null ? '—' : Number(n).toLocaleString('vi');
+const NHOM = {
+  CHO_LAY:   { t: 'Chờ lấy',    c: 'vd-cho' },
+  DANG_CHAY: { t: 'Đang giao',  c: 'vd-giao' },
+  GIAO_XONG: { t: 'Đã giao',    c: 'vd-xong' },
+  SU_CO:     { t: 'Sự cố',      c: 'vd-suco' },
+  TRA_HANG:  { t: 'Trả hàng',   c: 'vd-tra' },
+  HUY:       { t: 'Đã hủy',     c: 'vd-huy' },
+};
+const fmtNg = (d) => d ? d.slice(8, 10) + '/' + d.slice(5, 7) : '—';
+const fmtGio = (t) => t ? new Date(t).toLocaleString('vi', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
 export default function VanDon() {
-  const { user, baoToast } = useApp();
-  const [choGan, setChoGan] = useState([]);   // đơn BAN_GIAO_VC chưa có mã VĐ
-  const [ds, setDs] = useState([]);           // vận đơn đang theo dõi
-  const [maVd, setMaVd] = useState({});       // input mã VĐ theo don_id
-  const [busy, setBusy] = useState(false);
-  const laDieuPhoi = user.vai_tro !== 'CH';
+  const { baoToast } = useApp();
+  const [tu, setTu] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return isoVN(d); });
+  const [den, setDen] = useState(isoVN());
+  const [rows, setRows] = useState(null);
+  const [tk, setTk] = useState(null);
+  const [nhom, setNhom] = useState(null);
+  const [q, setQ] = useState('');
+  const [mo, setMo] = useState(null);
+  const [ht, setHt] = useState(null);
+  const [quet, setQuet] = useState(false);
 
   const tai = async () => {
-    let q1 = sb.from('don_xin_hang')
-      .select('id, ma_ch, trang_thai, ngay_gui, cua_hang(ten), van_don(ma_van_don)')
-      .in('trang_thai', ['BAN_GIAO_VC', 'DANG_GIAO'])
-      .order('ngay_gui', { ascending: true });
-    if (user.vai_tro === 'CH') q1 = q1.eq('ma_ch', user.ma_ch);
-    const { data: dons } = await q1;
-    setChoGan((dons || []).filter((d) => !d.van_don?.ma_van_don));
-
-    let q2 = sb.from('van_don')
-      .select('*, don_xin_hang!inner(id, ma_ch, trang_thai, cua_hang(ten))')
-      .not('ma_van_don', 'is', null)
-      .order('cap_nhat_luc', { ascending: false, nullsFirst: false }).limit(200);
-    if (user.vai_tro === 'CH') q2 = q2.eq('don_xin_hang.ma_ch', user.ma_ch);
-    const { data: vds } = await q2;
-    setDs(vds || []);
+    const [a, b] = await Promise.all([
+      sb.rpc('fn_vd_ds', { p_tu: tu, p_den: den, p_ma_ch: null, p_nhom: nhom }),
+      sb.rpc('fn_vd_tk', { p_tu: tu, p_den: den }),
+    ]);
+    setRows(a.data || []);
+    setTk(b.data || null);
   };
-  useEffect(() => { tai(); }, []);
+  useEffect(() => { tai(); }, [tu, den, nhom]);   // eslint-disable-line
 
-  const gan = async (donId) => {
-    const ma = (maVd[donId] || '').trim();
-    if (!ma) { baoToast('Nhập mã vận đơn GHTK trước'); return; }
-    const { error } = await sb.rpc('fn_gan_van_don',
-      { p_token: user.token, p_don_id: donId, p_ma_van_don: ma });
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã gán vận đơn cho #${donId}`); setMaVd((m) => ({ ...m, [donId]: '' })); tai();
+  const xoHT = async (r) => {
+    if (mo === r.label_id) { setMo(null); setHt(null); return; }
+    setMo(r.label_id); setHt(null);
+    const { data } = await sb.rpc('fn_vd_hanh_trinh', { p_label: r.label_id });
+    setHt(data || []);
   };
 
-  const lamMoi = async (donId) => {
-    setBusy(true);
+  const chayQuet = async () => {
+    setQuet(true);
     try {
-      const r = await fetch(GHTK_FN, {
+      const res = await fetch(GHTK_QUET_FN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + SUPABASE_ANON },
-        body: JSON.stringify(donId ? { don_id: donId } : {}),
+        body: JSON.stringify({ so: 150 }),
       });
-      const j = await r.json();
-      if (j.error) throw new Error(j.error);
-      baoToast(donId ? `Đã cập nhật đơn #${donId}` : `Đã hỏi GHTK ${j.so_luong ?? ''} vận đơn`);
+      const j = await res.json();
+      if (j.error) baoToast('GHTK lỗi: ' + j.error);
+      else baoToast(`Đã hỏi GHTK ${j.so_luong} đơn · cập nhật ${j.cap_nhat}${j.loi ? ` · lỗi ${j.loi}` : ''}`);
       tai();
-    } catch (e) { baoToast('GHTK lỗi: ' + e.message); }
-    setBusy(false);
+    } catch (e) { baoToast('Không gọi được: ' + e.message); }
+    setQuet(false);
   };
 
-  const xacNhanNhan = async (donId) => {
-    const { error } = await sb.rpc('fn_buoc',
-      { p_token: user.token, p_don_id: donId, p_tt: 'DA_NHAN' });
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã xác nhận nhận hàng đơn #${donId} — khép vòng đời đơn`); tai();
-  };
-
-  const tre = (v) => v.du_kien_giao && !v.thuc_te_giao && new Date(v.du_kien_giao) < new Date();
+  const ds = (rows || []).filter((r) => !q.trim() ||
+    (r.label_id + ' ' + (r.ten_ch || '') + ' ' + (r.ten_nhan || '') + ' ' + (r.khu_vuc || ''))
+      .toLowerCase().includes(q.trim().toLowerCase()));
 
   return (
     <>
       <div className="cmdbar">
-        <h1>Vận đơn & giao nhận</h1>
-        <div className="sub">Theo dõi hành trình Giao Hàng Tiết Kiệm — cửa hàng xác nhận nhận để khép vòng đời đơn.</div>
-        {laDieuPhoi && (
-          <div className="row">
-            <button className="btn" disabled={busy}
-              style={{ background: 'rgba(255,255,255,.16)', color: '#fff' }}
-              onClick={() => lamMoi()}><IcRefresh /> {busy ? 'Đang hỏi GHTK…' : 'Làm mới tất cả từ GHTK'}</button>
-          </div>
-        )}
+        <div className="cmd-title">
+          <h2>Vận đơn GHTK</h2>
+          <p>Trạng thái &amp; hành trình cập nhật trực tiếp từ Giao Hàng Tiết Kiệm</p>
+        </div>
       </div>
 
-      {laDieuPhoi && choGan.length > 0 && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <h3 style={{ fontSize: 15, marginBottom: 10 }}>Đã bàn giao vận chuyển — chờ gán mã vận đơn</h3>
-          {choGan.map((d) => (
-            <div key={d.id} style={{ display: 'flex', gap: 10, alignItems: 'center',
-              padding: '8px 0', borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
-              <span style={{ minWidth: 200 }}>
-                <b className="mono">#{d.id}</b> {d.cua_hang?.ten}
-                <span className="mono" style={{ color: 'var(--ink-2)' }}> {d.ma_ch}</span>
-              </span>
-              <input className="qty-input" style={{ width: 170, textAlign: 'left' }}
-                placeholder="Mã vận đơn GHTK" value={maVd[d.id] || ''}
-                onChange={(e) => setMaVd((m) => ({ ...m, [d.id]: e.target.value }))} />
-              <button className="btn btn-teal" onClick={() => gan(d.id)}><IcTruck /> Gán</button>
+      <div className="toolbar">
+        <DateBox label="Từ" value={tu} onChange={setTu} />
+        <DateBox label="Đến" value={den} onChange={setDen} />
+        <input className="flt-in" placeholder="Tìm mã vận đơn / cửa hàng…" value={q}
+          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 200, flex: 1 }} />
+        {tk?.chua_map > 0 && <span className="sla-chip vd-canhbao">{tk.chua_map} đơn chưa nhận diện cửa hàng</span>}
+        <button className="btn btn-ai" onClick={chayQuet} disabled={quet}>
+          {quet ? 'Đang hỏi GHTK…' : '↻ Cập nhật từ GHTK'}
+        </button>
+      </div>
+
+      {tk && (
+        <div className="the-hang the-hang-wrap" style={{ marginBottom: 14 }}>
+          <div className={'the-g tq-bam' + (nhom === null ? ' cl-on' : '')} onClick={() => setNhom(null)}>
+            <div className="the-g-nhan">Tổng vận đơn</div>
+            <div className="the-g-so">{fmtN(tk.tong)}</div>
+            <div className="tq-ghi">{fmtN(tk.dang_chay)} đang chạy</div>
+          </div>
+          {[['CHO_LAY', 'Chờ lấy', tk.cho_lay], ['DANG_CHAY', 'Đang giao', tk.dang_giao],
+            ['GIAO_XONG', 'Đã giao', tk.giao_xong], ['SU_CO', 'Sự cố', tk.su_co],
+            ['TRA_HANG', 'Trả hàng', tk.tra_hang], ['HUY', 'Đã hủy', tk.huy]].map(([k, t, n]) => (
+            <div key={k} className={'the-g tq-bam' + (nhom === k ? ' cl-on' : '')} onClick={() => setNhom(nhom === k ? null : k)}>
+              <div className="the-g-nhan">{t}</div>
+              <div className={'the-g-so ' + (NHOM[k]?.c || '')}>{fmtN(n)}</div>
             </div>
           ))}
+          <div className="the-g">
+            <div className="the-g-nhan">Chậm ≥5 ngày</div>
+            <div className="the-g-so vd-suco">{fmtN(tk.cham)}</div>
+            <div className="tq-ghi">chưa chốt</div>
+          </div>
         </div>
       )}
 
-      <div className="tbl-wrap">
-        <table className="tbl">
-          <thead><tr>
-            <th>Đơn</th><th>Cửa hàng</th><th>Mã vận đơn</th><th>Trạng thái VC</th>
-            <th>Kho xong</th><th>Bàn giao</th><th>Dự kiến</th><th>Thực tế</th><th></th>
-          </tr></thead>
-          <tbody>
-            {ds.map((v) => (
-              <tr key={v.don_id} style={tre(v) ? { background: '#FFF3F8' } : undefined}>
-                <td className="mono">#{v.don_id}</td>
-                <td><b>{v.don_xin_hang?.cua_hang?.ten}</b>
-                  <span className="mono" style={{ color: 'var(--ink-2)' }}> {v.don_xin_hang?.ma_ch}</span></td>
-                <td className="mono">{v.ma_van_don}</td>
-                <td>
-                  {v.xac_nhan_nhan
-                    ? <span className="chip teal">Đã nhận — hoàn tất</span>
-                    : <>{v.trang_thai_vc || TRANG_THAI[v.don_xin_hang?.trang_thai] || '—'}
-                        {tre(v) && <span className="chip warn"> Giao trễ</span>}</>}
-                  {v.ly_do_that_bai && <div style={{ fontSize: 11, color: 'var(--magenta)' }}>{v.ly_do_that_bai}</div>}
-                  {v.vi_tri && <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{v.vi_tri}</div>}
-                </td>
-                <td>{fmtDT(v.ngay_kho_xong)}</td>
-                <td>{fmtDT(v.ngay_ban_giao)}</td>
-                <td>{fmtDT(v.du_kien_giao)}</td>
-                <td>{fmtDT(v.thuc_te_giao)}</td>
-                <td style={{ whiteSpace: 'nowrap' }}>
-                  {laDieuPhoi && !v.xac_nhan_nhan &&
-                    <button className="btn btn-ghost" disabled={busy}
-                      onClick={() => lamMoi(v.don_id)}><IcRefresh /></button>}
-                  {!v.xac_nhan_nhan && (user.vai_tro !== 'CH' || v.don_xin_hang?.ma_ch === user.ma_ch) &&
-                    <button className="btn btn-primary" onClick={() => xacNhanNhan(v.don_id)}>
-                      <IcCheck /> Đã nhận</button>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!ds.length && !choGan.length &&
-          <div className="empty"><div className="t">Chưa có vận đơn nào đang theo dõi</div></div>}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="tbl-wrap" style={{ maxHeight: '62vh', overflow: 'auto' }}>
+          <table className="tbl">
+            <thead><tr>
+              <th>Mã vận đơn</th>
+              <th>Nơi nhận</th>
+              <th>Khu vực</th>
+              <th>Trạng thái</th>
+              <th className="num" style={{ width: '1%' }}>Tạo</th>
+              <th className="num" style={{ width: '1%' }}>Lấy</th>
+              <th className="num" style={{ width: '1%' }}>Giao</th>
+              <th className="num" style={{ width: '1%' }}>SL</th>
+              <th className="num" style={{ width: '1%' }}>Ngày chạy</th>
+            </tr></thead>
+            <tbody>
+              {ds.map((r) => (
+                <Fragment key={r.label_id}>
+                  <tr className="cl-row" onClick={() => xoHT(r)}>
+                    <td className="mono" style={{ fontSize: 11 }}>{r.label_id}</td>
+                    <td><b>{r.ten_ch || r.ten_nhan || <span className="tq-ghi">chưa nhận diện</span>}</b></td>
+                    <td>{r.khu_vuc || ''}</td>
+                    <td>
+                      <span className={'vd-badge ' + (NHOM[r.nhom]?.c || '')}>{r.status_text || '—'}</span>
+                      {r.ly_do && <div className="vd-lydo" title={r.ly_do}>{r.ly_do}</div>}
+                    </td>
+                    <td className="num">{fmtNg(r.ngay_tao)}</td>
+                    <td className="num">{fmtNg(r.pick_date)}</td>
+                    <td className="num">{fmtNg(r.deliver_date)}</td>
+                    <td className="num">{r.so_luong == null ? '—' : fmtN(r.so_luong)}</td>
+                    <td className="num">
+                      {r.so_ngay == null ? '—'
+                        : <b className={r.so_ngay >= 5 ? 'hh-do' : r.so_ngay >= 3 ? 'hh-cam' : ''}>{r.so_ngay}</b>}
+                    </td>
+                  </tr>
+                  {mo === r.label_id && (
+                    <tr className="cl-xo"><td colSpan={9}>
+                      <div className="cl-nhom-tit">Hành trình đơn {r.label_id}</div>
+                      {ht === null ? <div className="tq-ghi">Đang tải…</div>
+                        : ht.length ? (
+                          <div className="vd-ht">
+                            {ht.map((h, i) => (
+                              <div key={i} className={'vd-ht-b' + (i === ht.length - 1 ? ' cuoi' : '')}>
+                                <span className="vd-ht-cham" />
+                                <div>
+                                  <div className="vd-ht-tt">{h.status_text}</div>
+                                  <div className="tq-ghi">{fmtGio(h.action_time)}{h.ly_do ? ' · ' + h.ly_do : ''}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : <div className="tq-ghi">Chưa có chặng nào — hành trình được ghi từ khi bật webhook.</div>}
+                    </td></tr>
+                  )}
+                </Fragment>
+              ))}
+              {!ds.length && <tr><td colSpan={9} className="tq-ghi" style={{ padding: 16 }}>
+                Chưa có vận đơn nào trong khoảng này. Bấm "Cập nhật từ GHTK" để nạp.
+              </td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );

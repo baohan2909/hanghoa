@@ -1490,3 +1490,26 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .cl-nhom-so { display: flex; align-items: baseline; gap: 6px; margin: 2px 0; }
 .cl-nhom-so b { font-size: 16px; font-weight: 800; color: var(--magenta); }
 .cl-nhom-cb { font-size: 10px; font-weight: 700; color: var(--magenta); margin-top: 3px; }
+
+/* ===================== VẬN ĐƠN GHTK (vd-) ===================== */
+.vd-badge { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 2px 9px;
+  border-radius: 8px; white-space: nowrap; }
+.vd-cho  { color: #a8842c; } .vd-badge.vd-cho  { background: rgba(217,166,46,.14); }
+.vd-giao { color: var(--teal-deep); } .vd-badge.vd-giao { background: rgba(63,182,168,.13); }
+.vd-xong { color: #2e7d5b; } .vd-badge.vd-xong { background: rgba(46,125,91,.12); }
+.vd-suco { color: var(--magenta); } .vd-badge.vd-suco { background: rgba(214,0,108,.1); }
+.vd-tra  { color: #c25e1e; } .vd-badge.vd-tra  { background: rgba(214,110,30,.12); }
+.vd-huy  { color: var(--ink-2); } .vd-badge.vd-huy  { background: #F1EFE8; }
+.vd-lydo { font-size: 10px; color: var(--magenta); max-width: 190px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.vd-canhbao { background: rgba(214,110,30,.12) !important; color: #9c4d16 !important; }
+.vd-ht { padding: 2px 0 4px; }
+.vd-ht-b { display: flex; gap: 11px; align-items: flex-start; position: relative;
+  padding: 0 0 13px 3px; }
+.vd-ht-b::before { content: ''; position: absolute; left: 6px; top: 13px; bottom: 0; width: 2px;
+  background: #E8E5DC; }
+.vd-ht-b.cuoi::before { display: none; }
+.vd-ht-cham { width: 11px; height: 11px; border-radius: 50%; background: #D8D4C8; flex: none;
+  margin-top: 2px; z-index: 1; }
+.vd-ht-b.cuoi .vd-ht-cham { background: var(--teal); box-shadow: 0 0 7px rgba(63,182,168,.55); }
+.vd-ht-tt { font-size: 12.5px; font-weight: 700; color: var(--ink); }
