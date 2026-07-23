@@ -14,6 +14,8 @@ const NHOM = {
   HUY:       { t: 'Đã hủy',     c: 'vd-huy' },
 };
 const fmtNg = (d) => d ? d.slice(8, 10) + '/' + d.slice(5, 7) : '—';
+// Bỏ phần trong ngoặc ở cuối tên — "CH Gia Nghĩa (Cửa Hàng Nón Sơn)" -> "CH Gia Nghĩa"
+const tenGon = (t) => (t || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
 const fmtGio = (t) => t ? new Date(t).toLocaleString('vi', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
 
 export default function VanDon() {
@@ -140,7 +142,7 @@ export default function VanDon() {
   };
 
   const ds = (rows || []).filter((r) => !q.trim() ||
-    (r.label_id + ' ' + (r.ten_ch || '') + ' ' + (r.ten_nhan || '') + ' ' + (r.khu_vuc || ''))
+    (r.label_id + ' ' + (r.ten_ch || '') + ' ' + tenGon(r.ten_nhan) + ' ' + (r.khu_vuc || ''))
       .toLowerCase().includes(q.trim().toLowerCase()));
 
   return (
@@ -229,7 +231,7 @@ export default function VanDon() {
               <div className="vd-diem-luoi">
                 {diem.map((d) => (
                   <div key={d.ten_nhan} className="vd-diem-o">
-                    <div className="vd-diem-ma">{d.ten_nhan}</div>
+                    <div className="vd-diem-ma" title={d.ten_nhan}>{tenGon(d.ten_nhan)}</div>
                     <div className="tq-ghi">{d.so_don} đơn</div>
                     {d.goi_y_ma && (
                       <button className="btn btn-ghost vd-goiy"
@@ -291,7 +293,7 @@ export default function VanDon() {
                 <Fragment key={r.label_id}>
                   <tr className="cl-row" onClick={() => xoHT(r)}>
                     <td className="mono" style={{ fontSize: 11 }}>{r.label_id}</td>
-                    <td><b>{r.ten_ch || r.ten_nhan || <span className="tq-ghi">chưa nhận diện</span>}</b></td>
+                    <td><b>{r.ten_ch || tenGon(r.ten_nhan) || <span className="tq-ghi">chưa rõ</span>}</b></td>
                     <td>{r.khu_vuc || ''}</td>
                     <td>
                       <span className={'vd-badge ' + (NHOM[r.nhom]?.c || '')}>{r.status_text || '—'}</span>
@@ -308,7 +310,8 @@ export default function VanDon() {
                   </tr>
                   {mo === r.label_id && (
                     <tr className="cl-xo"><td colSpan={9}>
-                      <div className="cl-nhom-tit">Hành trình đơn {r.label_id}</div>
+                      <div className="cl-nhom-tit">Hành trình đơn {r.label_id}
+                        {(r.ten_ch || r.ten_nhan) ? ' — ' + (r.ten_ch || tenGon(r.ten_nhan)) : ''}</div>
                       {ht === null ? <div className="tq-ghi">Đang tải…</div>
                         : ht.length ? (
                           <div className="vd-ht">
