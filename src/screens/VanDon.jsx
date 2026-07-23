@@ -49,7 +49,7 @@ export default function VanDon() {
 
   const taiDiem = async () => {
     const [a, b] = await Promise.all([
-      sb.rpc('fn_vd_diem_chua_map'),
+      sb.rpc('fn_vd_ten_la'),
       sb.from('cua_hang').select('ma_ch, ten').or('ma_ch.like.CH%,ma_ch.like.DB%')
         .eq('hoat_dong', true).order('ten'),
     ]);
@@ -98,11 +98,11 @@ export default function VanDon() {
     setTxtHoc(''); tai(); taiDiem();
   };
 
-  const ganDiem = async (ma_diem, ma_ch) => {
+  const ganDiem = async (ten, ma_ch) => {
     if (!ma_ch) return;
-    const { error } = await sb.rpc('fn_vd_gan_diem', { p_ma_diem: ma_diem, p_ma_ch: ma_ch });
+    const { data, error } = await sb.rpc('fn_vd_gan_ten_ch', { p_ten: ten, p_ma_ch: ma_ch });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast('Đã gán ' + ma_diem);
+    baoToast(`Đã gán ${data ?? 0} đơn cho cửa hàng này`);
     tai(); taiDiem();
   };
 
@@ -194,30 +194,27 @@ export default function VanDon() {
               </button>
             </div>
             <div>
-              <div className="tq-card-tit">2 · Dạy hệ thống nhận diện cửa hàng</div>
-              <div className="tq-ghi" style={{ marginBottom: 6 }}>
-                GHTK không trả tên nơi nhận, nhưng mã đơn có chứa mã điểm giao cố định.
-                Dán từ file kho: <b>mã đơn</b> và <b>tên cửa hàng</b> trên cùng một dòng — chỉ cần làm một lần.
+              <div className="tq-card-tit">2 · Nhận diện cửa hàng</div>
+              <div className="tq-ghi">
+                Hệ thống <b>tự đọc nhãn giao hàng</b> của GHTK (mục "Người nhận") để biết đơn đi cửa hàng nào —
+                chạy tự động mỗi giờ, không cần thao tác.
+                <br /><br />
+                Mã đơn <b>không</b> dùng để nhận diện: phần giữa mã là <b>mã tuyến giao</b>,
+                một tuyến phục vụ nhiều cửa hàng (đã kiểm chứng trên 3.334 đơn thật — sai tới 12,5%).
               </div>
-              <textarea className="flt-in vd-ta" rows={5} value={txtHoc}
-                onChange={(e) => setTxtHoc(e.target.value)}
-                placeholder={'S22987195.MN13-09-D00.1987295283\tAGG Cái Dầu (Cửa Hàng Nón Sơn)'} />
-              <button className="btn btn-ai" onClick={hocDiem} disabled={dangCC} style={{ marginTop: 8 }}>
-                {dangCC ? 'Đang xử lý…' : 'Học ánh xạ'}
-              </button>
             </div>
           </div>
 
           {diem.length > 0 && (
             <div style={{ marginTop: 16 }}>
-              <div className="tq-card-tit">Điểm giao chưa nhận diện · {diem.length}</div>
+              <div className="tq-card-tit">Tên trên nhãn chưa khớp cửa hàng nào · {diem.length}</div>
               <div className="vd-diem-luoi">
                 {diem.map((d) => (
-                  <div key={d.ma_diem} className="vd-diem-o">
-                    <div className="mono vd-diem-ma">{d.ma_diem}</div>
+                  <div key={d.ten_nhan} className="vd-diem-o">
+                    <div className="vd-diem-ma">{d.ten_nhan}</div>
                     <div className="tq-ghi">{d.so_don} đơn</div>
                     <select className="flt-in" defaultValue=""
-                      onChange={(e) => ganDiem(d.ma_diem, e.target.value)}>
+                      onChange={(e) => ganDiem(d.ten_nhan, e.target.value)}>
                       <option value="">— chọn cửa hàng —</option>
                       {dsCH.map((c) => <option key={c.ma_ch} value={c.ma_ch}>{c.ten}</option>)}
                     </select>
