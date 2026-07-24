@@ -8,6 +8,7 @@ const CO_TEN = { KHO_CON: 'kho còn, nơi bán hết', SAP_HET: 'sắp hết', N
 const fmtTr = (n) => { const v = Number(n) || 0; return v >= 1e6 ? (v / 1e6).toFixed(v % 1e6 ? 1 : 0).replace('.', ',') + ' triệu' : fmtN(v); };
 
 /* Ảnh sản phẩm: rê chuột phóng to, bấm xem toàn màn hình */
+const THU = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 const fmtNgay = (d) => d ? String(d).slice(8, 10) + '/' + String(d).slice(5, 7) : '—';
 
 function AnhSP({ url, ten, onMo }) {
@@ -230,10 +231,16 @@ export default function Dashboard({ chonTab = () => {} }) {
           <div className="tq-lon-so">{fmtN(bg?.nay?.tong ?? hn.tong)}<i>sp</i></div>
           {bg?.theo_gio
             ? <Delta nay={bg.nay.tong} truoc={bg.truoc.tong} nhan={`so cùng thứ tuần trước · đến ${bg.gio}`} />
-            : <Delta nay={bg?.nay?.tong ?? hn.tong} truoc={bg ? bg.truoc.tong : ct.tb} nhan="so cùng thứ tuần trước" />}
+            : bg && bg.truoc.tong > 0
+              ? <div className="tq-ghi" style={{ marginTop: 3 }}>
+                  {THU[new Date().getDay()]} tuần trước cả ngày: <b style={{ color: 'var(--ink)' }}>{fmtN(bg.truoc.tong)}</b> sp
+                </div>
+              : null}
           <div className="tq-tach">
-            <span><b>{fmtN(bg?.nay?.bh ?? hn.bh)}</b> mũ bảo hiểm <Delta nay={bg?.nay?.bh ?? hn.bh} truoc={bg ? bg.truoc.bh : ct.tb_bh} nhan="" /></span>
-            <span><b>{fmtN(bg?.nay?.nv ?? hn.nv)}</b> nón vải <Delta nay={bg?.nay?.nv ?? hn.nv} truoc={bg ? bg.truoc.nv : ct.tb_nv} nhan="" /></span>
+            <span><b>{fmtN(bg?.nay?.bh ?? hn.bh)}</b> mũ bảo hiểm
+              {bg?.theo_gio && <Delta nay={bg.nay.bh} truoc={bg.truoc.bh} nhan="" />}</span>
+            <span><b>{fmtN(bg?.nay?.nv ?? hn.nv)}</b> nón vải
+              {bg?.theo_gio && <Delta nay={bg.nay.nv} truoc={bg.truoc.nv} nhan="" />}</span>
           </div>
         </div>
 
@@ -375,14 +382,15 @@ export default function Dashboard({ chonTab = () => {} }) {
                   <div key={r.barcode} className="mm-o" onClick={() => xemPhanBo(r)}
                     title="Bấm xem bán và tồn theo từng cửa hàng">
                     <div className="mm-toc"><b>{r.toc_do}</b><span>sp/ngày</span></div>
-                    <div className="mm-anh">
-                      <AnhSP url={r.hinh_url} ten={r.ten_sp || r.sku} onMo={() => xemPhanBo(r)} />
+                    <div className="mm-anh" onClick={(e) => e.stopPropagation()}>
+                      <AnhSP url={r.hinh_url} ten={r.ten_sp || r.sku} onMo={(u, t) => setAnh({ u, t })} />
                     </div>
                     <div className="mm-tt">
                       <div className="mm-ten">{r.ten_sp || r.sku || r.barcode}</div>
                       <ul className="mm-ds">
                         <li>Ra mắt: <b>{r.tuoi_ngay}</b> ngày</li>
-                        <li>Tồn kho <b>{fmtN(r.ton_kho)}</b> · Tồn CH <b>{fmtN(r.ton)}</b></li>
+                        <li>Tồn kho <b>{fmtN(r.ton_kho)}</b></li>
+                        <li>Tồn cửa hàng <b>{fmtN(r.ton)}</b></li>
                         <li>Đang có ở <b>{r.so_noi_co}</b> CH</li>
                       </ul>
                     </div>
