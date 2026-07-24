@@ -1,96 +1,71 @@
-# NS FLOW — Chia hàng & điều phối hàng hóa Nón Sơn
+# ĐIỀU PHỐI HÀNG HÓA — Nón Sơn
 
-Nền tảng thay quy trình chia hàng thủ công theo *Kế hoạch triển khai hệ thống đề nghị
-và điều chuyển hàng hóa*: cửa hàng **chủ động lập Phiếu đề nghị hàng hóa** theo **lịch
-cố định**, hai trưởng ca cùng xác nhận, engine Postgres tính số đề xuất (7 lớp, giải
-thích từng dòng), điều phối **kiểm soát ngược & can thiệp khi có cảnh báo** (không còn
-duyệt từng đơn), kho tổng xử lý theo nhịp ngày làm việc, file Odoo sinh tự động, theo
-dõi GHTK đến khi cửa hàng xác nhận nhận.
-**SLA cứng: gửi hôm nay — kho bàn giao vận chuyển trong ngày làm việc kế tiếp**
-(T6 → trưa T7 · T7/CN → gom xử lý T2).
+Hệ thống điều phối hàng hóa cho chuỗi ~220 nơi bán (168 cửa hàng CH + 36 điểm bán DB)
+của Nón Sơn. Cửa hàng chủ động đề nghị hàng theo lịch cố định, engine Postgres tính số
+đề xuất, điều phối kiểm soát ngược và can thiệp khi có cảnh báo, kho xuất hàng qua Odoo,
+đơn vị vận chuyển giao tới nơi — toàn bộ chuỗi được theo dõi trong một ứng dụng.
+
+*(Tên cũ **NS FLOW** đã bỏ.)*
 
 ## Kiến trúc
+
+| Thành phần | Công nghệ |
+|---|---|
+| Giao diện | React + Vite, PWA, chạy trên GitHub Pages |
+| Dữ liệu | Supabase (PostgreSQL), schema `chiahang` |
+| Đồng bộ | Google Apps Script đọc Google Sheets → Supabase (chạy mỗi giờ) |
+| Vận đơn | Giao Hàng Tiết Kiệm — webhook + Edge Function `ghtk-webhook` / `ghtk-quet` / `ghtk-nhan` |
+| Xuất kho | File Excel nạp vào Odoo, mã đơn `NS-{id}` |
+
+Toàn bộ nghiệp vụ nặng nằm trong hàm PostgreSQL (`fn_*`), giao diện chỉ gọi RPC.
+
+## Màn hình
+
+Tổng quan · Đề nghị hàng · Duyệt · Kho · Lịch đề nghị & Điều chuyển kho · Chia hàng mới ·
+Giám sát thiếu hàng · Chất lượng đề nghị · Yêu cầu điều phối · Vận đơn · Hàng đặc biệt ·
+Theo dõi online · Báo cáo · Đối soát · Đấu trường · Tham số.
+
+## Quy tắc nghiệp vụ bất di bất dịch
+
+1. **Không hiển thị doanh thu** ở bất kỳ đâu — chỉ số lượng sản phẩm. Giá niêm yết được
+   phép hiện để phân loại hàng, nhưng không cộng thành giá trị tồn kho.
+2. Ngành **phụ kiện** bị loại khỏi mọi tính toán tổng quan.
+3. **Nơi bán = CH + DB**. Đội sale (DO), kho vùng (KV), kho tổng (TP/SA), kho phụ kiện (PK)
+   không phải nơi bán — mọi hàm và mọi lượt đồng bộ phải nhận cả CH lẫn DB.
+4. Phiếu khẩn cấp (KC) **không tính tuân thủ lịch**, chỉ phiếu định kỳ (DK) mới tính.
+5. Đơn "Chưa chuyển" là **nháp**, không tính là đã gửi; tính từ "Chờ xét duyệt" trở đi.
+6. Barcode file bán ≠ barcode file tồn cho cùng sản phẩm — mọi phép so khớp phải là
+   `(barcode = X OR ma_tham_chieu = Y)`.
+7. Trạng thái điều chuyển Odoo chuẩn hóa 6 mức tiếng Việt ở cả Apps Script lẫn giao diện.
+
+## Thư mục
+
 ```
-Google Sheets (THÁNG x, Dự án SP - Phân tích)
-   │ Apps Script (gas/SyncNSFlow.gs) — mỗi 60 phút, delta theo watermark
-   ▼
-Supabase (project riêng, schema chiahang)
-   ├─ migrations/001→009: bảng + engine + lịch cố định + auth phiên + RPC + cron
-   ├─ Edge Functions: ghtk-tracking · push-notify (tùy chọn)
-   ▼
-PWA Vite + React (GitHub Pages, repo này) — build tự động bằng GitHub Actions
-```
-
-## Triển khai lần đầu (thứ tự bắt buộc)
-
-**1. Supabase** — tạo project mới (Pro, region Singapore/Sydney):
-- SQL Editor: chạy lần lượt `supabase/migrations/001 → 009`.
-  - `008_lich_v2.sql`: lịch cố định, phiên đăng nhập (token), 2 trưởng ca xác nhận,
-    vai trò KHO, deadline theo ngày làm việc, cảnh báo tuân thủ, KPI.
-  - `009_engine_v2.sql`: engine tính chu kỳ theo lịch thật + gợi ý hàng kho tổng đang sẵn.
-- Database → Extensions: bật `pg_cron` (trước khi chạy phần cron cuối file 003).
-- Settings → API → **Exposed schemas: thêm `chiahang`** (bắt buộc, thiếu là app trắng).
-- Ghi lại `Project URL`, `anon key`, `service_role key`.
-- **Sau khi sync dữ liệu (bước 2)**, điền cột nhóm `cua_hang.nhom_ch` (1/2/3) rồi chạy
-  một lần trong SQL Editor để phân lịch cố định toàn hệ thống:
-  ```sql
-  select chiahang.fn_phan_lich_tu_dong();
-  ```
-  Hàm này ghi đè toàn bộ lịch (N1 chia 3 cụm theo sức bán, N2 rải quota từng thứ,
-  N3 rải chu kỳ 21 ngày né thứ Sáu). Chỉ chạy lại khi cửa hàng đổi nhóm.
-- **Tạo tài khoản trưởng ca** để luồng "2 xác nhận" chạy được — mỗi cửa hàng cần ≥2
-  tài khoản người thật (một tài khoản CH dùng chung không đủ). Trong SQL Editor,
-  với token của admin (lấy từ `fn_dang_nhap`), gọi `fn_them_nguoi_dung(...)` cho từng
-  trưởng ca, hoặc thêm trực tiếp vào `nguoi_dung` (vai_tro `CH`, gắn `ma_ch`).
-
-**2. Apps Script** — project mới, dán `gas/SyncNSFlow.gs`:
-- Script Properties: `SUPABASE_URL`, `SERVICE_KEY` (service_role), `FOLDER_ID`.
-- Chạy `syncTatCa()` lần đầu (cấp quyền Drive khi hỏi) → kiểm tra bảng có dữ liệu.
-- Chạy `setupTriggers()` một lần.
-
-**3. Frontend** — repo GitHub `hanghoa`:
-- Sửa `src/config.js`: điền `SUPABASE_URL` + `SUPABASE_ANON`.
-- Push toàn bộ repo lên branch `main`.
-- Settings → Pages → Source: **GitHub Actions**. Workflow tự build + deploy.
-- App chạy tại `https://baohan2909.github.io/hanghoa/`.
-
-**4. GHTK (Phase vận chuyển)**:
-```
-supabase functions deploy ghtk-tracking
-supabase secrets set GHTK_TOKEN=<token> SB_URL=<project url> SB_SERVICE_KEY=<service_role>
+src/
+  App.jsx            khung, menu, phân quyền, cơ chế tự cập nhật
+  config.js          endpoint Supabase + Edge Function
+  lib/               supabase.js · ui.jsx (Sel, DateBox) · icons.jsx · odooExport.js
+  screens/           mỗi màn một file
+  styles.css         toàn bộ giao diện — mỗi class định nghĩa ĐÚNG MỘT LẦN
 ```
 
-**5. Push (tùy chọn)**: `npx web-push generate-vapid-keys` → set secrets → deploy `push-notify`.
+**Không có trong repo này** (repo công khai — không để lộ cấu trúc dữ liệu):
+migration SQL và mã Google Apps Script được giữ riêng ngoài repo.
 
-## Tài khoản
-| Mã | Vai trò | Mật khẩu mặc định |
-|---|---|---|
-| `NS00490` | ADMIN | `Ns280396` |
-| `DIEUPHOI` | DIEU_PHOI | `Ns280396` |
-| `KHOTONG` | KHO (kho tổng) | `Ns280396` |
-| Mã CH (tự sinh khi sync) | CH | `Ns280396` |
-| Mã trưởng ca (admin tạo) | CH | `Ns280396` |
+## Quy ước phát triển
 
-Đổi mật khẩu trong màn **Tham số** (admin) — mật khẩu lưu bcrypt, bảng `nguoi_dung`
-không cho đọc trực tiếp qua API.
+- **Migration SQL đánh số tăng dần**, chạy đúng thứ tự, chạy lại nhiều lần không hỏng.
+- Đổi kiểu trả về của hàm thì phải `drop function` trước khi tạo lại.
+- Bảng mới cho Apps Script ghi vào thì phải `grant all to service_role`.
+- Mỗi class CSS chỉ được định nghĩa một lần — `grep -c "^\.ten-class {"` phải bằng 1.
+- Bump `version` trong `package.json` mỗi lần phát hành, rồi vào **Tham số → Phát hành**
+  để các máy đang mở nhận thông báo cập nhật.
+- **Migration SQL và Apps Script KHÔNG nằm trong repo này** — repo công khai, không
+  để lộ tên bảng, cấu trúc hàm và logic nghiệp vụ. Hai thứ này giữ riêng bên ngoài.
 
-## File Odoo
-Cấu trúc cột nằm ở tham số `odoo_mapping` (màn Tham số) — khi có file mẫu Odoo
-chính thức, sửa mapping JSON tại đó, **không cần sửa code**.
+## Phát hành
 
-## Vòng đời đơn
-`GUI → DUYET → XUAT_FILE → LEN_ODOO → KHO_LAY → BAN_GIAO_VC → DANG_GIAO → DA_NHAN`
-Mỗi bước ghi audit log (`lich_su_trang_thai`). pg_cron quét SLA mỗi 30 phút,
-ghi `canh_bao` cho đơn quá hạn + cửa hàng quá lịch xin hàng.
-
-## Engine gợi ý (fn_goi_y_chia_hang) — 7 lớp
-1. Làm sạch: net trả hàng, khoảng [đơn gần nhất → hôm qua].
-2. Phân loại SKU×CH: đủ dữ liệu / mỏng / hàng mới / không bán / đứt hàng giữa kỳ.
-3. Tốc độ: censored (chia số ngày CÓ hàng, từ `het_hang_log`), shrinkage về nhóm
-   ngành cấp 3 khi số nhỏ, hàng mới mượn tốc độ nhóm × hệ số.
-4. Nhu cầu: `v × (chu kỳ + lead time) + z × sigma × sqrt(chu kỳ + lead time)`.
-5. Đề xuất: trừ tồn dự tính (đã gồm đi đường), co tỷ lệ nếu tổng ngành vượt trần định mức.
-6. Số nhỏ: bán hết → tối thiểu `min_display`.
-7. Reason codes trên từng dòng — nhân viên thấy vì sao AI đề xuất số đó.
-
-Mọi hệ số là tham số trong bảng `tham_so`, chỉnh trong app, hiệu lực ngay.
+1. Chạy các file SQL còn thiếu trong Supabase, theo thứ tự số (file giữ ngoài repo).
+2. Đẩy code lên nhánh chính, chờ GitHub Actions build xong.
+3. Vào **Tham số → Phát hành**, nhập số phiên bản. Máy cửa hàng đang mở sẽ hiện lời mời
+   cập nhật, và **không tự tải lại khi nhân viên đang nhập dở**.

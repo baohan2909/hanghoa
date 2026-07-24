@@ -1,23 +1,25 @@
-import { useEffect, useState, createContext, useContext, Component } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense, createContext, useContext, Component } from 'react';
 import { sb } from './lib/supabase.js';
 import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy } from './lib/icons.jsx';
 import Login from './screens/Login.jsx';
-import Dashboard from './screens/Dashboard.jsx';
-import ChatLuongDN from './screens/ChatLuongDN.jsx';
 import XinHang from './screens/XinHang.jsx';
-import Duyet from './screens/Duyet.jsx';
-import Kho from './screens/Kho.jsx';
-import Lich from './screens/Lich.jsx';
-import DauTruong from './screens/DauTruong.jsx';
-import GiamSat from './screens/GiamSat.jsx';
-import ChiaHangMoi from './screens/ChiaHangMoi.jsx';
-import DacBiet from './screens/DacBiet.jsx';
-import TheoDoiOnline from './screens/TheoDoiOnline.jsx';
-import VanDon from './screens/VanDon.jsx';
-import BaoCao from './screens/BaoCao.jsx';
-import ThamSo from './screens/ThamSo.jsx';
-import DoiSoat from './screens/DoiSoat.jsx';
-import YeuCauDieuPhoi from './screens/YeuCauDieuPhoi.jsx';
+
+// Màn ít dùng / nặng: tải khi mở, giữ lần tải đầu nhẹ cho máy cửa hàng
+const Kho = lazy(() => import('./screens/Kho.jsx'));
+const Duyet = lazy(() => import('./screens/Duyet.jsx'));
+const Dashboard = lazy(() => import('./screens/Dashboard.jsx'));
+const Lich = lazy(() => import('./screens/Lich.jsx'));
+const DauTruong = lazy(() => import('./screens/DauTruong.jsx'));
+const GiamSat = lazy(() => import('./screens/GiamSat.jsx'));
+const DacBiet = lazy(() => import('./screens/DacBiet.jsx'));
+const TheoDoiOnline = lazy(() => import('./screens/TheoDoiOnline.jsx'));
+const VanDon = lazy(() => import('./screens/VanDon.jsx'));
+const BaoCao = lazy(() => import('./screens/BaoCao.jsx'));
+const ThamSo = lazy(() => import('./screens/ThamSo.jsx'));
+const DoiSoat = lazy(() => import('./screens/DoiSoat.jsx'));
+const YeuCauDieuPhoi = lazy(() => import('./screens/YeuCauDieuPhoi.jsx'));
+const ChatLuongDN = lazy(() => import('./screens/ChatLuongDN.jsx'));
+const ChiaHangMoi = lazy(() => import('./screens/ChiaHangMoi.jsx'));
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
@@ -76,6 +78,16 @@ export default function App() {
   const [choXuLy, setChoXuLy] = useState(0);
   const [moMenu, setMoMenu] = useState(false);
   const [caiApp, setCaiApp] = useState(null);       // sự kiện cài PWA (nếu trình duyệt hỗ trợ)
+  const [banMoi, setBanMoi] = useState(null);       // {ban, bat_buoc, ghi_chu} — bản phát hành mới
+  const [dem, setDem] = useState(null);            // đếm ngược tự cập nhật (giây), null = không đếm
+  const banRef = useRef(new Set());                // các màn đang có thao tác dở
+  const [dangBan, setDangBan] = useState(false);
+  // Màn con gọi: datBan('xinhang', true/false) khi bắt đầu / kết thúc việc dở.
+  const datBan = (id, ban) => {
+    const s = banRef.current;
+    if (ban) s.add(id); else s.delete(id);
+    setDangBan(s.size > 0);
+  };
 
   useEffect(() => { document.title = `Điều phối hàng hóa — Nón Sơn · v${__APP_VERSION__}`; }, []);
 
@@ -93,6 +105,41 @@ export default function App() {
 
   const baoToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
   const dangXuat = () => { localStorage.removeItem('nsflow_user'); localStorage.removeItem('nsflow_login_at'); setUser(null); };
+
+  // ===== TỰ CẬP NHẬT =====
+  // Admin phát hành ở màn Tham số -> mọi máy nhận realtime -> hiện thanh mời cập nhật.
+  // TUYỆT ĐỐI không tự tải lại khi người dùng đang thao tác dở (dangBan).
+  useEffect(() => {
+    if (!user) return;
+    const soanh = (d) => {
+      if (!d || !d.ban || d.ban === __APP_VERSION__) { setBanMoi(null); return; }
+      setBanMoi({ ban: d.ban, bat_buoc: !!d.bat_buoc, ghi_chu: d.ghi_chu || '' });
+    };
+    const hoi = () => sb.rpc('fn_phien_ban').then(({ data }) => soanh(data), () => {});
+    hoi();
+    const ch = sb.channel('phien_ban').on('postgres_changes',
+      { event: 'INSERT', schema: 'chiahang', table: 'phien_ban' }, hoi).subscribe();
+    const t = setInterval(hoi, 15 * 60000);          // lưới an toàn nếu realtime rớt
+    const khiHien = () => { if (document.visibilityState === 'visible') hoi(); };
+    document.addEventListener('visibilitychange', khiHien);
+    return () => { sb.removeChannel(ch); clearInterval(t); document.removeEventListener('visibilitychange', khiHien); };
+  }, [user]);
+
+  // Đổi URL để bỏ qua bản HTML còn nằm trong bộ nhớ đệm của trình duyệt.
+  const capNhatNgay = () => location.replace(location.pathname + '?v=' + encodeURIComponent(banMoi?.ban || Date.now()));
+
+  // Rảnh tay thì đếm ngược rồi tự cập nhật; đang làm dở thì dừng đếm ngay.
+  useEffect(() => {
+    if (!banMoi) { setDem(null); return; }
+    if (dangBan) { setDem(null); return; }
+    setDem(banMoi.bat_buoc ? 20 : 60);
+    const t = setInterval(() => setDem((v) => {
+      if (v === null) return null;
+      if (v <= 1) { clearInterval(t); capNhatNgay(); return 0; }
+      return v - 1;
+    }), 1000);
+    return () => clearInterval(t);
+  }, [banMoi, dangBan]);
 
   // Nhịp tim: báo online + màn đang xem, mỗi 60s. Cũng gửi ngay khi đổi màn.
   useEffect(() => {
@@ -201,7 +248,7 @@ export default function App() {
   );
 
   return (
-    <Ctx.Provider value={{ user, baoToast, dangXuat }}>
+    <Ctx.Provider value={{ user, baoToast, dangXuat, datBan }}>
       <div className="ws">
         {sidebar}
         {moMenu && <div className="m-cover" onClick={() => setMoMenu(false)} />}
@@ -215,9 +262,30 @@ export default function App() {
             <div className="t">ĐIỀU PHỐI HÀNG HÓA</div>
           </div>
           <main className="main">
-            <ErrBound key={tab}><Screen chonTab={chonTab} /></ErrBound>
+            <ErrBound key={tab}><Suspense fallback={<div className="card" style={{ padding: 34, textAlign: 'center', color: 'var(--ink-2)' }}>Đang mở màn hình…</div>}>
+              <Screen chonTab={chonTab} />
+            </Suspense></ErrBound>
           </main>
         </div>
+        {banMoi && (
+          <div className={'capnhat-bar' + (banMoi.bat_buoc ? ' bb' : '')} role="status">
+            <span className="cn-ic" aria-hidden="true">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20V5M6 11l6-6 6 6" /></svg>
+            </span>
+            <div className="cn-txt">
+              <b>Đã có bản mới {banMoi.ban}</b>
+              <small>
+                {dangBan ? 'Làm xong việc đang dở rồi cập nhật — số đang nhập vẫn được giữ'
+                  : dem !== null ? `Tự cập nhật sau ${dem} giây`
+                  : (banMoi.ghi_chu || 'Cập nhật để dùng tính năng mới nhất')}
+              </small>
+            </div>
+            <button className="btn btn-hd cn-nut" onClick={capNhatNgay}>Cập nhật ngay</button>
+            {!banMoi.bat_buoc && <button className="cn-sau" onClick={() => setBanMoi(null)}>Để sau</button>}
+          </div>
+        )}
         {toast && <div className="toast" role="status">{toast}</div>}
       </div>
     </Ctx.Provider>

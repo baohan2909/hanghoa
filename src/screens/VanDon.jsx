@@ -53,6 +53,9 @@ export default function VanDon() {
   const [sort, setSort] = useState({ c: 'action_time', d: 'desc' });
   const [mo, setMo] = useState(null);
   const [ht, setHt] = useState(null);
+  const [nd, setNd] = useState(null);      // nội dung chuyến: phiếu + hàng
+  const [goiY, setGoiY] = useState(null);  // 'dang' | [phiếu gợi ý]
+  const [chon, setChon] = useState({});   // ma_phieu -> true khi gán tay
   const [quet, setQuet] = useState(false);
   const [lanCuoi, setLanCuoi] = useState(null);
   const [moCC, setMoCC] = useState(false);
@@ -99,10 +102,39 @@ export default function VanDon() {
   useEffect(() => { if (moCC) taiDiem(); }, [moCC]);   // eslint-disable-line
 
   const xoHT = async (r) => {
-    if (mo === r.label_id) { setMo(null); setHt(null); return; }
-    setMo(r.label_id); setHt(null);
-    const { data } = await sb.rpc('fn_vd_hanh_trinh', { p_label: r.label_id });
-    setHt(data || []);
+    if (mo === r.label_id) { setMo(null); setHt(null); setNd(null); setGoiY(null); return; }
+    setMo(r.label_id); setHt(null); setNd(null); setGoiY(null); setChon({});
+    const [a, b] = await Promise.all([
+      sb.rpc('fn_vd_hanh_trinh', { p_label: r.label_id }),
+      sb.rpc('fn_vd_noi_dung', { p_label: r.label_id }),
+    ]);
+    setHt(a.data || []);
+    setNd(b.data || { so_phieu: 0, phieu: [], hang: [] });
+  };
+
+  // ===== ĐẤU NỐI VẬN ĐƠN <-> PHIẾU =====
+  const moGoiY = async (label) => {
+    setGoiY('dang');
+    const { data, error } = await sb.rpc('fn_vd_phieu_goi_y', { p_label: label, p_ngay: 3 });
+    if (error) { baoToast('Lỗi: ' + error.message); setGoiY(null); return; }
+    setGoiY(data || []);
+  };
+  const luuGan = async (label) => {
+    const ds = Object.keys(chon).filter((k) => chon[k]);
+    if (!ds.length) { baoToast('Chưa chọn phiếu nào'); return; }
+    const { error } = await sb.rpc('fn_vd_ghep_tay', { p_label: label, p_phieu: ds });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã gắn ${ds.length} phiếu vào chuyến này`);
+    setGoiY(null); setChon({});
+    const { data } = await sb.rpc('fn_vd_noi_dung', { p_label: label });
+    setNd(data || null);
+  };
+  const goPhieu = async (label, ma_phieu) => {
+    const { error } = await sb.rpc('fn_vd_go_ghep', { p_label: label, p_ma_phieu: ma_phieu });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast('Đã gỡ phiếu khỏi chuyến — hệ thống sẽ không tự nối lại');
+    const { data } = await sb.rpc('fn_vd_noi_dung', { p_label: label });
+    setNd(data || null);
   };
 
   const goi = async (url, payload) => {
@@ -427,22 +459,109 @@ export default function VanDon() {
                   </tr>
                   {mo === r.label_id && (
                     <tr className="cl-xo"><td colSpan={10}>
-                      <div className="cl-nhom-tit">Hành trình {r.label_id}
-                        {(r.ten_ch || r.ten_nhan) ? ' — ' + (r.ten_ch || tenGon(r.ten_nhan)) : ''}</div>
-                      {ht === null ? <div className="tq-ghi">Đang tải…</div>
-                        : ht.length ? (
-                          <div className="vd-ht">
-                            {ht.map((h, i) => (
-                              <div key={i} className={'vd-ht-b' + (i === ht.length - 1 ? ' cuoi' : '')}>
-                                <span className="vd-ht-cham" />
-                                <div>
-                                  <div className="vd-ht-tt">{h.status_text}</div>
-                                  <div className="tq-ghi">{fmtGio(h.action_time)}{h.ly_do ? ' · ' + h.ly_do : ''}</div>
-                                </div>
+                      <div className="vd-xo2">
+                        <div>
+                          <div className="cl-nhom-tit">Hành trình {r.label_id}
+                            {(r.ten_ch || r.ten_nhan) ? ' — ' + (r.ten_ch || tenGon(r.ten_nhan)) : ''}</div>
+                          {ht === null ? <div className="tq-ghi">Đang tải…</div>
+                            : ht.length ? (
+                              <div className="vd-ht">
+                                {ht.map((h, i) => (
+                                  <div key={i} className={'vd-ht-b' + (i === ht.length - 1 ? ' cuoi' : '')}>
+                                    <span className="vd-ht-cham" />
+                                    <div>
+                                      <div className="vd-ht-tt">{h.status_text}</div>
+                                      <div className="tq-ghi">{fmtGio(h.action_time)}{h.ly_do ? ' · ' + h.ly_do : ''}</div>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        ) : <div className="tq-ghi">Chưa ghi nhận chặng nào cho đơn này.</div>}
+                            ) : <div className="tq-ghi">Chưa ghi nhận chặng nào cho đơn này.</div>}
+                        </div>
+
+                        <div>
+                          <div className="cl-nhom-tit">Trong chuyến này</div>
+                          {nd === null ? <div className="tq-ghi">Đang tải…</div> : (
+                            <>
+                              {nd.so_phieu > 0 && (
+                                <>
+                                  <div className="vd-nd-tk">
+                                    <div className="vd-nd-o"><b>{nd.so_phieu}</b><span>phiếu</span></div>
+                                    <div className="vd-nd-o"><b>{nd.so_ma}</b><span>mã hàng</span></div>
+                                    <div className="vd-nd-o"><b>{fmtN(nd.so_sp)}</b><span>sản phẩm</span></div>
+                                  </div>
+                                  <div className="vd-nd-ph">
+                                    {(nd.phieu || []).map((p) => (
+                                      <div key={p.ma_phieu} className="vd-nd-p">
+                                        <span className="mono vd-nd-mp">{p.ma_phieu}</span>
+                                        <span className={'dck-tt ' + (p.trang_thai === 'Đã nhận' ? 'dck-nhan' : 'dck-xuat')}>{p.trang_thai}</span>
+                                        <span className="tq-ghi">{p.so_ma} mã · {fmtN(p.sl_nhu_cau)} sp
+                                          {p.do_tin === 'TAY' ? ' · gán tay' : p.do_tin === 'TRUNG' ? ' · lệch 1 ngày' : ''}</span>
+                                        <button className="btn-mini" onClick={() => goPhieu(r.label_id, p.ma_phieu)}>Gỡ</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="vd-nd-hang">
+                                    <table className="tbl tbl-fit">
+                                      <thead><tr><th></th><th>Mã hàng</th><th>Tên sản phẩm</th><th className="num">SL</th><th className="num">Đã nhập</th></tr></thead>
+                                      <tbody>
+                                        {(nd.hang || []).map((h) => (
+                                          <tr key={h.barcode}>
+                                            <td style={{ width: 40 }}>
+                                              {h.hinh_url
+                                                ? <img className="tqa" src={h.hinh_url} alt="" loading="lazy"
+                                                    onError={(e) => { e.target.style.visibility = 'hidden'; }} />
+                                                : <span className="tqa tqa-trong" />}
+                                            </td>
+                                            <td className="mono" style={{ fontSize: 11 }}>{h.ma_tham_chieu || h.barcode}</td>
+                                            <td style={{ fontSize: 12 }}>{h.ten_sp}</td>
+                                            <td className="num" style={{ fontWeight: 700 }}>{fmtN(h.sl)}</td>
+                                            <td className="num" style={{ color: Number(h.sl_nhan) >= Number(h.sl) ? 'var(--teal-deep)' : 'var(--ink-2)' }}>{fmtN(h.sl_nhan)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </>
+                              )}
+
+                              {nd.so_phieu === 0 && goiY === null && (
+                                <div className="vd-nd-trong">
+                                  <div className="tq-ghi">Chưa rõ chuyến này chở phiếu nào.</div>
+                                  <button className="btn btn-ghost" onClick={() => moGoiY(r.label_id)}>Chọn phiếu</button>
+                                </div>
+                              )}
+                              {nd.so_phieu > 0 && goiY === null && (
+                                <button className="btn-mini vd-them-ph" onClick={() => moGoiY(r.label_id)}>+ Gắn thêm phiếu</button>
+                              )}
+
+                              {goiY === 'dang' && <div className="tq-ghi">Đang tìm phiếu phù hợp…</div>}
+                              {Array.isArray(goiY) && (
+                                <div className="vd-gan">
+                                  <div className="tq-ghi" style={{ marginBottom: 6 }}>
+                                    Phiếu của cửa hàng này xuất trong khoảng ±3 ngày quanh ngày lấy hàng:
+                                  </div>
+                                  {goiY.length === 0 && <div className="tq-ghi">Không tìm thấy phiếu nào phù hợp.</div>}
+                                  {goiY.map((g) => (
+                                    <label key={g.ma_phieu} className={'vd-gan-d' + (g.da_gan ? ' da' : '')}>
+                                      <input type="checkbox" disabled={g.da_gan}
+                                        checked={!!chon[g.ma_phieu]}
+                                        onChange={(e) => setChon((c) => ({ ...c, [g.ma_phieu]: e.target.checked }))} />
+                                      <span className="mono vd-nd-mp">{g.ma_phieu}</span>
+                                      <span className="tq-ghi">xuất {fmtNg(g.ngay_xuat)} · {g.so_ma} mã · {fmtN(g.sl_nhu_cau)} sp
+                                        {g.da_gan ? ' · đã thuộc chuyến khác' : ''}</span>
+                                    </label>
+                                  ))}
+                                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                    <button className="btn btn-ai" onClick={() => luuGan(r.label_id)}>Xác nhận</button>
+                                    <button className="btn btn-ghost" onClick={() => { setGoiY(null); setChon({}); }}>Đóng</button>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </td></tr>
                   )}
                 </Fragment>

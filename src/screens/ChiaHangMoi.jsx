@@ -15,12 +15,19 @@ const dongMoi = () => ({ id: seq++, q: '', goiY: [], sp: null, nganh3: '',
   qTC: '', goiYTC: [], thamChieu: null, tong: '', ct: null, batchId: null, moRong: true });
 
 export default function ChiaHangMoi() {
-  const { user, baoToast } = useApp();
+  const { user, baoToast, datBan } = useApp();
   const [dsNganh3, setDsNganh3] = useState([]);
   const [dong, setDong] = useState([dongMoi()]);
   const [busy, setBusy] = useState(false);
   const [khoMap, setKhoMap] = useState({});
   const timRef = useRef({});
+
+  // Báo cho App biết đang chia dở -> không tự cập nhật phiên bản giữa chừng
+  useEffect(() => {
+    const co = dong.some((d) => d.sp || d.thamChieu || String(d.tong || '').trim() || d.ct);
+    datBan?.('chiamoi', co);
+    return () => datBan?.('chiamoi', false);
+  }, [dong]);   // eslint-disable-line
 
   const [tenCH, setTenCH] = useState({});
   useEffect(() => {

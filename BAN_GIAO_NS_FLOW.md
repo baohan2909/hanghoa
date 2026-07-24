@@ -1,146 +1,120 @@
-# BÀN GIAO — NS FLOW (chiahang)
+# BÀN GIAO PHIÊN LÀM VIỆC — ĐIỀU PHỐI HÀNG HÓA
 
-## NHẬT KÝ NỐI TIẾP
+> Cập nhật: 24/07/2026 · App **v3.40.1** · Apps Script **v3.24.2** · SQL đã chạy tới **128**
 
-### Phiên 1 — 11/07/2026 — Build toàn bộ 4 phase v1.0.0
+## 0. Cách làm việc
 
-**Quyết định kiến trúc đã chốt (Aroma giao toàn quyền):**
-- Supabase **project riêng**, schema `chiahang` (tách khỏi chamcong; PostgREST cần
-  thêm `chiahang` vào Exposed schemas; GAS/Edge dùng header `Accept-Profile`/`Content-Profile`).
-- Đăng nhập: mã CH / mã quản lý + mật khẩu bcrypt (mặc định `Ns280396`, tài khoản CH
-  tự sinh bằng trigger khi sync cửa hàng). `nguoi_dung` chặn đọc trực tiếp.
-- File Odoo: mapping cột để trong `tham_so.odoo_mapping` → **chờ file mẫu Odoo của anh
-  để tinh chỉnh mapping, không cần sửa code.**
-- `ban_hang` không partition (2 tháng dữ liệu), chống trùng bằng `row_hash` unique.
-  Không đọc/lưu cột thành tiền (nguyên tắc không đụng doanh thu).
-- Frontend Vite + React 19, không thư viện UI ngoài; `xlsx` dynamic import (chunk riêng
-  429KB chỉ tải khi bấm xuất file; bundle chính 127KB gzip).
-- Deploy: GitHub Actions build → Pages (anh chỉ push source, không cần chạy npm local).
+Người dùng là Aroma (NS00490), IT duy nhất của Nón Sơn. Trả lời **100% tiếng Việt**,
+xưng anh/em, ngắn gọn trọng tâm, "nói ít làm nhiều". Anh làm việc chủ yếu trên iPhone.
 
-**Đã hoàn thành:**
-| Hạng mục | Trạng thái |
+Anh giao toàn quyền quyết định kỹ thuật, chỉ hỏi khi mơ hồ cao: **đổi schema, bump
+version, thao tác xóa dữ liệu**. Nhưng khi **đề xuất** thì phải tường tận — nhất là
+thiết kế: nêu rõ tên class, mã màu, kích thước, gradient, hiệu ứng.
+
+## 1. Dự án
+
+- Tên hiển thị **ĐIỀU PHỐI HÀNG HÓA** (tên cũ NS FLOW đã bỏ).
+- Repo GitHub Pages: `hanghoa` (baohan2909.github.io/hanghoa/), React + Vite, PWA.
+- Supabase Pro, schema **`chiahang`** — tuyệt đối không đổi tên schema.
+- Đồng bộ: Google Apps Script đọc Google Sheets → Supabase, chạy mỗi giờ.
+- Mã đơn Odoo: `NS-{id}`. Mã lệnh điều chuyển ngang: `DPyyyymmdd-HHmm`.
+
+## 2. Bảy quy tắc nghiệp vụ bất di bất dịch
+
+1. **Không hiển thị doanh thu** ở bất kỳ đâu — chỉ số lượng sản phẩm. *(Giá niêm yết
+   được phép hiện để phân loại hàng cao cấp; không cộng thành giá trị tồn kho.)*
+2. Ngành **phụ kiện (PK)** loại khỏi mọi tính toán tổng quan.
+3. **Nơi bán = CH (168) + DB (36) = 204.** DO/DOISALE, KV, TP/SA, PK không phải nơi bán.
+   Mọi hàm và mọi lượt đồng bộ phải nhận **cả CH lẫn DB**.
+4. Phiếu **KC không tính tuân thủ lịch**, chỉ DK mới tính. KC vẫn hiện đủ ở Điều chuyển kho.
+5. Đơn **"Chưa chuyển" = nháp**, không tính đã gửi. Tính từ "Chờ xét duyệt" trở đi.
+6. **Barcode file bán ≠ barcode file tồn** → mọi match phải là
+   `(barcode = X OR ma_tham_chieu = Y)`.
+7. **6 trạng thái Odoo** chuẩn hóa 2 lớp (Apps Script + giao diện). Tầng chi tiết (cột S)
+   chỉ dùng tách nhóm "Chưa chuyển" thành: Yêu cầu điều chuyển / Chờ xét duyệt /
+   Bị từ chối / Bị hủy.
+
+## 3. Quy tắc giao diện
+
+- **Header `cmdbar`** nền gradient teal → mọi chữ/nút trong header màu trắng, nút dùng
+  `.btn-hd` (kính mờ). **Cấm** `.btn-ghost` trong header (chữ đen).
+- Lọc/tìm/nút phụ gom vào một hàng **`.toolbar`** riêng, không nhét vào header.
+- **Thẻ chọn**: `.the-g` (button) chứa `.the-g-n` (số 28px) + `.the-g-t` (nhãn + `<small>`),
+  active thêm class `.on` = `var(--grad)` + glow + chữ trắng. Cấm tự chế thẻ phẳng.
+- Dropdown **luôn dùng `Sel`** trong `lib/ui.jsx`, ngày dùng `DateBox`. Cấm `<select>` thô.
+- Nút: `.btn-ai` (gradient + glow) · `.btn-teal` · `.btn-ghost` · `.btn-mini` (trong bảng).
+- Thanh tiến độ: `.kt-info` → `.kt-bar` → `.kt-fill` (glow) → `.kt-song` + `.kt-pct`.
+- Thẻ số lớn `.tq-lon-so` font-mono 42px **màu magenta** — số luôn magenta.
+- Bảng: mọi tiêu đề cột bấm sort được, nội dung ô một dòng không wrap, ngày dd/mm/yyyy.
+- Bảng màu: magenta `#D6006C` · teal `#3FB6A8` · vàng `#CBA45A`. **Không dùng tím.**
+- **Mỗi class CSS định nghĩa đúng một lần** — `grep -c "^\.ten {" src/styles.css` = 1.
+
+## 4. Quy tắc code & giao file
+
+- Code tối thiểu, **sửa phẫu thuật**: không đụng code lân cận, không tiện tay cải tiến.
+  Mỗi dòng sửa truy được về một yêu cầu cụ thể.
+- Anh nêu N vấn đề → sửa đủ N, hoặc lập bảng ✅/⚠️/❌ trung thực.
+- **Chỉ gửi file đã sửa**, không gửi lại toàn repo. Zip đánh số kèm bump `package.json`.
+- **Apps Script VÀ migration SQL đều xuất file riêng**, tuyệt đối không đóng vào repo
+  — repo công khai, không để lộ tên bảng, cấu trúc hàm, logic nghiệp vụ.
+- SQL: đổi kiểu trả về → `drop function` trước. Bảng mới cho Apps Script ghi →
+  `grant all to service_role`. Xóa view/bảng vật chất hóa → đọc `pg_class.relkind` trước.
+- Apps Script: mọi `UrlFetchApp` tới Supabase phải dùng `HEADERS()` (có
+  `Content-Profile: chiahang`) và kiểm `getResponseCode() >= 300`, không nuốt lỗi.
+
+## 5. Trạng thái hiện tại
+
+**Đồng bộ** ổn định. Bug tồn ảo đã đóng, ba gốc: Apps Script gọi RPC thiếu header
+`Content-Profile` (âm thầm vào schema public), chạy chồng (đã khóa `LockService`),
+`fn_don_ton_cu` phải dùng `is distinct from`. Apps Script **không** khử trùng khóa —
+nếu file tồn của IT lại nhân dòng thì lỗi Postgres 21000 tái diễn; dùng `kiemTrungTon.gs`
+để kiểm.
+
+**Vận đơn GHTK**: `customer_fullname` luôn null (GHTK ẩn người nhận qua API), tên cửa
+hàng **chỉ lấy được từ nhãn PDF** — Edge Function `ghtk-nhan` đọc nhãn hàng loạt
+(100 đơn/request, nhận phần số đuôi của mã đơn) rồi bóc chữ bằng `unpdf`. Mã vận đơn
+chứa **mã tuyến**, không phải mã cửa hàng — hướng này đã bị bác bỏ vì sai 12,5%.
+
+**Đã hoàn tất lộ trình v3.37 → v3.40**:
+
+| SQL | Nội dung |
 |---|---|
-| 001–006 migrations (schema, engine 7 lớp, seed+cron, RLS, ảnh batch, RPC bổ sung) | ✅ |
-| Engine: censored demand (het_hang_log), shrinkage nhóm ngành 3, trần định mức ngành, reason codes | ✅ |
-| GAS sync: cửa hàng (map tên→mã), tồn kho 2 sheet, ảnh (old_code/HinhSanPham), bán hàng delta watermark | ✅ |
-| 6 màn hình: Dashboard SLA, Xin hàng, Duyệt (FIFO + xuất Odoo), Chia hàng mới, Vận đơn GHTK, Tham số | ✅ |
-| Edge Functions: ghtk-tracking ✅ · push-notify (cần VAPID keys mới chạy) | ✅ / ⚠️ |
-| Build vite pass, GitHub Actions workflow | ✅ |
-| RBAC chặt theo vai trò trong từng RPC (hiện tin `p_nguoi` từ client — pilot) | ❌ Phase siết |
-| Ưu tiên khi kho thiếu: `fn_uu_tien_phan_bo` có sẵn trong DB, **chưa nối UI** | ⚠️ |
-| Báo cáo lead time xin→nhận (dữ liệu đã ghi đủ mốc, chưa có màn báo cáo) | ⚠️ |
+| 121 | Nối vận đơn ↔ phiếu điều chuyển theo cặp `(ma_ch, ngày)`; bắt phiếu treo |
+| 122 | Bảng `phien_ban` + phát hành phiên bản, realtime |
+| 123 | Tổng quan v4: `tq_cache`, 5 khối độc lập, `fn_tq_doc` chống màn trắng |
+| 124 | Theo dõi sâu hàng cao cấp, 5 nhóm cảnh báo xếp theo mức nghiêm trọng |
+| 125 | Chất lượng đề nghị v2: mã xương sống, 6 chỉ số, dự báo trống hàng |
+| 126 | Bàn điều chuyển ngang ở Yêu cầu điều phối |
+| 127 | Bổ sung ảnh sản phẩm vào khối "Trong chuyến này" |
+| 128 | Bật RLS đúng cách: khóa bảng, hàm chạy bằng quyền chủ sở hữu |
 
-**Việc anh cần làm để chạy:** theo README mục "Triển khai lần đầu" (5 bước).
-Điểm chết hay quên: Exposed schemas thêm `chiahang`; bật pg_cron trước phần cron của 003.
+**Việc còn treo**: làm lại màn **Chia hàng mới** — chia xong bấm một cái là dựng thành
+bảng chia cho từng cửa hàng giống màn Đề nghị hàng, xuất ra là chia luôn.
 
-**Chờ anh cung cấp:**
-1. File mẫu import Odoo đã chạy thành công → em/anh sửa `odoo_mapping`.
-2. Token API GHTK → secrets function ghtk-tracking.
-3. Xác nhận cột G "NHÓM CỬA HÀNG" trong sheet đã điền 1/2/3 (chưa có → mặc định nhóm 2, chu kỳ 14 ngày).
+## 6. Bảo mật dữ liệu — RLS
 
-**Phiên sau ưu tiên:** siết RBAC (token phiên server-side thay vì tin p_nguoi), rồi pilot 5–10 CH.
+Supabase mở schema `chiahang` ra ngoài qua PostgREST, mà khóa `anon` nằm công khai
+trong mã nguồn ứng dụng. Bảng nào cấp quyền cho `anon` mà không bật RLS thì người
+ngoài đọc/sửa/xóa thẳng được — đó là lý do Supabase cảnh báo.
 
-### Phiên 1b — 11/07/2026 — Hoàn tất phần còn nợ (v1.0.1)
+Nhưng **bật RLS suông sẽ làm hỏng âm thầm**: hàm mặc định chạy bằng quyền người gọi,
+nên RLS chặn luôn cả hàm — ứng dụng không báo lỗi, chỉ trả về rỗng.
 
-- ✅ Migration `007_baocao.sql`: `fn_bao_cao_leadtime` (từng đơn: giờ gửi→bàn giao,
-  ngày gửi→nhận, đạt/trễ SLA), `fn_bao_cao_tong` (KPI tổng), `fn_thieu_kho`
-  (tổng cầu các đơn đã duyệt vs tồn kho TP/SA).
-- ✅ Màn **Báo cáo** (`BaoCao.jsx`): chọn khoảng ngày, 6 ô KPI (tổng đơn, đã nhận,
-  đang chạy, % đạt SLA kho, giờ bàn giao TB, ngày xin→nhận TB) + bảng chi tiết từng đơn.
-  Tab chỉ hiện cho DIEU_PHOI/ADMIN.
-- ✅ Màn **Duyệt** nối cảnh báo thiếu kho: banner đỏ liệt kê barcode kho trung tâm không
-  đủ (cần/còn/số CH); trong đơn đang mở, dòng thuộc barcode thiếu có chip "Kho chỉ còn X".
-  `fn_uu_tien_phan_bo` vẫn sẵn trong DB để tính phương án fair-share (nối nút thao tác ở
-  phiên sau nếu anh muốn tự động co số duyệt theo điểm).
-- ✅ Build pass. Bổ sung tab thứ 6 (Báo cáo) giữa Vận đơn và Tham số.
+**Mô hình đang dùng** (file 128): bảng mới bật RLS và **không có policy nào** → khóa
+cứng; thu hồi quyền trực tiếp của `anon`/`authenticated`; các hàm cần đụng bảng thì
+chuyển sang `SECURITY DEFINER` kèm `set search_path = chiahang, public`. Ứng dụng chỉ
+vào được qua hàm do mình viết. `service_role` (Apps Script, Edge Function) đi xuyên RLS
+nên không ảnh hưởng.
 
-**Chạy thêm:** anh chạy `007_baocao.sql` trong SQL Editor (sau 006).
+**Nhớ:** mỗi lần chạy lại file 121-127 (chúng tạo lại hàm) thì phải **chạy lại 128**,
+vì hàm tạo mới quay về chế độ mặc định. File 128 có khối tự kiểm báo hàm nào còn thiếu.
 
----
+## 7. Bẫy đã gặp — đừng lặp lại
 
-## NHẬT KÝ NỐI TIẾP
-
-### Phiên 2 — 11/07/2026 — NÂNG CẤP v2.0.0 theo Kế hoạch triển khai mới
-
-Anh gửi tài liệu *"Kế hoạch triển khai hệ thống đề nghị và điều chuyển hàng hóa tại
-cửa hàng"*. Đây là thay đổi triết lý vận hành, không chỉ thêm tính năng. Đã nâng toàn bộ
-hệ thống theo 6 trục lớn:
-
-**1. Bỏ cơ chế xin–chờ duyệt → "Phiếu đề nghị hàng hóa"**
-- Cửa hàng chủ động lập phiếu, tự chịu trách nhiệm. Điều phối chuyển sang *kiểm soát
-  ngược & can thiệp khi có cảnh báo* (không duyệt từng đơn).
-- `fn_dieu_chinh_don` thay `fn_duyet_don`: điều phối chỉ sửa số khi cần, **bắt buộc ghi
-  lý do**, chỉ trước khi lên Odoo, ghi vết vào `lich_su_trang_thai`.
-
-**2. Lịch đề nghị cố định 3 nhóm** (`008_lich_v2.sql`)
-- Bảng `lich_de_nghi(ma_ch, tuan, thu)`: tuan 0 = mọi tuần (N1/N2), 1–3 = tuần trong
-  chu kỳ 21 ngày (N3). Cột `cua_hang.cum` = N1A/N1B/N1C.
-- `fn_phan_lich_tu_dong()` (chạy tay, revoke anon): N1 chia 3 cụm 15/15/10 theo sức bán
-  30 ngày (1A CN+T4, 1B T2+T5, 1C T3+T6); N2 quota CN..T7 = [4,15,20,15,14,2,4]; N3 rải
-  slot 0..20, mỗi CH 2 lượt cách 10 rồi 11 ngày, né thứ Sáu.
-- `fn_tuan_chu_ky`, `fn_den_lich`, `fn_ky_tiep`, `fn_lich_ngay`, `fn_sua_lich` (điều phối
-  chỉnh tay, có audit). Mốc chu kỳ: tham số `ngay_goc_chu_ky` (Chủ nhật bắt đầu Tuần 1).
-- Hạn gửi: tham số `gio_chot_de_nghi` = 15:30. Gửi sau giờ → cờ `gui_tre`.
-- **Deadline kho theo ngày làm việc** (`fn_deadline_kho`): T2–T5 → 17:00 hôm sau ·
-  T6 → 12:00 T7 · T7/CN → 17:00 T2.
-
-**3. Hai trưởng ca cùng xác nhận + AUTH PHIÊN (đóng nợ RBAC)**
-- Bảng `phien(token uuid, ma, het_han 30 ngày)`. `fn_dang_nhap` v2 trả JSON kèm `token`.
-  `fn_kiem(token)` xác thực mọi RPC ghi. Mọi hàm ghi giờ nhận `p_token` thay vì tin
-  `p_nguoi` do client gửi — **RBAC đã siết server-side**.
-- `fn_gui_don` v2: trưởng ca thứ hai nhập mã + mật khẩu, verify bằng `crypt` server-side;
-  phải khác người lập phiếu và cùng cửa hàng. Chặn phiếu định kỳ trùng ngày; phiếu ngoài
-  lịch bắt buộc dùng KHAN_CAP + lý do.
-- `fn_them_nguoi_dung` (ADMIN): tạo tài khoản trưởng ca.
-
-**4. Vai trò KHO TỔNG + màn riêng** (`Kho.jsx`)
-- Vai trò `KHO`, tài khoản `KHOTONG`. Pipeline mới:
-  `GUI → XUAT_FILE → LEN_ODOO → KHO_NHAN → KHO_LAY → BAN_GIAO_VC → DANG_GIAO → DA_NHAN`
-  qua `fn_buoc(token, don, tt)` — kiểm vai trò từng bước.
-- Màn Kho: 3 tab (chờ tiếp nhận / đã nhận / đã lấy) FIFO đánh số, nút bước kế, modal
-  `fn_kho_phan_hoi` báo thiếu hàng/sai dữ liệu (sinh cảnh báo, không tự bỏ đơn),
-  highlight quá hạn, auto-refresh 60s.
-
-**5. Cảnh báo tuân thủ + KPI**
-- `fn_quet_qua_han` v2 (cron */30): QUA_HAN deadline kho + BO_LICH (đến lịch, quá giờ
-  chốt chưa gửi) + KHAN_CAP_LIEN_TUC (≥3 phiếu khẩn/14 ngày).
-- `fn_kpi_tuan_thu(tu, den)`: mỗi CH — số kỳ theo lịch, gửi đúng lịch, gửi trễ, khẩn cấp,
-  đủ 2 xác nhận, % đúng lịch. Hiện trong màn Báo cáo (tab "Tuân thủ cửa hàng").
-- `fn_tong_de_nghi_ngay(ma_ch, ngay)`: tổng BH + NV cho biên bản bàn giao (chamcong gọi).
-
-**6. Engine v2** (`009_engine_v2.sql`)
-- Chu kỳ = số ngày đến **kỳ đề nghị kế tiếp thật theo lịch** (`fn_ky_tiep`), fallback
-  `chu_ky_ngay` khi CH chưa có lịch.
-- Nguồn gợi ý mới **KHO_DANG_SAN**: mã kho tổng còn ≥ `kho_san_nguong` (10), CH chưa có
-  tồn, nhóm ngành cấp 3 đang bán tốt tại CH → gợi ý `min_display` để đa dạng mẫu; v =
-  v_nhom×0.5, xếp sau nhu cầu thật, tối đa `kho_san_toi_da` (15) mã/phiếu.
-- Trả thêm `so_tuan_ton` (UI hiển thị số tuần tồn, đỏ nếu <1).
-
-**Frontend cập nhật:** `Login` (token) · `App` (tab Kho/Lịch, rename "Đề nghị hàng",
-default tab theo vai trò, badge theo vai trò) · `XinHang` viết lại (banner lịch, loại
-KHAN_CAP + lý do, cảnh báo bỏ sót hàng bán nhanh, cột Tuần tồn, filter Kho sẵn, modal 2
-xác nhận) · `Duyet` viết lại (điều phối, tabs pipeline, can thiệp + lý do, banner thiếu
-kho) · `Kho` mới · `Lich` mới (xem lịch theo ngày/nhóm, sửa lịch từng CH, hướng dẫn phân
-lịch tự động) · `VanDon`/`ThamSo`/`Dashboard`/`BaoCao` chuyển sang token + trạng thái v2 ·
-`supabase.js` (TRANG_THAI + LY_DO mới) · GAS chu kỳ nhóm mới 4/7/11.
-
-**Build:** ✅ pass sạch.
-
-**CHẠY THÊM (theo thứ tự):**
-1. SQL Editor: `008_lich_v2.sql` rồi `009_engine_v2.sql`.
-2. Điền cột `cua_hang.nhom_ch` (1/2/3) cho toàn bộ CH, rồi chạy `select
-   chiahang.fn_phan_lich_tu_dong();` một lần.
-3. Tạo tài khoản trưởng ca (≥2 người/CH) bằng `fn_them_nguoi_dung` hoặc thêm trực tiếp
-   vào `nguoi_dung`.
-4. (Tùy chọn) chỉnh `ngay_goc_chu_ky` trong Tham số cho đúng Chủ nhật bắt đầu Tuần 1
-   thực tế; chỉnh `gio_chot_de_nghi` nếu khác 15:30.
-
-**Lưu ý:** đọc dữ liệu vẫn mở cho anon (chỉ siết GHI qua token). Cron `nsflow-sla` tự
-chạy `fn_quet_qua_han` v2. Vẫn chờ anh: **file mẫu Odoo** (chỉnh `odoo_mapping`),
-**token GHTK**, **xác nhận cột nhóm CH** đã điền, **danh sách trưởng ca theo CH**.
-
-**Chưa làm (đề xuất phiên sau, không chặn pilot):**
-- Kết nối Odoo trực tiếp (hiện xuất Excel thủ công qua `odoo_mapping`).
-- Tự động phân hàng mới/tái bản cho điều phối (màn ChiaHangMoi hiện làm thủ công + AI đề xuất).
-- Web Push nhắc lịch đề nghị buổi sáng cho trưởng ca (hạ tầng push-notify đã có).
-- Biên bản bàn giao tự chèn `fn_tong_de_nghi_ngay` vào chamcong.
+- PostgREST cắt 1000 dòng → dùng RPC + `rpcHet`, không `select` thẳng bảng lớn.
+- Không dùng subquery tương quan trong hàm tổng hợp — dựng bảng trung gian rồi join.
+- Hàm có `create temp table` **không được** khai báo `stable`.
+- `fn_tq_lam_moi` bị nhiều file ghi đè nối tiếp: chạy lại file cũ sẽ mất khối của file mới.
+  File 124 có khối tự kiểm cảnh báo việc này.
+- Sau khi sửa CSS phải grep lại class trùng; sau khi sửa code phải **build trước khi giao**.
+- Bật RLS mà quên `SECURITY DEFINER` cho hàm → ứng dụng trả rỗng, KHÔNG báo lỗi.

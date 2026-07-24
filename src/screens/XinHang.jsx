@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { sb, fmtVND, LY_DO } from '../lib/supabase.js';
-import { IcSpark, IcSearch, IcBox, IcClock, IcAlert, IcDown, IcCheck, IcRefresh } from '../lib/icons.jsx';
+import { sb, fmtVND } from '../lib/supabase.js';
+import { IcSpark, IcSearch, IcBox, IcAlert, IcDown, IcRefresh } from '../lib/icons.jsx';
 import { Sel, DateBox, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
@@ -164,7 +164,7 @@ function ThanhDinhMuc({ ten, d }) {
 }
 
 export default function XinHang() {
-  const { user, baoToast } = useApp();
+  const { user, baoToast, datBan } = useApp();
   const [dsCH, setDsCH] = useState([]);
   const [maCH, setMaCH] = useState(user.ma_ch || '');
   const [rows, setRows] = useState(null);
@@ -194,6 +194,13 @@ export default function XinHang() {
   const napDraft = useRef(null);   // số đã nhập từ nháp, áp sau khi engine trả rows
   const [ycdp, setYcdp] = useState({});      // barcode -> {so_luong} các mã ĐANG xin điều phối
   const [slXin, setSlXin] = useState({});    // barcode -> số lượng đang gõ (chưa gửi)
+
+  // Báo cho App biết màn này đang có việc dở -> chặn tự cập nhật phiên bản
+  useEffect(() => {
+    const co = Object.values(slXin || {}).some((v) => Number(v) > 0);
+    datBan?.('xinhang', co);
+    return () => datBan?.('xinhang', false);
+  }, [slXin]);   // eslint-disable-line
 
   // Nạp các mã cửa hàng đang xin điều phối (để hiện nút "✓ Đã gửi")
   const taiYcdp = async (ch) => {

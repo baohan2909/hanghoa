@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb, rpcHet } from '../lib/supabase.js';
 import { IcTrophy, IcFlash, IcTarget, IcHeart, IcRefresh } from '../lib/icons.jsx';
-import { DateBox, Sel, isoVN } from '../lib/ui.jsx';
+import { DateBox, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
 // ĐẤU TRƯỜNG — thi đua kiến thức sản phẩm toàn hệ thống.

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { sb, rpcHet, TRANG_THAI, fmtDT } from '../lib/supabase.js';
+import { sb, rpcHet } from '../lib/supabase.js';
 import { DateBox, Sel, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
@@ -632,6 +632,9 @@ function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h << 
 // ============ ĐIỀU CHUYỂN KHO — trạng thái THẬT từ Odoo (app chỉ đọc) ============
 // 4 trạng thái sheet: Chưa chuyển -> Chờ sẵn sàng -> Đã xuất -> Đã nhận.
 const DCK_TT = ['Chưa chuyển', 'Chờ sẵn sàng', 'Một phần', 'Đã xuất', 'Chưa nhận', 'Đã nhận'];
+// Nhóm hành trình vận chuyển -> chữ hiển thị cho nhân viên (không dùng từ kỹ thuật)
+const VD_NHOM = { CHO_LAY: 'chờ lấy', DANG_CHAY: 'đang giao', GIAO_XONG: 'đã giao',
+  SU_CO: 'sự cố', TRA_HANG: 'trả hàng', HUY: 'đã hủy' };
 // Chuẩn hóa trạng thái về tiếng Việt (phòng dữ liệu cũ còn tiếng Anh trong DB).
 const chuanDCK = (s) => {
   const k = String(s || '').trim().toLowerCase();
@@ -810,7 +813,7 @@ function DckTheoCH({ tu, den, baoToast }) {
             </tr></thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
               ) : hien.length === 0 ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>{fltTT ? 'Không có cửa hàng nào ở trạng thái này.' : 'Chưa có cửa hàng nào có phiếu điều chuyển (DK/KC) trong khoảng này.'}</td></tr>
               ) : hien.map((r, i) => (
@@ -886,12 +889,22 @@ function DckTheoPhieu({ tu, den, baoToast }) {
   const [locKho, setLocKho] = useState('');
   const [q, setQ] = useState('');
   const [sortC, setSortC] = useState({ col: 'tao', dir: 'desc' });
+  const [vd, setVd] = useState({});             // ma_phieu -> hành trình vận đơn
+  const [locTreo, setLocTreo] = useState(false);
 
   useEffect(() => { (async () => {
     setRows(null);
     const { data, error } = await rpcHet('fn_dck_ds', { p_tu: tu, p_den: den });
     if (error) { baoToast('Lỗi: ' + error.message); setRows([]); return; }
     setRows((data || []).map((r) => ({ ...r, trang_thai: chuanDCK(r.trang_thai) })));
+  })(); }, [tu, den]);   // eslint-disable-line
+
+  // Hành trình vận chuyển thật (GHTK) của từng phiếu — tải riêng, lỗi không làm hỏng bảng
+  useEffect(() => { (async () => {
+    setVd({});
+    const { data } = await rpcHet('fn_dck_vd', { p_tu: tu, p_den: den });
+    const m = {}; (data || []).forEach((x) => { m[x.ma_phieu] = x; });
+    setVd(m);
   })(); }, [tu, den]);   // eslint-disable-line
 
   const dsCH = useMemo(() => { const m = new Map();
@@ -909,8 +922,11 @@ function DckTheoPhieu({ tu, den, baoToast }) {
       phan: dem('Một phần'), xuat: dem('Đã xuất'), chuanhan: dem('Chưa nhận'), nhan: dem('Đã nhận') };
   }, [rows]);
 
+  const soTreo = useMemo(() => Object.values(vd).filter((x) => x.treo_ngay > 0).length, [vd]);
+
   const hien = useMemo(() => {
     let v = [...(rows || [])];
+    if (locTreo) v = v.filter((r) => (vd[r.ma_phieu]?.treo_ngay || 0) > 0);
     if (locTT) v = v.filter((r) => r.trang_thai === locTT);
     if (locCH) v = v.filter((r) => r.ma_ch === locCH);
     if (locKho) v = v.filter((r) => r.ma_kho_nguon === locKho);
@@ -920,21 +936,24 @@ function DckTheoPhieu({ tu, den, baoToast }) {
         || (r.ten_kho_nguon || '').toLowerCase().includes(t) || (r.khu_vuc || '').toLowerCase().includes(t)); }
     const g = { phieu: (r) => r.ma_phieu, ch: (r) => r.ten_ch || '', kho: (r) => r.ten_kho_nguon || '',
       tt: (r) => DCK_TT.indexOf(r.trang_thai), tao: (r) => r.ngay_tao || '',
-      ma: (r) => Number(r.so_ma), nhu: (r) => Number(r.tong_nhu_cau) }[sortC.col];
+      ma: (r) => Number(r.so_ma), nhu: (r) => Number(r.tong_nhu_cau),
+      ht: (r) => (vd[r.ma_phieu]?.treo_ngay || 0) * 1000 + (vd[r.ma_phieu] ? 1 : 0) }[sortC.col];
     if (g) v.sort((a, b) => { const x = g(a), y = g(b);
       const c = typeof x === 'string' ? x.localeCompare(y) : (x > y ? 1 : x < y ? -1 : 0);
       return sortC.dir === 'asc' ? c : -c; });
     return v;
-  }, [rows, locTT, locCH, locKho, q, sortC]);
+  }, [rows, locTT, locCH, locKho, q, sortC, vd, locTreo]);
   const ds = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
   const ic = (c) => sortC.col === c ? (sortC.dir === 'asc' ? ' ▲' : ' ▼') : '';
   const bamTT = (tt) => setLocTT((v) => v === tt ? '' : tt);
 
   const xuat = async () => {
     const XLSX = await import('xlsx');
-    const hdr = ['Mã phiếu', 'Trạng thái', 'Cửa hàng nhận', 'Mã CH', 'Khu vực', 'Kho nguồn', 'Ngày tạo', 'Số mã', 'Tổng nhu cầu', 'Đã nhập'];
+    const hdr = ['Mã phiếu', 'Trạng thái', 'Cửa hàng nhận', 'Mã CH', 'Khu vực', 'Kho nguồn', 'Ngày tạo', 'Số mã', 'Tổng nhu cầu', 'Đã nhập', 'Vận chuyển', 'Ngày giao', 'Treo (ngày)'];
     const data = hien.map((r) => [r.ma_phieu, r.trang_thai, r.ten_ch, r.ma_ch, r.khu_vuc,
-      r.ten_kho_nguon, r.ngay_tao ? fmtDM(r.ngay_tao) : '', Number(r.so_ma), Number(r.tong_nhu_cau), Number(r.tong_da_nhap)]);
+      r.ten_kho_nguon, r.ngay_tao ? fmtDM(r.ngay_tao) : '', Number(r.so_ma), Number(r.tong_nhu_cau), Number(r.tong_da_nhap),
+      VD_NHOM[vd[r.ma_phieu]?.nhom] || '', vd[r.ma_phieu]?.ngay_giao ? fmtDM(vd[r.ma_phieu].ngay_giao) : '',
+      vd[r.ma_phieu]?.treo_ngay || 0]);
     const ws = XLSX.utils.aoa_to_sheet([hdr, ...data]); const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'ĐC theo phiếu'); XLSX.writeFile(wb, `DieuChuyen_theoPhieu_${tu}_${den}.xlsx`);
   };
@@ -966,6 +985,10 @@ function DckTheoPhieu({ tu, den, baoToast }) {
           <span className="the-g-n" style={{ color: '#7a6bd6' }}>{tk.chuanhan}</span><span className="the-g-t">chưa nhận</span></button>
         <button className={'the-g' + (locTT === 'Đã nhận' ? ' on' : '')} onClick={() => bamTT('Đã nhận')}>
           <span className="the-g-n" style={{ color: 'var(--magenta)' }}>{tk.nhan}</span><span className="the-g-t">đã nhận</span></button>
+        <button className={'the-g' + (locTreo ? ' on' : '')} onClick={() => setLocTreo((v) => !v)}
+          title="Đơn vị vận chuyển đã giao xong nhưng cửa hàng chưa xác nhận trên Odoo">
+          <span className="the-g-n" style={{ color: 'var(--magenta)' }}>{soTreo}</span>
+          <span className="the-g-t">phiếu treo<small>hàng đã tới, chưa xác nhận</small></span></button>
       </div>
 
       <div className="card" style={{ marginTop: 12, padding: 0, overflow: 'hidden' }}>
@@ -980,12 +1003,13 @@ function DckTheoPhieu({ tu, den, baoToast }) {
               <th className="num sortable" onClick={() => ds('ma')}>Số mã{ic('ma')}</th>
               <th className="num sortable" onClick={() => ds('nhu')}>Nhu cầu{ic('nhu')}</th>
               <th className="num">Đã nhập</th>
+              <th className="sortable" onClick={() => ds('ht')}>Hành trình{ic('ht')}</th>
             </tr></thead>
             <tbody>
               {rows === null ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
               ) : hien.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Chưa có phiếu điều chuyển (DK/KC) trong khoảng này.</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Chưa có phiếu điều chuyển (DK/KC) trong khoảng này.</td></tr>
               ) : hien.map((r) => (
                 <tr key={r.ma_phieu}>
                   <td className="mono" style={{ fontWeight: 700, fontSize: 11 }}>{r.ma_phieu}
@@ -998,6 +1022,19 @@ function DckTheoPhieu({ tu, den, baoToast }) {
                   <td className="num">{Number(r.so_ma)}</td>
                   <td className="num" style={{ fontWeight: 700 }}>{Number(r.tong_nhu_cau)}</td>
                   <td className="num" style={{ color: Number(r.tong_da_nhap) >= Number(r.tong_nhu_cau) ? 'var(--teal-deep)' : 'var(--ink-2)' }}>{Number(r.tong_da_nhap)}</td>
+                  <td>{(() => {
+                    const v = vd[r.ma_phieu];
+                    if (!v) return <span className="tq-ghi">—</span>;
+                    if (v.treo_ngay > 0) return (
+                      <span className="tt-treo" title={`Đơn vị vận chuyển giao xong ngày ${v.ngay_giao ? fmtDM(v.ngay_giao) : '?'} — cửa hàng chưa xác nhận`}>
+                        đã giao {v.ngay_giao ? fmtDM(v.ngay_giao) : ''} · treo {v.treo_ngay} ngày</span>);
+                    return (
+                      <span className="dck-ht" title={v.label_id}>
+                        {VD_NHOM[v.nhom] || 'đang đi'}
+                        {v.ngay_lay ? <i> · lấy {fmtDM(v.ngay_lay)}</i> : null}
+                        {v.ngay_giao ? <i> · giao {fmtDM(v.ngay_giao)}</i> : null}
+                      </span>);
+                  })()}</td>
                 </tr>
               ))}
             </tbody>

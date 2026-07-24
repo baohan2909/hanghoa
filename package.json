@@ -1,7 +1,7 @@
 {
-  "name": "ns-flow",
+  "name": "hanghoa",
   "private": true,
-  "version": "3.36.1",
+  "version": "3.40.1",
   "type": "module",
   "scripts": {
     "dev": "vite",

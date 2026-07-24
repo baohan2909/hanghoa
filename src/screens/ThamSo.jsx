@@ -16,12 +16,26 @@ export default function ThamSo() {
   const [ds, setDs] = useState([]);
   const [sua, setSua] = useState({});          // {'key/pham_vi': chuỗi đang gõ}
   const [mk, setMk] = useState({ cu: '', moi: '' });
+  const [ph, setPh] = useState({ ban: __APP_VERSION__, bat_buoc: false, ghi_chu: '' });
+  const [banHT, setBanHT] = useState(null);      // bản đang phát hành trên hệ thống
 
   const tai = async () => {
     const { data } = await sb.from('tham_so').select('*').order('key').order('pham_vi');
     setDs(data || []); setSua({});
   };
   useEffect(() => { tai(); }, []);
+  useEffect(() => { sb.rpc('fn_phien_ban').then(({ data }) => setBanHT(data || {}), () => {}); }, []);
+
+  // Phát hành: mọi máy đang mở app sẽ nhận tín hiệu và hiện thanh mời cập nhật.
+  const phatHanh = async () => {
+    if (!ph.ban.trim()) { baoToast('Nhập số phiên bản'); return; }
+    const { data, error } = await sb.rpc('fn_phat_hanh', {
+      p_ban: ph.ban.trim(), p_bat_buoc: ph.bat_buoc,
+      p_ghi_chu: ph.ghi_chu, p_nguoi: user.ma_dang_nhap });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    setBanHT(data || {});
+    baoToast('Đã phát hành ' + ph.ban.trim() + ' — các máy đang mở sẽ nhận thông báo');
+  };
 
   const k = (t) => t.key + '/' + t.pham_vi;
   const hienGiaTri = (t) =>
@@ -109,6 +123,31 @@ export default function ThamSo() {
           <div className="tbl-wrap"><Bang items={khac} /></div>
         </div>
       )}
+
+      <div className="card" style={{ maxWidth: 560, marginBottom: 18 }}>
+        <h3 style={{ fontSize: 15, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <IcCheck /> Phát hành bản mới</h3>
+        <div className="tq-ghi" style={{ marginBottom: 12 }}>
+          Máy này đang chạy <b>v{__APP_VERSION__}</b>
+          {banHT?.ban ? <> · hệ thống đang công bố <b>v{banHT.ban}</b></> : null}.
+          Bấm phát hành: mọi cửa hàng đang mở app sẽ thấy lời mời cập nhật —
+          <b> không máy nào tự tải lại khi nhân viên đang nhập dở</b>.
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input className="qty-input" style={{ width: '100%', textAlign: 'left' }}
+            placeholder="Số phiên bản (vd 3.37.0)" value={ph.ban}
+            onChange={(e) => setPh((v) => ({ ...v, ban: e.target.value }))} />
+          <input className="qty-input" style={{ width: '100%', textAlign: 'left' }}
+            placeholder="Ghi chú hiển thị cho cửa hàng (không bắt buộc)" value={ph.ghi_chu}
+            onChange={(e) => setPh((v) => ({ ...v, ghi_chu: e.target.value }))} />
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+            <input type="checkbox" checked={ph.bat_buoc}
+              onChange={(e) => setPh((v) => ({ ...v, bat_buoc: e.target.checked }))} />
+            Bản bắt buộc — tự cập nhật ngay khi nhân viên rảnh tay (dùng cho bản sửa lỗi)
+          </label>
+          <button className="btn btn-ai" onClick={phatHanh} style={{ alignSelf: 'flex-start' }}>Phát hành</button>
+        </div>
+      </div>
 
       <div className="card" style={{ maxWidth: 420 }}>
         <h3 style={{ fontSize: 15, marginBottom: 10 }}>Đổi mật khẩu ({user.ma_dang_nhap})</h3>
