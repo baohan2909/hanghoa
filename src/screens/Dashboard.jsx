@@ -8,6 +8,8 @@ const CO_TEN = { KHO_CON: 'kho còn, nơi bán hết', SAP_HET: 'sắp hết', N
 const fmtTr = (n) => { const v = Number(n) || 0; return v >= 1e6 ? (v / 1e6).toFixed(v % 1e6 ? 1 : 0).replace('.', ',') + ' triệu' : fmtN(v); };
 
 /* Ảnh sản phẩm: rê chuột phóng to, bấm xem toàn màn hình */
+const fmtNgay = (d) => d ? String(d).slice(8, 10) + '/' + String(d).slice(5, 7) : '—';
+
 function AnhSP({ url, ten, onMo }) {
   if (!url) return <span className="tqa tqa-trong"><IcBox /></span>;
   return (
@@ -19,8 +21,9 @@ function AnhSP({ url, ten, onMo }) {
   );
 }
 
-// Lớp phủ hộp thoại — style gắn thẳng vào thẻ để không phụ thuộc file CSS bên ngoài
-function LopPhu({ onClose, rong = 1000, children }) {
+// Lớp phủ hộp thoại — khung gắn style thẳng vào thẻ (không phụ thuộc file CSS),
+// tiêu đề gradient thương hiệu + glow, vùng nội dung tự cuộn không hở khe
+function LopPhu({ onClose, rong = 1000, tieuDe, phu, children }) {
   return (
     <div onClick={onClose} style={{
       position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 3000,
@@ -30,7 +33,22 @@ function LopPhu({ onClose, rong = 1000, children }) {
         background: '#fff', borderRadius: 16, width: `min(${rong}px, 96vw)`,
         maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 20px 60px rgba(20,33,58,.3)' }}>
-        {children}
+        <div className="lp-dau">
+          <div><b>{tieuDe}</b>{phu && <div className="lp-phu">{phu}</div>}</div>
+          <button className="lp-dong" onClick={onClose} aria-label="Đóng">✕</button>
+        </div>
+        <div className="lp-cuon">{children}</div>
+      </div>
+    </div>
+  );
+}
+function ChoTai({ chu = 'Đang tải…' }) {
+  return (
+    <div className="lp-cho">
+      <i /><span>{chu}</span>
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 9, marginTop: 4 }}>
+        <div className="lp-sk" /><div className="lp-sk" style={{ width: '86%' }} />
+        <div className="lp-sk" style={{ width: '92%' }} />
       </div>
     </div>
   );
@@ -106,6 +124,8 @@ export default function Dashboard({ chonTab = () => {} }) {
   const [ccLoc, setCcLoc] = useState(null);     // nhóm cảnh báo đang xem
   const [ccDs, setCcDs] = useState(null);       // danh sách đầy đủ của nhóm
   const [ccMa, setCcMa] = useState(null);       // modal phân bổ 1 mã
+  const [bg, setBg] = useState(null);           // bán hôm nay theo giờ tương đương
+  const [maCache, setMaCache] = useState({});   // loai -> danh sách (mở lần 2 là tức thì)
 
   // Mỗi khối nạp ĐỘC LẬP: khối nào lỗi chỉ khối đó báo lỗi, các khối khác vẫn hiện.
   const nap = async (im) => {
@@ -158,11 +178,22 @@ export default function Dashboard({ chonTab = () => {} }) {
     return () => clearInterval(t);
   }, []);   // eslint-disable-line
 
-  const moMa = async (loai) => {
-    setModal({ loai, ds: null });
+  const taiMa = async (loai) => {
+    if (maCache[loai]) return maCache[loai];
     const { data } = await sb.rpc('fn_tq_ma_van_de', { p_loai: loai });
-    setModal({ loai, ds: data || [] });
+    setMaCache((m) => ({ ...m, [loai]: data || [] }));
+    return data || [];
   };
+  const moMa = async (loai) => {
+    setModal({ loai, ds: maCache[loai] || null });
+    if (!maCache[loai]) { const ds = await taiMa(loai); setModal({ loai, ds }); }
+  };
+  // Bán theo giờ tương đương + nạp trước 2 danh sách để bấm là mở ngay
+  useEffect(() => {
+    sb.rpc('fn_tq_ban_gio').then(({ data }) => setBg(data || null));
+    const t = setTimeout(() => { taiMa('CHAY'); taiMa('HET'); }, 1200);
+    return () => clearTimeout(t);
+  }, []);   // eslint-disable-line
 
   if (!d) return (
     <>
@@ -196,11 +227,13 @@ export default function Dashboard({ chonTab = () => {} }) {
       <div className="tq-kpi4">
         <div className="tq-lon">
           <div className="tq-lon-nhan">Bán hôm nay</div>
-          <div className="tq-lon-so">{fmtN(hn.tong)}<i>sp</i></div>
-          <Delta nay={hn.tong} truoc={ct.tb} nhan="so cùng thứ 4 tuần" />
+          <div className="tq-lon-so">{fmtN(bg?.nay?.tong ?? hn.tong)}<i>sp</i></div>
+          {bg?.theo_gio
+            ? <Delta nay={bg.nay.tong} truoc={bg.truoc.tong} nhan={`so cùng thứ tuần trước · đến ${bg.gio}`} />
+            : <Delta nay={bg?.nay?.tong ?? hn.tong} truoc={bg ? bg.truoc.tong : ct.tb} nhan="so cùng thứ tuần trước" />}
           <div className="tq-tach">
-            <span><b>{fmtN(hn.bh)}</b> mũ bảo hiểm <Delta nay={hn.bh} truoc={ct.tb_bh} nhan="" /></span>
-            <span><b>{fmtN(hn.nv)}</b> nón vải <Delta nay={hn.nv} truoc={ct.tb_nv} nhan="" /></span>
+            <span><b>{fmtN(bg?.nay?.bh ?? hn.bh)}</b> mũ bảo hiểm <Delta nay={bg?.nay?.bh ?? hn.bh} truoc={bg ? bg.truoc.bh : ct.tb_bh} nhan="" /></span>
+            <span><b>{fmtN(bg?.nay?.nv ?? hn.nv)}</b> nón vải <Delta nay={bg?.nay?.nv ?? hn.nv} truoc={bg ? bg.truoc.nv : ct.tb_nv} nhan="" /></span>
           </div>
         </div>
 
@@ -339,15 +372,17 @@ export default function Dashboard({ chonTab = () => {} }) {
             {(sp.ma_moi?.ds || []).length ? (
               <div className="tq-luoi-sp">
                 {sp.ma_moi.ds.map((r) => (
-                  <div key={r.barcode} className="tq-sp-o">
-                    <AnhSP url={r.hinh_url} ten={r.sku} onMo={(u, t) => setAnh({ u, t })} />
-                    <div className="tq-sp-tt">
-                      <div className="mono tq-sp-ma">{r.sku || r.barcode}</div>
-                      <div className="tq-ghi">{r.nganh_3 || ''} · {r.tuoi_ngay} ngày tuổi · có mặt {r.so_noi_co} nơi</div>
+                  <div key={r.barcode} className="mm-o" onClick={() => xemPhanBo(r)}
+                    title="Bấm xem bán và tồn theo từng cửa hàng">
+                    <AnhSP url={r.hinh_url} ten={r.ten_sp || r.sku} onMo={() => xemPhanBo(r)} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="mm-ten">{r.ten_sp || r.sku || r.barcode}</div>
+                      <div className="mm-dong">Ra mắt: <b>{r.tuoi_ngay}</b> ngày</div>
+                      <div className="mm-dong">Tồn kho <b>{fmtN(r.ton_kho)}</b> · Tồn CH <b>{fmtN(r.ton)}</b></div>
+                      <div className="mm-dong">Đang có ở <b>{r.so_noi_co}</b> CH</div>
                     </div>
-                    <div className="tq-sp-sl">
+                    <div className="mm-toc">
                       <b>{r.toc_do}</b><span>sp/ngày</span>
-                      <i className="tq-ghi">tồn {fmtN(r.ton)}{r.ton_kho > 0 ? ` · kho ${fmtN(r.ton_kho)}` : ''}</i>
                     </div>
                   </div>
                 ))}
@@ -526,11 +561,9 @@ export default function Dashboard({ chonTab = () => {} }) {
 
       {/* Danh sách mã cháy hàng / cần sản xuất */}
       {ccMa && (
-        <LopPhu onClose={() => setCcMa(null)} rong={760}>
-            <div className="modal-head">
-              <b>{ccMa.sp.sku || ccMa.sp.barcode} · {fmtTr(ccMa.sp.gia)}</b>
-              <button className="modal-x" onClick={() => setCcMa(null)}>✕</button>
-            </div>
+        <LopPhu onClose={() => setCcMa(null)} rong={760}
+          tieuDe={ccMa.sp.ten_sp || ccMa.sp.sku || ccMa.sp.barcode}
+          phu={[ccMa.sp.nganh_3, ccMa.sp.gia ? fmtTr(ccMa.sp.gia) : null].filter(Boolean).join(' · ') || null}>
             <div className="tq-ghi" style={{ padding: '0 2px 8px' }}>
               {ccMa.sp.nganh_3 || ''} · tồn nơi bán {fmtN(ccMa.sp.ton)} · kho {fmtN(ccMa.sp.ton_kho)}
               {ccMa.sp.dang_di > 0 && <> · đang trên đường {fmtN(ccMa.sp.dang_di)}</>}
@@ -559,41 +592,46 @@ export default function Dashboard({ chonTab = () => {} }) {
       )}
 
       {ho && (
-        <LopPhu onClose={() => setHo(null)} rong={860}>
-            <div className="modal-head"><b>{ho.ten}</b>
-              <button className="modal-x" onClick={() => setHo(null)}>✕</button></div>
-            {ho.ds.length === 0 ? <div className="tq-ghi" style={{ padding: 14 }}>Không có trường hợp nào — tốt.</div> : (
-              <div className="tbl-wrap" style={{ maxHeight: '60vh', overflow: 'auto' }}>
+        <LopPhu onClose={() => setHo(null)} rong={920} tieuDe={ho.ten}
+          phu={`${fmtN(ho.ds.length)} trường hợp`}>
+            {ho.ds.length === 0 ? <div className="tq-ghi" style={{ padding: 16 }}>Không có trường hợp nào — tốt.</div> : (
                 <table className="tbl tbl-fit">
-                  <thead><tr><th>Phiếu / vận đơn</th><th>Cửa hàng</th><th>Khu vực</th>
-                    <th className="num">Số ngày</th></tr></thead>
+                  <thead><tr>
+                    <th style={{ width: 190 }}>Phiếu / vận đơn</th>
+                    <th>Cửa hàng</th>
+                    <th style={{ width: 76 }}>Khu vực</th>
+                    <th className="num" style={{ width: 92 }}>Ngày tạo</th>
+                    <th className="num" style={{ width: 74 }}>Số ngày</th>
+                  </tr></thead>
                   <tbody>
                     {ho.ds.map((r, i2) => (
                       <tr key={i2}>
-                        <td className="mono" style={{ fontSize: 11 }}>{r.ma_phieu || r.label_id}
-                          {r.ma_phieu && r.label_id && <div className="tq-ghi">{r.label_id}</div>}</td>
-                        <td>{r.ten_ch || r.ma_ch || '—'}</td>
-                        <td>{r.khu_vuc || ''}</td>
+                        <td className="mono" title={(r.ma_phieu || '') + (r.label_id ? '\n' + r.label_id : '')}
+                          style={{ fontSize: 10.5, maxWidth: 190, overflow: 'hidden',
+                                   textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {r.ma_phieu || r.label_id}
+                          {r.ma_phieu && r.label_id &&
+                            <div className="tq-ghi" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.label_id}</div>}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{r.ten_ch || r.ma_ch || '—'}</td>
+                        <td>{r.khu_vuc || '—'}</td>
+                        <td className="num" style={{ fontSize: 12 }}>{fmtNgay(r.ngay_tao || r.ngay_lay)}</td>
                         <td className="num"><b className={r.so_ngay >= 5 ? 'hh-do' : ''}>{r.so_ngay ?? '—'}</b></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
             )}
         </LopPhu>
       )}
 
       {modal && (
-        <LopPhu onClose={() => setModal(null)} rong={1000}>
-            <div className="tq-modal-tit">
-              {modal.loai === 'CHAY' ? 'Mã cháy hàng — kho tổng còn, cần chia gấp'
-                                     : 'Mã hết sạch toàn hệ thống — cần sản xuất'}
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Đóng</button>
-            </div>
-            {modal.ds === null ? <div className="tq-ghi">Đang tải…</div> : (
+        <LopPhu onClose={() => setModal(null)} rong={1000}
+          tieuDe={modal.loai === 'CHAY' ? 'Mã cháy hàng — kho tổng còn, cần chia gấp'
+                                        : 'Mã hết sạch toàn hệ thống — cần sản xuất'}
+          phu={modal.ds ? `${fmtN(modal.ds.length)} mã` : null}>
+            {modal.ds === null ? <ChoTai chu="Đang tổng hợp danh sách mã…" /> : (
               <div className="tq-modal-body">
-                <div className="tq-ghi" style={{ marginBottom: 8 }}>{fmtN(modal.ds.length)} mã</div>
                 <table className="tbl hh-tbl">
                   <thead><tr><th></th><th>Mã</th><th>Nhóm</th><th className="num">Bán 30n</th>
                     <th className="num">Nơi từng bán</th><th className="num">Tồn nơi bán</th><th className="num">Kho tổng</th></tr></thead>
