@@ -1743,7 +1743,8 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* ============ v3.39.0 — CHẤT LƯỢNG ĐỀ NGHỊ v2 ============ */
 /* Khối dự báo — thứ quan trọng nhất của màn, đặt trên cùng */
 .cl-dubao { border: 1.5px solid rgba(214,0,108,.3); background: linear-gradient(135deg, #fff 0%, #FFF6FA 100%);
-  box-shadow: 0 4px 18px rgba(214,0,108,.09); margin-bottom: 0; }
+  box-shadow: 0 4px 18px rgba(214,0,108,.09); margin-bottom: 0;
+  position: relative; overflow: hidden; }
 .cl-db-tit { display: flex; align-items: center; gap: 12px; }
 .cl-db-tit svg { width: 22px; height: 22px; color: var(--magenta); flex-shrink: 0; }
 .cl-db-txt { display: flex; flex-direction: column; line-height: 1.35; flex: 1; min-width: 0; }
@@ -1836,3 +1837,31 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* Khối sức khỏe tồn kho (các dòng .hh-sk-dong nằm trong) */
 .hh-sk { display: flex; flex-direction: column; margin-top: 4px; }
 .hh-sk .hh-sk-dong + .hh-sk-dong { border-top: 1px solid #F4F2EC; }
+
+/* ============ v3.41.0 — VẬN ĐƠN: KHÁCH SĨ + CHUYỂN PHIẾU ============ */
+/* Trạng thái phiếu trong danh sách gợi ý gắn chuyến */
+.vd-gan-tt { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 7px; white-space: nowrap; }
+.vd-gan-tt.nay   { background: rgba(63,182,168,.16); color: var(--teal-deep); }
+.vd-gan-tt.khac  { background: rgba(203,164,90,.2);  color: #8a6b22; }
+.vd-gan-tt.tu-do { background: #EFEDE5; color: var(--ink-2); }
+
+/* Danh mục khách sĩ */
+.vd-ks-them { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.vd-ks-luoi { display: flex; gap: 7px; flex-wrap: wrap; }
+.vd-ks-chip { display: inline-flex; align-items: center; gap: 7px; padding: 5px 8px 5px 12px;
+  border-radius: 9px; background: #FBFBF9; border: 1px solid var(--line); font-size: 12px; font-weight: 600; }
+.vd-ks-chip i { font-style: normal; font-size: 10.5px; font-weight: 400; color: var(--ink-2); }
+.vd-ks-chip button { border: 0; background: #EFEDE5; color: var(--ink-2); width: 20px; height: 20px;
+  border-radius: 6px; cursor: pointer; font-size: 11px; line-height: 1; }
+.vd-ks-chip button:hover { background: rgba(214,0,108,.12); color: var(--magenta); }
+.vd-ks-nut { width: 100%; margin-top: 6px; }
+
+/* ============ v3.41.0 — BONG BÓNG NỀN CHO THẺ BÁO CÁO LỚN ============ */
+/* Chuẩn chung: thẻ nền trắng cỡ lớn có một khối tròn nhạt ở góc phải trên,
+   teal mặc định, magenta cho thẻ cảnh báo. Giống thẻ số lớn ở Tổng quan. */
+.tq-moc-o, .cc-tang-o, .vd-nd-o { position: relative; overflow: hidden; }
+.tq-moc-o::after, .cc-tang-o::after, .vd-nd-o::after {
+  content: ''; position: absolute; right: -26px; top: -26px; width: 92px; height: 92px;
+  border-radius: 50%; background: rgba(63,182,168,.07); pointer-events: none; }
+.cl-dubao::after { content: ''; position: absolute; right: -34px; top: -34px; width: 128px; height: 128px;
+  border-radius: 50%; background: rgba(214,0,108,.07); pointer-events: none; }

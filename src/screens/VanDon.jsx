@@ -40,7 +40,9 @@ const NHOM = {
 
 export default function VanDon() {
   const { baoToast } = useApp();
-  const [tu, setTu] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return isoVN(d); });
+  // Mốc bắt đầu có dữ liệu vận đơn — mặc định mở màn là xem từ đây
+  const MOC_DAU = '2026-07-20';
+  const [tu, setTu] = useState(MOC_DAU);
   const [den, setDen] = useState(isoVN());
   const [rows, setRows] = useState(null);
   const [tk, setTk] = useState(null);
@@ -64,15 +66,36 @@ export default function VanDon() {
   const [diem, setDiem] = useState([]);
   const [dsCH, setDsCH] = useState([]);
   const [dangCC, setDangCC] = useState(false);
+  const [ks, setKs] = useState([]);          // danh mục khách sĩ
+  const [ksAn, setKsAn] = useState(new Set()); // mã đơn của khách sĩ -> ẩn khỏi màn này
+  const [txtKs, setTxtKs] = useState('');
   const [daGan, setDaGan] = useState([]);
 
   const tai = async () => {
-    const [a, b, c] = await Promise.all([
+    const [a, b, c, d] = await Promise.all([
       sb.rpc('fn_vd_ds', { p_tu: tu, p_den: den, p_ma_ch: null, p_nhom: null }),
       sb.rpc('fn_vd_tk', { p_tu: tu, p_den: den }),
       sb.rpc('fn_vd_wh_tinh_trang'),
+      sb.rpc('fn_ks_label'),
     ]);
     setRows(a.data || []); setTk(b.data || null); setWh(c.data || null);
+    setKsAn(new Set((d.data || []).map((x) => x.label_id)));
+  };
+
+  // ===== KHÁCH SĨ — đơn của khách sĩ không phải hàng đi cửa hàng, ẩn khỏi màn này
+  const taiKs = async () => { const { data } = await sb.rpc('fn_ks_ds'); setKs(data || []); };
+  const themKs = async (ten) => {
+    if (!ten.trim()) return;
+    const { data, error } = await sb.rpc('fn_ks_them', { p_ten: ten.trim(), p_ghi_chu: null });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã đưa "${ten.trim()}" vào danh mục khách sĩ — ẩn ${data?.so_don ?? 0} đơn`);
+    setTxtKs(''); taiKs(); tai(); taiDiem();
+  };
+  const xoaKs = async (tenChuan, tenHien) => {
+    const { error } = await sb.rpc('fn_ks_xoa', { p_ten_chuan: tenChuan });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã bỏ "${tenHien}" khỏi danh mục khách sĩ`);
+    taiKs(); tai();
   };
   useEffect(() => { tai(); }, [tu, den]);   // eslint-disable-line
   // Làm mới số liệu mỗi 2 phút; tự gọi cập nhật từ hãng vận chuyển mỗi 15 phút
@@ -99,7 +122,7 @@ export default function VanDon() {
     baoToast(`Đã gỡ ${data ?? 0} đơn — hệ thống sẽ tự xác định lại`);
     tai(); taiDiem();
   };
-  useEffect(() => { if (moCC) taiDiem(); }, [moCC]);   // eslint-disable-line
+  useEffect(() => { if (moCC) { taiDiem(); taiKs(); } }, [moCC]);   // eslint-disable-line
 
   const xoHT = async (r) => {
     if (mo === r.label_id) { setMo(null); setHt(null); setNd(null); setGoiY(null); return; }
@@ -122,12 +145,13 @@ export default function VanDon() {
   const luuGan = async (label) => {
     const ds = Object.keys(chon).filter((k) => chon[k]);
     if (!ds.length) { baoToast('Chưa chọn phiếu nào'); return; }
-    const { error } = await sb.rpc('fn_vd_ghep_tay', { p_label: label, p_phieu: ds });
+    const { data, error } = await sb.rpc('fn_vd_ghep_tay', { p_label: label, p_phieu: ds });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã gắn ${ds.length} phiếu vào chuyến này`);
+    const ch2 = data?.chuyen_tu_chuyen_khac || 0;
+    baoToast(`Đã gắn ${ds.length} phiếu vào chuyến này${ch2 ? ` · ${ch2} phiếu chuyển từ chuyến khác sang` : ''}`);
     setGoiY(null); setChon({});
-    const { data } = await sb.rpc('fn_vd_noi_dung', { p_label: label });
-    setNd(data || null);
+    const r = await sb.rpc('fn_vd_noi_dung', { p_label: label });
+    setNd(r.data || null);
   };
   const goPhieu = async (label, ma_phieu) => {
     const { error } = await sb.rpc('fn_vd_go_ghep', { p_label: label, p_ma_phieu: ma_phieu });
@@ -205,11 +229,11 @@ export default function VanDon() {
   };
 
   // ===== lọc + sắp xếp =====
-  const dsKV = useMemo(() => [...new Set((rows || []).map((r) => r.khu_vuc).filter(Boolean))].sort(), [rows]);
-  const dsNoi = useMemo(() => [...new Set((rows || [])
+  const dsKV = useMemo(() => [...new Set(rowsHien.map((r) => r.khu_vuc).filter(Boolean))].sort(), [rowsHien]);
+  const dsNoi = useMemo(() => [...new Set(rowsHien
     .map((r) => r.ten_ch || tenGon(r.ten_nhan)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi')), [rows]);
   const ds = useMemo(() => {
-    let x = (rows || []).filter((r) =>
+    let x = rowsHien.filter((r) =>
       (!nhom || r.nhom === nhom) &&
       (!kv || r.khu_vuc === kv) &&
       (!ch || (r.ten_ch || tenGon(r.ten_nhan)) === ch) &&
@@ -224,7 +248,12 @@ export default function VanDon() {
       if (va === vb) return 0;
       return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'vi')) * h;
     });
-  }, [rows, nhom, kv, ch, chiCham, q, sort]);
+  }, [rowsHien, nhom, kv, ch, chiCham, q, sort]);
+
+  // Đơn khách sĩ bị ẩn khỏi mọi con số của màn này
+  const rowsHien = useMemo(() => (rows || []).filter((r) => !ksAn.has(r.label_id)), [rows, ksAn]);
+  const dem = (k) => rowsHien.filter((r) => r.nhom === k).length;
+  const soAn = (rows || []).length - rowsHien.length;
 
   const doiSort = (c) => setSort((s) => s.c === c ? { c, d: s.d === 'asc' ? 'desc' : 'asc' } : { c, d: 'asc' });
   const Th = ({ c, children, num }) => (
@@ -234,8 +263,8 @@ export default function VanDon() {
   );
 
   // ===== lộ trình =====
-  const tong = tk?.tong || 0;
-  const xong = tk?.giao_xong || 0;
+  const tong = rowsHien.length;
+  const xong = dem('GIAO_XONG');
   const pct = tong ? Math.round((xong / tong) * 100) : 0;
 
   return (
@@ -272,8 +301,8 @@ export default function VanDon() {
             </span>
           </div>
           <div className="vd-moc">
-            <span><b>{fmtN(tk.cho_lay)}</b> chờ lấy tại kho</span>
-            <span><b>{fmtN(tk.dang_giao)}</b> đang trên đường</span>
+            <span><b>{fmtN(dem('CHO_LAY'))}</b> chờ lấy tại kho</span>
+            <span><b>{fmtN(dem('DANG_CHAY'))}</b> đang trên đường</span>
             <span><b>{fmtN(xong)}</b> đã tới nơi</span>
           </div>
           <div className="vd-chan">
@@ -291,13 +320,13 @@ export default function VanDon() {
         <button className={'the-g' + (!nhom && !chiCham ? ' on' : '')}
           onClick={() => { setNhom(null); setChiCham(false); }}>
           <span className="the-g-n">{fmtN(tong)}</span>
-          <span className="the-g-t">Tất cả<small>{fmtN(tk?.dang_chay)} chưa xong</small></span>
+          <span className="the-g-t">Tất cả<small>{fmtN(dem('CHO_LAY') + dem('DANG_CHAY'))} chưa xong</small></span>
         </button>
-        {[['CHO_LAY', 'Chờ lấy', tk?.cho_lay, 'chưa rời kho'],
-          ['DANG_CHAY', 'Đang giao', tk?.dang_giao, 'trên đường'],
-          ['GIAO_XONG', 'Đã giao', tk?.giao_xong, 'tới cửa hàng'],
-          ['SU_CO', 'Sự cố', tk?.su_co, 'cần xử lý'],
-          ['TRA_HANG', 'Trả hàng', tk?.tra_hang, 'quay về kho']].map(([k, t, n, g]) => (
+        {[['CHO_LAY', 'Chờ lấy', dem('CHO_LAY'), 'chưa rời kho'],
+          ['DANG_CHAY', 'Đang giao', dem('DANG_CHAY'), 'trên đường'],
+          ['GIAO_XONG', 'Đã giao', dem('GIAO_XONG'), 'tới cửa hàng'],
+          ['SU_CO', 'Sự cố', dem('SU_CO'), 'cần xử lý'],
+          ['TRA_HANG', 'Trả hàng', dem('TRA_HANG'), 'quay về kho']].map(([k, t, n, g]) => (
           <button key={k} className={'the-g' + (nhom === k ? ' on' : '')}
             onClick={() => { setNhom(nhom === k ? null : k); setChiCham(false); }}>
             <span className="the-g-n">{fmtN(n)}</span>
@@ -389,6 +418,32 @@ export default function VanDon() {
             </div>
           )}
 
+          <div style={{ marginTop: 16 }}>
+            <div className="tq-card-tit">Khách sĩ · {ks.length} tên
+              {soAn > 0 && <span className="tq-tit-phu">đang ẩn {soAn} đơn khỏi màn Vận đơn</span>}</div>
+            <div className="tq-ghi" style={{ marginBottom: 8 }}>
+              Đơn gửi cho khách sĩ không phải hàng đi cửa hàng nên không tính vào màn này.
+              Thêm tên một lần, mọi đơn cùng tên về sau tự động được ẩn.
+            </div>
+            <div className="vd-ks-them">
+              <input className="flt-in" placeholder="Tên khách sĩ ghi trên phiếu giao…" value={txtKs}
+                onChange={(e) => setTxtKs(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') themKs(txtKs); }}
+                style={{ height: 38, flex: 1, minWidth: 200 }} />
+              <button className="btn btn-teal" onClick={() => themKs(txtKs)}>Thêm</button>
+            </div>
+            {ks.length > 0 && (
+              <div className="vd-ks-luoi">
+                {ks.map((k) => (
+                  <span key={k.ten_chuan} className="vd-ks-chip">
+                    {k.ten_hien}<i>{k.so_don} đơn</i>
+                    <button onClick={() => xoaKs(k.ten_chuan, k.ten_hien)} title="Bỏ khỏi danh mục">✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           {diem.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div className="tq-card-tit">Chưa xác định được cửa hàng · {diem.length} tên</div>
@@ -410,6 +465,9 @@ export default function VanDon() {
                         placeholder="Chọn cửa hàng…" style={{ width: '100%' }}
                         options={dsCH.map((c) => ({ value: c.ma_ch, label: c.ten }))} />
                     </div>
+                    <button className="btn-mini vd-ks-nut" onClick={() => themKs(tenGon(d.ten_nhan))}
+                      title="Không phải cửa hàng — đây là khách sĩ, ẩn khỏi màn Vận đơn">
+                      Đây là khách sĩ</button>
                   </div>
                 ))}
               </div>
@@ -543,13 +601,18 @@ export default function VanDon() {
                                   </div>
                                   {goiY.length === 0 && <div className="tq-ghi">Không tìm thấy phiếu nào phù hợp.</div>}
                                   {goiY.map((g) => (
-                                    <label key={g.ma_phieu} className={'vd-gan-d' + (g.da_gan ? ' da' : '')}>
-                                      <input type="checkbox" disabled={g.da_gan}
+                                    <label key={g.ma_phieu} className={'vd-gan-d' + (g.la_chuyen_nay ? ' da' : '')}>
+                                      <input type="checkbox" disabled={g.la_chuyen_nay}
                                         checked={!!chon[g.ma_phieu]}
                                         onChange={(e) => setChon((c) => ({ ...c, [g.ma_phieu]: e.target.checked }))} />
                                       <span className="mono vd-nd-mp">{g.ma_phieu}</span>
-                                      <span className="tq-ghi">xuất {fmtNg(g.ngay_xuat)} · {g.so_ma} mã · {fmtN(g.sl_nhu_cau)} sp
-                                        {g.da_gan ? ' · đã thuộc chuyến khác' : ''}</span>
+                                      <span className="tq-ghi">xuất {fmtNg(g.ngay_xuat)} · {g.so_ma} mã · {fmtN(g.sl_nhu_cau)} sp</span>
+                                      {g.la_chuyen_nay
+                                        ? <span className="vd-gan-tt nay">đã ở chuyến này</span>
+                                        : g.da_gan
+                                          ? <span className="vd-gan-tt khac" title={'Đang thuộc ' + g.label_dang_giu}>
+                                              đang ở chuyến {String(g.label_dang_giu).slice(-10)} — chọn để chuyển sang đây</span>
+                                          : <span className="vd-gan-tt tu-do">chưa gắn chuyến nào</span>}
                                     </label>
                                   ))}
                                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
