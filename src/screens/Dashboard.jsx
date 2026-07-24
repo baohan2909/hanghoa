@@ -19,6 +19,23 @@ function AnhSP({ url, ten, onMo }) {
   );
 }
 
+// Lớp phủ hộp thoại — style gắn thẳng vào thẻ để không phụ thuộc file CSS bên ngoài
+function LopPhu({ onClose, rong = 1000, children }) {
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 3000,
+      background: 'rgba(20,18,14,.55)', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: 16, width: `min(${rong}px, 96vw)`,
+        maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(20,33,58,.3)' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function Delta({ nay, truoc, nhan }) {
   if (!truoc) return <span className="tq-ghi">{nhan}</span>;
   const pct = Math.round(((nay - truoc) / truoc) * 100);
@@ -509,8 +526,7 @@ export default function Dashboard({ chonTab = () => {} }) {
 
       {/* Danh sách mã cháy hàng / cần sản xuất */}
       {ccMa && (
-        <div className="modal-bg" onClick={() => setCcMa(null)}>
-          <div className="modal" style={{ maxWidth: 760, width: '94vw' }} onClick={(e) => e.stopPropagation()}>
+        <LopPhu onClose={() => setCcMa(null)} rong={760}>
             <div className="modal-head">
               <b>{ccMa.sp.sku || ccMa.sp.barcode} · {fmtTr(ccMa.sp.gia)}</b>
               <button className="modal-x" onClick={() => setCcMa(null)}>✕</button>
@@ -539,13 +555,11 @@ export default function Dashboard({ chonTab = () => {} }) {
                 </table>
               </div>
             )}
-          </div>
-        </div>
+        </LopPhu>
       )}
 
       {ho && (
-        <div className="modal-bg" onClick={() => setHo(null)}>
-          <div className="modal" style={{ maxWidth: 860, width: '94vw' }} onClick={(e) => e.stopPropagation()}>
+        <LopPhu onClose={() => setHo(null)} rong={860}>
             <div className="modal-head"><b>{ho.ten}</b>
               <button className="modal-x" onClick={() => setHo(null)}>✕</button></div>
             {ho.ds.length === 0 ? <div className="tq-ghi" style={{ padding: 14 }}>Không có trường hợp nào — tốt.</div> : (
@@ -567,13 +581,11 @@ export default function Dashboard({ chonTab = () => {} }) {
                 </table>
               </div>
             )}
-          </div>
-        </div>
+        </LopPhu>
       )}
 
       {modal && (
-        <div className="tq-modal" onClick={() => setModal(null)}>
-          <div className="tq-modal-in" onClick={(e) => e.stopPropagation()}>
+        <LopPhu onClose={() => setModal(null)} rong={1000}>
             <div className="tq-modal-tit">
               {modal.loai === 'CHAY' ? 'Mã cháy hàng — kho tổng còn, cần chia gấp'
                                      : 'Mã hết sạch toàn hệ thống — cần sản xuất'}
@@ -603,8 +615,7 @@ export default function Dashboard({ chonTab = () => {} }) {
                 </table>
               </div>
             )}
-          </div>
-        </div>
+        </LopPhu>
       )}
     </>
   );
