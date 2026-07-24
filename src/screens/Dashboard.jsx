@@ -374,15 +374,17 @@ export default function Dashboard({ chonTab = () => {} }) {
                 {sp.ma_moi.ds.map((r) => (
                   <div key={r.barcode} className="mm-o" onClick={() => xemPhanBo(r)}
                     title="Bấm xem bán và tồn theo từng cửa hàng">
-                    <AnhSP url={r.hinh_url} ten={r.ten_sp || r.sku} onMo={() => xemPhanBo(r)} />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="mm-ten">{r.ten_sp || r.sku || r.barcode}</div>
-                      <div className="mm-dong">Ra mắt: <b>{r.tuoi_ngay}</b> ngày</div>
-                      <div className="mm-dong">Tồn kho <b>{fmtN(r.ton_kho)}</b> · Tồn CH <b>{fmtN(r.ton)}</b></div>
-                      <div className="mm-dong">Đang có ở <b>{r.so_noi_co}</b> CH</div>
+                    <div className="mm-toc"><b>{r.toc_do}</b><span>sp/ngày</span></div>
+                    <div className="mm-anh">
+                      <AnhSP url={r.hinh_url} ten={r.ten_sp || r.sku} onMo={() => xemPhanBo(r)} />
                     </div>
-                    <div className="mm-toc">
-                      <b>{r.toc_do}</b><span>sp/ngày</span>
+                    <div className="mm-tt">
+                      <div className="mm-ten">{r.ten_sp || r.sku || r.barcode}</div>
+                      <ul className="mm-ds">
+                        <li>Ra mắt: <b>{r.tuoi_ngay}</b> ngày</li>
+                        <li>Tồn kho <b>{fmtN(r.ton_kho)}</b> · Tồn CH <b>{fmtN(r.ton)}</b></li>
+                        <li>Đang có ở <b>{r.so_noi_co}</b> CH</li>
+                      </ul>
                     </div>
                   </div>
                 ))}

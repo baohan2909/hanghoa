@@ -1873,13 +1873,12 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* Tiêu đề hộp thoại: gradient thương hiệu + chữ trắng có glow */
 .lp-dau { display: flex; align-items: center; gap: 12px; padding: 14px 18px;
   background: var(--grad); color: #fff; flex-shrink: 0; }
-.lp-dau b { font-size: 14.5px; font-weight: 800; letter-spacing: .2px;
-  text-shadow: 0 0 14px rgba(255,255,255,.45); }
+.lp-dau b { font-size: 14.5px; font-weight: 800; letter-spacing: .2px; }
 .lp-dau .lp-phu { font-size: 11px; opacity: .85; font-weight: 600; }
 .lp-dong { margin-left: auto; border: 0; cursor: pointer; width: 30px; height: 30px;
   border-radius: 8px; background: rgba(255,255,255,.16); color: #fff; font-size: 13px;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.35); flex-shrink: 0; transition: all .15s; }
-.lp-dong:hover { background: rgba(255,255,255,.3); box-shadow: inset 0 0 0 1px #fff, 0 0 12px rgba(255,255,255,.4); }
+.lp-dong:hover { background: rgba(255,255,255,.3); box-shadow: inset 0 0 0 1px rgba(255,255,255,.75); }
 /* Vùng cuộn: không hở khe với tiêu đề, thead dán chắc */
 .lp-cuon { overflow: auto; flex: 1; }
 .lp-cuon .tbl thead th { position: sticky; top: 0; z-index: 12; background: #FBFBF9;
@@ -1895,9 +1894,10 @@ textarea.inp { height: auto; padding: 10px 12px; }
 @keyframes lpSk { to { background-position: -200% 0; } }
 
 /* Thẻ mã mới trong tháng — bố cục mới: tên trước, thông tin xuống hàng */
-.mm-o { display: flex; gap: 10px; background: #FBFBF9; border: 1px solid var(--line);
-  border-radius: 13px; padding: 11px 12px; cursor: pointer; transition: all .14s;
-  position: relative; overflow: hidden; }
+.mm-o { display: grid; grid-template-columns: 78px 1fr; gap: 10px 12px;
+  background: #FBFBF9; border: 1px solid var(--line);
+  border-radius: 13px; padding: 12px; cursor: pointer; transition: all .14s;
+  position: relative; overflow: hidden; align-items: start; }
 .mm-o::after { content: ''; position: absolute; right: -22px; top: -22px; width: 74px; height: 74px;
   border-radius: 50%; background: rgba(63,182,168,.06); pointer-events: none; }
 .mm-o:hover { border-color: var(--teal); box-shadow: 0 6px 18px rgba(63,182,168,.16); transform: translateY(-2px); }
@@ -1905,9 +1905,19 @@ textarea.inp { height: auto; padding: 10px 12px; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mm-dong { font-size: 11px; color: var(--ink-2); margin-top: 3px; }
 .mm-dong b { color: var(--ink); font-weight: 700; }
-.mm-toc { margin-left: auto; text-align: right; flex-shrink: 0; }
-.mm-toc b { display: block; font-family: var(--font-mono); font-size: 19px; font-weight: 800;
-  color: var(--magenta); line-height: 1; }
+.mm-toc { grid-column: 1; grid-row: 1; text-align: center; }
+.mm-toc b { display: block; font-family: var(--font-mono); font-size: 21px; font-weight: 800;
+  color: var(--magenta); line-height: 1.05; }
 .mm-toc span { font-size: 9.5px; color: var(--ink-2); font-weight: 600; }
+/* Ảnh nằm dưới con số, cùng cột trái */
+.mm-anh { grid-column: 1; grid-row: 2; display: flex; align-items: flex-end; justify-content: center; }
+.mm-anh .tqa, .mm-anh .tqa-trong { width: 74px; height: 74px; border-radius: 11px; }
+/* Cột phải: tên + các dòng gạch đầu dòng */
+.mm-tt { grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
+.mm-ds { list-style: none; margin: 7px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.mm-ds li { position: relative; padding-left: 13px; font-size: 11.5px; color: var(--ink-2); line-height: 1.4; }
+.mm-ds li::before { content: ''; position: absolute; left: 0; top: 6px; width: 5px; height: 5px;
+  border-radius: 50%; background: var(--teal); }
+.mm-ds li b { color: var(--ink); font-weight: 700; }
 /* Trong lớp phủ: vùng cuộn duy nhất là .lp-cuon — gỡ cuộn lồng bên trong để thead dán đúng */
 .lp-cuon .tq-modal-body, .lp-cuon .tbl-wrap { overflow: visible; max-height: none; }
