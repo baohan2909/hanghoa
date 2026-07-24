@@ -127,6 +127,12 @@ export default function Dashboard({ chonTab = () => {} }) {
   const [ccMa, setCcMa] = useState(null);       // modal phân bổ 1 mã
   const [bg, setBg] = useState(null);           // bán hôm nay theo giờ tương đương
   const [maCache, setMaCache] = useState({});   // loai -> danh sách (mở lần 2 là tức thì)
+  const [rt, setRt] = useState(null);           // hàng vừa bán
+  const [rtTt, setRtTt] = useState(null);       // tóm tắt bảng tin
+  const [ng, setNg] = useState(null);           // ngưỡng giá đang đặt
+  const [ngTu, setNgTu] = useState(''); const [ngDen, setNgDen] = useState('');
+  const [moiKhoa, setMoiKhoa] = useState(new Set());   // dòng vừa xuất hiện -> nhấp nháy
+  const [kg, setKg] = useState(null);           // nhịp bán theo khung giờ
 
   // Mỗi khối nạp ĐỘC LẬP: khối nào lỗi chỉ khối đó báo lỗi, các khối khác vẫn hiện.
   const nap = async (im) => {
@@ -189,9 +195,54 @@ export default function Dashboard({ chonTab = () => {} }) {
     setModal({ loai, ds: maCache[loai] || null });
     if (!maCache[loai]) { const ds = await taiMa(loai); setModal({ loai, ds }); }
   };
+  // ===== BẢNG TIN HÀNG VỪA BÁN =====
+  const taiRt = async (im) => {
+    const [a, b] = await Promise.all([
+      sb.rpc('fn_rt_ban_moi', { p_tu: null, p_den: null, p_gio_qua: 24, p_so: 40 }),
+      sb.rpc('fn_rt_tom_tat', { p_tu: null, p_den: null, p_gio_qua: 24 }),
+    ]);
+    const ds = a.data || [];
+    setRt((cu) => {
+      // Dòng nào chưa từng thấy -> đánh dấu để nhấp nháy
+      if (cu && !im) {
+        const da = new Set(cu.map((x) => x.khoa));
+        const moi = ds.filter((x) => !da.has(x.khoa)).map((x) => x.khoa);
+        if (moi.length) {
+          setMoiKhoa(new Set(moi));
+          setTimeout(() => setMoiKhoa(new Set()), 2600);
+        }
+      }
+      return ds;
+    });
+    setRtTt(b.data || null);
+  };
+  const luuNguong = async () => {
+    const tu = ngTu === '' ? null : Math.round(Number(ngTu) * 1000);
+    const den = ngDen === '' ? null : Math.round(Number(ngDen) * 1000);
+    const { data, error } = await sb.rpc('fn_rt_nguong_luu', { p_tu: tu, p_den: den, p_bat: true });
+    if (error) { baoToast('Lỗi lưu ngưỡng: ' + error.message); return; }
+    setNg(data); baoToast('Đã đổi ngưỡng giá theo dõi'); taiRt(true);
+  };
+
+  useEffect(() => {
+    sb.rpc('fn_rt_nguong_doc').then(({ data }) => {
+      setNg(data || null);
+      if (data?.tu != null) setNgTu(String(Math.round(data.tu / 1000)));
+      if (data?.den != null) setNgDen(String(Math.round(data.den / 1000)));
+    });
+    taiRt(true);
+    sb.rpc('fn_tq_khung_gio_cache').then(({ data }) => setKg(data || null));
+    // Dữ liệu bán được nạp mỗi 10 phút, xem lại mỗi 2 phút là đủ mới mà vẫn nhẹ
+    const t = setInterval(() => { taiRt(false); }, 120000);
+    const t2 = setInterval(() => {
+      sb.rpc('fn_tq_khung_gio_cache').then(({ data }) => setKg(data || null));
+    }, 300000);
+    return () => { clearInterval(t); clearInterval(t2); };
+  }, []);   // eslint-disable-line
+
   // Bán theo giờ tương đương + nạp trước 2 danh sách để bấm là mở ngay
   useEffect(() => {
-    sb.rpc('fn_tq_ban_gio').then(({ data }) => setBg(data || null));
+    sb.rpc('fn_tq_ban_gio_cache').then(({ data }) => setBg(data || null));
     const t = setTimeout(() => { taiMa('CHAY'); taiMa('HET'); }, 1200);
     return () => clearTimeout(t);
   }, []);   // eslint-disable-line
@@ -231,9 +282,10 @@ export default function Dashboard({ chonTab = () => {} }) {
           <div className="tq-lon-so">{fmtN(bg?.nay?.tong ?? hn.tong)}<i>sp</i></div>
           {bg?.theo_gio
             ? <Delta nay={bg.nay.tong} truoc={bg.truoc.tong} nhan={`so cùng thứ tuần trước · đến ${bg.gio}`} />
-            : bg && bg.truoc.tong > 0
+            : bg && bg.truoc_ca_ngay > 0
               ? <div className="tq-ghi" style={{ marginTop: 3 }}>
-                  {THU[new Date().getDay()]} tuần trước cả ngày: <b style={{ color: 'var(--ink)' }}>{fmtN(bg.truoc.tong)}</b> sp
+                  {THU[new Date().getDay()]} tuần trước cả ngày: <b style={{ color: 'var(--ink)' }}>{fmtN(bg.truoc_ca_ngay)}</b> sp
+                  {bg.do_phu > 0 && bg.do_phu < 80 && <> · đang nạp giờ {bg.do_phu}%</>}
                 </div>
               : null}
           <div className="tq-tach">
@@ -321,6 +373,89 @@ export default function Dashboard({ chonTab = () => {} }) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ===== BẢNG TIN: HÀNG VỪA BÁN (lọc theo ngưỡng giá tự đặt) ===== */}
+      <div className="card tq-card rt-card" style={{ marginTop: 14 }}>
+        <div className="rt-dau">
+          <span className="rt-cham" />
+          <div className="tq-card-tit" style={{ margin: 0 }}>HÀNG VỪA BÁN</div>
+          <div className="rt-nguong">
+            <span>từ</span>
+            <input type="number" inputMode="numeric" value={ngTu} placeholder="3000"
+              onChange={(e) => setNgTu(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') luuNguong(); }} />
+            <span>đến</span>
+            <input type="number" inputMode="numeric" value={ngDen} placeholder="không giới hạn"
+              onChange={(e) => setNgDen(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') luuNguong(); }} />
+            <span>nghìn</span>
+            <button className="btn-mini" onClick={luuNguong}>Áp dụng</button>
+          </div>
+          {rtTt && (
+            <div className="rt-tt">
+              <span><b>{fmtN(rtTt.so_cai)}</b> cái</span>
+              <span><b>{fmtN(rtTt.so_luot)}</b> lượt</span>
+              <span><b>{fmtN(rtTt.so_ch)}</b> cửa hàng</span>
+              {rtTt.moi_nhat != null && <span>gần nhất {rtTt.moi_nhat < 1 ? 'vừa xong' : `${rtTt.moi_nhat} phút trước`}</span>}
+            </div>
+          )}
+        </div>
+
+        {rt === null ? <ChoTai chu="Đang lấy dữ liệu bán mới nhất…" />
+          : rt.length === 0 ? (
+            <div className="rt-trong">
+              Chưa có lượt bán nào trong 24 giờ qua ở mức giá này.
+              {ng?.tu > 0 && <> Thử hạ ngưỡng xuống dưới {fmtN(Math.round(ng.tu / 1000))} nghìn.</>}
+            </div>
+          ) : (
+            <div className="rt-bang">
+              {rt.map((r) => (
+                <div key={r.khoa} className={'rt-o' + (moiKhoa.has(r.khoa) ? ' moi' : '')}
+                  onClick={() => xemPhanBo({ barcode: r.barcode, sku: r.sku, ten_sp: r.ten_sp, gia: r.gia })}
+                  title="Bấm xem bán và tồn theo từng cửa hàng">
+                  <div className="rt-anh">
+                    {r.hinh_url
+                      ? <img src={r.hinh_url} alt="" loading="lazy"
+                          onError={(e) => { e.target.style.display = 'none'; }} />
+                      : <IcBox />}
+                    {r.gia > 0 && <span className="rt-gia">{fmtTr(r.gia)}</span>}
+                  </div>
+                  <div className="rt-ten">{r.ten_sp || r.sku || r.barcode}</div>
+                  <div className="rt-ch">{r.ten_ch}</div>
+                  <div className="rt-chan">
+                    <span className="rt-gio">{r.gio ? String(r.gio).slice(0, 5) : '—'}</span>
+                    <span className="rt-sl">{fmtN(r.so_luong)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+        {/* Nhịp bán theo khung giờ — chỉ hiện khi dữ liệu đã có giờ */}
+        {kg?.co_du_lieu && (
+          <div style={{ marginTop: 16, borderTop: '1px solid var(--line)', paddingTop: 13 }}>
+            <div className="tq-card-tit" style={{ marginBottom: 0 }}>NHỊP BÁN THEO GIỜ
+              <span className="tq-tit-phu">hôm nay so với trung bình 4 tuần cùng thứ</span></div>
+            <div className="kg-boc">
+              {(() => {
+                const dinh = Math.max(1, ...kg.ds.map((x) => Math.max(x.nay || 0, x.tb || 0)));
+                return kg.ds.map((x) => (
+                  <div className="kg-cot" key={x.h} title={`${x.h}h — hôm nay ${x.nay ?? '—'} · trung bình ${x.tb}`}>
+                    <div className={'kg-thanh' + (x.nay == null ? ' chua' : '')}
+                      style={{ height: `${Math.max(2, ((x.nay ?? 0) / dinh) * 100)}%` }} />
+                    {x.tb > 0 && <span className="kg-tb" style={{ bottom: `calc(${(x.tb / dinh) * 100}% + 14px)` }} />}
+                    <span className="kg-nhan">{x.h}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+            <div className="kg-chu">
+              <span><i style={{ background: 'var(--teal)' }} />hôm nay</span>
+              <span><i style={{ background: 'var(--gold)' }} />trung bình cùng thứ</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ===== TẦNG 3: CHUỖI GIAO HÀNG (đấu nối vận đơn <-> phiếu) ===== */}

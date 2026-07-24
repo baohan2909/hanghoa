@@ -1927,3 +1927,68 @@ textarea.inp { height: auto; padding: 10px 12px; }
 
 /* Ảnh trong thẻ mã mới: rê xem 400%, bấm mở toàn màn hình */
 .mm-anh .tqa { cursor: zoom-in; }
+
+/* ============ v3.43.0 — HÀNG VỪA BÁN (bảng tin trực tiếp) ============ */
+.rt-card { position: relative; overflow: hidden; }
+.rt-dau { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.rt-cham { width: 8px; height: 8px; border-radius: 50%; background: var(--teal);
+  box-shadow: 0 0 0 0 rgba(63,182,168,.7); animation: rtSong 2s infinite; flex-shrink: 0; }
+@keyframes rtSong {
+  0%   { box-shadow: 0 0 0 0 rgba(63,182,168,.55); }
+  70%  { box-shadow: 0 0 0 9px rgba(63,182,168,0); }
+  100% { box-shadow: 0 0 0 0 rgba(63,182,168,0); }
+}
+.rt-tt { display: flex; gap: 14px; align-items: baseline; margin-left: auto; flex-wrap: wrap; }
+.rt-tt span { font-size: 11.5px; color: var(--ink-2); }
+.rt-tt b { font-family: var(--font-mono); font-size: 15px; font-weight: 800; color: var(--magenta); }
+
+/* Băng ngang cuộn được */
+.rt-bang { display: flex; gap: 10px; overflow-x: auto; padding: 3px 2px 10px; scroll-snap-type: x proximity; }
+.rt-bang::-webkit-scrollbar { height: 7px; }
+.rt-bang::-webkit-scrollbar-thumb { background: #dcdad2; border-radius: 4px; }
+.rt-o { flex: 0 0 auto; width: 180px; scroll-snap-align: start; background: #fff;
+  border: 1px solid var(--line); border-radius: 14px; padding: 10px; cursor: pointer;
+  transition: border-color .14s, box-shadow .14s; position: relative; }
+.rt-o:hover { border-color: var(--teal); box-shadow: 0 8px 22px rgba(63,182,168,.2); }
+.rt-o.moi { animation: rtMoi 2.4s ease-out; }
+@keyframes rtMoi {
+  0%   { border-color: var(--magenta); box-shadow: 0 0 0 4px rgba(214,0,108,.22); }
+  60%  { border-color: var(--magenta); box-shadow: 0 0 0 2px rgba(214,0,108,.12); }
+  100% { border-color: var(--line); box-shadow: none; }
+}
+.rt-anh { width: 100%; height: 104px; border-radius: 10px; background: #FBFBF9;
+  display: flex; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 8px; }
+.rt-anh img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.rt-ten { font-size: 11.5px; font-weight: 700; line-height: 1.35; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  min-height: 31px; }
+.rt-ch { font-size: 11px; font-weight: 600; color: var(--teal-deep); margin-top: 5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rt-chan { display: flex; align-items: baseline; justify-content: space-between; margin-top: 6px;
+  padding-top: 6px; border-top: 1px solid #F2F0EA; }
+.rt-gio { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.rt-sl { font-family: var(--font-mono); font-size: 15px; font-weight: 800; color: var(--magenta); }
+.rt-gia { position: absolute; top: 14px; right: 14px; background: rgba(20,18,14,.72); color: #fff;
+  font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; }
+.rt-trong { padding: 26px; text-align: center; color: var(--ink-2); font-size: 12.5px; }
+
+/* Ô đặt ngưỡng giá */
+.rt-nguong { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.rt-nguong input { width: 104px; height: 32px; border-radius: 9px; border: 1px solid var(--line);
+  padding: 0 9px; font-size: 12px; font-family: var(--font-mono); background: #fff; color: var(--ink); }
+.rt-nguong input:focus { outline: none; border-color: var(--teal); }
+.rt-nguong span { font-size: 11.5px; color: var(--ink-2); }
+
+/* Biểu đồ nhịp bán theo khung giờ */
+.kg-boc { display: flex; align-items: flex-end; gap: 3px; height: 108px; margin-top: 10px; }
+.kg-cot { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  height: 100%; justify-content: flex-end; position: relative; }
+.kg-thanh { width: 100%; border-radius: 4px 4px 0 0; background: var(--grad); min-height: 2px;
+  transition: height .5s ease; }
+.kg-thanh.chua { background: #EFEDE5; }
+.kg-tb { position: absolute; left: 8%; right: 8%; height: 2px; background: var(--gold);
+  border-radius: 2px; }
+.kg-nhan { font-size: 8.5px; color: var(--ink-3); font-family: var(--font-mono); }
+.kg-chu { display: flex; gap: 14px; font-size: 10.5px; color: var(--ink-2); margin-top: 8px; }
+.kg-chu i { display: inline-block; width: 11px; height: 3px; border-radius: 2px; margin-right: 4px;
+  vertical-align: middle; font-style: normal; }
