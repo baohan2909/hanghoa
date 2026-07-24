@@ -229,6 +229,11 @@ export default function VanDon() {
   };
 
   // ===== lọc + sắp xếp =====
+  // Đơn khách sĩ bị ẩn khỏi mọi con số của màn này
+  const rowsHien = useMemo(() => (rows || []).filter((r) => !ksAn.has(r.label_id)), [rows, ksAn]);
+  const dem = (k) => rowsHien.filter((r) => r.nhom === k).length;
+  const soAn = (rows || []).length - rowsHien.length;
+
   const dsKV = useMemo(() => [...new Set(rowsHien.map((r) => r.khu_vuc).filter(Boolean))].sort(), [rowsHien]);
   const dsNoi = useMemo(() => [...new Set(rowsHien
     .map((r) => r.ten_ch || tenGon(r.ten_nhan)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi')), [rows]);
@@ -249,11 +254,6 @@ export default function VanDon() {
       return (typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'vi')) * h;
     });
   }, [rowsHien, nhom, kv, ch, chiCham, q, sort]);
-
-  // Đơn khách sĩ bị ẩn khỏi mọi con số của màn này
-  const rowsHien = useMemo(() => (rows || []).filter((r) => !ksAn.has(r.label_id)), [rows, ksAn]);
-  const dem = (k) => rowsHien.filter((r) => r.nhom === k).length;
-  const soAn = (rows || []).length - rowsHien.length;
 
   const doiSort = (c) => setSort((s) => s.c === c ? { c, d: s.d === 'asc' ? 'desc' : 'asc' } : { c, d: 'asc' });
   const Th = ({ c, children, num }) => (

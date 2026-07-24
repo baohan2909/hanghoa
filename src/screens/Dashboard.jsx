@@ -509,8 +509,8 @@ export default function Dashboard({ chonTab = () => {} }) {
 
       {/* Danh sách mã cháy hàng / cần sản xuất */}
       {ccMa && (
-        <div className="modal" onClick={() => setCcMa(null)}>
-          <div className="modal-body" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-bg" onClick={() => setCcMa(null)}>
+          <div className="modal" style={{ maxWidth: 760, width: '94vw' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <b>{ccMa.sp.sku || ccMa.sp.barcode} · {fmtTr(ccMa.sp.gia)}</b>
               <button className="modal-x" onClick={() => setCcMa(null)}>✕</button>
@@ -544,8 +544,8 @@ export default function Dashboard({ chonTab = () => {} }) {
       )}
 
       {ho && (
-        <div className="modal" onClick={() => setHo(null)}>
-          <div className="modal-body" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-bg" onClick={() => setHo(null)}>
+          <div className="modal" style={{ maxWidth: 860, width: '94vw' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-head"><b>{ho.ten}</b>
               <button className="modal-x" onClick={() => setHo(null)}>✕</button></div>
             {ho.ds.length === 0 ? <div className="tq-ghi" style={{ padding: 14 }}>Không có trường hợp nào — tốt.</div> : (
