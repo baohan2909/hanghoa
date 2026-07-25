@@ -26,20 +26,14 @@ const CHI_SO = [
   ['d_sat', 'Đề nghị sát thực tế', 'xin bao nhiêu thì được duyệt bấy nhiêu', 10],
 ];
 
-function Vach({ v }) {
-  if (v == null) return <span className="tq-ghi">—</span>;
-  const m = v >= 85 ? 'var(--teal-deep)' : v >= 60 ? 'var(--gold)' : 'var(--magenta)';
-  return (
-    <span className="cl-vach" title={d1(v) + '/100'}>
-      <span className="cl-vach-in" style={{ width: Math.min(100, v) + '%', background: m }} />
-      <i>{d1(v)}</i>
-    </span>
-  );
-}
 
-export default function ChatLuongDN() {
-  const [tu, setTu] = useState(isoVN());
+export default function ChatLuongDN({ chonTab = () => {} }) {
+  const truNgay = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+  const [tu, setTu] = useState(truNgay(6));   // mặc định 7 ngày — chấm 1 ngày không nói lên gì
   const [den, setDen] = useState(isoVN());
+  const [truoc, setTruoc] = useState({});     // ma_ch -> điểm kỳ liền trước
+  const [maTrong, setMaTrong] = useState(null);   // mã sắp trống nhiều nơi
+  const [dbNgay, setDbNgay] = useState(7);
   const [rows, setRows] = useState(null);
   const [db, setDb] = useState(null);
   const [loc, setLoc] = useState('ALL');
@@ -52,14 +46,21 @@ export default function ChatLuongDN() {
 
   const nap = async () => {
     setTai(true); setMo(null); setMa(null);
-    const [a, b] = await Promise.all([
-      rpcHet('fn_cldn_v2', { p_tu: tu, p_den: den }),
-      sb.rpc('fn_cldn_du_bao', { p_ngay: 7 }),
+    const [a, b, c] = await Promise.all([
+      sb.rpc('fn_cldn_sosanh', { p_tu: tu, p_den: den }),
+      sb.rpc('fn_cldn_du_bao', { p_ngay: dbNgay }),
+      sb.rpc('fn_cldn_ma_trong', { p_ngay: dbNgay, p_so: 18 }),
     ]);
-    setRows(a.data || []); setDb(b.data || []);
+    if (a.error) {   // máy chủ chưa có hàm mới -> vẫn chạy bằng hàm cũ
+      const cu = await rpcHet('fn_cldn_v2', { p_tu: tu, p_den: den });
+      setRows(cu.data || []); setTruoc({});
+    } else {
+      setRows(a.data?.rows || []); setTruoc(a.data?.truoc || {});
+    }
+    setDb(b.data || []); setMaTrong(c.error ? [] : (c.data || []));
     setTai(false);
   };
-  useEffect(() => { nap(); }, [tu, den]);   // eslint-disable-line
+  useEffect(() => { nap(); }, [tu, den, dbNgay]);   // eslint-disable-line
 
   const xo = async (r) => {
     if (mo === r.ma_ch) { setMo(null); setMa(null); return; }
@@ -97,6 +98,28 @@ export default function ChatLuongDN() {
     return v;
   }, [rows, loc, q, sortC]);
 
+  const xuatExcel = async () => {
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+    const diem = (rows || []).map((r) => ({
+      'Nơi bán': r.ten, 'Mã': r.ma_ch, 'Khu vực': r.khu_vuc || '',
+      'Mã trọng yếu': r.so_xs, 'Đang mất': r.so_mat,
+      'Còn bán được (ngày)': r.ngay_ton, 'Điểm': r.diem, 'Xếp loại': r.xep_loai,
+      'Điểm kỳ trước': truoc[r.ma_ch] ?? '', 'Tình trạng': CB[r.canh_bao]?.t || r.canh_bao,
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(diem), 'Điểm đề nghị');
+    if (maTrong?.length) {
+      const mt = maTrong.map((m) => ({
+        'Mã': m.sku || m.barcode, 'Tên': m.ten_sp || '', 'Nhóm': m.nganh_3 || '',
+        'Số nơi sắp trống': m.so_noi, 'Nơi gấp nhất': m.ds_noi,
+        'Tồn nơi bán': m.ton_noi_ban, 'Tồn kho tổng': m.ton_kho_tong,
+        'Hướng xử lý': m.huong === 'CHIA' ? 'Chia từ kho' : m.huong === 'DIEU_PHOI' ? 'Điều phối ngang' : 'Cần sản xuất',
+      }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mt), 'Mã sắp trống');
+    }
+    XLSX.writeFile(wb, `CHATLUONG_DN_${tu}_${den}.xlsx`);
+  };
+
   const ds = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'asc' ? 'desc' : 'asc' }));
   const ic = (c) => (sortC.col === c ? <i className="sort-ic">{sortC.dir === 'asc' ? '▲' : '▼'}</i> : null);
 
@@ -115,10 +138,17 @@ export default function ChatLuongDN() {
       </div>
 
       <div className="toolbar">
+        {[7, 14, 30].map((n) => (
+          <button key={n} className={'ds-tc-chip' + (tu === truNgay(n - 1) && den === isoVN() ? ' on' : '')}
+            onClick={() => { setTu(truNgay(n - 1)); setDen(isoVN()); }}>{n} ngày</button>
+        ))}
         <DateBox label="Từ" value={tu} onChange={setTu} />
         <DateBox label="Đến" value={den} onChange={setDen} />
         <input className="flt-in" placeholder="Tìm nơi bán / khu vực…" value={q}
-          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 200, flex: 1 }} />
+          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 180, flex: 1 }} />
+        <button className="btn btn-ai" onClick={xuatExcel} disabled={!rows?.length}>
+          Xuất Excel
+        </button>
       </div>
 
       {db && db.length > 0 && (
@@ -126,9 +156,13 @@ export default function ChatLuongDN() {
           <div className="cl-db-tit">
             <IcAlert />
             <div className="cl-db-txt">
-              <b>{db.length} nơi bán sẽ trống mã trọng yếu trong 7 ngày tới</b>
+              <b>{db.length} nơi bán sẽ trống mã trọng yếu trong {dbNgay} ngày tới</b>
               <span>tính theo tốc độ bán thật, đã cộng cả hàng đang trên đường về</span>
             </div>
+            {[7, 14].map((n) => (
+              <button key={n} className={'ds-tc-chip' + (dbNgay === n ? ' on' : '')}
+                onClick={() => setDbNgay(n)}>{n}n</button>
+            ))}
             <button className="btn btn-hd" onClick={() => setXemDb((v) => !v)}>
               {xemDb ? 'Thu gọn' : 'Xem danh sách'}
             </button>
@@ -153,6 +187,38 @@ export default function ChatLuongDN() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {maTrong && maTrong.length > 0 && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <div className="tq-card-tit">MÃ SẮP TRỐNG NHIỀU NƠI NHẤT
+            <span className="tq-tit-phu">mã trọng yếu sẽ cạn trong {dbNgay} ngày, gom theo mã — biết ngay nên chia hay sản xuất</span></div>
+          <div className="mt-bang">
+            {maTrong.map((m) => (
+              <div key={m.barcode} className="mt-o">
+                <div className="mt-anh">
+                  {m.hinh_url
+                    ? <img src={m.hinh_url} alt="" loading="lazy"
+                        onError={(e) => { e.target.style.display = 'none'; }} />
+                    : <IcBox />}
+                  <span className="mt-noi">{m.so_noi} nơi</span>
+                </div>
+                <div className="mt-tt">
+                  <div className="mt-ten">{m.ten_sp || m.sku || m.barcode}</div>
+                  <div className="mt-ds" title={m.ds_noi}>{m.ds_noi}</div>
+                  <div className="mt-chan">
+                    <span className="tq-ghi">kho <b>{fmtN(m.ton_kho_tong)}</b> · CH <b>{fmtN(m.ton_noi_ban)}</b></span>
+                    {m.huong === 'CHIA'
+                      ? <button className="mt-tag chia" onClick={() => chonTab('duyet')}>→ Chia từ kho</button>
+                      : m.huong === 'DIEU_PHOI'
+                        ? <button className="mt-tag dp" onClick={() => chonTab('ycdp')}>→ Điều phối ngang</button>
+                        : <span className="mt-tag sx">Cần sản xuất</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -188,39 +254,56 @@ export default function ChatLuongDN() {
               <tr>
                 <th className="sortable" onClick={() => ds('ten')}>Nơi bán{ic('ten')}</th>
                 <th className="sortable" onClick={() => ds('kv')}>Khu vực{ic('kv')}</th>
-                <th className="num sortable" onClick={() => ds('xs')}>Mã trọng yếu{ic('xs')}</th>
-                <th className="num sortable" onClick={() => ds('mat')}>Đang mất{ic('mat')}</th>
-                <th className="num sortable" onClick={() => ds('ngay')}>Còn bán được{ic('ngay')}</th>
-                {CHI_SO.map(([k, t, mt]) => (
-                  <th key={k} className="num cl-th-cs" title={t + ' — ' + mt}>{t}</th>
-                ))}
-                <th className="num sortable" onClick={() => ds('diem')}>Điểm{ic('diem')}</th>
+                <th className="ct-giua sortable" onClick={() => ds('xs')}>Mã trọng yếu{ic('xs')}</th>
+                <th className="ct-giua sortable" onClick={() => ds('mat')}>Đang mất{ic('mat')}</th>
+                <th className="ct-giua sortable" onClick={() => ds('ngay')}>Còn bán được{ic('ngay')}</th>
+                <th className="ct-giua" title={CHI_SO.map(([, t, , w]) => `${t} ${w}%`).join(' · ')}>6 chỉ số</th>
+                <th className="ct-giua sortable" onClick={() => ds('diem')}>Điểm{ic('diem')}</th>
                 <th style={{ width: '1%' }}>Tình trạng</th>
               </tr>
             </thead>
             <tbody>
-              {rows === null && <tr><td colSpan={13} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tính…</td></tr>}
-              {rows !== null && hien.length === 0 && <tr><td colSpan={13} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Không có nơi bán nào khớp bộ lọc.</td></tr>}
+              {rows === null && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tính…</td></tr>}
+              {rows !== null && hien.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Không có nơi bán nào khớp bộ lọc.</td></tr>}
               {hien.map((r) => (
                 <Fragment key={r.ma_ch}>
                   <tr className="cl-row" onClick={() => xo(r)}>
                     <td><b>{r.ten}</b><div className="tq-ghi mono">{r.ma_ch}</div></td>
                     <td>{r.khu_vuc || ''}</td>
-                    <td className="num">{fmtN(r.so_xs)}</td>
-                    <td className="num">{r.so_mat > 0
+                    <td className="ct-giua">{fmtN(r.so_xs)}</td>
+                    <td className="ct-giua">{r.so_mat > 0
                       ? <b className="hh-do">{fmtN(r.so_mat)}</b> : <span className="tq-ghi">0</span>}</td>
-                    <td className="num">{r.ngay_ton == null ? <span className="tq-ghi">—</span>
+                    <td className="ct-giua">{r.ngay_ton == null ? <span className="tq-ghi">—</span>
                       : <b className={Number(r.ngay_ton) < Number(r.chu_ky) ? 'hh-do' : ''}>{d1(r.ngay_ton)} ngày</b>}
                       <div className="tq-ghi">kỳ {r.chu_ky} ngày</div></td>
-                    {CHI_SO.map(([k]) => <td key={k} className="num"><Vach v={r[k]} /></td>)}
-                    <td className="num"><b className="cl-diem">{r.diem == null ? '—' : d1(r.diem)}</b></td>
+                    <td className="ct-giua">
+                      <div className="cl-6v" title={CHI_SO.map(([k, t]) => `${t}: ${r[k] == null ? '—' : Math.round(r[k])}`).join(' · ')}>
+                        {CHI_SO.map(([k]) => (
+                          <span key={k} className="cl-6v-cot">
+                            <i style={{ height: `${Math.max(6, Math.round((r[k] || 0)))}%` }}
+                              className={r[k] == null ? 'trong' : r[k] >= 70 ? 'tot' : r[k] >= 40 ? 'vua' : 'thap'} />
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="ct-giua">
+                      <b className="cl-diem">{r.diem == null ? '—' : d1(r.diem)}</b>
+                      {(() => {
+                        const t = truoc[r.ma_ch];
+                        if (r.diem == null || t == null) return null;
+                        const dl = Number(r.diem) - Number(t);
+                        if (Math.abs(dl) < 1) return <div className="cl-xh bang">＝</div>;
+                        return <div className={'cl-xh ' + (dl > 0 ? 'len' : 'xuong')}>
+                          {dl > 0 ? '▲' : '▼'} {Math.abs(dl).toFixed(0)}</div>;
+                      })()}
+                    </td>
                     <td>
                       <span className={'cl-xl cl-xl-' + (r.xep_loai || '').toLowerCase()}>{r.xep_loai}</span>
                       <div className={'cl-cb ' + (CB[r.canh_bao]?.c || '')}>{CB[r.canh_bao]?.t || r.canh_bao}</div>
                     </td>
                   </tr>
                   {mo === r.ma_ch && (
-                    <tr className="cl-xo"><td colSpan={13}>
+                    <tr className="cl-xo"><td colSpan={8}>
                       <div className="cl-nhom-tit">Mã trọng yếu của {r.ten} — những mã tạo nên 80% sản lượng 60 ngày qua</div>
                       {ma === null ? <div className="tq-ghi">Đang tải…</div>
                         : ma.length === 0 ? <div className="tq-ghi">Nơi này chưa có lịch sử bán đủ để xác định mã trọng yếu.</div> : (
