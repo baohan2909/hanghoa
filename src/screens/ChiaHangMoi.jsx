@@ -367,12 +367,13 @@ export default function ChiaHangMoi() {
               {d.moRong && (
                 <div className="tbl-wrap" style={{ maxHeight: '40vh' }}>
                   <table className="tbl">
-                    <thead><tr><th>Cửa hàng</th><th className="ct-giua">Khu vực</th>
+                    <thead><tr><th className="ct-stt">#</th><th>Cửa hàng</th><th className="ct-giua">Khu vực</th>
                       <th className="ct-giua">Tỷ lệ</th><th className="ct-giua">Đề xuất</th>
                       <th className="ct-giua">Chốt</th><th style={{ width: 34 }}></th></tr></thead>
                     <tbody>
-                      {d.ct.map((r) => (
+                      {d.ct.map((r, i3) => (
                         <tr key={r.id}>
+                          <td className="ct-stt">{i3 + 1}</td>
                           <td><b>{tenCH[r.ma_ch] || r.ma_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
                           <td className="ct-giua">{kvCH[r.ma_ch] || '—'}</td>
                           <td className="ct-giua">{Math.round((r.ty_le || 0) * 100)}%</td>

@@ -2136,3 +2136,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ds-pivot .ds-ma, .ds-pivot .ds-o, .ds-pivot .ds-tong,
 .ds-pivot .ds-tong-cot, .ds-pivot .ds-tong-cuoi { text-align: center; vertical-align: middle; }
 .ds-pivot .ds-ma-nhan { text-align: center; }
+
+/* v3.48.1 — cột STT bảng chi tiết trong card từng mã */
+.ct-stt { width: 34px; min-width: 34px; text-align: center; color: var(--ink-3);
+  font-family: var(--font-mono); font-size: 11px; }
