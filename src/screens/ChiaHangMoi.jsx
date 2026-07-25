@@ -1,5 +1,5 @@
 import { isoVN } from '../lib/ui.jsx';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcSplit, IcDown, IcSearch } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
@@ -11,6 +11,7 @@ function AnhMini({ url }) {
   return <img src={url} alt="" onError={() => setLoi(true)} />;
 }
 let seq = 1;
+const fmtN = (n) => (n == null ? '0' : Number(n).toLocaleString('vi'));
 const dongMoi = () => ({ id: seq++, q: '', goiY: [], sp: null, nganh3: '',
   qTC: '', goiYTC: [], thamChieu: null, tong: '', ct: null, batchId: null, moRong: true });
 
@@ -20,6 +21,8 @@ export default function ChiaHangMoi() {
   const [dong, setDong] = useState([dongMoi()]);
   const [busy, setBusy] = useState(false);
   const [khoMap, setKhoMap] = useState({});
+  const [moDS, setMoDS] = useState(false);   // mở bảng đối soát tổng hợp
+  const [banNganh, setBanNganh] = useState({});   // barcode -> {ban_nganh_30, ty_le_nganh}
   const timRef = useRef({});
 
   // Báo cho App biết đang chia dở -> không tự cập nhật phiên bản giữa chừng
@@ -95,15 +98,30 @@ export default function ChiaHangMoi() {
       await Promise.all(d.ct.map((r) => sb.from('chia_hang_moi_ct').update({ sl_chot: r.sl_chot }).eq('id', r.id)));
       await sb.from('chia_hang_moi').update({ trang_thai: 'CHOT' }).eq('id', d.batchId);
     }
+    // Mã phiếu cột E: HM + YYYYMMDD + kho cho + kho nhận + STT trong ngày
+    // STT tăng dần theo TỪNG CẶP (kho cho, kho nhận) trong lần xuất này
+    const ngay = isoVN().replace(/-/g, '');
+    const dem = {};
     const rowsX = [];
-    daChia.forEach((d) => d.ct.filter((r) => r.sl_chot > 0).forEach((r) => rowsX.push({
-      'Kho nguồn': khoNguon(d.sp),
-      'Kho đích': r.ma_ch,
-      'SKU/ Barcode': d.sp.sku || d.sp.barcode,
-      'Số lượng': r.sl_chot,
-    })));
+    daChia.forEach((d) => {
+      const khoCho = khoNguon(d.sp) || 'KHO';
+      d.ct.filter((r) => r.sl_chot > 0).forEach((r) => {
+        const cap = khoCho + '|' + r.ma_ch;
+        dem[cap] = (dem[cap] || 0) + 1;
+        const stt = String(dem[cap]).padStart(2, '0');
+        const maPhieu = `HM${ngay}-${khoCho}-${r.ma_ch}-${stt}`;
+        rowsX.push({
+          'Kho nguồn': khoCho,
+          'Kho đích': r.ma_ch,
+          'SKU/ Barcode': d.sp.sku || d.sp.barcode,
+          'Số lượng': r.sl_chot,
+          'Mã phiếu': maPhieu,
+        });
+      });
+    });
     const XLSX = await import('xlsx');
-    const ws = XLSX.utils.json_to_sheet(rowsX);
+    const ws = XLSX.utils.json_to_sheet(rowsX, {
+      header: ['Kho nguồn', 'Kho đích', 'SKU/ Barcode', 'Số lượng', 'Mã phiếu'] });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Trang tính1');
     XLSX.writeFile(wb, `CHIAMOI_${isoVN()}.xlsx`);
@@ -111,6 +129,48 @@ export default function ChiaHangMoi() {
   };
 
   const tongTatCa = dong.reduce((s, d) => s + (d.ct || []).reduce((x, r) => x + (r.sl_chot || 0), 0), 0);
+
+  const laBH = (sp) => (sp?.nganh_1 || '').includes('bảo hiểm') || (sp?.nganh_1 || '').includes('Mũ');
+
+  // Bảng đối soát: mỗi cửa hàng một dòng, mỗi mã một cột, cộng dồn toàn bộ.
+  // Cột mã xếp mũ bảo hiểm trước, nón vải sau.
+  const banDS = useMemo(() => {
+    const ma = dong.filter((d) => d.sp && d.ct && d.ct.length)
+      .map((d) => ({ id: d.id, sp: d.sp, bh: laBH(d.sp),
+        nhan: d.sp.ma_tham_chieu || d.sp.sku || d.sp.barcode, ct: d.ct }))
+      .sort((a, b) => (a.bh === b.bh ? a.nhan.localeCompare(b.nhan, 'vi') : (a.bh ? -1 : 1)));
+    if (!ma.length) return null;
+
+    const oCH = {};   // ma_ch -> { ten, o: { colId: sl } }
+    ma.forEach((m) => m.ct.forEach((r) => {
+      if (!oCH[r.ma_ch]) oCH[r.ma_ch] = { ma_ch: r.ma_ch, ten: tenCH[r.ma_ch] || r.ma_ch, o: {} };
+      oCH[r.ma_ch].o[m.id] = (oCH[r.ma_ch].o[m.id] || 0) + (r.sl_chot || 0);
+    }));
+    const hang = Object.values(oCH)
+      .map((h) => ({ ...h, tong: ma.reduce((s, m) => s + (h.o[m.id] || 0), 0) }))
+      .filter((h) => h.tong > 0)
+      .sort((a, b) => b.tong - a.tong);
+
+    const cotTong = ma.map((m) => ({ id: m.id,
+      tong: hang.reduce((s, h) => s + (h.o[m.id] || 0), 0) }));
+    return { ma, hang, cotTong, tongCuoi: hang.reduce((s, h) => s + h.tong, 0) };
+  }, [dong, tenCH]);
+
+  // Sửa số trong bảng đối soát -> ghi ngược về đúng dòng chi tiết
+  useEffect(() => {
+    if (!moDS || !banDS) return;
+    const bc = banDS.ma.map((m) => m.sp.barcode).filter(Boolean);
+    if (!bc.length) return;
+    sb.rpc('fn_chia_ban_nganh', { p_barcodes: bc }).then(({ data }) => {
+      setBanNganh(Object.fromEntries((data || []).map((x) => [x.barcode, x])));
+    });
+  }, [moDS]);   // eslint-disable-line
+
+  const suaODS = (colId, ma_ch, v) => {
+    const sl = Math.max(0, parseInt(v) || 0);
+    setDong((ds) => ds.map((d) => d.id !== colId ? d : {
+      ...d, ct: d.ct.map((r) => r.ma_ch === ma_ch ? { ...r, sl_chot: sl } : r) }));
+  };
 
   return (
     <div>
@@ -122,6 +182,9 @@ export default function ChiaHangMoi() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="btn btn-ai" disabled={busy} onClick={chiaTatCa}>
             {busy ? 'Đang chia…' : '✦ Chia tự động tất cả'}
+          </button>
+          <button className="btn btn-teal" onClick={() => setMoDS(true)} disabled={!banDS}>
+            Bảng đối soát{banDS ? ` (${banDS.hang.length} CH)` : ''}
           </button>
           <button className="btn btn-gold" onClick={xuatTatCa}>
             <IcDown style={{ verticalAlign: -3 }} /> Xuất tất cả{tongTatCa > 0 ? ` (${tongTatCa} sp)` : ''}
@@ -228,6 +291,70 @@ export default function ChiaHangMoi() {
       <button className="btn" style={{ marginTop: 12 }} onClick={() => setDong((ds) => [...ds, dongMoi()])}>
         ＋ Thêm mã hàng mới
       </button>
+
+      {moDS && banDS && (
+        <div onClick={() => setMoDS(false)} style={{
+          position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 3000,
+          background: 'rgba(20,18,14,.55)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', padding: 24 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: '#fff', borderRadius: 16, width: 'min(1180px, 97vw)', maxHeight: '90vh',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(20,33,58,.3)' }}>
+            <div className="lp-dau">
+              <div><b>Bảng đối soát chia hàng mới</b>
+                <div className="lp-phu">{banDS.hang.length} cửa hàng · {banDS.ma.length} mã · {banDS.tongCuoi} sp — sửa số ngay trong bảng</div></div>
+              <button className="lp-dong" onClick={() => setMoDS(false)}>✕</button>
+            </div>
+            <div className="lp-cuon">
+              <table className="tbl ds-pivot">
+                <thead>
+                  <tr>
+                    <th className="ds-ch">Cửa hàng</th>
+                    {banDS.ma.map((m) => (
+                      <th key={m.id} className={'num ds-ma' + (m.bh ? ' bh' : ' nv')} title={m.sp.nganh_1 || ''}>
+                        <span className="ds-ma-nhan">{m.nhan}</span>
+                        <span className="ds-ma-nganh">{m.bh ? 'MBH' : 'Nón vải'}</span>
+                        {banNganh[m.sp.barcode] && (
+                          <span className="ds-ma-ban">
+                            {fmtN(banNganh[m.sp.barcode].ban_nganh_30)} · {Math.round(banNganh[m.sp.barcode].ty_le_nganh * 100)}%
+                          </span>
+                        )}
+                      </th>
+                    ))}
+                    <th className="num ds-tong">Tổng</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {banDS.hang.map((h) => (
+                    <tr key={h.ma_ch}>
+                      <td className="ds-ch"><b>{h.ten}</b><span className="ds-ch-ma">{h.ma_ch}</span></td>
+                      {banDS.ma.map((m) => (
+                        <td key={m.id} className="num ds-o">
+                          {h.o[m.id] != null ? (
+                            <input className="ds-in" type="number" min="0" value={h.o[m.id]}
+                              onChange={(e) => suaODS(m.id, h.ma_ch, e.target.value)} />
+                          ) : <span className="ds-khong">·</span>}
+                        </td>
+                      ))}
+                      <td className="num ds-tong"><b>{h.tong}</b></td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td className="ds-ch">Tổng cột</td>
+                    {banDS.cotTong.map((c) => (
+                      <td key={c.id} className="num ds-tong-cot">{c.tong}</td>
+                    ))}
+                    <td className="num ds-tong-cuoi">{banDS.tongCuoi}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

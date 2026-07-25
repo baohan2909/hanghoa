@@ -1,6 +1,6 @@
 # BÀN GIAO PHIÊN LÀM VIỆC — ĐIỀU PHỐI HÀNG HÓA
 
-> Cập nhật: 24/07/2026 · App **v3.43.0** · Apps Script **v3.24.2** · SQL đã chạy tới **132**
+> Cập nhật: 24/07/2026 · App **v3.44.0** · Apps Script **v3.24.2** · SQL đã chạy tới **133**
 
 ## 0. Cách làm việc
 
@@ -93,7 +93,11 @@ chứa **mã tuyến**, không phải mã cửa hàng — hướng này đã b�
 | 129 | Ghép phiếu xoay trục về phiếu · chuyển phiếu giữa chuyến · danh mục khách sĩ · hẹn giờ nhận diện cửa hàng trên máy chủ |
 | 130 | v_sp_tt (tên + ảnh SP) · bán hôm nay theo giờ tương đương · chuỗi giao hàng trả đủ tên CH/khu vực/ngày tạo/số ngày · mã mới có tên sản phẩm |
 
-**Việc còn treo**: làm lại màn **Chia hàng mới** — chia xong bấm một cái là dựng thành
+**Mã phiếu chia hàng mới (cột E khi xuất)**: `HM + YYYYMMDD + '-' + kho cho + '-' + kho nhận
++ '-' + STT`, STT tăng theo từng cặp (kho cho, kho nhận) trong một lần xuất. Ví dụ
+`HM20260725-KHO01-CH001-01`.
+
+**Việc còn treo (cũ, đã xong ở v3.44)**: ~~làm lại màn Chia hàng mới~~ — chia xong bấm một cái là dựng thành
 bảng chia cho từng cửa hàng giống màn Đề nghị hàng, xuất ra là chia luôn.
 
 ## 6. Bảo mật dữ liệu — RLS
