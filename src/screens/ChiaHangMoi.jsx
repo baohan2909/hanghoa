@@ -27,7 +27,7 @@ export default function ChiaHangMoi() {
   const [sortDS, setSortDS] = useState({ col: 'tong', dir: 'desc' });
   const [tc, setTc] = useState({ q: '', chon: null, goiY: [], sl: null });  // dòng tham chiếu
   const tcRef = useRef(null);
-  const [tdCH, setTdCH] = useState({});   // ma_ch -> sp/ngày (cột tham chiếu)
+  const [tdCH, setTdCH] = useState({});   // ma_ch -> bán 30 ngày (cột tham chiếu)
   const timRef = useRef({});
 
   // Báo cho App biết đang chia dở -> không tự cập nhật phiên bản giữa chừng
@@ -216,7 +216,7 @@ export default function ChiaHangMoi() {
     sb.rpc('fn_ds_toc_do_ch', {
       p_loai: tc.chon?.loai || null, p_gia_tri: tc.chon?.gia_tri || null, p_ma_ch: dsCH,
     }).then(({ data }) => {
-      setTdCH(Object.fromEntries((data || []).map((x) => [x.ma_ch, x.moi_ngay])));
+      setTdCH(Object.fromEntries((data || []).map((x) => [x.ma_ch, x.ban_30])));
     });
   }, [moDS, tc.chon, banDS?.hang.length]);   // eslint-disable-line
 
@@ -423,7 +423,7 @@ export default function ChiaHangMoi() {
               <button className="lp-dong" onClick={() => setMoDS(false)}>✕</button>
             </div>
             <div className="ds-tc">
-              <span className="ds-tc-lbl">Cột Bán/ngày tính theo:</span>
+              <span className="ds-tc-lbl">Cột Bán/tháng tính theo:</span>
               <div className="ds-tc-o">
                 <input className="inp ds-tc-in" placeholder="Gõ mã sản phẩm hoặc ngành hàng…"
                   value={tc.q} onChange={(e) => timTC(e.target.value)} />
@@ -443,8 +443,8 @@ export default function ChiaHangMoi() {
               </div>
               {tc.chon && tc.sl && (
                 <div className="ds-tc-kq">
-                  <b>{tc.sl.moi_ngay}</b><span>sp/ngày</span>
-                  <i>· {fmtN(tc.sl.ban_30)} bán 30n · {tc.sl.so_ch} cửa hàng</i>
+                  <b>{fmtN(tc.sl.ban_30)}</b><span>sp/tháng</span>
+                  <i>· {tc.sl.moi_ngay}/ngày · {tc.sl.so_ch} cửa hàng</i>
                 </div>
               )}
               <div className="ds-tc-nhanh">
@@ -460,14 +460,15 @@ export default function ChiaHangMoi() {
               <table className="tbl ds-pivot">
                 <thead>
                   <tr>
+                    <th className="ds-stt">#</th>
                     <th className="ds-ch ds-sort" onClick={() => sortCot('ten')}>
                       Cửa hàng{muiTen('ten')}</th>
                     <th className="ds-kv ds-sort" onClick={() => sortCot('kv')}>
                       Khu vực{muiTen('kv')}</th>
                     <th className="ds-tc-col ds-sort" onClick={() => sortCot('tc')}
-                      title={tc.chon ? `Tốc độ bán ${tc.chon.nhan} mỗi ngày tại từng cửa hàng`
-                                     : 'Tốc độ bán mỗi ngày tại từng cửa hàng'}>
-                      Bán/ngày{muiTen('tc')}
+                      title={tc.chon ? `Số bán ${tc.chon.nhan} trong 30 ngày tại từng cửa hàng`
+                                     : 'Số bán 30 ngày tại từng cửa hàng'}>
+                      Bán/tháng{muiTen('tc')}
                       {tc.chon && <span className="ds-tc-col-phu">{tc.chon.nhan}</span>}</th>
                     {banDS.ma.map((m) => (
                       <th key={m.id} className={'ds-ma ds-sort ' + (m.bh ? 'bh' : 'nv')}
@@ -480,16 +481,17 @@ export default function ChiaHangMoi() {
                   </tr>
                 </thead>
                 <tbody>
-                  {banDS.hang.map((h) => (
+                  {banDS.hang.map((h, i2) => (
                     <tr key={h.ma_ch}>
+                      <td className="ds-stt">{i2 + 1}</td>
                       <td className="ds-ch"><b>{h.ten}</b><span className="ds-ch-ma">{h.ma_ch}</span></td>
                       <td className="ds-kv">{h.khu_vuc || '—'}</td>
                       <td className="ds-tc-col">{tdCH[h.ma_ch] != null
-                        ? <b>{tdCH[h.ma_ch]}</b> : <span className="ds-khong">·</span>}</td>
+                        ? <b>{fmtN(tdCH[h.ma_ch])}</b> : <span className="ds-khong">·</span>}</td>
                       {banDS.ma.map((m) => (
                         <td key={m.id} className="ds-o">
                           {h.o[m.id] != null ? (
-                            <input className={'ds-in ' + (m.bh ? 'bh' : 'nv')} type="number" min="0" value={h.o[m.id]}
+                            <input className="ds-in" type="number" min="0" value={h.o[m.id]}
                               onChange={(e) => suaODS(m.id, h.ma_ch, e.target.value)} />
                           ) : (
                             <button className="ds-them-o" title="Thêm mã này cho cửa hàng"
@@ -503,11 +505,12 @@ export default function ChiaHangMoi() {
                 </tbody>
                 <tfoot>
                   <tr>
+                    <td className="ds-stt" />
                     <td className="ds-ch">Tổng</td>
                     <td className="ds-kv" />
                     <td className="ds-tc-col" />
-                    {banDS.cotTong.map((c, i2) => (
-                      <td key={c.id} className={'ds-tong-cot ' + (banDS.ma[i2]?.bh ? 'bh' : 'nv')}>{c.tong}</td>
+                    {banDS.cotTong.map((c) => (
+                      <td key={c.id} className="ds-tong-cot">{c.tong}</td>
                     ))}
                     <td className="ds-tong-cuoi">{banDS.tongCuoi}</td>
                   </tr>

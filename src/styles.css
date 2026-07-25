@@ -1997,7 +1997,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ds-pivot { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
 .ds-pivot th, .ds-pivot td { border-bottom: 1px solid var(--line); }
 /* Cột cửa hàng dán trái */
-.ds-pivot .ds-ch { position: sticky; left: 0; z-index: 3; background: #fff; text-align: left;
+.ds-pivot .ds-ch { position: sticky; left: 40px; z-index: 3; background: #fff; text-align: left;
   min-width: 190px; box-shadow: 1px 0 0 var(--line); }
 .ds-pivot thead .ds-ch { z-index: 5; background: #FBFBF9; }
 .ds-ch-ma { display: block; font-size: 10.5px; color: var(--ink-2); font-family: var(--font-mono); }
@@ -2007,7 +2007,6 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ds-ma { min-width: 78px; text-align: center; }
 .ds-ma-nhan { display: block; font-family: var(--font-mono); font-size: 11.5px; font-weight: 800; }
 .ds-ma.bh .ds-ma-nhan { color: var(--teal-deep); }
-.ds-ma.nv .ds-ma-nhan { color: var(--magenta); }
 /* Ô số sửa trực tiếp */
 .ds-o { padding: 2px; text-align: center; }
 .ds-in { width: 58px; height: 30px; text-align: center; border: 1px solid transparent;
@@ -2015,8 +2014,6 @@ textarea.inp { height: auto; padding: 10px 12px; }
   --_gap: 0;
   border-radius: 7px; background: transparent; font-family: var(--font-mono); font-size: 12.5px;
   font-weight: 700; color: var(--ink); }
-.ds-in.bh { color: var(--teal-deep); }
-.ds-in.nv { color: var(--magenta); }
 .ds-in:hover { border-color: var(--line); background: #FBFBF9; }
 .ds-in:focus { outline: none; border-color: var(--teal); background: #fff;
   box-shadow: 0 0 0 3px rgba(63,182,168,.15); }
@@ -2028,9 +2025,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ds-pivot tfoot td { position: sticky; bottom: 0; background: #F4F2EC; z-index: 3;
   font-family: var(--font-mono); font-weight: 700; box-shadow: inset 0 1px 0 var(--line); padding: 9px 10px; }
 .ds-pivot tfoot .ds-ch { z-index: 6; background: #F4F2EC; font-weight: 800; }
-.ds-tong-cot { font-weight: 800; }
-.ds-tong-cot.bh { color: var(--teal-deep); }
-.ds-tong-cot.nv { color: var(--magenta); }
+.ds-tong-cot { font-weight: 800; color: var(--ink); }
 .ds-tong-cuoi { position: sticky; right: 0; z-index: 6; background: #EDE9DF !important;
   color: var(--magenta); font-size: 15px; }
 
@@ -2042,7 +2037,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ds-sort:hover { background: #F2F4F1; }
 .ds-sort-ic { font-style: normal; font-size: 8px; margin-left: 3px; color: var(--teal-deep); }
 /* Cột khu vực */
-.ds-pivot .ds-kv { position: sticky; left: 190px; z-index: 3; background: #fff;
+.ds-pivot .ds-kv { position: sticky; left: 230px; z-index: 3; background: #fff;
   min-width: 88px; text-align: left; font-size: 11.5px; color: var(--ink-2);
   box-shadow: 1px 0 0 var(--line); white-space: nowrap; }
 .ds-pivot thead .ds-kv { z-index: 5; background: #FBFBF9; }
@@ -2122,10 +2117,22 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .mt-tag.sx { background: rgba(214,0,108,.12); color: var(--magenta); cursor: default; }
 
 /* ============ v3.47.0 — cột THAM CHIẾU (tốc độ bán/ngày theo CH) ============ */
-.ds-pivot .ds-tc-col { position: sticky; left: 278px; z-index: 3; background: #fff;
+.ds-pivot .ds-tc-col { position: sticky; left: 318px; z-index: 3; background: #fff;
   min-width: 84px; text-align: center; box-shadow: 1px 0 0 var(--line); }
 .ds-pivot thead .ds-tc-col { z-index: 5; background: #FBFBF9; vertical-align: bottom; }
 .ds-pivot tfoot .ds-tc-col { z-index: 6; background: #F4F2EC; }
 .ds-tc-col b { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; color: var(--gold); }
 .ds-tc-col-phu { display: block; font-size: 9px; font-weight: 700; color: var(--ink-3);
   margin-top: 2px; max-width: 78px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============ v3.48.0 — cột STT + căn giữa chuẩn bảng đối soát ============ */
+.ds-pivot .ds-stt { position: sticky; left: 0; z-index: 3; background: #fff;
+  width: 40px; min-width: 40px; max-width: 40px; text-align: center;
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-3);
+  box-shadow: 1px 0 0 var(--line); padding: 0; }
+.ds-pivot thead .ds-stt { z-index: 5; background: #FBFBF9; }
+.ds-pivot tfoot .ds-stt { z-index: 6; background: #F4F2EC; }
+/* Căn giữa TUYỆT ĐỐI cột mã + tổng: cả th lẫn td, cả nội dung */
+.ds-pivot .ds-ma, .ds-pivot .ds-o, .ds-pivot .ds-tong,
+.ds-pivot .ds-tong-cot, .ds-pivot .ds-tong-cuoi { text-align: center; vertical-align: middle; }
+.ds-pivot .ds-ma-nhan { text-align: center; }
