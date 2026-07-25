@@ -69,11 +69,22 @@ export default function ChiaHangMoi() {
     if (!d.sp || !d.tong || (!d.nganh3 && !d.thamChieu)) {
       baoToast('Dòng thiếu: sản phẩm, tổng SL và (ngành cấp 3 hoặc mã tham chiếu)'); return false;
     }
-    const { data: id, error } = await sb.rpc('fn_chia_hang_moi_v2', {
+    const gọiChia = () => sb.rpc('fn_chia_hang_moi_v2', {
       p_barcode: d.sp.barcode, p_nganh3: d.nganh3 || null, p_tong: parseInt(d.tong),
       p_nguoi: user.ma_dang_nhap, p_tham_chieu: d.thamChieu?.barcode || null,
       p_tham_chieu_ma: d.thamChieu?.ma_tham_chieu || null });
-    if (error) { baoToast('Lỗi: ' + error.message); return false; }
+    let { data: id, error } = await gọiChia();
+    // 57014 = statement timeout: lần đầu làm nóng bộ đệm, thử lại một lần nữa
+    if (error && (error.code === '57014' || /timeout/i.test(error.message || ''))) {
+      await new Promise((r) => setTimeout(r, 400));
+      ({ data: id, error } = await gọiChia());
+    }
+    if (error) {
+      baoToast(error.code === '57014' || /timeout/i.test(error.message || '')
+        ? 'Máy chủ đang bận, thử lại sau giây lát'
+        : 'Lỗi: ' + error.message);
+      return false;
+    }
     const { data, error: e2 } = await sb.from('chia_hang_moi_ct')
       .select('*').eq('batch_id', id).order('sl_de_xuat', { ascending: false });
     if (e2) { baoToast('Lỗi đọc kết quả: ' + e2.message); return false; }
@@ -84,10 +95,17 @@ export default function ChiaHangMoi() {
     return true;
   };
 
+  const [tienDo, setTienDo] = useState(null);
   const chiaTatCa = async () => {
     setBusy(true);
-    for (const d of dong) if (!d.ct) await chiaDong(d);
-    setBusy(false);
+    const canChia = dong.filter((d) => !d.ct && d.sp && d.tong);
+    let i = 0;
+    for (const d of canChia) {
+      i++; setTienDo(`${i}/${canChia.length}`);
+      await chiaDong(d);
+      if (i < canChia.length) await new Promise((r) => setTimeout(r, 150));
+    }
+    setTienDo(null); setBusy(false);
   };
 
   const suaChot = (id, idRow, v) => setDong((ds) => ds.map((d) => d.id !== id ? d : {
@@ -248,7 +266,7 @@ export default function ChiaHangMoi() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="btn btn-ai" disabled={busy} onClick={chiaTatCa}>
-            {busy ? 'Đang chia…' : '✦ Chia tự động tất cả'}
+            {busy ? `Đang chia… ${tienDo || ''}` : '✦ Chia tự động tất cả'}
           </button>
           <button className="btn btn-ai" onClick={() => setMoDS(true)} disabled={!banDS}>
             Bảng đối soát{banDS ? ` (${banDS.hang.length} CH)` : ''}
