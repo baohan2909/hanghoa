@@ -1,6 +1,6 @@
 # BÀN GIAO PHIÊN LÀM VIỆC — ĐIỀU PHỐI HÀNG HÓA
 
-> Cập nhật: 24/07/2026 · App **v3.44.0** · Apps Script **v3.24.2** · SQL đã chạy tới **133**
+> Cập nhật: 24/07/2026 · App **v3.45.0** · Apps Script **v3.24.2** · SQL đã chạy tới **133**
 
 ## 0. Cách làm việc
 
@@ -49,6 +49,10 @@ thiết kế: nêu rõ tên class, mã màu, kích thước, gradient, hiệu �
 - **Thẻ báo cáo nền trắng cỡ lớn** phải có bong bóng tròn nhạt ở góc phải trên:
   `::after` tròn ~90-130px, lệch ra ngoài mép, `rgba(63,182,168,.07)` teal mặc định,
   `rgba(214,0,108,.07)` magenta cho thẻ cảnh báo; thẻ cha `position: relative; overflow: hidden`.
+- **NÚT**: mặc định luôn XANH gradient teal + glow = `.btn-ai`. Không dùng nút phẳng cho
+  hành động thường. Ngoại lệ: `.btn-hd` trong header, `.btn-mini` trong bảng/modal.
+- **BẢNG SỐ LIỆU**: cột số căn GIỮA hết, trừ cột có GIÁ (căn phải). Mỗi tiêu đề cột bấm
+  SORT được. Nhãn hàng tổng ghi "Tổng".
 - Bảng màu: magenta `#D6006C` · teal `#3FB6A8` · vàng `#CBA45A`. **Không dùng tím.**
 - **Mỗi class CSS định nghĩa đúng một lần** — `grep -c "^\.ten {" src/styles.css` = 1.
 

@@ -22,7 +22,11 @@ export default function ChiaHangMoi() {
   const [busy, setBusy] = useState(false);
   const [khoMap, setKhoMap] = useState({});
   const [moDS, setMoDS] = useState(false);   // mở bảng đối soát tổng hợp
-  const [banNganh, setBanNganh] = useState({});   // barcode -> {ban_nganh_30, ty_le_nganh}
+  const [kvCH, setKvCH] = useState({});      // ma_ch -> khu_vuc
+  const [themCH, setThemCH] = useState([]);  // cửa hàng thêm tay vào bảng đối soát
+  const [sortDS, setSortDS] = useState({ col: 'tong', dir: 'desc' });
+  const [tc, setTc] = useState({ q: '', chon: null, goiY: [], sl: null });  // dòng tham chiếu
+  const tcRef = useRef(null);
   const timRef = useRef({});
 
   // Báo cho App biết đang chia dở -> không tự cập nhật phiên bản giữa chừng
@@ -34,8 +38,11 @@ export default function ChiaHangMoi() {
 
   const [tenCH, setTenCH] = useState({});
   useEffect(() => {
-    sb.from('cua_hang').select('ma_ch, ten')
-      .then(({ data }) => setTenCH(Object.fromEntries((data || []).map((c) => [c.ma_ch, c.ten]))));
+    sb.from('cua_hang').select('ma_ch, ten, khu_vuc').or('ma_ch.like.CH%,ma_ch.like.DB%')
+      .then(({ data }) => {
+        setTenCH(Object.fromEntries((data || []).map((c) => [c.ma_ch, c.ten])));
+        setKvCH(Object.fromEntries((data || []).map((c) => [c.ma_ch, c.khu_vuc])));
+      });
     sb.rpc('fn_ds_nganh3')
       .then(({ data }) => setDsNganh3((data || []).map((x) => x.nganh_3)));
     sb.from('tham_so').select('gia_tri').eq('key', 'kho_tong_ma').eq('pham_vi', 'GLOBAL').single()
@@ -141,36 +148,96 @@ export default function ChiaHangMoi() {
       .sort((a, b) => (a.bh === b.bh ? a.nhan.localeCompare(b.nhan, 'vi') : (a.bh ? -1 : 1)));
     if (!ma.length) return null;
 
-    const oCH = {};   // ma_ch -> { ten, o: { colId: sl } }
+    const oCH = {};   // ma_ch -> { ten, khu_vuc, o: { colId: sl } }
     ma.forEach((m) => m.ct.forEach((r) => {
-      if (!oCH[r.ma_ch]) oCH[r.ma_ch] = { ma_ch: r.ma_ch, ten: tenCH[r.ma_ch] || r.ma_ch, o: {} };
+      if (!oCH[r.ma_ch]) oCH[r.ma_ch] = {
+        ma_ch: r.ma_ch, ten: tenCH[r.ma_ch] || r.ma_ch,
+        khu_vuc: kvCH[r.ma_ch] || r.khu_vuc || '', o: {} };
       oCH[r.ma_ch].o[m.id] = (oCH[r.ma_ch].o[m.id] || 0) + (r.sl_chot || 0);
     }));
-    const hang = Object.values(oCH)
-      .map((h) => ({ ...h, tong: ma.reduce((s, m) => s + (h.o[m.id] || 0), 0) }))
-      .filter((h) => h.tong > 0)
-      .sort((a, b) => b.tong - a.tong);
+    // Cửa hàng thêm tay (chưa có mã nào) vẫn hiện để nhập
+    themCH.forEach((c) => {
+      if (!oCH[c.ma_ch]) oCH[c.ma_ch] = {
+        ma_ch: c.ma_ch, ten: c.ten || tenCH[c.ma_ch] || c.ma_ch,
+        khu_vuc: c.khu_vuc || kvCH[c.ma_ch] || '', o: {} };
+    });
+    let hang = Object.values(oCH)
+      .map((h) => ({ ...h, tong: ma.reduce((s, m) => s + (h.o[m.id] || 0), 0) }));
+
+    // Sắp xếp: theo cột đang chọn, mặc định tổng giảm dần
+    const dau = sortDS.dir === 'asc' ? 1 : -1;
+    hang.sort((a, b) => {
+      if (sortDS.col === 'ten') return dau * a.ten.localeCompare(b.ten, 'vi');
+      if (sortDS.col === 'kv') return dau * (a.khu_vuc || '').localeCompare(b.khu_vuc || '', 'vi');
+      if (sortDS.col === 'tong') return dau * (a.tong - b.tong);
+      if (typeof sortDS.col === 'number') return dau * ((a.o[sortDS.col] || 0) - (b.o[sortDS.col] || 0));
+      return b.tong - a.tong;
+    });
 
     const cotTong = ma.map((m) => ({ id: m.id,
       tong: hang.reduce((s, h) => s + (h.o[m.id] || 0), 0) }));
     return { ma, hang, cotTong, tongCuoi: hang.reduce((s, h) => s + h.tong, 0) };
-  }, [dong, tenCH]);
+  }, [dong, tenCH, kvCH, themCH, sortDS]);
+
+  const sortCot = (col) => setSortDS((s) =>
+    s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'desc' });
 
   // Sửa số trong bảng đối soát -> ghi ngược về đúng dòng chi tiết
   useEffect(() => {
-    if (!moDS || !banDS) return;
-    const bc = banDS.ma.map((m) => m.sp.barcode).filter(Boolean);
-    if (!bc.length) return;
-    sb.rpc('fn_chia_ban_nganh', { p_barcodes: bc }).then(({ data }) => {
-      setBanNganh(Object.fromEntries((data || []).map((x) => [x.barcode, x])));
-    });
+    if (!moDS) return;
+    if (tcGoiYDau.length && !tc.chon) chonTC2(tcGoiYDau[0]);
   }, [moDS]);   // eslint-disable-line
 
-  const suaODS = (colId, ma_ch, v) => {
+  const suaODS = (colId, ma_ch, v, taoMoi) => {
     const sl = Math.max(0, parseInt(v) || 0);
-    setDong((ds) => ds.map((d) => d.id !== colId ? d : {
-      ...d, ct: d.ct.map((r) => r.ma_ch === ma_ch ? { ...r, sl_chot: sl } : r) }));
+    setDong((ds) => ds.map((d) => {
+      if (d.id !== colId) return d;
+      const co = d.ct.some((r) => r.ma_ch === ma_ch);
+      if (co) return { ...d, ct: d.ct.map((r) => r.ma_ch === ma_ch ? { ...r, sl_chot: sl } : r) };
+      if (!taoMoi) return d;
+      return { ...d, ct: [...d.ct, {
+        id: 'moi_' + colId + '_' + ma_ch, ma_ch, ty_le: 0, sl_de_xuat: 0, sl_chot: sl }] };
+    }));
   };
+
+  const muiTen = (col) => sortDS.col === col
+    ? <i className="ds-sort-ic">{sortDS.dir === 'asc' ? '▲' : '▼'}</i> : null;
+
+  // ===== THAM CHIẾU: gõ mã/ngành -> tốc độ bán mỗi ngày =====
+  const timTC = (v) => {
+    setTc((t) => ({ ...t, q: v, chon: null, sl: null }));
+    clearTimeout(tcRef.current);
+    if (v.trim().length < 1) { setTc((t) => ({ ...t, goiY: [] })); return; }
+    tcRef.current = setTimeout(async () => {
+      const { data } = await sb.rpc('fn_tc_goi_y', { p_q: v.trim(), p_gioi_han: 8 });
+      setTc((t) => ({ ...t, goiY: data || [] }));
+    }, 300);
+  };
+  const chonTC2 = async (g) => {
+    setTc({ q: g.nhan, chon: g, goiY: [], sl: null });
+    const { data } = await sb.rpc('fn_tc_toc_do', { p_loai: g.loai, p_gia_tri: g.gia_tri });
+    setTc((t) => ({ ...t, sl: data || null }));
+  };
+
+  // Gợi ý ban đầu cho ô tham chiếu: các mã tham chiếu / ngành từ mã vừa chia
+  const tcGoiYDau = useMemo(() => {
+    const ra = [];
+    dong.forEach((d) => {
+      if (d.thamChieu) ra.push({ loai: 'ma', gia_tri: d.thamChieu.barcode,
+        nhan: d.thamChieu.ma_tham_chieu || d.thamChieu.sku, phu: 'mã tham chiếu đã chọn' });
+      else if (d.nganh3) ra.push({ loai: 'nganh', gia_tri: d.nganh3, nhan: d.nganh3, phu: 'ngành đã chọn' });
+    });
+    const thay = new Set(); return ra.filter((x) => {
+      const k = x.loai + x.gia_tri; if (thay.has(k)) return false; thay.add(k); return true; });
+  }, [dong]);
+
+  const chChuaCo = useMemo(() => {
+    const daCo = new Set((banDS?.hang || []).map((h) => h.ma_ch));
+    return Object.entries(tenCH)
+      .filter(([ma]) => !daCo.has(ma))
+      .map(([ma_ch, ten]) => ({ ma_ch, ten, khu_vuc: kvCH[ma_ch] || '' }))
+      .sort((a, b) => a.ten.localeCompare(b.ten, 'vi'));
+  }, [banDS, tenCH, kvCH]);
 
   return (
     <div>
@@ -183,10 +250,10 @@ export default function ChiaHangMoi() {
           <button className="btn btn-ai" disabled={busy} onClick={chiaTatCa}>
             {busy ? 'Đang chia…' : '✦ Chia tự động tất cả'}
           </button>
-          <button className="btn btn-teal" onClick={() => setMoDS(true)} disabled={!banDS}>
+          <button className="btn btn-ai" onClick={() => setMoDS(true)} disabled={!banDS}>
             Bảng đối soát{banDS ? ` (${banDS.hang.length} CH)` : ''}
           </button>
-          <button className="btn btn-gold" onClick={xuatTatCa}>
+          <button className="btn btn-ai" onClick={xuatTatCa}>
             <IcDown style={{ verticalAlign: -3 }} /> Xuất tất cả{tongTatCa > 0 ? ` (${tongTatCa} sp)` : ''}
           </button>
         </div>
@@ -268,19 +335,36 @@ export default function ChiaHangMoi() {
               {d.moRong && (
                 <div className="tbl-wrap" style={{ maxHeight: '40vh' }}>
                   <table className="tbl">
-                    <thead><tr><th>Cửa hàng</th><th className="num">Tỷ lệ</th><th className="num">Đề xuất</th><th className="num">Chốt</th></tr></thead>
+                    <thead><tr><th>Cửa hàng</th><th className="ct-giua">Khu vực</th>
+                      <th className="ct-giua">Tỷ lệ</th><th className="ct-giua">Đề xuất</th>
+                      <th className="ct-giua">Chốt</th><th style={{ width: 34 }}></th></tr></thead>
                     <tbody>
                       {d.ct.map((r) => (
                         <tr key={r.id}>
                           <td><b>{tenCH[r.ma_ch] || r.ma_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
-                          <td className="num">{Math.round((r.ty_le || 0) * 100)}%</td>
-                          <td className="num">{r.sl_de_xuat}</td>
-                          <td className="num"><input className="qty-input" type="number" min="0" value={r.sl_chot}
+                          <td className="ct-giua">{kvCH[r.ma_ch] || '—'}</td>
+                          <td className="ct-giua">{Math.round((r.ty_le || 0) * 100)}%</td>
+                          <td className="ct-giua">{r.sl_de_xuat}</td>
+                          <td className="ct-giua"><input className="qty-input" type="number" min="0" value={r.sl_chot}
                             onChange={(e) => suaChot(d.id, r.id, e.target.value)} /></td>
+                          <td className="ct-giua"><button className="btn-mini" title="Bỏ cửa hàng này"
+                            onClick={() => capNhat(d.id, { ct: d.ct.filter((x) => x.id !== r.id) })}>✕</button></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  <div className="ct-them">
+                    <span className="tq-ghi">Thêm cửa hàng chưa có:</span>
+                    <div className="ct-them-sel">
+                      <Sel value="" timKiem placeholder="Tìm cửa hàng…"
+                        options={Object.entries(tenCH)
+                          .filter(([ma]) => !d.ct.some((r) => r.ma_ch === ma))
+                          .sort((a, b) => a[1].localeCompare(b[1], 'vi'))
+                          .map(([ma, ten]) => ({ value: ma, label: `${ten} · ${kvCH[ma] || ''}` }))}
+                        onChange={(v) => v && capNhat(d.id, { ct: [...d.ct, {
+                          id: 'moi_' + d.id + '_' + v, ma_ch: v, ty_le: 0, sl_de_xuat: 0, sl_chot: 0 }] })} />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -298,59 +382,111 @@ export default function ChiaHangMoi() {
           background: 'rgba(20,18,14,.55)', display: 'flex', alignItems: 'center',
           justifyContent: 'center', padding: 24 }}>
           <div onClick={(e) => e.stopPropagation()} style={{
-            background: '#fff', borderRadius: 16, width: 'min(1180px, 97vw)', maxHeight: '90vh',
+            background: '#fff', borderRadius: 16, width: 'min(1280px, 97vw)', maxHeight: '90vh',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
             boxShadow: '0 20px 60px rgba(20,33,58,.3)' }}>
             <div className="lp-dau">
               <div><b>Bảng đối soát chia hàng mới</b>
-                <div className="lp-phu">{banDS.hang.length} cửa hàng · {banDS.ma.length} mã · {banDS.tongCuoi} sp — sửa số ngay trong bảng</div></div>
+                <div className="lp-phu">{banDS.hang.length} cửa hàng · {banDS.ma.length} mã · {banDS.tongCuoi} sp — sửa số ngay trong bảng, bấm tiêu đề để sắp xếp</div></div>
               <button className="lp-dong" onClick={() => setMoDS(false)}>✕</button>
+            </div>
+            <div className="ds-tc">
+              <span className="ds-tc-lbl">Tham chiếu tốc độ bán:</span>
+              <div className="ds-tc-o">
+                <input className="inp ds-tc-in" placeholder="Gõ mã sản phẩm hoặc ngành hàng…"
+                  value={tc.q} onChange={(e) => timTC(e.target.value)} />
+                {tc.goiY.length > 0 && (
+                  <div className="goiy-pop ds-tc-pop">
+                    {tc.goiY.map((g, i2) => (
+                      <div key={i2} className="goiy-item" style={{ cursor: 'pointer' }} onClick={() => chonTC2(g)}>
+                        <span className={'ds-tc-loai ' + g.loai}>{g.loai === 'ma' ? 'MÃ' : 'NGÀNH'}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.nhan}</div>
+                          <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.phu}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {tc.chon && tc.sl && (
+                <div className="ds-tc-kq">
+                  <b>{tc.sl.moi_ngay}</b><span>sp/ngày</span>
+                  <i>· {fmtN(tc.sl.ban_30)} bán 30n · {tc.sl.so_ch} cửa hàng</i>
+                </div>
+              )}
+              {tcGoiYDau.length > 0 && (
+                <div className="ds-tc-nhanh">
+                  {tcGoiYDau.map((g, i2) => (
+                    <button key={i2} className={'ds-tc-chip' + (tc.chon?.gia_tri === g.gia_tri ? ' on' : '')}
+                      onClick={() => chonTC2(g)}>{g.nhan}</button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="lp-cuon">
               <table className="tbl ds-pivot">
                 <thead>
                   <tr>
-                    <th className="ds-ch">Cửa hàng</th>
+                    <th className="ds-ch ds-sort" onClick={() => sortCot('ten')}>
+                      Cửa hàng{muiTen('ten')}</th>
+                    <th className="ds-kv ds-sort" onClick={() => sortCot('kv')}>
+                      Khu vực{muiTen('kv')}</th>
                     {banDS.ma.map((m) => (
-                      <th key={m.id} className={'num ds-ma' + (m.bh ? ' bh' : ' nv')} title={m.sp.nganh_1 || ''}>
+                      <th key={m.id} className={'ds-ma ds-sort' + (m.bh ? ' bh' : ' nv')}
+                        title={m.sp.nganh_1 || ''} onClick={() => sortCot(m.id)}>
                         <span className="ds-ma-nhan">{m.nhan}</span>
-                        <span className="ds-ma-nganh">{m.bh ? 'MBH' : 'Nón vải'}</span>
-                        {banNganh[m.sp.barcode] && (
-                          <span className="ds-ma-ban">
-                            {fmtN(banNganh[m.sp.barcode].ban_nganh_30)} · {Math.round(banNganh[m.sp.barcode].ty_le_nganh * 100)}%
-                          </span>
-                        )}
+                        <span className="ds-ma-nganh">{m.bh ? 'MBH' : 'Nón vải'}{muiTen(m.id)}</span>
                       </th>
                     ))}
-                    <th className="num ds-tong">Tổng</th>
+                    <th className="ds-tong ds-sort" onClick={() => sortCot('tong')}>
+                      Tổng{muiTen('tong')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {banDS.hang.map((h) => (
                     <tr key={h.ma_ch}>
                       <td className="ds-ch"><b>{h.ten}</b><span className="ds-ch-ma">{h.ma_ch}</span></td>
+                      <td className="ds-kv">{h.khu_vuc || '—'}</td>
                       {banDS.ma.map((m) => (
-                        <td key={m.id} className="num ds-o">
+                        <td key={m.id} className="ds-o">
                           {h.o[m.id] != null ? (
                             <input className="ds-in" type="number" min="0" value={h.o[m.id]}
                               onChange={(e) => suaODS(m.id, h.ma_ch, e.target.value)} />
-                          ) : <span className="ds-khong">·</span>}
+                          ) : (
+                            <button className="ds-them-o" title="Thêm mã này cho cửa hàng"
+                              onClick={() => suaODS(m.id, h.ma_ch, 0, true)}>+</button>
+                          )}
                         </td>
                       ))}
-                      <td className="num ds-tong"><b>{h.tong}</b></td>
+                      <td className="ds-tong"><b>{h.tong}</b></td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td className="ds-ch">Tổng cột</td>
+                    <td className="ds-ch">Tổng</td>
+                    <td className="ds-kv" />
                     {banDS.cotTong.map((c) => (
-                      <td key={c.id} className="num ds-tong-cot">{c.tong}</td>
+                      <td key={c.id} className="ds-tong-cot">{c.tong}</td>
                     ))}
-                    <td className="num ds-tong-cuoi">{banDS.tongCuoi}</td>
+                    <td className="ds-tong-cuoi">{banDS.tongCuoi}</td>
                   </tr>
                 </tfoot>
               </table>
+
+              <div className="ds-them">
+                <span className="ds-them-lbl">Thêm cửa hàng chưa có trong bảng:</span>
+                <div className="ds-them-sel">
+                  <Sel value="" timKiem placeholder="Tìm cửa hàng…"
+                    options={chChuaCo.map((c) => ({ value: c.ma_ch, label: `${c.ten} · ${c.khu_vuc || ''}` }))}
+                    onChange={(v) => {
+                      const c = chChuaCo.find((x) => x.ma_ch === v);
+                      if (c) setThemCH((ds) => [...ds, c]);
+                    }} />
+                </div>
+                <span className="tq-ghi">còn {chChuaCo.length} nơi chưa có trong bảng</span>
+              </div>
             </div>
           </div>
         </div>

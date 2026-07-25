@@ -2012,7 +2012,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ds-ma.bh .ds-ma-nganh { color: var(--teal-deep); }
 .ds-ma.nv .ds-ma-nganh { color: #8a6b22; }
 /* Ô số sửa trực tiếp */
-.ds-o { padding: 3px; }
+.ds-o { padding: 3px; text-align: center; }
 .ds-in { width: 62px; height: 30px; text-align: center; border: 1px solid transparent;
   border-radius: 7px; background: transparent; font-family: var(--font-mono); font-size: 12.5px;
   font-weight: 700; color: var(--ink); }
@@ -2030,5 +2030,51 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ds-tong-cot { color: var(--teal-deep); }
 .ds-tong-cuoi { position: sticky; right: 0; z-index: 6; background: #EDE9DF !important;
   color: var(--magenta); font-size: 15px; }
-.ds-ma-ban { display: block; font-size: 9px; font-weight: 600; color: var(--ink-2);
-  margin-top: 3px; font-family: var(--font-mono); }
+
+/* ============ v3.45.0 — ĐỐI SOÁT: khu vực, tham chiếu, sort, căn giữa, thêm CH ============ */
+/* Cột số liệu trong bảng thường căn giữa (rule chung) */
+.ct-giua { text-align: center; }
+/* Tiêu đề sort được */
+.ds-sort { cursor: pointer; user-select: none; }
+.ds-sort:hover { background: #F2F4F1; }
+.ds-sort-ic { font-style: normal; font-size: 8px; margin-left: 3px; color: var(--teal-deep); }
+/* Cột khu vực */
+.ds-pivot .ds-kv { position: sticky; left: 190px; z-index: 3; background: #fff;
+  min-width: 96px; text-align: center; font-size: 11.5px; color: var(--ink-2);
+  box-shadow: 1px 0 0 var(--line); white-space: nowrap; }
+.ds-pivot thead .ds-kv { z-index: 5; background: #FBFBF9; }
+.ds-pivot tfoot .ds-kv { z-index: 6; background: #F4F2EC; }
+.ds-tong, .ds-tong-cot, .ds-tong-cuoi { text-align: center; }
+/* Nút thêm mã cho ô trống */
+.ds-them-o { width: 26px; height: 26px; border-radius: 7px; border: 1px dashed var(--line);
+  background: transparent; color: var(--ink-3); cursor: pointer; font-size: 14px; line-height: 1; }
+.ds-them-o:hover { border-color: var(--teal); color: var(--teal-deep); border-style: solid;
+  background: rgba(63,182,168,.08); }
+/* Hàng "thêm cửa hàng" dưới bảng */
+.ds-them { display: flex; align-items: center; gap: 10px; padding: 12px 4px 4px; flex-wrap: wrap; }
+.ds-them-lbl { font-size: 12px; font-weight: 600; color: var(--ink); }
+.ds-them-sel { min-width: 280px; }
+.ct-them { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.ct-them-sel { min-width: 260px; }
+
+/* Thanh tham chiếu tốc độ bán */
+.ds-tc { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px 18px; border-bottom: 1px solid var(--line); background: #FBFBF9; }
+.ds-tc-lbl { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.ds-tc-o { position: relative; flex: 0 0 260px; }
+.ds-tc-in { width: 100%; height: 38px; }
+.ds-tc-pop { top: 42px; }
+.ds-tc-loai { flex-shrink: 0; font-size: 8.5px; font-weight: 800; padding: 2px 6px; border-radius: 5px;
+  letter-spacing: .4px; }
+.ds-tc-loai.ma { background: rgba(63,182,168,.16); color: var(--teal-deep); }
+.ds-tc-loai.nganh { background: rgba(203,164,90,.2); color: #8a6b22; }
+.ds-tc-kq { display: flex; align-items: baseline; gap: 6px; }
+.ds-tc-kq b { font-family: var(--font-mono); font-size: 22px; font-weight: 800; color: var(--magenta); }
+.ds-tc-kq span { font-size: 11px; color: var(--ink-2); font-weight: 600; }
+.ds-tc-kq i { font-style: normal; font-size: 11px; color: var(--ink-2); }
+.ds-tc-nhanh { display: flex; gap: 6px; flex-wrap: wrap; }
+.ds-tc-chip { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 4px 10px;
+  font-size: 11.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.ds-tc-chip:hover { border-color: var(--teal); color: var(--teal-deep); }
+.ds-tc-chip.on { background: var(--grad); color: #fff; border-color: transparent;
+  box-shadow: 0 0 10px rgba(63,182,168,.4); }
