@@ -1,4 +1,4 @@
-import { isoVN } from '../lib/ui.jsx';
+import { isoVN, Sel } from '../lib/ui.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcSplit, IcDown, IcSearch } from '../lib/icons.jsx';
