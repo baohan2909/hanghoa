@@ -1,10 +1,9 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import pkg from './package.json';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
-// base = tên repo GitHub Pages
+// base tuyệt đối theo tên repo GitHub Pages (baohan2909.github.io/nscare/)
 export default defineConfig({
   plugins: [react()],
-  base: '/hanghoa/',
-  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
-});
+  base: '/nscare/',
+  build: { outDir: 'dist', sourcemap: false }
+})

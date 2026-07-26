@@ -1,9 +1,15 @@
 {
-  "name": "Điều phối hàng hóa — Nón Sơn",
-  "short_name": "Điều phối HH",
-  "start_url": "/hanghoa/",
+  "name": "NS CARE — Chăm sóc khách hàng",
+  "short_name": "NS CARE",
+  "description": "CRM chăm sóc khách hàng sau mua của Nón Sơn",
+  "lang": "vi",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#F7F5F1",
   "theme_color": "#14213A",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
 }

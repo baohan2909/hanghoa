@@ -1,42 +1,39 @@
-import { useState } from 'react';
-import { sb } from '../lib/supabase.js';
+import { useState } from 'react'
+import { useAuth } from '../context/AuthContext'
 
-export default function Login({ onOk }) {
-  const [u, setU] = useState(''); const [p, setP] = useState('');
-  const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+export default function Login() {
+  const { dangNhap } = useAuth()
+  const [maNv, setMaNv] = useState('')
+  const [mk, setMk] = useState('')
+  const [loi, setLoi] = useState('')
+  const [dang, setDang] = useState(false)
 
-  const vao = async () => {
-    if (!u || !p) { setErr('Nhập mã đăng nhập và mật khẩu'); return; }
-    setBusy(true); setErr('');
-    const { data, error } = await sb.rpc('fn_dang_nhap', { p_user: u, p_pass: p });
-    setBusy(false);
-    if (error) { setErr(error.message.replace(/^.*?: /, '')); return; }
-    if (!data?.token) { setErr('Sai mã đăng nhập hoặc mật khẩu'); return; }
-    onOk(data);
-  };
+  async function submit(e) {
+    e.preventDefault()
+    setLoi(''); setDang(true)
+    try { await dangNhap(maNv.trim(), mk) }
+    catch (err) { setLoi(err.message || 'Đăng nhập thất bại') }
+    finally { setDang(false) }
+  }
 
   return (
     <div className="login-wrap">
-      <div className="login-card">
-        <h1>ĐIỀU PHỐI HÀNG HÓA</h1>
-        <div style={{ color: 'var(--ink-2)', fontSize: 13, marginTop: 4 }}>
-          Đề nghị & điều chuyển hàng hóa — Nón Sơn
+      <form className="login-card" onSubmit={submit}>
+        <div className="login-logo"><div className="mark">NS</div><b>NS CARE</b></div>
+        <p className="login-sub">Hệ thống chăm sóc khách hàng sau mua</p>
+        <div className="field">
+          <label>Mã nhân viên</label>
+          <input autoFocus value={maNv} onChange={e => setMaNv(e.target.value)} placeholder="VD: NS00490" />
         </div>
         <div className="field">
-          <label htmlFor="u">Mã đăng nhập</label>
-          <input id="u" className="mono" value={u} autoCapitalize="characters"
-            onChange={(e) => setU(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === 'Enter' && vao()} placeholder="Mã CH hoặc mã quản lý" />
+          <label>Mật khẩu</label>
+          <input type="password" value={mk} onChange={e => setMk(e.target.value)} placeholder="••••••••" />
         </div>
-        <div className="field">
-          <label htmlFor="p">Mật khẩu</label>
-          <input id="p" type="password" value={p} onChange={(e) => setP(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && vao()} />
-        </div>
-        {err && <div className="login-err">{err}</div>}
-        <button className="btn btn-primary" style={{ width: '100%', marginTop: 18, justifyContent: 'center' }}
-          onClick={vao} disabled={busy}>{busy ? 'Đang kiểm tra…' : 'Đăng nhập'}</button>
-      </div>
+        {loi && <div className="login-err">{loi}</div>}
+        <button className="btn-ai full" style={{ marginTop: 18 }} disabled={dang}>
+          {dang ? 'Đang đăng nhập…' : 'Đăng nhập'}
+        </button>
+      </form>
     </div>
-  );
+  )
 }

@@ -1,71 +1,83 @@
-# ĐIỀU PHỐI HÀNG HÓA — Nón Sơn
+# NS CARE — CRM chăm sóc khách hàng sau mua (Nón Sơn)
 
-Hệ thống điều phối hàng hóa cho chuỗi ~220 nơi bán (168 cửa hàng CH + 36 điểm bán DB)
-của Nón Sơn. Cửa hàng chủ động đề nghị hàng theo lịch cố định, engine Postgres tính số
-đề xuất, điều phối kiểm soát ngược và can thiệp khi có cảnh báo, kho xuất hàng qua Odoo,
-đơn vị vận chuyển giao tới nơi — toàn bộ chuỗi được theo dõi trong một ứng dụng.
+Ứng dụng web (Vite + React) kết nối Supabase. Toàn bộ nghiệp vụ đi qua các
+hàm `care.fn_*` (bảng khóa cứng RLS — app không chạm thẳng bảng).
 
-*(Tên cũ **NS FLOW** đã bỏ.)*
-
-## Kiến trúc
-
-| Thành phần | Công nghệ |
-|---|---|
-| Giao diện | React + Vite, PWA, chạy trên GitHub Pages |
-| Dữ liệu | Supabase (PostgreSQL), schema `chiahang` |
-| Đồng bộ | Google Apps Script đọc Google Sheets → Supabase (chạy mỗi giờ) |
-| Vận đơn | Giao Hàng Tiết Kiệm — webhook + Edge Function `ghtk-webhook` / `ghtk-quet` / `ghtk-nhan` |
-| Xuất kho | File Excel nạp vào Odoo, mã đơn `NS-{id}` |
-
-Toàn bộ nghiệp vụ nặng nằm trong hàm PostgreSQL (`fn_*`), giao diện chỉ gọi RPC.
-
-## Màn hình
-
-Tổng quan · Đề nghị hàng · Duyệt · Kho · Lịch đề nghị & Điều chuyển kho · Chia hàng mới ·
-Giám sát thiếu hàng · Chất lượng đề nghị · Yêu cầu điều phối · Vận đơn · Hàng đặc biệt ·
-Theo dõi online · Báo cáo · Đối soát · Đấu trường · Tham số.
-
-## Quy tắc nghiệp vụ bất di bất dịch
-
-1. **Không hiển thị doanh thu** ở bất kỳ đâu — chỉ số lượng sản phẩm. Giá niêm yết được
-   phép hiện để phân loại hàng, nhưng không cộng thành giá trị tồn kho.
-2. Ngành **phụ kiện** bị loại khỏi mọi tính toán tổng quan.
-3. **Nơi bán = CH + DB**. Đội sale (DO), kho vùng (KV), kho tổng (TP/SA), kho phụ kiện (PK)
-   không phải nơi bán — mọi hàm và mọi lượt đồng bộ phải nhận cả CH lẫn DB.
-4. Phiếu khẩn cấp (KC) **không tính tuân thủ lịch**, chỉ phiếu định kỳ (DK) mới tính.
-5. Đơn "Chưa chuyển" là **nháp**, không tính là đã gửi; tính từ "Chờ xét duyệt" trở đi.
-6. Barcode file bán ≠ barcode file tồn cho cùng sản phẩm — mọi phép so khớp phải là
-   `(barcode = X OR ma_tham_chieu = Y)`.
-7. Trạng thái điều chuyển Odoo chuẩn hóa 6 mức tiếng Việt ở cả Apps Script lẫn giao diện.
-
-## Thư mục
-
+## Cấu trúc thư mục
 ```
-src/
-  App.jsx            khung, menu, phân quyền, cơ chế tự cập nhật
-  config.js          endpoint Supabase + Edge Function
-  lib/               supabase.js · ui.jsx (Sel, DateBox) · icons.jsx · odooExport.js
-  screens/           mỗi màn một file
-  styles.css         toàn bộ giao diện — mỗi class định nghĩa ĐÚNG MỘT LẦN
+ns-care/
+├─ index.html
+├─ package.json
+├─ vite.config.js          base './' để chạy trên GitHub Pages
+├─ README.md
+└─ src/
+   ├─ main.jsx             điểm khởi động
+   ├─ App.jsx              khung + điều hướng màn + cổng đăng nhập
+   ├─ styles.css           design system (khớp ĐIỀU PHỐI HÀNG HÓA)
+   ├─ lib/
+   │  ├─ config.js         ★ ĐIỀN URL + ANON KEY Ở ĐÂY
+   │  ├─ supabase.js       khởi tạo client (schema 'care')
+   │  ├─ api.js            bọc toàn bộ hàm fn_* + dịch lỗi tiếng Việt
+   │  ├─ session.js        lưu phiên đăng nhập (localStorage)
+   │  └─ format.js         định dạng ngày/SĐT + nhãn trạng thái
+   ├─ context/AuthContext.jsx
+   ├─ components/          Sidebar, Cmdbar, Icons, ui (Card/StatBig/Modal…)
+   └─ screens/            Login, TongQuan, HangDoi, Phieu, Khach360,
+                          PhanTich, BoCauHoi, QuanTri, NhapDon
 ```
 
-**Không có trong repo này** (repo công khai — không để lộ cấu trúc dữ liệu):
-migration SQL và mã Google Apps Script được giữ riêng ngoài repo.
+## Thứ tự triển khai
 
-## Quy ước phát triển
+### 1. Database (Supabase) — làm 1 lần
+- Mở **SQL Editor**, dán & chạy file `care_foundation_v1.4.sql` (giao riêng).
+- Vào **Project Settings ▸ API ▸ Exposed schemas**, thêm `care` vào danh sách.
 
-- **Migration SQL đánh số tăng dần**, chạy đúng thứ tự, chạy lại nhiều lần không hỏng.
-- Đổi kiểu trả về của hàm thì phải `drop function` trước khi tạo lại.
-- Bảng mới cho Apps Script ghi vào thì phải `grant all to service_role`.
-- Mỗi class CSS chỉ được định nghĩa một lần — `grep -c "^\.ten-class {"` phải bằng 1.
-- Bump `version` trong `package.json` mỗi lần phát hành, rồi vào **Tham số → Phát hành**
-  để các máy đang mở nhận thông báo cập nhật.
-- **Migration SQL và Apps Script KHÔNG nằm trong repo này** — repo công khai, không
-  để lộ tên bảng, cấu trúc hàm và logic nghiệp vụ. Hai thứ này giữ riêng bên ngoài.
+### 2. Đồng bộ danh mục + tài khoản (Google Apps Script) — làm 1 lần / định kỳ
+- Tạo Apps Script, dán file `NS_CARE_sync.gs` (giao riêng).
+- Điền `CFG` (URL, service_role key, tên file/tab/cột Sheet).
+- Chạy menu **NS CARE ▸ Đồng bộ TẤT CẢ** (mật khẩu trong Sheet được DB tự hash).
 
-## Phát hành
+### 3. Web app (repo này)
+```bash
+# a) Điền src/lib/config.js: SUPABASE_URL + SUPABASE_ANON_KEY
+npm install
+npm run build          # ra thư mục dist/
+# b) Đưa nội dung dist/ lên GitHub Pages (hoặc push repo + deploy như NS FLOW)
+```
+Chạy thử tại chỗ: `npm run dev`.
 
-1. Chạy các file SQL còn thiếu trong Supabase, theo thứ tự số (file giữ ngoài repo).
-2. Đẩy code lên nhánh chính, chờ GitHub Actions build xong.
-3. Vào **Tham số → Phát hành**, nhập số phiên bản. Máy cửa hàng đang mở sẽ hiện lời mời
-   cập nhật, và **không tự tải lại khi nhân viên đang nhập dở**.
+## Tính năng bản v1.2 (mới thêm)
+- **Phân tích v2**: lọc 7/30/90 ngày hoặc tất cả, lọc nhóm chủ đề + sắc thái,
+  3 thẻ tỉ lệ khen/trung lập/góp ý, biểu đồ theo dòng SP + theo nhóm, bảng
+  chi tiết dòng × nhóm × sắc thái, xuất Excel.
+- **Quản trị v2**: bấm thẳng vào giá trị cấu hình để sửa (Enter lưu, Esc huỷ);
+  công cụ **ẩn danh dữ liệu khách** theo NĐ 13/2023 (xác nhận 2 lớp — gõ lại
+  số điện thoại mới cho chạy, không đảo ngược được).
+- **Tổng quan bấm được**: thẻ "Chờ gọi hôm nay" / "Quá hạn" bấm là nhảy thẳng
+  Hàng đợi đúng tab đó.
+
+## Tính năng bản v1.1
+- **Trình soạn bộ câu hỏi**: tạo/soạn bản nháp, 3 loại câu (điểm 1–5, chọn
+  đáp án, tự luận), gắn nhóm chủ đề, xếp thứ tự, đặt 1 câu điểm neo, phát hành.
+- **Phân loại ý kiến ngay trong Phiếu**: chọn sản phẩm + nhóm + sắc thái
+  (khen/trung lập/góp ý) + nội dung; có gợi ý tự động từ câu trả lời tự luận —
+  dữ liệu này nuôi Tín hiệu đỏ & màn Phân tích.
+- **Hẹn gọi lại chọn ngày giờ + ghi chú**; lịch sử hiện cả giờ hẹn.
+- **Nút Gọi = gọi thật** (`tel:`) ở hàng đợi + trong phiếu (bấm trên iPhone
+  là quay số luôn).
+- **Lọc theo kênh + Xuất Excel (CSV có BOM, mở tiếng Việt chuẩn)** ở Hàng đợi.
+- **PWA**: cài lên màn hình chính iPhone/Android như app thật (nút "Tải ứng
+  dụng" chân sidebar); service worker network-first nên cập nhật bản mới không
+  bị kẹt cache, offline vẫn mở được giao diện đã tải.
+
+## Ghi chú
+- `config.js` chứa **anon key** (khóa công khai an toàn — DB đã khóa RLS,
+  app chỉ chạm được qua `fn_*`). **KHÔNG** đưa service_role key vào repo này;
+  key đó chỉ dùng trong GAS.
+- Yêu cầu SQL **v1.4** trở lên (fn_hangdoi có cột kênh + fn_sync_tin_hieu_do).
+- Cảnh báo **Telegram** khi có tín hiệu đỏ: điền `CFG.TELEGRAM` trong GAS và đặt
+  trigger theo giờ chạy `quetTinHieuDo` (xem file tổng hợp bàn giao).
+
+## ⚠️ Đường dẫn GitHub Pages
+Repo deploy ở `baohan2909.github.io/nscare/` nên `vite.config.js` đặt `base: '/nscare/'`.
+Nếu đổi TÊN REPO, phải sửa `base` thành `/<tên-repo>/` rồi build lại, nếu không sẽ TRẮNG MÀN (asset 404).
