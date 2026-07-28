@@ -36,7 +36,6 @@ export default function ChiaHangMoi() {
   const [moPV, setMoPV] = useState(null);   // đang mở bộ chọn phạm vi cho: 'chung' | id mã
   const [dsKhuVuc, setDsKhuVuc] = useState([]);
   const [dsNhom, setDsNhom] = useState([]);
-  const [ngayDi, setNgayDi] = useState([]);
 
   // Báo cho App biết đang chia dở -> không tự cập nhật phiên bản giữa chừng
   useEffect(() => {
@@ -62,7 +61,6 @@ export default function ChiaHangMoi() {
         const nh = [...new Set((data || []).map((c) => c.nhom_ch).filter((x) => x != null))].sort((a, b) => a - b);
         setDsKhuVuc(kv); setDsNhom(nh);
       });
-    sb.rpc('fn_ngay_di_hang', {}).then(({ data }) => setNgayDi(data || []));
   }, []);
 
   const capNhat = (id, patch) => setDong((ds) => ds.map((d) => d.id === id ? { ...d, ...patch } : d));
@@ -606,10 +604,14 @@ export default function ChiaHangMoi() {
       {moPV != null && (
         <PhamViModal
           pv={moPV === 'chung' ? phamViChung : (dong.find((d) => d.id === moPV)?.phamVi || null)}
-          dsKhuVuc={dsKhuVuc} dsNhom={dsNhom} ngayDi={ngayDi} tenCH={tenCH} kvCH={kvCH}
+          dsKhuVuc={dsKhuVuc} dsNhom={dsNhom} tenCH={tenCH} kvCH={kvCH} laChung={moPV === 'chung'}
           onClose={() => setMoPV(null)}
-          onLuu={(pv) => {
-            if (moPV === 'chung') setPhamViChung(pv);
+          onLuu={(pv, apTatCa) => {
+            if (apTatCa) {
+              // Áp cho MỌI mã: đặt chung + xóa phạm vi riêng của từng mã
+              setPhamViChung(pv);
+              setDong((ds) => ds.map((d) => ({ ...d, phamVi: null })));
+            } else if (moPV === 'chung') setPhamViChung(pv);
             else capNhat(moPV, { phamVi: pv });
             setMoPV(null);
           }}
@@ -619,148 +621,211 @@ export default function ChiaHangMoi() {
   );
 }
 
-function PhamViModal({ pv, dsKhuVuc, dsNhom, ngayDi, tenCH, kvCH, onClose, onLuu }) {
-  const [loai, setLoai] = useState(pv?.ds ? 'DANH_SACH' : (pv?.loai || 'TAT_CA'));
-  const [giaTri, setGiaTri] = useState(pv?.giaTri ?? null);
-  const [ds, setDs] = useState(pv?.ds || null);   // danh sách CH đã tinh chỉnh tay
-  const [rows, setRows] = useState([]);   // CH của phạm vi hiện tại + lịch
-  const [tai, setTai] = useState(false);
-  const [sapXep, setSapXep] = useState('kv');   // 'kv' | 'lich'
+function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLuu }) {
+  // Mô hình GIỎ: gio = tập ma_ch đang chọn (Set). Nhặt vào từ nhiều nguồn, bỏ ra tự do.
+  const [gio, setGio] = useState(() => new Set(pv?.ds || []));
+  const [nguon, setNguon] = useState('KHU_VUC');   // tab đang mở để NHẶT: KHU_VUC|NHOM|NGAY|TIM
   const [tim, setTim] = useState('');
+  const [sapXep, setSapXep] = useState('kv');
+  const [metaCH, setMetaCH] = useState({});   // ma_ch -> {ten,khu_vuc,nhom_ch,lich_gan,so_ngay_toi_lich}
+  const [goiY, setGoiY] = useState([]);       // kết quả nguồn đang xem (để nhặt)
+  const [taiNguon, setTaiNguon] = useState(false);
+  const timRef2 = useRef(null);
 
-  // Nạp danh sách CH theo (loai, giaTri)
-  const nap = useCallback(async () => {
-    setTai(true);
-    const gt = loai === 'DANH_SACH' ? (ds || []).join(',') : (giaTri ?? '');
-    const { data } = await sb.rpc('fn_ds_cua_hang', { p_loai: loai, p_gia_tri: String(gt ?? '') });
-    setRows(data || []);
-    setTai(false);
-  }, [loai, giaTri, ds]);
-  useEffect(() => { if (loai !== 'DANH_SACH') nap(); }, [loai, giaTri]);   // eslint-disable-line
+  // Nếu phạm vi cũ là nhóm/khu vực chưa "giải" ra ds -> giải một lần lúc mở
+  useEffect(() => {
+    if (pv && !pv.ds && pv.loai && pv.loai !== 'TAT_CA') {
+      const gt = pv.loai === 'DANH_SACH' ? '' : (pv.giaTri ?? '');
+      sb.rpc('fn_ds_cua_hang', { p_loai: pv.loai, p_gia_tri: String(gt) }).then(({ data }) => {
+        const ds = (data || []).map((c) => c.ma_ch);
+        setGio(new Set(ds));
+        napMeta(data || []);
+      });
+    }
+  }, []);   // eslint-disable-line
 
-  // Khi tinh chỉnh tay lần đầu -> chuyển sang chế độ danh sách, giữ các CH hiện có
-  const batDauChinh = () => {
-    if (ds) return;
-    setDs(rows.map((r) => r.ma_ch)); setLoai('DANH_SACH');
+  const napMeta = (rows) => setMetaCH((m) => {
+    const n = { ...m };
+    rows.forEach((r) => { n[r.ma_ch] = r; });
+    return n;
+  });
+
+  // Nạp gợi ý theo nguồn đang chọn
+  const napNguon = async (loai, gt) => {
+    setTaiNguon(true);
+    let data = [];
+    if (loai === 'NGAY') {
+      const den = new Date(); den.setDate(den.getDate() + (gt || 0));
+      const r = await sb.rpc('fn_ch_theo_khoang_ngay', {
+        p_tu: new Date().toISOString().slice(0, 10), p_den: den.toISOString().slice(0, 10) });
+      data = r.data || [];
+    } else if (loai === 'TIM') {
+      if (!gt || gt.trim().length < 1) { setGoiY([]); setTaiNguon(false); return; }
+      // gõ tay: tìm theo tên CH HOẶC khu vực (gom bằng fn_ds_cua_hang tất cả rồi lọc client)
+      const r = await sb.rpc('fn_ds_cua_hang', { p_loai: 'TAT_CA', p_gia_tri: '' });
+      const q = gt.toLowerCase();
+      data = (r.data || []).filter((c) =>
+        (c.ten || '').toLowerCase().includes(q) || (c.khu_vuc || '').toLowerCase().includes(q) || c.ma_ch.toLowerCase().includes(q));
+    } else {
+      const r = await sb.rpc('fn_ds_cua_hang', { p_loai: loai, p_gia_tri: String(gt ?? '') });
+      data = r.data || [];
+    }
+    napMeta(data); setGoiY(data); setTaiNguon(false);
   };
-  const boCH = (ma) => { batDauChinh(); setDs((x) => (x || rows.map((r) => r.ma_ch)).filter((m) => m !== ma)); };
-  const themCH = (ma) => { batDauChinh(); setDs((x) => [...new Set([...(x || []), ma])]); };
 
-  // rows đang hiển thị (nếu DANH_SACH tự chỉnh thì lọc theo ds)
-  const hien = useMemo(() => {
-    let r = rows;
-    if (ds) r = rows.filter((x) => ds.includes(x.ma_ch));
-    if (tim.trim()) {
+  const nhatNhom = () => { goiY.forEach((c) => gio.add(c.ma_ch)); setGio(new Set(gio)); };
+  const boNhom = () => { goiY.forEach((c) => gio.delete(c.ma_ch)); setGio(new Set(gio)); };
+  const nhat1 = (ma) => { gio.add(ma); setGio(new Set(gio)); };
+  const bo1 = (ma) => { gio.delete(ma); setGio(new Set(gio)); };
+
+  // Danh sách trong GIỎ để hiển thị (kèm meta + lọc tìm + sắp xếp)
+  const trongGio = useMemo(() => {
+    let r = [...gio].map((ma) => metaCH[ma] || { ma_ch: ma, ten: tenCH[ma] || ma, khu_vuc: kvCH[ma] || '' });
+    if (tim.trim() && nguon !== 'TIM') {
       const q = tim.toLowerCase();
       r = r.filter((x) => (x.ten || '').toLowerCase().includes(q) || (x.khu_vuc || '').toLowerCase().includes(q) || x.ma_ch.toLowerCase().includes(q));
     }
-    return [...r].sort((a, b) => sapXep === 'lich'
+    return r.sort((a, b) => sapXep === 'lich'
       ? ((a.so_ngay_toi_lich ?? 9999) - (b.so_ngay_toi_lich ?? 9999))
       : (a.khu_vuc || '').localeCompare(b.khu_vuc || '', 'vi'));
-  }, [rows, ds, tim, sapXep]);
-
-  // CH chưa có (để thêm) khi đang ở chế độ danh sách
-  const chuaCo = useMemo(() => {
-    if (!ds) return [];
-    const co = new Set(ds);
-    return Object.entries(tenCH).filter(([m]) => !co.has(m))
-      .map(([ma_ch, ten]) => ({ ma_ch, ten, khu_vuc: kvCH[ma_ch] || '' }))
-      .sort((a, b) => a.ten.localeCompare(b.ten, 'vi'));
-  }, [ds, tenCH, kvCH]);
-
-  const chot = () => {
-    if (loai === 'TAT_CA') return onLuu({ loai: 'TAT_CA', giaTri: null, ds: null });
-    if (ds) return onLuu({ loai: 'DANH_SACH', giaTri: null, ds });
-    onLuu({ loai, giaTri, ds: null });
-  };
+  }, [gio, metaCH, tim, sapXep, nguon, tenCH, kvCH]);
 
   const fmtLich = (r) => {
-    if (r.lich_gan == null) return <span className="tq-ghi">chưa có lịch</span>;
+    if (r.lich_gan == null) return <span className="tq-ghi">—</span>;
     const n = r.so_ngay_toi_lich;
-    const nhan = n === 0 ? 'hôm nay' : n === 1 ? 'ngày mai' : `${n} ngày nữa`;
-    return <span className={'pv-lich' + (n <= 1 ? ' gan' : '')}>{r.lich_gan} · {nhan}</span>;
+    const nhan = n === 0 ? 'hôm nay' : n === 1 ? 'ngày mai' : `${n}n nữa`;
+    return <span className={'pv-lich' + (n <= 1 ? ' gan' : '')}>{nhan}</span>;
+  };
+
+  // Bao nhiêu CH trong nhóm gợi ý đã nằm trong giỏ
+  const daNhat = goiY.filter((c) => gio.has(c.ma_ch)).length;
+
+  const chot = (apTatCa) => {
+    const ds = [...gio];
+    const pvOut = ds.length ? { loai: 'DANH_SACH', giaTri: null, ds } : { loai: 'TAT_CA', giaTri: null, ds: null };
+    onLuu(pvOut, apTatCa);
   };
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 3200,
       background: 'rgba(20,18,14,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16,
-        width: 'min(760px, 96vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        width: 'min(900px, 97vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 20px 60px rgba(20,33,58,.3)' }}>
         <div className="lp-dau">
-          <div><b>Chọn phạm vi chia hàng</b>
-            <div className="lp-phu">{hien.length} cửa hàng — thêm/bớt tùy ý, xem lịch đi hàng để ghép chuyến</div></div>
+          <div><b>Chọn cửa hàng để chia</b>
+            <div className="lp-phu">Nhặt nhanh theo nhóm/khu vực/ngày rồi thêm-bớt tùy ý · đang chọn <b>{gio.size}</b> cửa hàng</div></div>
           <button className="lp-dong" onClick={onClose}>✕</button>
         </div>
 
-        <div className="pv-tab">
-          {[['TAT_CA', 'Tất cả'], ['KHU_VUC', 'Theo khu vực'], ['NHOM', 'Theo nhóm'],
-            ['NGAY', 'Theo ngày đi hàng'], ['DANH_SACH', 'Chọn tay']].map(([k, t]) => (
-            <button key={k} className={'pv-tab-nut' + (loai === k ? ' on' : '')}
-              onClick={() => { setLoai(k); setGiaTri(null); if (k !== 'DANH_SACH') setDs(null); }}>{t}</button>
-          ))}
-        </div>
-
-        <div className="pv-chon-gt">
-          {loai === 'KHU_VUC' && (
-            <div className="pv-pills">
-              {dsKhuVuc.map((kv) => (
-                <button key={kv} className={'pv-pill' + (giaTri === kv ? ' on' : '')}
-                  onClick={() => setGiaTri(kv)}>{kv}</button>
+        <div className="pv2">
+          {/* CỘT TRÁI: nguồn để nhặt */}
+          <div className="pv2-trai">
+            <div className="pv2-tab">
+              {[['KHU_VUC', 'Khu vực'], ['NHOM', 'Nhóm'], ['NGAY', 'Ngày đi hàng'], ['TIM', 'Tìm cửa hàng']].map(([k, t]) => (
+                <button key={k} className={'pv2-tab-nut' + (nguon === k ? ' on' : '')}
+                  onClick={() => { setNguon(k); setGoiY([]); if (k === 'NGAY') napNguon('NGAY', 0); }}>{t}</button>
               ))}
             </div>
-          )}
-          {loai === 'NHOM' && (
-            <div className="pv-pills">
-              {dsNhom.map((n) => (
-                <button key={n} className={'pv-pill' + (String(giaTri) === String(n) ? ' on' : '')}
-                  onClick={() => setGiaTri(n)}>Nhóm {n}</button>
-              ))}
-            </div>
-          )}
-          {loai === 'NGAY' && (
-            <div className="pv-pills">
-              {ngayDi.map((x) => (
-                <button key={x.ngay} className={'pv-pill' + (giaTri === x.ngay ? ' on' : '')}
-                  onClick={() => setGiaTri(x.ngay)}>{x.ngay} <i>({x.so_ch})</i></button>
-              ))}
-            </div>
-          )}
-          {loai === 'TAT_CA' && <div className="tq-ghi" style={{ padding: '4px 2px' }}>Chia cho tất cả cửa hàng có bán.</div>}
-          {loai === 'DANH_SACH' && chuaCo.length > 0 && (
-            <div className="pv-them-sel">
-              <Sel value="" timKiem placeholder="+ Thêm cửa hàng…"
-                options={chuaCo.map((c) => ({ value: c.ma_ch, label: `${c.ten} · ${c.khu_vuc}` }))}
-                onChange={(v) => v && themCH(v)} />
-            </div>
-          )}
-        </div>
 
-        <div className="pv-bar2">
-          <input className="inp" style={{ height: 34, flex: 1 }} placeholder="Tìm trong danh sách…"
-            value={tim} onChange={(e) => setTim(e.target.value)} />
-          <span className="tq-ghi">Sắp xếp:</span>
-          <button className={'pv-seg' + (sapXep === 'kv' ? ' on' : '')} onClick={() => setSapXep('kv')}>Khu vực</button>
-          <button className={'pv-seg' + (sapXep === 'lich' ? ' on' : '')} onClick={() => setSapXep('lich')}>Ngày đi hàng</button>
-        </div>
-
-        <div className="pv-ds">
-          {tai ? <div className="tq-ghi" style={{ padding: 20, textAlign: 'center' }}>Đang tải…</div>
-            : hien.length === 0 ? <div className="tq-ghi" style={{ padding: 20, textAlign: 'center' }}>Chưa có cửa hàng nào</div>
-            : hien.map((r) => (
-              <div key={r.ma_ch} className="pv-o">
-                <div className="pv-o-tt">
-                  <div className="pv-o-ten">{r.ten}</div>
-                  <div className="pv-o-meta"><span className="mono">{r.ma_ch}</span> · {r.khu_vuc || '—'} · {fmtLich(r)}</div>
+            <div className="pv2-nguon">
+              {nguon === 'KHU_VUC' && (
+                <div className="pv-pills">
+                  {dsKhuVuc.map((kv) => (
+                    <button key={kv} className="pv-pill" onClick={() => napNguon('KHU_VUC', kv)}>{kv}</button>
+                  ))}
                 </div>
-                <button className="pv-o-bo" title="Bỏ khỏi phạm vi" onClick={() => boCH(r.ma_ch)}>✕</button>
-              </div>
-            ))}
+              )}
+              {nguon === 'NHOM' && (
+                <div className="pv-pills">
+                  {dsNhom.map((n) => (
+                    <button key={n} className="pv-pill" onClick={() => napNguon('NHOM', n)}>Nhóm {n}</button>
+                  ))}
+                </div>
+              )}
+              {nguon === 'NGAY' && (
+                <div className="pv-pills">
+                  {[['Hôm nay', 0], ['Đến ngày mai', 1], ['7 ngày tới', 7], ['30 ngày tới', 30]].map(([t, n]) => (
+                    <button key={n} className="pv-pill" onClick={() => napNguon('NGAY', n)}>{t}</button>
+                  ))}
+                </div>
+              )}
+              {nguon === 'TIM' && (
+                <input className="inp" style={{ width: '100%', height: 38 }} autoFocus
+                  placeholder="Gõ tên cửa hàng hoặc khu vực (vd: Hà Nội)…"
+                  onChange={(e) => { clearTimeout(timRef2.current); const v = e.target.value;
+                    timRef2.current = setTimeout(() => napNguon('TIM', v), 300); }} />
+              )}
+            </div>
+
+            {/* Kết quả nguồn -> nhặt */}
+            <div className="pv2-ketqua">
+              {taiNguon ? <div className="tq-ghi" style={{ padding: 16, textAlign: 'center' }}>Đang tải…</div>
+                : goiY.length === 0 ? <div className="tq-ghi" style={{ padding: 16, textAlign: 'center' }}>
+                    {nguon === 'TIM' ? 'Gõ để tìm cửa hàng' : 'Chọn một mục bên trên để xem cửa hàng'}</div>
+                : (<>
+                  <div className="pv2-nhom-bar">
+                    <span>{goiY.length} cửa hàng · đã chọn {daNhat}</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="pv-seg on" onClick={nhatNhom}>+ Thêm tất cả</button>
+                      {daNhat > 0 && <button className="pv-seg" onClick={boNhom}>− Bỏ tất cả</button>}
+                    </div>
+                  </div>
+                  {goiY.map((c) => {
+                    const co = gio.has(c.ma_ch);
+                    return (
+                      <div key={c.ma_ch} className="pv2-gy">
+                        <div className="pv2-gy-tt">
+                          <div className="pv-o-ten">{c.ten}</div>
+                          <div className="pv-o-meta"><span className="mono">{c.ma_ch}</span> · {c.khu_vuc || '—'} · {fmtLich(c)}</div>
+                        </div>
+                        <button className={'pv2-nhat' + (co ? ' co' : '')}
+                          onClick={() => co ? bo1(c.ma_ch) : nhat1(c.ma_ch)}>{co ? '✓ Đã chọn' : '+ Thêm'}</button>
+                      </div>
+                    );
+                  })}
+                </>)}
+            </div>
+          </div>
+
+          {/* CỘT PHẢI: giỏ đang chọn */}
+          <div className="pv2-phai">
+            <div className="pv2-gio-dau">
+              <b>Đang chọn: {gio.size}</b>
+              {gio.size > 0 && <button className="pv-bo" onClick={() => setGio(new Set())}>Xóa hết</button>}
+            </div>
+            <div className="pv2-gio-loc">
+              <input className="inp" style={{ height: 32, flex: 1 }} placeholder="Lọc trong giỏ…"
+                value={tim} onChange={(e) => setTim(e.target.value)} />
+              <button className={'pv-seg' + (sapXep === 'kv' ? ' on' : '')} onClick={() => setSapXep('kv')}>Khu vực</button>
+              <button className={'pv-seg' + (sapXep === 'lich' ? ' on' : '')} onClick={() => setSapXep('lich')}>Lịch</button>
+            </div>
+            <div className="pv2-gio-ds">
+              {trongGio.length === 0
+                ? <div className="tq-ghi" style={{ padding: 20, textAlign: 'center' }}>Chưa chọn cửa hàng nào.<br/>Nhặt từ cột bên trái.</div>
+                : trongGio.map((r) => (
+                  <div key={r.ma_ch} className="pv-o">
+                    <div className="pv-o-tt">
+                      <div className="pv-o-ten">{r.ten}</div>
+                      <div className="pv-o-meta"><span className="mono">{r.ma_ch}</span> · {r.khu_vuc || '—'} · {fmtLich(r)}</div>
+                    </div>
+                    <button className="pv-o-bo" title="Bỏ khỏi giỏ" onClick={() => bo1(r.ma_ch)}>✕</button>
+                  </div>
+                ))}
+            </div>
+          </div>
         </div>
 
         <div className="pv-chan">
+          <span className="tq-ghi" style={{ marginRight: 'auto' }}>
+            {gio.size === 0 ? 'Chưa chọn — sẽ chia cho TẤT CẢ cửa hàng' : `Chia cho ${gio.size} cửa hàng đã chọn`}</span>
           <button className="btn btn-hd" onClick={onClose}>Hủy</button>
-          <button className="btn btn-ai" onClick={chot}>Dùng phạm vi này ({hien.length} CH)</button>
+          {!laChung && (
+            <button className="btn btn-hd" onClick={() => chot(true)}
+              title="Đặt phạm vi này làm chung cho mọi mã">Áp cho tất cả mã</button>
+          )}
+          <button className="btn btn-ai" onClick={() => chot(false)}>
+            {laChung ? 'Dùng cho tất cả mã' : 'Dùng cho mã này'}</button>
         </div>
       </div>
     </div>

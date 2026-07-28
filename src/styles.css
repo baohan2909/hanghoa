@@ -2193,3 +2193,27 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .pv-o-bo:hover { background: rgba(214,0,108,.1); color: var(--magenta); }
 .pv-chan { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 18px;
   border-top: 1px solid var(--line); }
+
+/* ============ v3.50.0 — PHẠM VI: bộ chọn 2 cột (nguồn | giỏ) ============ */
+.pv2 { display: flex; flex: 1; min-height: 0; }
+.pv2-trai { flex: 1.15; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--line); }
+.pv2-phai { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #FBFBF9; }
+.pv2-tab { display: flex; gap: 4px; padding: 12px 14px 0; flex-wrap: wrap; }
+.pv2-tab-nut { border: 0; background: #F2F0EA; color: var(--ink-2); border-radius: 9px 9px 0 0;
+  padding: 7px 13px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.pv2-tab-nut.on { background: var(--grad); color: #fff; }
+.pv2-nguon { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.pv2-ketqua { flex: 1; overflow-y: auto; padding: 4px 10px; min-height: 200px; }
+.pv2-nhom-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 6px; font-size: 11.5px; color: var(--ink-2); font-weight: 600;
+  position: sticky; top: 0; background: #fff; z-index: 2; }
+.pv2-gy { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; }
+.pv2-gy + .pv2-gy { border-top: 1px solid var(--line); }
+.pv2-nhat { border: 1px solid var(--teal); background: #fff; color: var(--teal-deep);
+  border-radius: 8px; padding: 4px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+.pv2-nhat:hover { background: rgba(63,182,168,.1); }
+.pv2-nhat.co { background: var(--grad); color: #fff; border-color: transparent; }
+.pv2-gio-dau { display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px 8px; font-size: 13.5px; }
+.pv2-gio-loc { display: flex; align-items: center; gap: 6px; padding: 0 14px 8px; }
+.pv2-gio-ds { flex: 1; overflow-y: auto; padding: 4px 10px; min-height: 200px; }
