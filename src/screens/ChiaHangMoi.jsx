@@ -1,5 +1,5 @@
 import { isoVN, Sel } from '../lib/ui.jsx';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcSplit, IcDown, IcSearch } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
@@ -13,7 +13,8 @@ function AnhMini({ url }) {
 let seq = 1;
 const fmtN = (n) => (n == null ? '0' : Number(n).toLocaleString('vi'));
 const dongMoi = () => ({ id: seq++, q: '', goiY: [], sp: null, nganh3: '',
-  qTC: '', goiYTC: [], thamChieu: null, tong: '', ct: null, batchId: null, moRong: true });
+  qTC: '', goiYTC: [], thamChieu: null, tong: '', ct: null, batchId: null, moRong: true,
+  phamVi: null });   // phamVi riêng; null = dùng phamViChung
 
 export default function ChiaHangMoi() {
   const { user, baoToast, datBan } = useApp();
@@ -29,6 +30,13 @@ export default function ChiaHangMoi() {
   const tcRef = useRef(null);
   const [tdCH, setTdCH] = useState({});   // ma_ch -> bán 30 ngày (cột tham chiếu)
   const timRef = useRef({});
+  // Phạm vi CHUNG áp cho mọi mã (mã nào có phamVi riêng thì ghi đè)
+  const [phamViChung, setPhamViChung] = useState({ loai: 'TAT_CA', giaTri: null, ds: null });
+  const [nguonBan, setNguonBan] = useState('TOAN_HE');   // TOAN_HE | TRONG_PHAM_VI
+  const [moPV, setMoPV] = useState(null);   // đang mở bộ chọn phạm vi cho: 'chung' | id mã
+  const [dsKhuVuc, setDsKhuVuc] = useState([]);
+  const [dsNhom, setDsNhom] = useState([]);
+  const [ngayDi, setNgayDi] = useState([]);
 
   // Báo cho App biết đang chia dở -> không tự cập nhật phiên bản giữa chừng
   useEffect(() => {
@@ -48,6 +56,13 @@ export default function ChiaHangMoi() {
       .then(({ data }) => setDsNganh3((data || []).map((x) => x.nganh_3)));
     sb.from('tham_so').select('gia_tri').eq('key', 'kho_tong_ma').eq('pham_vi', 'GLOBAL').single()
       .then(({ data }) => setKhoMap(data?.gia_tri || {}));
+    sb.from('cua_hang').select('khu_vuc, nhom_ch').or('ma_ch.like.CH%,ma_ch.like.DB%')
+      .then(({ data }) => {
+        const kv = [...new Set((data || []).map((c) => c.khu_vuc).filter(Boolean))].sort();
+        const nh = [...new Set((data || []).map((c) => c.nhom_ch).filter((x) => x != null))].sort((a, b) => a - b);
+        setDsKhuVuc(kv); setDsNhom(nh);
+      });
+    sb.rpc('fn_ngay_di_hang', {}).then(({ data }) => setNgayDi(data || []));
   }, []);
 
   const capNhat = (id, patch) => setDong((ds) => ds.map((d) => d.id === id ? { ...d, ...patch } : d));
@@ -63,6 +78,27 @@ export default function ChiaHangMoi() {
       capNhat(id, field === 'sp' ? { goiY: data || [] } : { goiYTC: data || [] });
     }, 300);
   };
+  // Giải một phạm vi {loai,giaTri,ds} thành danh sách ma_ch qua fn_ds_cua_hang.
+  // ds != null nghĩa là người dùng đã tinh chỉnh thủ công (thêm/bớt) -> dùng thẳng.
+  const giaiPhamVi = async (pv) => {
+    if (!pv || pv.loai === 'TAT_CA') return null;   // null = tất cả nơi bán
+    if (pv.ds) return pv.ds;                         // đã chốt danh sách tay
+    const gt = pv.loai === 'DANH_SACH' ? (pv.giaTri || []).join(',') : (pv.giaTri ?? '');
+    const { data } = await sb.rpc('fn_ds_cua_hang', { p_loai: pv.loai, p_gia_tri: String(gt) });
+    return (data || []).map((c) => c.ma_ch);
+  };
+
+
+  const tenPV = (pv) => {
+    if (!pv || pv.loai === 'TAT_CA') return 'Tất cả cửa hàng';
+    if (pv.ds) return `${pv.ds.length} cửa hàng đã chọn`;
+    if (pv.loai === 'KHU_VUC') return `Khu vực: ${pv.giaTri}`;
+    if (pv.loai === 'NHOM') return `Nhóm ${pv.giaTri}`;
+    if (pv.loai === 'NGAY') return `Đi hàng ngày ${pv.giaTri}`;
+    if (pv.loai === 'DANH_SACH') return `${(pv.giaTri || []).length} cửa hàng`;
+    return 'Tất cả cửa hàng';
+  };
+
   const chonSP = (id, g) => capNhat(id, { sp: g, q: g.ma_tham_chieu || g.sku || g.barcode, goiY: [], nganh3: g.nganh_3 || '' });
   const chonTC = (id, g) => capNhat(id, { thamChieu: g, qTC: g.ma_tham_chieu || g.sku || g.barcode, goiYTC: [] });
 
@@ -70,10 +106,12 @@ export default function ChiaHangMoi() {
     if (!d.sp || !d.tong || (!d.nganh3 && !d.thamChieu)) {
       baoToast('Dòng thiếu: sản phẩm, tổng SL và (ngành cấp 3 hoặc mã tham chiếu)'); return false;
     }
-    const gọiChia = () => sb.rpc('fn_chia_hang_moi_v2', {
+    const dsCh = await giaiPhamVi(d.phamVi || phamViChung);
+    const gọiChia = () => sb.rpc('fn_chia_hang_moi_v3', {
       p_barcode: d.sp.barcode, p_nganh3: d.nganh3 || null, p_tong: parseInt(d.tong),
       p_nguoi: user.ma_dang_nhap, p_tham_chieu: d.thamChieu?.barcode || null,
-      p_tham_chieu_ma: d.thamChieu?.ma_tham_chieu || null });
+      p_tham_chieu_ma: d.thamChieu?.ma_tham_chieu || null,
+      p_ds_ch: dsCh, p_nguon_ban: nguonBan });
     let { data: id, error } = await gọiChia();
     // 57014 = statement timeout: lần đầu làm nóng bộ đệm, thử lại một lần nữa
     if (error && (error.code === '57014' || /timeout/i.test(error.message || ''))) {
@@ -291,6 +329,24 @@ export default function ChiaHangMoi() {
         </div>
       </div>
 
+      <div className="pv-thanh">
+        <div className="pv-thanh-l">
+          <span className="pv-lbl">Phạm vi chia (chung):</span>
+          <button className="pv-chip-chon" onClick={() => setMoPV('chung')}>
+            <IcSearch style={{ width: 14, height: 14, verticalAlign: -2, marginRight: 5 }} />
+            {tenPV(phamViChung)}
+          </button>
+          <span className="tq-ghi">— áp cho mọi mã, trừ mã đặt riêng</span>
+        </div>
+        <div className="pv-thanh-r">
+          <span className="pv-lbl">Tỷ trọng theo:</span>
+          <button className={'pv-seg' + (nguonBan === 'TOAN_HE' ? ' on' : '')}
+            onClick={() => setNguonBan('TOAN_HE')}>Bán toàn hệ</button>
+          <button className={'pv-seg' + (nguonBan === 'TRONG_PHAM_VI' ? ' on' : '')}
+            onClick={() => setNguonBan('TRONG_PHAM_VI')}>Bán trong phạm vi</button>
+        </div>
+      </div>
+
       {dong.map((d, i) => (
         <div key={d.id} className="card" style={{ marginTop: 12, padding: 14 }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -356,6 +412,18 @@ export default function ChiaHangMoi() {
               Chia theo tỷ trọng bán của <b className="mono">{d.thamChieu.ma_tham_chieu || d.thamChieu.sku}</b> (60 ngày)
             </div>
           )}
+
+          <div className="pv-rieng">
+            <span className="tq-ghi">Phạm vi:</span>
+            {d.phamVi
+              ? <button className="pv-chip-chon nho" onClick={() => setMoPV(d.id)}>{tenPV(d.phamVi)}</button>
+              : <button className="pv-chip-chung" onClick={() => setMoPV(d.id)}>
+                  Theo chung ({tenPV(phamViChung)})</button>}
+            {d.phamVi && (
+              <button className="pv-bo" title="Bỏ phạm vi riêng, dùng chung"
+                onClick={() => capNhat(d.id, { phamVi: null })}>✕ riêng</button>
+            )}
+          </div>
 
           {d.ct && (
             <div style={{ marginTop: 12 }}>
@@ -534,6 +602,167 @@ export default function ChiaHangMoi() {
           </div>
         </div>
       )}
+
+      {moPV != null && (
+        <PhamViModal
+          pv={moPV === 'chung' ? phamViChung : (dong.find((d) => d.id === moPV)?.phamVi || null)}
+          dsKhuVuc={dsKhuVuc} dsNhom={dsNhom} ngayDi={ngayDi} tenCH={tenCH} kvCH={kvCH}
+          onClose={() => setMoPV(null)}
+          onLuu={(pv) => {
+            if (moPV === 'chung') setPhamViChung(pv);
+            else capNhat(moPV, { phamVi: pv });
+            setMoPV(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PhamViModal({ pv, dsKhuVuc, dsNhom, ngayDi, tenCH, kvCH, onClose, onLuu }) {
+  const [loai, setLoai] = useState(pv?.ds ? 'DANH_SACH' : (pv?.loai || 'TAT_CA'));
+  const [giaTri, setGiaTri] = useState(pv?.giaTri ?? null);
+  const [ds, setDs] = useState(pv?.ds || null);   // danh sách CH đã tinh chỉnh tay
+  const [rows, setRows] = useState([]);   // CH của phạm vi hiện tại + lịch
+  const [tai, setTai] = useState(false);
+  const [sapXep, setSapXep] = useState('kv');   // 'kv' | 'lich'
+  const [tim, setTim] = useState('');
+
+  // Nạp danh sách CH theo (loai, giaTri)
+  const nap = useCallback(async () => {
+    setTai(true);
+    const gt = loai === 'DANH_SACH' ? (ds || []).join(',') : (giaTri ?? '');
+    const { data } = await sb.rpc('fn_ds_cua_hang', { p_loai: loai, p_gia_tri: String(gt ?? '') });
+    setRows(data || []);
+    setTai(false);
+  }, [loai, giaTri, ds]);
+  useEffect(() => { if (loai !== 'DANH_SACH') nap(); }, [loai, giaTri]);   // eslint-disable-line
+
+  // Khi tinh chỉnh tay lần đầu -> chuyển sang chế độ danh sách, giữ các CH hiện có
+  const batDauChinh = () => {
+    if (ds) return;
+    setDs(rows.map((r) => r.ma_ch)); setLoai('DANH_SACH');
+  };
+  const boCH = (ma) => { batDauChinh(); setDs((x) => (x || rows.map((r) => r.ma_ch)).filter((m) => m !== ma)); };
+  const themCH = (ma) => { batDauChinh(); setDs((x) => [...new Set([...(x || []), ma])]); };
+
+  // rows đang hiển thị (nếu DANH_SACH tự chỉnh thì lọc theo ds)
+  const hien = useMemo(() => {
+    let r = rows;
+    if (ds) r = rows.filter((x) => ds.includes(x.ma_ch));
+    if (tim.trim()) {
+      const q = tim.toLowerCase();
+      r = r.filter((x) => (x.ten || '').toLowerCase().includes(q) || (x.khu_vuc || '').toLowerCase().includes(q) || x.ma_ch.toLowerCase().includes(q));
+    }
+    return [...r].sort((a, b) => sapXep === 'lich'
+      ? ((a.so_ngay_toi_lich ?? 9999) - (b.so_ngay_toi_lich ?? 9999))
+      : (a.khu_vuc || '').localeCompare(b.khu_vuc || '', 'vi'));
+  }, [rows, ds, tim, sapXep]);
+
+  // CH chưa có (để thêm) khi đang ở chế độ danh sách
+  const chuaCo = useMemo(() => {
+    if (!ds) return [];
+    const co = new Set(ds);
+    return Object.entries(tenCH).filter(([m]) => !co.has(m))
+      .map(([ma_ch, ten]) => ({ ma_ch, ten, khu_vuc: kvCH[ma_ch] || '' }))
+      .sort((a, b) => a.ten.localeCompare(b.ten, 'vi'));
+  }, [ds, tenCH, kvCH]);
+
+  const chot = () => {
+    if (loai === 'TAT_CA') return onLuu({ loai: 'TAT_CA', giaTri: null, ds: null });
+    if (ds) return onLuu({ loai: 'DANH_SACH', giaTri: null, ds });
+    onLuu({ loai, giaTri, ds: null });
+  };
+
+  const fmtLich = (r) => {
+    if (r.lich_gan == null) return <span className="tq-ghi">chưa có lịch</span>;
+    const n = r.so_ngay_toi_lich;
+    const nhan = n === 0 ? 'hôm nay' : n === 1 ? 'ngày mai' : `${n} ngày nữa`;
+    return <span className={'pv-lich' + (n <= 1 ? ' gan' : '')}>{r.lich_gan} · {nhan}</span>;
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 3200,
+      background: 'rgba(20,18,14,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16,
+        width: 'min(760px, 96vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(20,33,58,.3)' }}>
+        <div className="lp-dau">
+          <div><b>Chọn phạm vi chia hàng</b>
+            <div className="lp-phu">{hien.length} cửa hàng — thêm/bớt tùy ý, xem lịch đi hàng để ghép chuyến</div></div>
+          <button className="lp-dong" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="pv-tab">
+          {[['TAT_CA', 'Tất cả'], ['KHU_VUC', 'Theo khu vực'], ['NHOM', 'Theo nhóm'],
+            ['NGAY', 'Theo ngày đi hàng'], ['DANH_SACH', 'Chọn tay']].map(([k, t]) => (
+            <button key={k} className={'pv-tab-nut' + (loai === k ? ' on' : '')}
+              onClick={() => { setLoai(k); setGiaTri(null); if (k !== 'DANH_SACH') setDs(null); }}>{t}</button>
+          ))}
+        </div>
+
+        <div className="pv-chon-gt">
+          {loai === 'KHU_VUC' && (
+            <div className="pv-pills">
+              {dsKhuVuc.map((kv) => (
+                <button key={kv} className={'pv-pill' + (giaTri === kv ? ' on' : '')}
+                  onClick={() => setGiaTri(kv)}>{kv}</button>
+              ))}
+            </div>
+          )}
+          {loai === 'NHOM' && (
+            <div className="pv-pills">
+              {dsNhom.map((n) => (
+                <button key={n} className={'pv-pill' + (String(giaTri) === String(n) ? ' on' : '')}
+                  onClick={() => setGiaTri(n)}>Nhóm {n}</button>
+              ))}
+            </div>
+          )}
+          {loai === 'NGAY' && (
+            <div className="pv-pills">
+              {ngayDi.map((x) => (
+                <button key={x.ngay} className={'pv-pill' + (giaTri === x.ngay ? ' on' : '')}
+                  onClick={() => setGiaTri(x.ngay)}>{x.ngay} <i>({x.so_ch})</i></button>
+              ))}
+            </div>
+          )}
+          {loai === 'TAT_CA' && <div className="tq-ghi" style={{ padding: '4px 2px' }}>Chia cho tất cả cửa hàng có bán.</div>}
+          {loai === 'DANH_SACH' && chuaCo.length > 0 && (
+            <div className="pv-them-sel">
+              <Sel value="" timKiem placeholder="+ Thêm cửa hàng…"
+                options={chuaCo.map((c) => ({ value: c.ma_ch, label: `${c.ten} · ${c.khu_vuc}` }))}
+                onChange={(v) => v && themCH(v)} />
+            </div>
+          )}
+        </div>
+
+        <div className="pv-bar2">
+          <input className="inp" style={{ height: 34, flex: 1 }} placeholder="Tìm trong danh sách…"
+            value={tim} onChange={(e) => setTim(e.target.value)} />
+          <span className="tq-ghi">Sắp xếp:</span>
+          <button className={'pv-seg' + (sapXep === 'kv' ? ' on' : '')} onClick={() => setSapXep('kv')}>Khu vực</button>
+          <button className={'pv-seg' + (sapXep === 'lich' ? ' on' : '')} onClick={() => setSapXep('lich')}>Ngày đi hàng</button>
+        </div>
+
+        <div className="pv-ds">
+          {tai ? <div className="tq-ghi" style={{ padding: 20, textAlign: 'center' }}>Đang tải…</div>
+            : hien.length === 0 ? <div className="tq-ghi" style={{ padding: 20, textAlign: 'center' }}>Chưa có cửa hàng nào</div>
+            : hien.map((r) => (
+              <div key={r.ma_ch} className="pv-o">
+                <div className="pv-o-tt">
+                  <div className="pv-o-ten">{r.ten}</div>
+                  <div className="pv-o-meta"><span className="mono">{r.ma_ch}</span> · {r.khu_vuc || '—'} · {fmtLich(r)}</div>
+                </div>
+                <button className="pv-o-bo" title="Bỏ khỏi phạm vi" onClick={() => boCH(r.ma_ch)}>✕</button>
+              </div>
+            ))}
+        </div>
+
+        <div className="pv-chan">
+          <button className="btn btn-hd" onClick={onClose}>Hủy</button>
+          <button className="btn btn-ai" onClick={chot}>Dùng phạm vi này ({hien.length} CH)</button>
+        </div>
+      </div>
     </div>
   );
 }
