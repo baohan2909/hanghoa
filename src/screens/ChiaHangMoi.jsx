@@ -92,7 +92,7 @@ export default function ChiaHangMoi() {
     if (pv.ds) return `${pv.ds.length} cửa hàng đã chọn`;
     if (pv.loai === 'KHU_VUC') return `Khu vực: ${pv.giaTri}`;
     if (pv.loai === 'NHOM') return `Nhóm ${pv.giaTri}`;
-    if (pv.loai === 'NGAY') return `Đi hàng ngày ${pv.giaTri}`;
+    if (pv.loai === 'NGAY') return `Đề nghị ngày ${pv.giaTri}`;
     if (pv.loai === 'DANH_SACH') return `${(pv.giaTri || []).length} cửa hàng`;
     return 'Tất cả cửa hàng';
   };
@@ -624,7 +624,7 @@ export default function ChiaHangMoi() {
 function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLuu }) {
   // Mô hình GIỎ: gio = tập ma_ch đang chọn (Set). Nhặt vào từ nhiều nguồn, bỏ ra tự do.
   const [gio, setGio] = useState(() => new Set(pv?.ds || []));
-  const [nguon, setNguon] = useState('KHU_VUC');   // tab đang mở để NHẶT: KHU_VUC|NHOM|NGAY|TIM
+  const [nguon, setNguon] = useState('TAT_CA');   // tab NHẶT: TAT_CA|KHU_VUC|NHOM|NGAY|TIM
   const [tim, setTim] = useState('');
   const [sapXep, setSapXep] = useState('kv');
   const [metaCH, setMetaCH] = useState({});   // ma_ch -> {ten,khu_vuc,nhom_ch,lich_gan,so_ngay_toi_lich}
@@ -643,6 +643,9 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
       });
     }
   }, []);   // eslint-disable-line
+
+  // Mở modal -> nạp sẵn danh sách tất cả cửa hàng
+  useEffect(() => { napNguon('TAT_CA', ''); }, []);   // eslint-disable-line
 
   const napMeta = (rows) => setMetaCH((m) => {
     const n = { ...m };
@@ -691,10 +694,12 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
   }, [gio, metaCH, tim, sapXep, nguon, tenCH, kvCH]);
 
   const fmtLich = (r) => {
-    if (r.lich_gan == null) return <span className="tq-ghi">—</span>;
+    if (r.lich_gan == null) return <span className="tq-ghi">chưa có</span>;
     const n = r.so_ngay_toi_lich;
-    const nhan = n === 0 ? 'hôm nay' : n === 1 ? 'ngày mai' : `${n}n nữa`;
-    return <span className={'pv-lich' + (n <= 1 ? ' gan' : '')}>{nhan}</span>;
+    const nhan = n === 0 ? 'hôm nay' : n === 1 ? 'ngày mai' : `${n} ngày nữa`;
+    const dm = r.lich_gan.slice(8, 10) + '/' + r.lich_gan.slice(5, 7);
+    return <span className={'pv-lich' + (n <= 1 ? ' gan' : n <= 7 ? ' vua' : '')}>
+      <b>{dm}</b> · {nhan}</span>;
   };
 
   // Bao nhiêu CH trong nhóm gợi ý đã nằm trong giỏ
@@ -722,13 +727,19 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
           {/* CỘT TRÁI: nguồn để nhặt */}
           <div className="pv2-trai">
             <div className="pv2-tab">
-              {[['KHU_VUC', 'Khu vực'], ['NHOM', 'Nhóm'], ['NGAY', 'Ngày đi hàng'], ['TIM', 'Tìm cửa hàng']].map(([k, t]) => (
+              {[['TAT_CA', 'Tất cả CH'], ['KHU_VUC', 'Khu vực'], ['NHOM', 'Nhóm'],
+                ['NGAY', 'Ngày đề nghị'], ['TIM', 'Tìm cửa hàng']].map(([k, t]) => (
                 <button key={k} className={'pv2-tab-nut' + (nguon === k ? ' on' : '')}
-                  onClick={() => { setNguon(k); setGoiY([]); if (k === 'NGAY') napNguon('NGAY', 0); }}>{t}</button>
+                  onClick={() => { setNguon(k); setGoiY([]);
+                    if (k === 'NGAY') napNguon('NGAY', 0);
+                    if (k === 'TAT_CA') napNguon('TAT_CA', ''); }}>{t}</button>
               ))}
             </div>
 
             <div className="pv2-nguon">
+              {nguon === 'TAT_CA' && (
+                <div className="tq-ghi" style={{ padding: '2px' }}>Toàn bộ cửa hàng — bấm "+ Thêm tất cả" bên dưới để chọn hết.</div>
+              )}
               {nguon === 'KHU_VUC' && (
                 <div className="pv-pills">
                   {dsKhuVuc.map((kv) => (
@@ -745,7 +756,7 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
               )}
               {nguon === 'NGAY' && (
                 <div className="pv-pills">
-                  {[['Hôm nay', 0], ['Đến ngày mai', 1], ['7 ngày tới', 7], ['30 ngày tới', 30]].map(([t, n]) => (
+                  {[['Đề nghị hôm nay', 0], ['Đến ngày mai', 1], ['7 ngày tới', 7], ['30 ngày tới', 30]].map(([t, n]) => (
                     <button key={n} className="pv-pill" onClick={() => napNguon('NGAY', n)}>{t}</button>
                   ))}
                 </div>
@@ -797,18 +808,25 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
             <div className="pv2-gio-loc">
               <input className="inp" style={{ height: 32, flex: 1 }} placeholder="Lọc trong giỏ…"
                 value={tim} onChange={(e) => setTim(e.target.value)} />
-              <button className={'pv-seg' + (sapXep === 'kv' ? ' on' : '')} onClick={() => setSapXep('kv')}>Khu vực</button>
-              <button className={'pv-seg' + (sapXep === 'lich' ? ' on' : '')} onClick={() => setSapXep('lich')}>Lịch</button>
+            </div>
+            {/* Thanh tiêu đề bảng giỏ — bấm để sort, ô thoáng */}
+            <div className="pv2-th">
+              <button className={'pv2-th-ten' + (sapXep === 'kv' ? ' on' : '')} onClick={() => setSapXep('kv')}>
+                Cửa hàng {sapXep === 'kv' && <i>▾</i>}</button>
+              <button className={'pv2-th-lich' + (sapXep === 'lich' ? ' on' : '')} onClick={() => setSapXep('lich')}>
+                Lịch gần nhất {sapXep === 'lich' && <i>▾</i>}</button>
+              <span className="pv2-th-x" />
             </div>
             <div className="pv2-gio-ds">
               {trongGio.length === 0
                 ? <div className="tq-ghi" style={{ padding: 20, textAlign: 'center' }}>Chưa chọn cửa hàng nào.<br/>Nhặt từ cột bên trái.</div>
                 : trongGio.map((r) => (
-                  <div key={r.ma_ch} className="pv-o">
-                    <div className="pv-o-tt">
+                  <div key={r.ma_ch} className="pv2-hang">
+                    <div className="pv2-hang-ten">
                       <div className="pv-o-ten">{r.ten}</div>
-                      <div className="pv-o-meta"><span className="mono">{r.ma_ch}</span> · {r.khu_vuc || '—'} · {fmtLich(r)}</div>
+                      <div className="pv-o-meta"><span className="mono">{r.ma_ch}</span> · {r.khu_vuc || '—'}</div>
                     </div>
+                    <div className="pv2-hang-lich">{fmtLich(r)}</div>
                     <button className="pv-o-bo" title="Bỏ khỏi giỏ" onClick={() => bo1(r.ma_ch)}>✕</button>
                   </div>
                 ))}
@@ -819,9 +837,9 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
         <div className="pv-chan">
           <span className="tq-ghi" style={{ marginRight: 'auto' }}>
             {gio.size === 0 ? 'Chưa chọn — sẽ chia cho TẤT CẢ cửa hàng' : `Chia cho ${gio.size} cửa hàng đã chọn`}</span>
-          <button className="btn btn-hd" onClick={onClose}>Hủy</button>
+          <button className="btn pv-huy" onClick={onClose}>Hủy</button>
           {!laChung && (
-            <button className="btn btn-hd" onClick={() => chot(true)}
+            <button className="btn pv-vien" onClick={() => chot(true)}
               title="Đặt phạm vi này làm chung cho mọi mã">Áp cho tất cả mã</button>
           )}
           <button className="btn btn-ai" onClick={() => chot(false)}>
