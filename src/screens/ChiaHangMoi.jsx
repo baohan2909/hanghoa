@@ -630,6 +630,7 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
   const [metaCH, setMetaCH] = useState({});   // ma_ch -> {ten,khu_vuc,nhom_ch,lich_gan,so_ngay_toi_lich}
   const [goiY, setGoiY] = useState([]);       // kết quả nguồn đang xem (để nhặt)
   const [taiNguon, setTaiNguon] = useState(false);
+  const [lichMap, setLichMap] = useState({});   // ma_ch -> ngày đề nghị gần nhất (YYYY-MM-DD) từ fn_lich_matran
   const timRef2 = useRef(null);
 
   // Nếu phạm vi cũ là nhóm/khu vực chưa "giải" ra ds -> giải một lần lúc mở
@@ -647,9 +648,34 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
   // Mở modal -> nạp sẵn danh sách tất cả cửa hàng
   useEffect(() => { napNguon('TAT_CA', ''); }, []);   // eslint-disable-line
 
+  // Nạp LỊCH ĐỀ NGHỊ thật từ fn_lich_matran (nguồn màn Lịch dùng), 45 ngày tới.
+  // Lấy ngày đề nghị GẦN NHẤT ≥ hôm nay cho mỗi cửa hàng.
+  useEffect(() => {
+    const homNay = new Date().toISOString().slice(0, 10);
+    const den = new Date(); den.setDate(den.getDate() + 45);
+    sb.rpc('fn_lich_matran', { p_tu: homNay, p_den: den.toISOString().slice(0, 10) })
+      .then(({ data }) => {
+        const m = {};
+        (data || []).forEach((r) => {
+          const ngay = (r.ngay_lich || []).filter((n) => n >= homNay).sort();
+          if (ngay.length) m[r.ma_ch] = ngay[0];
+        });
+        setLichMap(m);
+      });
+  }, []);   // eslint-disable-line
+
+  const homNayISO = new Date().toISOString().slice(0, 10);
+  const soNgayToi = (ngay) => {
+    if (!ngay) return null;
+    return Math.round((new Date(ngay) - new Date(homNayISO)) / 86400000);
+  };
+  // gắn lịch đề nghị (lichMap) vào từng dòng CH
   const napMeta = (rows) => setMetaCH((m) => {
     const n = { ...m };
-    rows.forEach((r) => { n[r.ma_ch] = r; });
+    rows.forEach((r) => {
+      const lg = lichMap[r.ma_ch] || null;
+      n[r.ma_ch] = { ...r, lich_gan: lg, so_ngay_toi_lich: soNgayToi(lg) };
+    });
     return n;
   });
 
@@ -658,10 +684,15 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
     setTaiNguon(true);
     let data = [];
     if (loai === 'NGAY') {
+      // Dùng LỊCH ĐỀ NGHỊ thật (lichMap): CH có ngày đề nghị gần nhất trong khoảng [hôm nay, +gt]
+      const homNay = new Date().toISOString().slice(0, 10);
       const den = new Date(); den.setDate(den.getDate() + (gt || 0));
-      const r = await sb.rpc('fn_ch_theo_khoang_ngay', {
-        p_tu: new Date().toISOString().slice(0, 10), p_den: den.toISOString().slice(0, 10) });
-      data = r.data || [];
+      const denS = den.toISOString().slice(0, 10);
+      const r = await sb.rpc('fn_ds_cua_hang', { p_loai: 'TAT_CA', p_gia_tri: '' });
+      data = (r.data || []).filter((c) => {
+        const lg = lichMap[c.ma_ch];
+        return lg && lg >= homNay && lg <= denS;
+      });
     } else if (loai === 'TIM') {
       if (!gt || gt.trim().length < 1) { setGoiY([]); setTaiNguon(false); return; }
       // gõ tay: tìm theo tên CH HOẶC khu vực (gom bằng fn_ds_cua_hang tất cả rồi lọc client)
@@ -681,9 +712,26 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
   const nhat1 = (ma) => { gio.add(ma); setGio(new Set(gio)); };
   const bo1 = (ma) => { gio.delete(ma); setGio(new Set(gio)); };
 
+  // Khi lichMap về (sau khi meta đã nạp) -> vá lịch vào mọi dòng meta
+  useEffect(() => {
+    if (!Object.keys(lichMap).length) return;
+    setMetaCH((m) => {
+      const n = {};
+      Object.entries(m).forEach(([ma, r]) => {
+        const lg = lichMap[ma] || null;
+        n[ma] = { ...r, lich_gan: lg, so_ngay_toi_lich: soNgayToi(lg) };
+      });
+      return n;
+    });
+  }, [lichMap]);   // eslint-disable-line
+
   // Danh sách trong GIỎ để hiển thị (kèm meta + lọc tìm + sắp xếp)
   const trongGio = useMemo(() => {
-    let r = [...gio].map((ma) => metaCH[ma] || { ma_ch: ma, ten: tenCH[ma] || ma, khu_vuc: kvCH[ma] || '' });
+    let r = [...gio].map((ma) => {
+      const base = metaCH[ma] || { ma_ch: ma, ten: tenCH[ma] || ma, khu_vuc: kvCH[ma] || '' };
+      const lg = lichMap[ma] || base.lich_gan || null;
+      return { ...base, lich_gan: lg, so_ngay_toi_lich: soNgayToi(lg) };
+    });
     if (tim.trim() && nguon !== 'TIM') {
       const q = tim.toLowerCase();
       r = r.filter((x) => (x.ten || '').toLowerCase().includes(q) || (x.khu_vuc || '').toLowerCase().includes(q) || x.ma_ch.toLowerCase().includes(q));
@@ -691,7 +739,7 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
     return r.sort((a, b) => sapXep === 'lich'
       ? ((a.so_ngay_toi_lich ?? 9999) - (b.so_ngay_toi_lich ?? 9999))
       : (a.khu_vuc || '').localeCompare(b.khu_vuc || '', 'vi'));
-  }, [gio, metaCH, tim, sapXep, nguon, tenCH, kvCH]);
+  }, [gio, metaCH, tim, sapXep, nguon, tenCH, kvCH, lichMap]);
 
   const fmtLich = (r) => {
     if (r.lich_gan == null) return <span className="tq-ghi">chưa có</span>;
