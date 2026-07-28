@@ -1,6 +1,6 @@
 # BÀN GIAO PHIÊN LÀM VIỆC — ĐIỀU PHỐI HÀNG HÓA
 
-> Cập nhật: 24/07/2026 · App **v3.51.1** · Apps Script **v3.24.2** · SQL đã chạy tới **133**
+> Cập nhật: 24/07/2026 · App **v3.51.2** · Apps Script **v3.24.2** · SQL đã chạy tới **133**
 
 ## 0. Cách làm việc
 
