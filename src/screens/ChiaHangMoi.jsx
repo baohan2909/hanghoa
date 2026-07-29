@@ -350,9 +350,9 @@ export default function ChiaHangMoi() {
         <div className="pv-thanh-r">
           <span className="pv-lbl">Tỷ trọng theo:</span>
           <button className={'pv-seg' + (nguonBan === 'TOAN_HE' ? ' on' : '')}
-            onClick={() => setNguonBan('TOAN_HE')}>Bán toàn hệ</button>
+            onClick={() => setNguonBan('TOAN_HE')}>Toàn hệ thống</button>
           <button className={'pv-seg' + (nguonBan === 'TRONG_PHAM_VI' ? ' on' : '')}
-            onClick={() => setNguonBan('TRONG_PHAM_VI')}>Bán trong phạm vi</button>
+            onClick={() => setNguonBan('TRONG_PHAM_VI')}>Trong phạm vi</button>
         </div>
       </div>
 

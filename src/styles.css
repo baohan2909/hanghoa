@@ -43,18 +43,15 @@ input, select { font-family: inherit; font-size: 14px; }
 /* ---------- COMMAND BAR (signature) ---------- */
 .cmdbar {
   position: relative; z-index: 30;
-  background: var(--grad); color: #fff;
+  color: #fff;
+  /* Bong bóng vẽ TRONG nền -> luôn nằm dưới nút/chữ, tự bo góc, không tràn ra ngoài */
+  background:
+    radial-gradient(circle at calc(100% - 119px) 103px, rgba(255,255,255,.09) 0 95px, transparent 96px),
+    radial-gradient(circle at calc(100% - 205px) calc(100% - 65px), rgba(203,164,90,.22) 0 55px, transparent 56px),
+    var(--grad);
   border-radius: var(--r); padding: 18px 20px;
   box-shadow: var(--shadow-lg); margin-bottom: 16px;
 }
-/* lớp phủ bong bóng riêng, có overflow hidden để không che dropdown của cmdbar */
-.cmdbar::before, .cmdbar::after {          /* 2 bong bóng theo yêu cầu */
-  content: ''; position: absolute; border-radius: 50%;
-  background: rgba(255,255,255,.09); pointer-events: none; z-index: 0;
-}
-.cmdbar::before { width: 190px; height: 190px; right: 24px; top: 8px; }
-.cmdbar::after  { width: 110px; height: 110px; right: 150px; bottom: 10px;
-  background: rgba(203,164,90,.22); }
 .cmdbar h1 { font-size: 19px; font-weight: 600; letter-spacing: .2px; position: relative; z-index: 1; }
 .cmdbar .sub { opacity: .82; font-size: 12.5px; margin-top: 2px; position: relative; z-index: 1; }
 .cmdbar .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; position: relative; z-index: 1; }
@@ -2172,8 +2169,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* Nút chọn nguồn số liệu (segmented) */
 .pv-seg { border: 1px solid var(--line); background: #fff; color: var(--ink-2);
   border-radius: 8px; padding: 5px 11px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
-.pv-seg.on { background: linear-gradient(135deg, var(--teal-deep) 0%, var(--teal) 100%); color: #fff;
-  border: 1px solid transparent; box-shadow: 0 0 12px rgba(63,182,168,.4); }
+.pv-seg.on { background: var(--teal-deep); color: #fff; border: 1px solid var(--teal-deep); }
 /* Phạm vi riêng mỗi mã */
 .pv-rieng { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .pv-chip-chung { border: 1px dashed var(--line); background: transparent; color: var(--ink-2);
