@@ -447,17 +447,20 @@ export default function ChiaHangMoi() {
           {d.ct && (
             <div style={{ marginTop: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                <b style={{ fontSize: 13 }}>Kết quả: {d.ct.length} cửa hàng · {d.ct.reduce((s, r) => s + (r.sl_chot || 0), 0)} sp</b>
+                {(() => { const tong = d.ct.reduce((s, r) => s + (r.sl_chot || 0), 0);
+                  const nhap = parseInt(d.tong) || 0; const giu = nhap - tong;
+                  return <b style={{ fontSize: 13 }}>Kết quả: {d.ct.length} cửa hàng · {tong} sp
+                    {giu > 0 && <span style={{ color: 'var(--gold)', fontWeight: 600 }}> · giữ {giu} (Toàn hệ thống chia theo tỷ trọng)</span>}</b>; })()}
                 <button className="btn-mini" onClick={() => capNhat(d.id, { moRong: !d.moRong })}>{d.moRong ? 'Thu gọn' : 'Mở rộng'}</button>
                 <button className="btn-mini" onClick={() => capNhat(d.id, { ct: null, batchId: null })}>Chia lại</button>
               </div>
               {d.moRong && (
                 <div className="tbl-wrap" style={{ maxHeight: '40vh' }}>
                   <table className="tbl">
-                    <thead><tr><th className="ct-stt">#</th><th>Cửa hàng</th><th className="ct-giua">Khu vực</th>
-                      <th className="ct-giua" title="Tồn hiện tại của mã này ở cửa hàng — có số nghĩa là CH đã có hàng (đã xin trước đó)">Đã có</th>
-                      <th className="ct-giua">Tỷ lệ</th><th className="ct-giua">Đề xuất</th>
-                      <th className="ct-giua">Chốt</th><th style={{ width: 34 }}></th></tr></thead>
+                    <thead><tr><th className="ct-stt">#</th><th>Cửa hàng</th><th className="ct-giua" style={{ width: 150 }}>Khu vực</th>
+                      <th className="ct-giua" style={{ width: 72 }} title="Tồn hiện tại của mã này ở cửa hàng — có số nghĩa là CH đã có hàng (đã xin trước đó)">Đã có</th>
+                      <th className="ct-giua" style={{ width: 72 }}>Tỷ lệ</th><th className="ct-giua" style={{ width: 80 }}>Đề xuất</th>
+                      <th className="ct-giua" style={{ width: 90 }}>Chốt</th><th style={{ width: 34 }}></th></tr></thead>
                     <tbody>
                       {d.ct.map((r, i3) => (
                         <tr key={r.id}>
@@ -468,7 +471,7 @@ export default function ChiaHangMoi() {
                             ? <b className="ct-dacos">{r.ton_dang_co}</b> : <span className="ct-khong">·</span>}</td>
                           <td className="ct-giua">{Math.round((r.ty_le || 0) * 100)}%</td>
                           <td className="ct-giua">{r.sl_de_xuat}</td>
-                          <td className="ct-giua"><input className="qty-input" type="number" min="0" value={r.sl_chot}
+                          <td className="ct-giua"><input className="qty-input ct-inp" type="number" min="0" value={r.sl_chot}
                             onChange={(e) => suaChot(d.id, r.id, e.target.value)} /></td>
                           <td className="ct-giua"><button className="btn-mini" title="Bỏ cửa hàng này"
                             onClick={() => capNhat(d.id, { ct: d.ct.filter((x) => x.id !== r.id) })}>✕</button></td>
@@ -784,7 +787,7 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 3200,
       background: 'rgba(20,18,14,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16,
-        width: 'min(900px, 97vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        width: 'min(900px, 97vw)', height: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 20px 60px rgba(20,33,58,.3)' }}>
         <div className="lp-dau">
           <div><b>Chọn cửa hàng để chia</b>
