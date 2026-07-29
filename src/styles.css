@@ -215,6 +215,9 @@ button:focus-visible, [role="button"]:focus-visible, .btn:focus-visible {
 .btn-ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
 .btn[disabled] { opacity: .45; cursor: not-allowed; }
 .btn-ai { background: var(--grad); color: #fff; box-shadow: 0 0 16px rgba(63,182,168,.45); }
+/* Nút .btn-ai TRONG header cmdbar (nền tối): KHÔNG glow teal (chói) — bóng kín đáo như cũ */
+.cmdbar .btn-ai { box-shadow: 0 4px 14px rgba(20,33,58,.25); }
+.cmdbar .btn-ai:hover { box-shadow: 0 6px 18px rgba(20,33,58,.32); }
 
 /* ---------- TABLE ---------- */
 .tbl-wrap { background: var(--surface); border-radius: var(--r);
@@ -2169,7 +2172,8 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* Nút chọn nguồn số liệu (segmented) */
 .pv-seg { border: 1px solid var(--line); background: #fff; color: var(--ink-2);
   border-radius: 8px; padding: 5px 11px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
-.pv-seg.on { background: var(--grad); color: #fff; border: 1px solid transparent; box-shadow: 0 0 12px rgba(63,182,168,.4); }
+.pv-seg.on { background: linear-gradient(135deg, var(--teal-deep) 0%, var(--teal) 100%); color: #fff;
+  border: 1px solid transparent; box-shadow: 0 0 12px rgba(63,182,168,.4); }
 /* Phạm vi riêng mỗi mã */
 .pv-rieng { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .pv-chip-chung { border: 1px dashed var(--line); background: transparent; color: var(--ink-2);
