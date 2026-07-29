@@ -399,8 +399,8 @@ export default function XinHang() {
     const colNum = {
       gia: (r) => gia(r) || 0, diduong: (r) => (r.ton_du_tinh ?? 0) - (r.ton_truoc ?? 0), kho: (r) => r.kho_tong ?? 0,
       ban: (r) => r.sl_ban_ky ?? 0, ai: (r) => r.sl_ai ?? 0, sl: (r) => r.sl_xin ?? 0,
-      tong: (r) => (r.ton_truoc ?? 0) + (r.sl_xin || 0),
-      ngay: (r) => r.toc_do > 0 ? Math.round(((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 0,
+      tong: (r) => (r.ton_du_tinh ?? 0) + (r.sl_xin || 0),
+      ngay: (r) => r.toc_do > 0 ? Math.round(((r.ton_du_tinh ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 0,
     };
     v = v.filter((r) => {
       for (const [c, val] of Object.entries(flt)) {
@@ -417,8 +417,8 @@ export default function XinHang() {
         gia: (r) => r.la_hang_sale ? r.gia_sale : r.gia_niem_yet,
         ton: (r) => r.ton_truoc, diduong: (r) => (r.ton_du_tinh ?? 0) - (r.ton_truoc ?? 0), kho: (r) => r.kho_tong ?? 0,
         ban: (r) => r.sl_ban_ky ?? 0, ai: (r) => r.sl_ai,
-        sl: (r) => r.sl_xin, tong: (r) => (r.ton_truoc ?? 0) + (r.sl_xin || 0),
-        ngay: (r) => (r.toc_do > 0) ? (((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 1e9,
+        sl: (r) => r.sl_xin, tong: (r) => (r.ton_du_tinh ?? 0) + (r.sl_xin || 0),
+        ngay: (r) => (r.toc_do > 0) ? (((r.ton_du_tinh ?? 0) + (r.sl_xin || 0)) / r.toc_do) : 1e9,
         tt: (r) => {
           const t = r.tinh_trang || '';
           if (t.startsWith('Hết hàng') || t === 'Vừa hết hàng' || t === 'Kho hết — cần sản xuất') return 0;
@@ -455,7 +455,7 @@ export default function XinHang() {
       if (r.nguon === 'KHO') return;                 // chỉ tính hàng cửa hàng đang có
       if (r.nhom_hang === 'PK') return;              // phụ kiện không có định mức min/max
       const k = r.nhom_hang === 'BH' ? 'BH' : 'NV';
-      g[k].ton += r.ton_truoc || 0;
+      g[k].ton += r.ton_du_tinh || 0;
       g[k].xin += r.sl_xin || 0;
       if (r.muc_max > 0) { g[k].min = r.muc_min || 0; g[k].max = r.muc_max || 0; }
     });
@@ -881,10 +881,10 @@ export default function XinHang() {
                           }} />
                         {vuotKho && <div style={{ fontSize: 10, color: 'var(--magenta)', marginTop: 2 }}>Vượt kho tổng {r.kho_tong}</div>}
                       </td>
-                      <td className="num" style={{ fontWeight: 600 }}>{(r.ton_truoc ?? 0) + (r.sl_xin || 0)}</td>
+                      <td className="num" style={{ fontWeight: 600 }} title="Tồn dự tính (thực tế + đang về) + xin thêm">{(r.ton_du_tinh ?? 0) + (r.sl_xin || 0)}</td>
                       <td className="num">
                         {r.toc_do > 0
-                          ? (() => { const n = Math.round(((r.ton_truoc ?? 0) + (r.sl_xin || 0)) / r.toc_do);
+                          ? (() => { const n = Math.round(((r.ton_du_tinh ?? 0) + (r.sl_xin || 0)) / r.toc_do);
                               return n > 60
                                 ? <span style={{ color: 'var(--ink-2)' }} title={n + ' ngày — hàng bán rất chậm'}>60d+</span>
                                 : <b style={{ color: 'var(--ink)' }}>{n}d</b>; })()

@@ -319,6 +319,8 @@ function PctBar({ pct }) {
 function TabNhom({ tu, den, taiLai }) {
   const { user, baoToast } = useApp();
   const [rows, setRows] = useState(null);
+  const [xacNhan, setXacNhan] = useState(null);   // {ma_ch, n, ten} đang chờ nhập mật khẩu
+  const [mk, setMk] = useState(''); const [dangXn, setDangXn] = useState(false); const [loiMk, setLoiMk] = useState('');
   const [q, setQ] = useState(''); const [nhom, setNhom] = useState('ALL'); const [kv, setKv] = useState('ALL');
   const [sortC, setSortC] = useState({ col: 'nhom', dir: 'asc' });
   const tai = async () => {
@@ -326,11 +328,20 @@ function TabNhom({ tu, den, taiLai }) {
     if (error) { baoToast('Lỗi: ' + error.message); return; } setRows(data || []);
   };
   useEffect(() => { tai(); }, [tu, den]);
-  const doiNhom = async (ma_ch, n) => {
+  // Đổi nhóm là thao tác nhạy cảm -> yêu cầu XÁC NHẬN MẬT KHẨU trước khi lưu
+  const doiNhom = (ma_ch, n, ten) => { setLoiMk(''); setMk(''); setXacNhan({ ma_ch, n, ten }); };
+  const xacNhanDoi = async () => {
+    if (!mk) { setLoiMk('Nhập mật khẩu để xác nhận'); return; }
+    setDangXn(true); setLoiMk('');
+    // Xác minh mật khẩu bằng cách đăng nhập lại chính tài khoản đang dùng
+    const { data: dn, error: eDn } = await sb.rpc('fn_dang_nhap', { p_user: user.ma_dang_nhap, p_pass: mk });
+    if (eDn || !dn?.token) { setDangXn(false); setLoiMk('Mật khẩu không đúng'); return; }
+    const { ma_ch, n } = xacNhan;
     const { error } = await sb.rpc('fn_sua_nhom_ch', { p_token: user.token, p_ma_ch: ma_ch, p_nhom: n });
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    setDangXn(false);
+    if (error) { setLoiMk('Lỗi: ' + error.message); return; }
     setRows((rs) => rs.map((r) => r.ma_ch === ma_ch ? { ...r, nhom_ch: n } : r));
-    baoToast(`${ma_ch} → Nhóm ${n}`); taiLai && taiLai();
+    baoToast(`${ma_ch} → Nhóm ${n}`); setXacNhan(null); taiLai && taiLai();
   };
   const dsKV = useMemo(() => [...new Set((rows || []).map((r) => r.khu_vuc).filter(Boolean))].sort(), [rows]);
   const hien = useMemo(() => {
@@ -375,7 +386,7 @@ function TabNhom({ tu, den, taiLai }) {
                   <td className="center">
                     <div className="nhom-tabs" style={{ margin: 0, display: 'inline-flex', flexWrap: 'nowrap' }}>
                       {[1, 2, 3].map((n) => (
-                        <button key={n} className={'nhom-tab' + (r.nhom_ch === n ? ' on' : '')} style={{ height: 30, padding: '0 11px', fontSize: 12 }} onClick={() => doiNhom(r.ma_ch, n)}>N{n}</button>
+                        <button key={n} className={'nhom-tab' + (r.nhom_ch === n ? ' on' : '')} style={{ height: 30, padding: '0 11px', fontSize: 12 }} onClick={() => doiNhom(r.ma_ch, n, r.ten)}>N{n}</button>
                       ))}
                     </div>
                   </td>
@@ -389,6 +400,28 @@ function TabNhom({ tu, den, taiLai }) {
           </table>
         </div>
       </div>
+
+      {xacNhan && (
+        <div onClick={() => setXacNhan(null)} style={{ position: 'fixed', inset: 0, zIndex: 3400,
+          background: 'rgba(20,18,14,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16,
+            width: 'min(400px, 94vw)', overflow: 'hidden', boxShadow: '0 20px 60px rgba(20,33,58,.3)' }}>
+            <div className="lp-dau"><div><b>Xác nhận đổi nhóm</b>
+              <div className="lp-phu">{xacNhan.ten} → Nhóm {xacNhan.n}</div></div></div>
+            <div style={{ padding: 18 }}>
+              <div className="lbl" style={{ marginBottom: 6 }}>Nhập mật khẩu của bạn để xác nhận</div>
+              <input className="inp" type="password" autoFocus style={{ width: '100%', height: 40 }}
+                value={mk} onChange={(e) => { setMk(e.target.value); setLoiMk(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && xacNhanDoi()} placeholder="Mật khẩu" />
+              {loiMk && <div style={{ color: 'var(--magenta)', fontSize: 12.5, marginTop: 8, fontWeight: 600 }}>{loiMk}</div>}
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+                <button className="btn pv-huy" onClick={() => setXacNhan(null)}>Hủy</button>
+                <button className="btn btn-ai" disabled={dangXn} onClick={xacNhanDoi}>{dangXn ? 'Đang kiểm…' : 'Xác nhận đổi'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

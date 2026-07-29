@@ -205,7 +205,7 @@ export default function ChatLuongDN({ chonTab = () => {} }) {
                   <span className="mt-noi">{m.so_noi} nơi</span>
                 </div>
                 <div className="mt-tt">
-                  <div className="mt-ten">{m.ten_sp || m.sku || m.barcode}</div>
+                  <div className="mt-ten">{m.ten_sp || m.ma_tham_chieu || m.sku || m.barcode}</div>
                   <div className="mt-ds" title={m.ds_noi}>{m.ds_noi}</div>
                   <div className="mt-chan">
                     <span className="tq-ghi">kho <b>{fmtN(m.ton_kho_tong)}</b> · CH <b>{fmtN(m.ton_noi_ban)}</b></span>

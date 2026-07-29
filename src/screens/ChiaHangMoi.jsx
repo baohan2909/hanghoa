@@ -14,7 +14,7 @@ let seq = 1;
 const fmtN = (n) => (n == null ? '0' : Number(n).toLocaleString('vi'));
 const dongMoi = () => ({ id: seq++, q: '', goiY: [], sp: null, nganh3: '',
   qTC: '', goiYTC: [], thamChieu: null, tong: '', ct: null, batchId: null, moRong: true,
-  phamVi: null });   // phamVi riêng; null = dùng phamViChung
+  phamVi: null, chiaMin: '', chiaMax: '' });   // phamVi riêng; null = dùng phamViChung
 
 export default function ChiaHangMoi() {
   const { user, baoToast, datBan } = useApp();
@@ -109,7 +109,8 @@ export default function ChiaHangMoi() {
       p_barcode: d.sp.barcode, p_nganh3: d.nganh3 || null, p_tong: parseInt(d.tong),
       p_nguoi: user.ma_dang_nhap, p_tham_chieu: d.thamChieu?.barcode || null,
       p_tham_chieu_ma: d.thamChieu?.ma_tham_chieu || null,
-      p_ds_ch: dsCh, p_nguon_ban: nguonBan });
+      p_ds_ch: dsCh, p_nguon_ban: nguonBan,
+      p_min: parseInt(d.chiaMin) || 0, p_max: d.chiaMax ? parseInt(d.chiaMax) : null });
     let { data: id, error } = await gọiChia();
     // 57014 = statement timeout: lần đầu làm nóng bộ đệm, thử lại một lần nữa
     if (error && (error.code === '57014' || /timeout/i.test(error.message || ''))) {
@@ -117,7 +118,9 @@ export default function ChiaHangMoi() {
       ({ data: id, error } = await gọiChia());
     }
     if (error) {
-      baoToast(error.code === '57014' || /timeout/i.test(error.message || '')
+      baoToast(/THU HỒI|thu hồi/i.test(error.message || '')
+        ? error.message
+        : error.code === '57014' || /timeout/i.test(error.message || '')
         ? 'Máy chủ đang bận, thử lại sau giây lát'
         : 'Lỗi: ' + error.message);
       return false;
@@ -125,10 +128,18 @@ export default function ChiaHangMoi() {
     const { data, error: e2 } = await sb.from('chia_hang_moi_ct')
       .select('*').eq('batch_id', id).order('sl_de_xuat', { ascending: false });
     if (e2) { baoToast('Lỗi đọc kết quả: ' + e2.message); return false; }
+    // Lấy TỒN HIỆN TẠI của chính mã này ở các cửa hàng -> để đối chiếu CH nào ĐÃ CÓ hàng
+    let tonMap = {};
+    if (data && data.length) {
+      const { data: tk } = await sb.from('ton_kho')
+        .select('ma_ch, ton_hien_tai').eq('barcode', d.sp.barcode).gt('ton_hien_tai', 0);
+      tonMap = Object.fromEntries((tk || []).map((t) => [t.ma_ch, t.ton_hien_tai]));
+    }
+    const ctData = (data || []).map((r) => ({ ...r, ton_dang_co: tonMap[r.ma_ch] || 0 }));
     if (!data || !data.length) {
       baoToast(d.thamChieu ? 'Mã tham chiếu chưa có bán 60 ngày — thử mã khác' : 'Ngành này chưa có bán 60 ngày — hãy chọn MÃ THAM CHIẾU tương tự để chia');
     }
-    capNhat(d.id, { ct: data || [], batchId: id });
+    capNhat(d.id, { ct: ctData, batchId: id, tonMap });
     return true;
   };
 
@@ -394,10 +405,20 @@ export default function ChiaHangMoi() {
                 </div>
               )}
             </div>
-            <div style={{ flex: '0 0 110px' }}>
+            <div style={{ flex: '0 0 90px' }}>
               <div className="lbl">Tổng SL</div>
               <input className="inp" type="number" min="1" style={{ width: '100%' }}
                 value={d.tong} onChange={(e) => capNhat(d.id, { tong: e.target.value })} />
+            </div>
+            <div style={{ flex: '0 0 76px' }}>
+              <div className="lbl" title="Mỗi cửa hàng nhận ÍT NHẤT bao nhiêu (kể cả CH không bán). Để trống = không ràng buộc">Min/CH</div>
+              <input className="inp" type="number" min="0" placeholder="—" style={{ width: '100%' }}
+                value={d.chiaMin} onChange={(e) => capNhat(d.id, { chiaMin: e.target.value })} />
+            </div>
+            <div style={{ flex: '0 0 76px' }}>
+              <div className="lbl" title="Mỗi cửa hàng nhận TỐI ĐA bao nhiêu. Để trống = không giới hạn">Max/CH</div>
+              <input className="inp" type="number" min="0" placeholder="—" style={{ width: '100%' }}
+                value={d.chiaMax} onChange={(e) => capNhat(d.id, { chiaMax: e.target.value })} />
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               {!d.ct && <button className="btn btn-primary" disabled={busy} onClick={() => chiaDong(d)}>Chia</button>}
@@ -434,6 +455,7 @@ export default function ChiaHangMoi() {
                 <div className="tbl-wrap" style={{ maxHeight: '40vh' }}>
                   <table className="tbl">
                     <thead><tr><th className="ct-stt">#</th><th>Cửa hàng</th><th className="ct-giua">Khu vực</th>
+                      <th className="ct-giua" title="Tồn hiện tại của mã này ở cửa hàng — có số nghĩa là CH đã có hàng (đã xin trước đó)">Đã có</th>
                       <th className="ct-giua">Tỷ lệ</th><th className="ct-giua">Đề xuất</th>
                       <th className="ct-giua">Chốt</th><th style={{ width: 34 }}></th></tr></thead>
                     <tbody>
@@ -442,6 +464,8 @@ export default function ChiaHangMoi() {
                           <td className="ct-stt">{i3 + 1}</td>
                           <td><b>{tenCH[r.ma_ch] || r.ma_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
                           <td className="ct-giua">{kvCH[r.ma_ch] || '—'}</td>
+                          <td className="ct-giua">{r.ton_dang_co > 0
+                            ? <b className="ct-dacos">{r.ton_dang_co}</b> : <span className="ct-khong">·</span>}</td>
                           <td className="ct-giua">{Math.round((r.ty_le || 0) * 100)}%</td>
                           <td className="ct-giua">{r.sl_de_xuat}</td>
                           <td className="ct-giua"><input className="qty-input" type="number" min="0" value={r.sl_chot}
@@ -629,8 +653,8 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
   const [sapXep, setSapXep] = useState('kv');
   const [metaCH, setMetaCH] = useState({});   // ma_ch -> {ten,khu_vuc,nhom_ch,lich_gan,so_ngay_toi_lich}
   const [goiY, setGoiY] = useState([]);       // kết quả nguồn đang xem (để nhặt)
-  const [taiNguon, setTaiNguon] = useState(false);
   const [lichMap, setLichMap] = useState({});   // ma_ch -> ngày đề nghị gần nhất (YYYY-MM-DD) từ fn_lich_matran
+  const [allCH, setAllCH] = useState(null);     // toàn bộ CH, tải MỘT lần, mọi tab lọc tại chỗ (hết giật)
   const timRef2 = useRef(null);
 
   // Nếu phạm vi cũ là nhóm/khu vực chưa "giải" ra ds -> giải một lần lúc mở
@@ -645,8 +669,12 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
     }
   }, []);   // eslint-disable-line
 
-  // Mở modal -> nạp sẵn danh sách tất cả cửa hàng
-  useEffect(() => { napNguon('TAT_CA', ''); }, []);   // eslint-disable-line
+  // Mở modal -> tải TOÀN BỘ cửa hàng MỘT lần; mọi tab lọc từ đây (không gọi lại API -> hết giật)
+  useEffect(() => {
+    sb.rpc('fn_ds_cua_hang', { p_loai: 'TAT_CA', p_gia_tri: '' }).then(({ data }) => {
+      setAllCH(data || []); napMeta(data || []); setGoiY(data || []);
+    });
+  }, []);   // eslint-disable-line
 
   // Nạp LỊCH ĐỀ NGHỊ thật từ fn_lich_matran (nguồn màn Lịch dùng), 45 ngày tới.
   // Lấy ngày đề nghị GẦN NHẤT ≥ hôm nay cho mỗi cửa hàng.
@@ -679,32 +707,25 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
     return n;
   });
 
-  // Nạp gợi ý theo nguồn đang chọn
-  const napNguon = async (loai, gt) => {
-    setTaiNguon(true);
+  // Nạp gợi ý theo nguồn — LỌC TẠI CHỖ từ allCH (đã tải sẵn), không gọi API -> không giật
+  const napNguon = (loai, gt) => {
+    const nguonData = allCH || [];
     let data = [];
-    if (loai === 'NGAY') {
-      // Dùng LỊCH ĐỀ NGHỊ thật (lichMap): CH có ngày đề nghị gần nhất trong khoảng [hôm nay, +gt]
+    if (loai === 'TAT_CA') data = nguonData;
+    else if (loai === 'KHU_VUC') data = nguonData.filter((c) => c.khu_vuc === gt);
+    else if (loai === 'NHOM') data = nguonData.filter((c) => String(c.nhom_ch) === String(gt));
+    else if (loai === 'NGAY') {
       const homNay = new Date().toISOString().slice(0, 10);
       const den = new Date(); den.setDate(den.getDate() + (gt || 0));
       const denS = den.toISOString().slice(0, 10);
-      const r = await sb.rpc('fn_ds_cua_hang', { p_loai: 'TAT_CA', p_gia_tri: '' });
-      data = (r.data || []).filter((c) => {
-        const lg = lichMap[c.ma_ch];
-        return lg && lg >= homNay && lg <= denS;
-      });
+      data = nguonData.filter((c) => { const lg = lichMap[c.ma_ch]; return lg && lg >= homNay && lg <= denS; });
     } else if (loai === 'TIM') {
-      if (!gt || gt.trim().length < 1) { setGoiY([]); setTaiNguon(false); return; }
-      // gõ tay: tìm theo tên CH HOẶC khu vực (gom bằng fn_ds_cua_hang tất cả rồi lọc client)
-      const r = await sb.rpc('fn_ds_cua_hang', { p_loai: 'TAT_CA', p_gia_tri: '' });
+      if (!gt || gt.trim().length < 1) { setGoiY([]); return; }
       const q = gt.toLowerCase();
-      data = (r.data || []).filter((c) =>
+      data = nguonData.filter((c) =>
         (c.ten || '').toLowerCase().includes(q) || (c.khu_vuc || '').toLowerCase().includes(q) || c.ma_ch.toLowerCase().includes(q));
-    } else {
-      const r = await sb.rpc('fn_ds_cua_hang', { p_loai: loai, p_gia_tri: String(gt ?? '') });
-      data = r.data || [];
     }
-    napMeta(data); setGoiY(data); setTaiNguon(false);
+    setGoiY(data);
   };
 
   const nhatNhom = () => { goiY.forEach((c) => gio.add(c.ma_ch)); setGio(new Set(gio)); };
@@ -778,9 +799,10 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
               {[['TAT_CA', 'Tất cả CH'], ['KHU_VUC', 'Khu vực'], ['NHOM', 'Nhóm'],
                 ['NGAY', 'Ngày đề nghị'], ['TIM', 'Tìm cửa hàng']].map(([k, t]) => (
                 <button key={k} className={'pv2-tab-nut' + (nguon === k ? ' on' : '')}
-                  onClick={() => { setNguon(k); setGoiY([]);
-                    if (k === 'NGAY') napNguon('NGAY', 0);
-                    if (k === 'TAT_CA') napNguon('TAT_CA', ''); }}>{t}</button>
+                  onClick={() => { setNguon(k);
+                    if (k === 'TAT_CA') napNguon('TAT_CA', '');
+                    else if (k === 'NGAY') napNguon('NGAY', 0);
+                    else setGoiY([]); }}>{t}</button>
               ))}
             </div>
 
@@ -819,9 +841,9 @@ function PhamViModal({ pv, dsKhuVuc, dsNhom, tenCH, kvCH, laChung, onClose, onLu
 
             {/* Kết quả nguồn -> nhặt */}
             <div className="pv2-ketqua">
-              {taiNguon ? <div className="tq-ghi" style={{ padding: 16, textAlign: 'center' }}>Đang tải…</div>
+              {!allCH ? <div className="tq-ghi" style={{ padding: 16, textAlign: 'center' }}>Đang tải…</div>
                 : goiY.length === 0 ? <div className="tq-ghi" style={{ padding: 16, textAlign: 'center' }}>
-                    {nguon === 'TIM' ? 'Gõ để tìm cửa hàng' : 'Chọn một mục bên trên để xem cửa hàng'}</div>
+                    {nguon === 'TIM' ? 'Gõ để tìm cửa hàng' : nguon === 'NGAY' ? 'Không có cửa hàng đề nghị trong khoảng này' : 'Chọn một mục bên trên để xem cửa hàng'}</div>
                 : (<>
                   <div className="pv2-nhom-bar">
                     <span>{goiY.length} cửa hàng · đã chọn {daNhat}</span>

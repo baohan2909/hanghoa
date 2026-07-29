@@ -33,7 +33,10 @@ body {
 h1,h2,h3 { font-family: var(--font-disp); margin: 0; }
 button { font-family: inherit; cursor: pointer;
   -webkit-appearance: none; -moz-appearance: none; appearance: none;
-  border: none; background: none; color: inherit; }
+  border: none; background: none; color: inherit;
+  -webkit-tap-highlight-color: transparent; }
+/* iOS Safari: bỏ mọi lớp phủ/viền mặc định khi chạm nút */
+button:focus, button:active { -webkit-tap-highlight-color: transparent; }
 input, select { font-family: inherit; font-size: 14px; }
 .mono { font-family: var(--font-mono); font-size: 12.5px; }
 
@@ -2120,9 +2123,11 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .mt-chan { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 5px; }
 .mt-tag { border: 0; border-radius: 7px; font-size: 10px; font-weight: 800; padding: 4px 9px;
   cursor: pointer; letter-spacing: .2px; }
-.mt-tag.chia { background: var(--grad); color: #fff; box-shadow: 0 0 10px rgba(63,182,168,.35); }
-.mt-tag.dp { background: rgba(63,182,168,.14); color: var(--teal-deep); }
-.mt-tag.sx { background: rgba(214,0,108,.12); color: var(--magenta); cursor: default; }
+.mt-tag.chia { background: rgba(63,182,168,.1); color: var(--teal-deep); border: 1px solid rgba(63,182,168,.5); }
+.mt-tag.chia:hover { background: rgba(63,182,168,.2); }
+.mt-tag.dp { background: rgba(203,164,90,.12); color: #8a6b22; border: 1px solid rgba(203,164,90,.5); }
+.mt-tag.dp:hover { background: rgba(203,164,90,.22); }
+.mt-tag.sx { background: rgba(214,0,108,.08); color: var(--magenta); border: 1px solid rgba(214,0,108,.4); cursor: default; }
 
 /* ============ v3.47.0 — cột THAM CHIẾU (tốc độ bán/ngày theo CH) ============ */
 .ds-pivot .ds-tc-col { position: sticky; left: 318px; z-index: 3; background: #fff;
@@ -2253,3 +2258,11 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .pv2-hang-lich { width: 120px; flex-shrink: 0; font-size: 12px; text-align: center; }
 .pv-lich.vua { color: var(--teal-deep); font-weight: 600; }
 .pv-lich b { font-family: var(--font-mono); }
+
+/* v3.51.4 — cuộn mượt danh sách CH nhiều dòng (trình duyệt bỏ render dòng ngoài màn) */
+.pv2-gy, .pv2-hang, .pv-o { content-visibility: auto; contain-intrinsic-size: auto 48px; }
+
+/* v3.51.4 — cột "Đã có" (tồn hiện tại) trong bảng chia — cảnh báo CH đã có hàng */
+.ct-dacos { color: #8a6b22; font-family: var(--font-mono); font-weight: 800;
+  background: rgba(203,164,90,.16); padding: 1px 7px; border-radius: 6px; }
+.ct-khong { color: #D8D5CC; }
