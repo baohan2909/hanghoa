@@ -130,7 +130,7 @@ export default function ChiaHangMoi() {
       ({ data: id, error } = await gọiChia());
     }
     if (error) {
-      baoToast(/THU HỒI|thu hồi/i.test(error.message || '')
+      baoToast(/THU HỒI|thu hồi|đủ hàng|quá thấp|cửa hàng/i.test(error.message || '')
         ? error.message
         : error.code === '57014' || /timeout/i.test(error.message || '')
         ? 'Máy chủ đang bận, thử lại sau giây lát'
