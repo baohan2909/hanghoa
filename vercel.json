@@ -1,0 +1,28 @@
+{
+  "rewrites": [
+    {
+      "source": "/zalo-oauth",
+      "destination": "/api/zalo-oauth"
+    },
+    {
+      "source": "/zalo-webhook",
+      "destination": "/api/zalo-webhook"
+    },
+    {
+      "source": "/mkt-runner",
+      "destination": "/api/mkt-runner"
+    },
+    {
+      "source": "/gui-ngay",
+      "destination": "/api/gui-ngay"
+    },
+    {
+      "source": "/ai-goi-y",
+      "destination": "/api/ai-goi-y"
+    },
+    {
+      "source": "/fb-webhook",
+      "destination": "/api/fb-webhook"
+    }
+  ]
+}
