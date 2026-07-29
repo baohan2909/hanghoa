@@ -31,7 +31,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 h1,h2,h3 { font-family: var(--font-disp); margin: 0; }
-button { font-family: inherit; cursor: pointer; }
+button { font-family: inherit; cursor: pointer;
+  -webkit-appearance: none; -moz-appearance: none; appearance: none;
+  border: none; background: none; color: inherit; }
 input, select { font-family: inherit; font-size: 14px; }
 .mono { font-family: var(--font-mono); font-size: 12.5px; }
 
