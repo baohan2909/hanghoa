@@ -2042,7 +2042,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 
 /* ============ v3.45.0 — ĐỐI SOÁT: khu vực, tham chiếu, sort, căn giữa, thêm CH ============ */
 /* Cột số liệu trong bảng thường căn giữa (rule chung) */
-.ct-giua { text-align: center; }
+.tbl th.ct-giua, .tbl td.ct-giua, .ct-giua { text-align: center; }
 /* Tiêu đề sort được */
 .ds-sort { cursor: pointer; user-select: none; }
 .ds-sort:hover { background: #F2F4F1; }

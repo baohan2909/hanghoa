@@ -26,6 +26,18 @@ export default function ChiaHangMoi() {
   const [kvCH, setKvCH] = useState({});      // ma_ch -> khu_vuc
   const [themCH, setThemCH] = useState([]);  // cửa hàng thêm tay vào bảng đối soát
   const [sortDS, setSortDS] = useState({ col: 'tong', dir: 'desc' });
+  const [sortCt, setSortCt] = useState({ col: 'sl_de_xuat', dir: 'desc' });
+  const dsCt = (c) => setSortCt((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
+  const icCt = (c) => sortCt.col === c ? <i className="sort-ic">{sortCt.dir === 'asc' ? '▲' : '▼'}</i> : null;
+  const sapCt = (ct) => {
+    const g = { cuahang: (r) => (tenCH[r.ma_ch] || r.ma_ch), khuvuc: (r) => (kvCH[r.ma_ch] || ''),
+      ton_dang_co: (r) => r.ton_dang_co || 0, ty_le: (r) => r.ty_le || 0,
+      sl_de_xuat: (r) => r.sl_de_xuat || 0, sl_chot: (r) => r.sl_chot || 0 }[sortCt.col];
+    if (!g) return ct;
+    return [...ct].sort((a, b) => { const x = g(a), y = g(b);
+      const c = typeof x === 'string' ? x.localeCompare(y, 'vi') : x - y;
+      return sortCt.dir === 'asc' ? c : -c; });
+  };
   const [tc, setTc] = useState({ q: '', chon: null, goiY: [], sl: null });  // dòng tham chiếu
   const tcRef = useRef(null);
   const [tdCH, setTdCH] = useState({});   // ma_ch -> bán 30 ngày (cột tham chiếu)
@@ -457,12 +469,16 @@ export default function ChiaHangMoi() {
               {d.moRong && (
                 <div className="tbl-wrap" style={{ maxHeight: '40vh' }}>
                   <table className="tbl">
-                    <thead><tr><th className="ct-stt">#</th><th>Cửa hàng</th><th className="ct-giua" style={{ width: 150 }}>Khu vực</th>
-                      <th className="ct-giua" style={{ width: 72 }} title="Tồn hiện tại của mã này ở cửa hàng — có số nghĩa là CH đã có hàng (đã xin trước đó)">Đã có</th>
-                      <th className="ct-giua" style={{ width: 72 }}>Tỷ lệ</th><th className="ct-giua" style={{ width: 80 }}>Đề xuất</th>
-                      <th className="ct-giua" style={{ width: 90 }}>Chốt</th><th style={{ width: 34 }}></th></tr></thead>
+                    <thead><tr><th className="ct-stt">#</th>
+                      <th className="sortable" onClick={() => dsCt('cuahang')}>Cửa hàng{icCt('cuahang')}</th>
+                      <th className="ct-giua sortable" style={{ width: 150 }} onClick={() => dsCt('khuvuc')}>Khu vực{icCt('khuvuc')}</th>
+                      <th className="ct-giua sortable" style={{ width: 72 }} onClick={() => dsCt('ton_dang_co')} title="Tồn hiện tại của mã này ở cửa hàng — có số nghĩa là CH đã có hàng (đã xin trước đó)">Đã có{icCt('ton_dang_co')}</th>
+                      <th className="ct-giua sortable" style={{ width: 72 }} onClick={() => dsCt('ty_le')}>Tỷ lệ{icCt('ty_le')}</th>
+                      <th className="ct-giua sortable" style={{ width: 80 }} onClick={() => dsCt('sl_de_xuat')}>Đề xuất{icCt('sl_de_xuat')}</th>
+                      <th className="ct-giua sortable" style={{ width: 90 }} onClick={() => dsCt('sl_chot')}>Chốt{icCt('sl_chot')}</th>
+                      <th style={{ width: 34 }}></th></tr></thead>
                     <tbody>
-                      {d.ct.map((r, i3) => (
+                      {sapCt(d.ct).map((r, i3) => (
                         <tr key={r.id}>
                           <td className="ct-stt">{i3 + 1}</td>
                           <td><b>{tenCH[r.ma_ch] || r.ma_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
