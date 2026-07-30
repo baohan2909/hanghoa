@@ -10,14 +10,28 @@ const fmtTr = (n) => { const v = Number(n) || 0; return v >= 1e6 ? (v / 1e6).toF
 /* Ảnh sản phẩm: rê chuột phóng to, bấm xem toàn màn hình */
 const THU = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
 const fmtNgay = (d) => d ? String(d).slice(8, 10) + '/' + String(d).slice(5, 7) : '—';
+// Nhập TIỀN trực tiếp (VNĐ), hiển thị có dấu chấm: 1.500.000
+const soThô = (s) => String(s ?? '').replace(/\D/g, '');
+const fmtTien = (s) => { const d = soThô(s); return d ? Number(d).toLocaleString('vi-VN') : ''; };
 
 function AnhSP({ url, ten, onMo }) {
+  const boc = useRef(null);
+  const [pos, setPos] = useState(null);   // {left, top} — hiện ảnh to NGAY TRÊN ảnh gốc
   if (!url) return <span className="tqa tqa-trong"><IcBox /></span>;
+  const vao = () => {
+    const el = boc.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ left: r.left + r.width / 2, top: r.top });   // giữa-trên ảnh gốc (toạ độ màn hình)
+  };
   return (
-    <span className="tqa-boc">
+    <span className="tqa-boc" ref={boc} onMouseEnter={vao} onMouseLeave={() => setPos(null)}>
       <img className="tqa" src={url} alt="" loading="lazy" onClick={() => onMo(url, ten)}
         onError={(e) => { e.target.style.visibility = 'hidden'; }} />
-      <span className="tqa-to"><img src={url} alt="" /></span>
+      {pos && (
+        <span className="tqa-to" style={{ left: pos.left, top: pos.top }}>
+          <img src={url} alt="" />
+        </span>
+      )}
     </span>
   );
 }
@@ -217,8 +231,8 @@ export default function Dashboard({ chonTab = () => {} }) {
     setRtTt(b.data || null);
   };
   const luuNguong = async () => {
-    const tu = ngTu === '' ? null : Math.round(Number(ngTu) * 1000);
-    const den = ngDen === '' ? null : Math.round(Number(ngDen) * 1000);
+    const tu = soThô(ngTu) === '' ? null : Number(soThô(ngTu));
+    const den = soThô(ngDen) === '' ? null : Number(soThô(ngDen));
     const { data, error } = await sb.rpc('fn_rt_nguong_luu', { p_tu: tu, p_den: den, p_bat: true });
     if (error) { baoToast('Lỗi lưu ngưỡng: ' + error.message); return; }
     setNg(data); baoToast('Đã đổi ngưỡng giá theo dõi'); taiRt(true);
@@ -227,8 +241,8 @@ export default function Dashboard({ chonTab = () => {} }) {
   useEffect(() => {
     sb.rpc('fn_rt_nguong_doc').then(({ data }) => {
       setNg(data || null);
-      if (data?.tu != null) setNgTu(String(Math.round(data.tu / 1000)));
-      if (data?.den != null) setNgDen(String(Math.round(data.den / 1000)));
+      if (data?.tu != null) setNgTu(String(data.tu));
+      if (data?.den != null) setNgDen(String(data.den));
     });
     taiRt(true);
     sb.rpc('fn_tq_khung_gio_cache').then(({ data }) => setKg(data || null));
@@ -382,14 +396,14 @@ export default function Dashboard({ chonTab = () => {} }) {
           <div className="tq-card-tit" style={{ margin: 0 }}>HÀNG VỪA BÁN</div>
           <div className="rt-nguong">
             <span>từ</span>
-            <input type="number" inputMode="numeric" value={ngTu} placeholder="3000"
-              onChange={(e) => setNgTu(e.target.value)}
+            <input type="text" inputMode="numeric" value={fmtTien(ngTu)} placeholder="0"
+              onChange={(e) => setNgTu(soThô(e.target.value))}
               onKeyDown={(e) => { if (e.key === 'Enter') luuNguong(); }} />
             <span>đến</span>
-            <input type="number" inputMode="numeric" value={ngDen} placeholder="không giới hạn"
-              onChange={(e) => setNgDen(e.target.value)}
+            <input type="text" inputMode="numeric" value={fmtTien(ngDen)} placeholder="không giới hạn"
+              onChange={(e) => setNgDen(soThô(e.target.value))}
               onKeyDown={(e) => { if (e.key === 'Enter') luuNguong(); }} />
-            <span>nghìn</span>
+            <span>đ</span>
             <button className="btn-mini" onClick={luuNguong}>Áp dụng</button>
           </div>
           {rtTt && (
@@ -406,7 +420,7 @@ export default function Dashboard({ chonTab = () => {} }) {
           : rt.length === 0 ? (
             <div className="rt-trong">
               Chưa có lượt bán nào trong 24 giờ qua ở mức giá này.
-              {ng?.tu > 0 && <> Thử hạ ngưỡng xuống dưới {fmtN(Math.round(ng.tu / 1000))} nghìn.</>}
+              {ng?.tu > 0 && <> Thử hạ ngưỡng xuống dưới {fmtN(ng.tu)} đ.</>}
             </div>
           ) : (
             <div className="rt-bang">

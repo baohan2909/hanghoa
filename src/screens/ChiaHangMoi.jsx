@@ -44,7 +44,7 @@ export default function ChiaHangMoi() {
   const timRef = useRef({});
   // Phạm vi CHUNG áp cho mọi mã (mã nào có phamVi riêng thì ghi đè)
   const [phamViChung, setPhamViChung] = useState({ loai: 'TAT_CA', giaTri: null, ds: null });
-  const [nguonBan, setNguonBan] = useState('TOAN_HE');   // TOAN_HE | TRONG_PHAM_VI
+  const [nguonBan, setNguonBan] = useState('TRONG_PHAM_VI');   // mặc định chia HẾT tổng cho nhóm đã chọn | TOAN_HE = chỉ chia phần tỷ trọng toàn hệ
   const [moPV, setMoPV] = useState(null);   // đang mở bộ chọn phạm vi cho: 'chung' | id mã
   const [dsKhuVuc, setDsKhuVuc] = useState([]);
   const [dsNhom, setDsNhom] = useState([]);
