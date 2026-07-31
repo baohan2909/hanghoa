@@ -125,7 +125,7 @@ function Chart({ data }) {
 }
 
 // ===== KHỐI THEO DÕI SẢN PHẨM (lưu mã quan tâm theo tài khoản) =====
-function TheoDoiSP({ nguoi, onXem }) {
+function TheoDoiSP({ nguoi, onXem, onLoc }) {
   const [ds, setDs] = useState(null);          // danh sách mã đang theo dõi
   const [q, setQ] = useState('');              // ô nhập/tìm mã
   const [goiY, setGoiY] = useState([]);        // gợi ý autocomplete
@@ -159,8 +159,8 @@ function TheoDoiSP({ nguoi, onXem }) {
   return (
     <div className="td-khu">
       <div className="td-dau">
-        <div className="td-tit">Theo dõi mã
-          <span className="td-tit-phu">lưu mã quan tâm — còn đó khi mở lại</span></div>
+        <div className="td-tit">Mã đang quan tâm
+          <span className="td-tit-phu">lưu riêng theo tài khoản — còn đó khi mở lại · bấm thẻ xem lịch sử bán</span></div>
         <div className="td-o">
           <input value={q} placeholder="Gõ mã để thêm (vd MC037 gom cả dòng, hoặc MC037-DN1 một màu)"
             onChange={(e) => timGoiY(e.target.value)}
@@ -240,6 +240,11 @@ export default function Dashboard({ chonTab = () => {} }) {
   const [maCache, setMaCache] = useState({});   // loai -> danh sách (mở lần 2 là tức thì)
   const [rt, setRt] = useState(null);           // hàng vừa bán
   const [rtTt, setRtTt] = useState(null);       // tóm tắt bảng tin
+  const [rtLoai, setRtLoai] = useState('');     // '' tất cả | 'BH' | 'NV'
+  const [rtMaLoc, setRtMaLoc] = useState('');   // lọc theo mã/dòng
+  const [rtCo, setRtCo] = useState(3);          // cỡ ảnh lưới 1..5
+  const [rtCap, setRtCap] = useState(null);     // thời điểm cập nhật gần nhất
+  const locRef = useRef({ loai: '', ma: '' });  // filter hiện tại (cho interval)
   const [ng, setNg] = useState(null);           // ngưỡng giá đang đặt
   const [ngTu, setNgTu] = useState(''); const [ngDen, setNgDen] = useState('');
   const [moiKhoa, setMoiKhoa] = useState(new Set());   // dòng vừa xuất hiện -> nhấp nháy
@@ -285,11 +290,21 @@ export default function Dashboard({ chonTab = () => {} }) {
     setCcMa({ sp: r, ds: data || [] });
   };
 
-  // Chi tiết 1 mã theo dõi: các màu (biến thể) + cửa hàng đã bán
+  // Chi tiết 1 mã: các màu (biến thể) + LỊCH SỬ BÁN theo ngày (bảng to, sort)
+  const [tdSort, setTdSort] = useState({ col: 'ngay', dir: 'desc' });
+  const [tdTu, setTdTu] = useState(iso(new Date(Date.now() - 29 * 864e5)));
+  const [tdDen, setTdDen] = useState(iso(new Date()));
   const xemTd = async (ma) => {
     setTdCt('dang');
-    const { data } = await sb.rpc('fn_td_chi_tiet', { p_ma: ma });
-    setTdCt(data || { ma, bien_the: [], cua_hang: [] });
+    const [ct, ls] = await Promise.all([
+      sb.rpc('fn_td_chi_tiet', { p_ma: ma }),
+      sb.rpc('fn_td_lich_su', { p_ma: ma, p_tu: tdTu, p_den: tdDen, p_gioi_han: 500 }),
+    ]);
+    setTdCt({ ...(ct.data || { ma, bien_the: [], cua_hang: [] }), ma, lich_su: ls.data || [] });
+  };
+  const taiLichSu = async (ma, tu, den) => {
+    const { data } = await sb.rpc('fn_td_lich_su', { p_ma: ma, p_tu: tu, p_den: den, p_gioi_han: 500 });
+    setTdCt((c) => c && c !== 'dang' ? { ...c, lich_su: data || [] } : c);
   };
 
   const napChuoi = async () => {
@@ -320,25 +335,27 @@ export default function Dashboard({ chonTab = () => {} }) {
     if (!maCache[loai]) { const ds = await taiMa(loai); setModal({ loai, ds }); }
   };
   // ===== BẢNG TIN HÀNG VỪA BÁN =====
-  const taiRt = async (im) => {
+  const taiRt = async (im, loai, ma) => {
+    const lo = loai !== undefined ? loai : locRef.current.loai;
+    const m = ma !== undefined ? ma : locRef.current.ma;
+    locRef.current = { loai: lo, ma: m };
     const [a, b] = await Promise.all([
-      sb.rpc('fn_rt_ban_moi', { p_tu: null, p_den: null, p_gio_qua: 24, p_so: 40 }),
-      sb.rpc('fn_rt_tom_tat', { p_tu: null, p_den: null, p_gio_qua: 24 }),
+      sb.rpc('fn_rt_ban_moi', { p_tu: null, p_den: null, p_gio_qua: 24, p_so: 120, p_loai: lo || null, p_ma: m || null }),
+      sb.rpc('fn_rt_tom_tat', { p_tu: null, p_den: null, p_gio_qua: 24, p_loai: lo || null, p_ma: m || null }),
     ]);
+    // Lỗi (timeout/mạng) -> GIỮ dữ liệu cũ, không xoá về 0
+    if (a.error) { return; }
     const ds = a.data || [];
     setRt((cu) => {
-      // Dòng nào chưa từng thấy -> đánh dấu để nhấp nháy
       if (cu && !im) {
         const da = new Set(cu.map((x) => x.khoa));
         const moi = ds.filter((x) => !da.has(x.khoa)).map((x) => x.khoa);
-        if (moi.length) {
-          setMoiKhoa(new Set(moi));
-          setTimeout(() => setMoiKhoa(new Set()), 2600);
-        }
+        if (moi.length) { setMoiKhoa(new Set(moi)); setTimeout(() => setMoiKhoa(new Set()), 2600); }
       }
       return ds;
     });
-    setRtTt(b.data || null);
+    if (!b.error) setRtTt(b.data || null);
+    setRtCap(new Date());
   };
   const luuNguong = async () => {
     const tu = soThô(ngTu) === '' ? null : Number(soThô(ngTu));
@@ -356,13 +373,19 @@ export default function Dashboard({ chonTab = () => {} }) {
     });
     taiRt(true);
     sb.rpc('fn_tq_khung_gio_cache').then(({ data }) => setKg(data || null));
-    // Dữ liệu bán được nạp mỗi 10 phút, xem lại mỗi 2 phút là đủ mới mà vẫn nhẹ
-    const t = setInterval(() => { taiRt(false); }, 120000);
+    // Tự cập nhật hàng vừa bán mỗi 5 phút (anh yêu cầu)
+    const t = setInterval(() => { taiRt(false); }, 300000);
     const t2 = setInterval(() => {
       sb.rpc('fn_tq_khung_gio_cache').then(({ data }) => setKg(data || null));
     }, 300000);
     return () => { clearInterval(t); clearInterval(t2); };
   }, []);   // eslint-disable-line
+
+  // Đổi filter loại/mã -> nạp lại ngay (im để không nhấp nháy)
+  useEffect(() => {
+    const t = setTimeout(() => taiRt(true, rtLoai, rtMaLoc), 250);
+    return () => clearTimeout(t);
+  }, [rtLoai, rtMaLoc]);   // eslint-disable-line
 
   // Bán theo giờ tương đương + nạp trước 2 danh sách để bấm là mở ngay
   useEffect(() => {
@@ -503,7 +526,8 @@ export default function Dashboard({ chonTab = () => {} }) {
       <div className="card tq-card rt-card" style={{ marginTop: 14 }}>
         <div className="rt-dau">
           <span className="rt-cham" />
-          <div className="tq-card-tit" style={{ margin: 0 }}>HÀNG VỪA BÁN</div>
+          <div className="tq-card-tit" style={{ margin: 0 }}>HÀNG VỪA BÁN
+            {rtCap && <span className="rt-cap">cập nhật {String(rtCap.getHours()).padStart(2, '0')}:{String(rtCap.getMinutes()).padStart(2, '0')} · tự làm mới mỗi 5 phút</span>}</div>
           <div className="rt-nguong">
             <span>từ</span>
             <input type="text" inputMode="numeric" value={fmtTien(ngTu)} placeholder="0"
@@ -526,27 +550,39 @@ export default function Dashboard({ chonTab = () => {} }) {
           )}
         </div>
 
-        {/* Ô theo dõi mã — nằm trong khối Hàng vừa bán */}
-        <TheoDoiSP nguoi={user?.ma_dang_nhap || user?.ma_ch || 'khach'} onXem={xemTd} />
+        {/* FILTER lưới: loại hàng + lọc theo mã/dòng + chỉnh cỡ ảnh */}
+        <div className="rt-loc">
+          <div className="rt-seg">
+            {[['', 'Tất cả'], ['BH', 'Bảo hiểm'], ['NV', 'Nón vải']].map(([v, t]) => (
+              <button key={v} className={'rt-seg-nut' + (rtLoai === v ? ' on' : '')}
+                onClick={() => setRtLoai(v)}>{t}</button>
+            ))}
+          </div>
+          <input className="rt-loc-ma" value={rtMaLoc} placeholder="Lọc theo mã hoặc dòng (vd MC037)…"
+            onChange={(e) => setRtMaLoc(e.target.value)} />
+          {rtMaLoc && <button className="rt-loc-xoa" onClick={() => setRtMaLoc('')}>×</button>}
+          <div className="rt-co">
+            <span>cỡ ảnh</span>
+            <input type="range" min="1" max="5" value={rtCo} onChange={(e) => setRtCo(Number(e.target.value))} />
+          </div>
+        </div>
 
         {rt === null ? <ChoTai chu="Đang lấy dữ liệu bán mới nhất…" />
           : rt.length === 0 ? (
             <div className="rt-trong">
-              Chưa có lượt bán nào trong 24 giờ qua ở mức giá này.
-              {ng?.tu > 0 && <> Thử hạ ngưỡng xuống dưới {fmtN(ng.tu)} đ.</>}
+              Chưa có lượt bán nào trong 24 giờ qua{rtLoai || rtMaLoc ? ' khớp bộ lọc' : ' ở mức giá này'}.
+              {ng?.tu > 0 && !rtLoai && !rtMaLoc && <> Thử hạ ngưỡng xuống dưới {fmtN(ng.tu)} đ.</>}
             </div>
           ) : (
-            <div className="rt-bang">
+            <div className={'rt-bang rt-co-' + rtCo}>
               {rt.map((r) => (
                 <div key={r.khoa} className={'rt-o' + (moiKhoa.has(r.khoa) ? ' moi' : '')}
                   onClick={() => xemPhanBo({ barcode: r.barcode, sku: r.sku, ten_sp: r.ten_sp, gia: r.gia })}
                   title="Bấm xem bán và tồn theo từng cửa hàng">
                   <div className="rt-anh">
-                    {r.hinh_url
-                      ? <img src={r.hinh_url} alt="" loading="lazy"
-                          onError={(e) => { e.target.style.display = 'none'; }} />
-                      : <IcBox />}
+                    <AnhSP url={r.hinh_url} ten={r.ten_sp || r.sku} onMo={(u, t) => setAnh({ u, t })} />
                     {r.gia > 0 && <span className="rt-gia">{fmtTr(r.gia)}</span>}
+                    {r.nganh && <span className={'rt-loai rt-loai-' + r.nganh.toLowerCase()}>{r.nganh === 'BH' ? 'Bảo hiểm' : 'Nón vải'}</span>}
                   </div>
                   <div className="rt-ten">{r.ten_sp || r.sku || r.barcode}</div>
                   <div className="rt-ch">{r.ten_ch}</div>
@@ -558,6 +594,9 @@ export default function Dashboard({ chonTab = () => {} }) {
               ))}
             </div>
           )}
+
+        {/* QUAN TÂM RIÊNG — theo dõi mã (khác với bộ lọc trên) */}
+        <TheoDoiSP nguoi={user?.ma_dang_nhap || user?.ma_ch || 'khach'} onXem={xemTd} onLoc={(ma) => setRtMaLoc(ma)} />
 
         {/* Nhịp bán theo khung giờ — chỉ hiện khi dữ liệu đã có giờ */}
         {kg?.co_du_lieu && (
@@ -606,29 +645,53 @@ export default function Dashboard({ chonTab = () => {} }) {
               ))}
             </div>
 
-            <div className="tq-card-tit" style={{ margin: '16px 0 8px' }}>CỬA HÀNG ĐÃ BÁN / CÒN TỒN
-              <span className="tq-tit-phu">30 ngày gần nhất</span></div>
-            <div className="tbl-wrap" style={{ maxHeight: '44vh' }}>
-              <table className="tbl">
-                <thead><tr><th className="ct-stt">#</th><th>Cửa hàng</th><th className="ct-giua">Khu vực</th>
-                  <th className="ct-giua">Bán 30n</th><th className="ct-giua">Tồn</th><th className="ct-giua">Bán gần nhất</th></tr></thead>
-                <tbody>
-                  {(tdCt.cua_hang || []).map((h, i) => (
-                    <tr key={h.ma_ch}>
-                      <td className="ct-stt">{i + 1}</td>
-                      <td><b>{h.ten}</b> <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>{h.ma_ch}</span></td>
-                      <td className="ct-giua">{h.khu_vuc || '—'}</td>
-                      <td className="ct-giua">{h.ban_30 > 0 ? fmtN(h.ban_30) : '—'}</td>
-                      <td className="ct-giua">{h.ton > 0 ? fmtN(h.ton) : <span style={{ color: 'var(--ink-3)' }}>hết</span>}</td>
-                      <td className="ct-giua">{fmtNgay(h.ngay_cuoi)}</td>
-                    </tr>
-                  ))}
-                  {(!tdCt.cua_hang || tdCt.cua_hang.length === 0) && (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--ink-2)', padding: 20 }}>Chưa có cửa hàng nào bán/tồn mã này trong 30 ngày.</td></tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="tq-card-tit" style={{ margin: '16px 0 8px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <span>LỊCH SỬ BÁN</span>
+              <span className="cc-ngay">
+                <span>từ</span>
+                <input type="date" value={tdTu} max={tdDen} onChange={(e) => { setTdTu(e.target.value); taiLichSu(tdCt.ma, e.target.value, tdDen); }} />
+                <span>đến</span>
+                <input type="date" value={tdDen} min={tdTu} onChange={(e) => { setTdDen(e.target.value); taiLichSu(tdCt.ma, tdTu, e.target.value); }} />
+              </span>
+              <span className="tq-tit-phu">{(tdCt.lich_su || []).length} lượt · bấm tiêu đề để sắp xếp</span>
             </div>
+            {(() => {
+              const g = { ngay: (r) => (r.ngay || '') + (r.gio || ''), ma_ch: (r) => r.ten_ch || r.ma_ch,
+                khu_vuc: (r) => r.khu_vuc || '', ma_tham_chieu: (r) => r.ma_tham_chieu || '', so_luong: (r) => r.so_luong || 0 }[tdSort.col];
+              const ls = [...(tdCt.lich_su || [])].sort((a, b) => {
+                const x = g(a), y = g(b); const c = typeof x === 'string' ? x.localeCompare(y, 'vi') : x - y;
+                return tdSort.dir === 'asc' ? c : -c;
+              });
+              const th = (col, nhan, giua) => (
+                <th className={(giua ? 'ct-giua ' : '') + 'sortable'}
+                  onClick={() => setTdSort((s) => ({ col, dir: s.col === col && s.dir === 'desc' ? 'asc' : 'desc' }))}>
+                  {nhan}{tdSort.col === col ? <i className="sort-ic">{tdSort.dir === 'asc' ? '▲' : '▼'}</i> : null}</th>
+              );
+              return (
+                <div className="tbl-wrap" style={{ maxHeight: '48vh' }}>
+                  <table className="tbl">
+                    <thead><tr><th className="ct-stt">#</th>
+                      {th('ngay', 'Ngày · giờ')}{th('ma_ch', 'Cửa hàng')}{th('khu_vuc', 'Khu vực', true)}
+                      {th('ma_tham_chieu', 'Màu / biến thể', true)}{th('so_luong', 'SL', true)}</tr></thead>
+                    <tbody>
+                      {ls.map((r, i) => (
+                        <tr key={i}>
+                          <td className="ct-stt">{i + 1}</td>
+                          <td><b>{fmtNgay(r.ngay)}</b> <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>{r.gio ? String(r.gio).slice(0, 5) : ''}</span></td>
+                          <td><b>{r.ten_ch}</b> <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>{r.ma_ch}</span></td>
+                          <td className="ct-giua">{r.khu_vuc || '—'}</td>
+                          <td className="ct-giua"><span className="mono" style={{ fontSize: 11.5 }}>{r.ma_tham_chieu}</span></td>
+                          <td className="ct-giua"><b>{fmtN(r.so_luong)}</b></td>
+                        </tr>
+                      ))}
+                      {ls.length === 0 && (
+                        <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--ink-2)', padding: 20 }}>Chưa có lượt bán nào trong khoảng ngày này.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         )}
         </LopPhu>
