@@ -252,6 +252,7 @@ export default function Dashboard({ chonTab = () => {} }) {
   const [rtCo, setRtCo] = useState(3);          // cỡ ảnh lưới 1..5
   const [rtCap, setRtCap] = useState(null);     // thời điểm cập nhật gần nhất
   const [nhip, setNhip] = useState(0);          // nhịp 30s để tính "X phút trước"
+  const rtBangRef = useRef(null);               // cuộn lưới về đầu khi đổi lọc
   const [ng, setNg] = useState(null);           // ngưỡng giá đang đặt
   const [ngTu, setNgTu] = useState(''); const [ngDen, setNgDen] = useState('');
   const [moiKhoa, setMoiKhoa] = useState(new Set());   // dòng vừa xuất hiện -> nhấp nháy
@@ -417,6 +418,10 @@ export default function Dashboard({ chonTab = () => {} }) {
     so_ch: new Set(rtHien.map((r) => r.ma_ch)).size,
     moi_nhat: rtHien.reduce((m, r) => r.phut_truoc != null && (m == null || r.phut_truoc < m) ? r.phut_truoc : m, null),
   } : null;
+  // Đổi bộ lọc -> cuộn lưới về đầu để thấy kết quả mới ngay
+  useEffect(() => {
+    if (rtBangRef.current) rtBangRef.current.scrollLeft = 0;
+  }, [rtLoai, rtQ, ngTu, ngDen]);
 
   // Bán theo giờ tương đương + nạp trước 2 danh sách để bấm là mở ngay
   useEffect(() => {
@@ -578,7 +583,7 @@ export default function Dashboard({ chonTab = () => {} }) {
               <span><b>{fmtN(rtTt.so_cai)}</b> cái</span>
               <span><b>{fmtN(rtTt.so_luot)}</b> lượt</span>
               <span><b>{fmtN(rtTt.so_ch)}</b> cửa hàng</span>
-              {rtTt.moi_nhat != null && <span>gần nhất {rtTt.moi_nhat < 1 ? 'vừa xong' : `${rtTt.moi_nhat} phút trước`}</span>}
+              {rtTt.moi_nhat != null && <span title="Thời điểm lượt bán mới nhất trong dữ liệu (phụ thuộc nhịp đồng bộ 10 phút từ Google Sheet), khác với lúc app tải lại">lượt bán gần nhất {rtTt.moi_nhat < 1 ? 'vừa xong' : `${rtTt.moi_nhat} phút trước`}{rtTt.moi_nhat >= 20 ? ' · chờ đồng bộ' : ''}</span>}
             </div>
           )}
         </div>
@@ -625,7 +630,7 @@ export default function Dashboard({ chonTab = () => {} }) {
               {ng?.tu > 0 && !rtLoai && !rtQ && <> Thử hạ ngưỡng xuống dưới {fmtN(ng.tu)} đ.</>}
             </div>
           ) : (
-            <div className={'rt-bang rt-co-' + rtCo}>
+            <div className={'rt-bang rt-co-' + rtCo} ref={rtBangRef}>
               {rtHien.map((r) => (
                 <div key={r.khoa} className={'rt-o' + (moiKhoa.has(r.khoa) ? ' moi' : '')}
                   onClick={() => xemPhanBo({ barcode: r.barcode, sku: r.sku, ten_sp: r.ten_sp, gia: r.gia })}
