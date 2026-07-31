@@ -155,6 +155,10 @@ function TheoDoiSP({ nguoi, onXem, onLoc }) {
     e.stopPropagation();
     await sb.rpc('fn_td_xoa', { p_nguoi: nguoi, p_ma: ma }); taiDs();
   };
+  const batTg = async (r, e) => {
+    e.stopPropagation();
+    await sb.rpc('fn_td_bat_tg', { p_nguoi: nguoi, p_ma: r.ma, p_bat: !r.bao_tg }); taiDs();
+  };
 
   return (
     <div className="td-khu">
@@ -193,6 +197,9 @@ function TheoDoiSP({ nguoi, onXem, onLoc }) {
             {ds.map((r) => (
               <div key={r.ma} className="td-the" onClick={() => onXem(r.ma)}
                 title="Bấm xem chi tiết từng màu + cửa hàng đã bán">
+                <button className={'td-tg' + (r.bao_tg ? ' on' : '')} onClick={(e) => batTg(r, e)}
+                  title={r.bao_tg ? 'Đang báo Telegram khi có lượt bán — bấm để tắt' : 'Bấm để bật báo Telegram khi có lượt bán'}>
+                  {r.bao_tg ? '🔔' : '🔕'}</button>
                 <button className="td-xoa" onClick={(e) => xoa(r.ma, e)} title="Bỏ theo dõi">×</button>
                 <div className="td-the-anh">{r.hinh_url ? <img src={r.hinh_url} alt="" loading="lazy"
                   onError={(e) => { e.target.style.display = 'none'; }} /> : <IcBox />}</div>
@@ -238,13 +245,15 @@ export default function Dashboard({ chonTab = () => {} }) {
   const [ccDen, setCcDen] = useState(iso(new Date()));
   const [bg, setBg] = useState(null);           // bán hôm nay theo giờ tương đương
   const [maCache, setMaCache] = useState({});   // loai -> danh sách (mở lần 2 là tức thì)
-  const [rt, setRt] = useState(null);           // hàng vừa bán
-  const [rtTt, setRtTt] = useState(null);       // tóm tắt bảng tin
+  const [rtAll, setRtAll] = useState(null);     // TOÀN BỘ lượt bán 24h (tải 1 lần, lọc tại chỗ)
   const [rtLoai, setRtLoai] = useState('');     // '' tất cả | 'BH' | 'NV'
-  const [rtMaLoc, setRtMaLoc] = useState('');   // lọc theo mã/dòng
+  const [rtMa, setRtMa] = useState(null);       // {ma, la_dong} đã chọn từ gợi ý (lọc tại chỗ)
+  const [rtQ, setRtQ] = useState('');           // ô gõ tìm mã
+  const [rtGoiY, setRtGoiY] = useState([]);     // gợi ý autocomplete (dòng + màu)
+  const [rtMoGy, setRtMoGy] = useState(false);
+  const rtGyTimer = useRef(null);
   const [rtCo, setRtCo] = useState(3);          // cỡ ảnh lưới 1..5
   const [rtCap, setRtCap] = useState(null);     // thời điểm cập nhật gần nhất
-  const locRef = useRef({ loai: '', ma: '' });  // filter hiện tại (cho interval)
   const [ng, setNg] = useState(null);           // ngưỡng giá đang đặt
   const [ngTu, setNgTu] = useState(''); const [ngDen, setNgDen] = useState('');
   const [moiKhoa, setMoiKhoa] = useState(new Set());   // dòng vừa xuất hiện -> nhấp nháy
@@ -334,19 +343,12 @@ export default function Dashboard({ chonTab = () => {} }) {
     setModal({ loai, ds: maCache[loai] || null });
     if (!maCache[loai]) { const ds = await taiMa(loai); setModal({ loai, ds }); }
   };
-  // ===== BẢNG TIN HÀNG VỪA BÁN =====
-  const taiRt = async (im, loai, ma) => {
-    const lo = loai !== undefined ? loai : locRef.current.loai;
-    const m = ma !== undefined ? ma : locRef.current.ma;
-    locRef.current = { loai: lo, ma: m };
-    const [a, b] = await Promise.all([
-      sb.rpc('fn_rt_ban_moi', { p_tu: null, p_den: null, p_gio_qua: 24, p_so: 120, p_loai: lo || null, p_ma: m || null }),
-      sb.rpc('fn_rt_tom_tat', { p_tu: null, p_den: null, p_gio_qua: 24, p_loai: lo || null, p_ma: m || null }),
-    ]);
-    // Lỗi (timeout/mạng) -> GIỮ dữ liệu cũ, không xoá về 0
-    if (a.error) { return; }
+  // ===== BẢNG TIN HÀNG VỪA BÁN — tải MỘT LẦN, mọi bộ lọc chạy tại chỗ =====
+  const taiRt = async (im) => {
+    const a = await sb.rpc('fn_rt_ban_24h', { p_so: 800 });
+    if (a.error) return;               // lỗi mạng -> GIỮ dữ liệu cũ, không xoá về 0
     const ds = a.data || [];
-    setRt((cu) => {
+    setRtAll((cu) => {
       if (cu && !im) {
         const da = new Set(cu.map((x) => x.khoa));
         const moi = ds.filter((x) => !da.has(x.khoa)).map((x) => x.khoa);
@@ -354,15 +356,24 @@ export default function Dashboard({ chonTab = () => {} }) {
       }
       return ds;
     });
-    if (!b.error) setRtTt(b.data || null);
     setRtCap(new Date());
+  };
+  // Gợi ý mã khi gõ (dòng + màu — như ô theo dõi)
+  const rtTimGy = (v) => {
+    setRtQ(v); setRtMoGy(true);
+    clearTimeout(rtGyTimer.current);
+    if (v.trim().length < 2) { setRtGoiY([]); return; }
+    rtGyTimer.current = setTimeout(async () => {
+      const { data } = await sb.rpc('fn_td_goi_y', { p_tu: v, p_gioi_han: 10 });
+      setRtGoiY(data || []);
+    }, 200);
   };
   const luuNguong = async () => {
     const tu = soThô(ngTu) === '' ? null : Number(soThô(ngTu));
     const den = soThô(ngDen) === '' ? null : Number(soThô(ngDen));
     const { data, error } = await sb.rpc('fn_rt_nguong_luu', { p_tu: tu, p_den: den, p_bat: true });
     if (error) { baoToast('Lỗi lưu ngưỡng: ' + error.message); return; }
-    setNg(data); baoToast('Đã đổi ngưỡng giá theo dõi'); taiRt(true);
+    setNg(data); baoToast('Đã lưu ngưỡng giá làm mặc định');
   };
 
   useEffect(() => {
@@ -381,11 +392,22 @@ export default function Dashboard({ chonTab = () => {} }) {
     return () => { clearInterval(t); clearInterval(t2); };
   }, []);   // eslint-disable-line
 
-  // Đổi filter loại/mã -> nạp lại ngay (im để không nhấp nháy)
-  useEffect(() => {
-    const t = setTimeout(() => taiRt(true, rtLoai, rtMaLoc), 250);
-    return () => clearTimeout(t);
-  }, [rtLoai, rtMaLoc]);   // eslint-disable-line
+  // LỌC TẠI CHỖ — tức thì, không gọi server
+  const rtHien = (() => {
+    if (!rtAll) return null;
+    const tu = soThô(ngTu) === '' ? 0 : Number(soThô(ngTu));
+    const den = soThô(ngDen) === '' ? Infinity : Number(soThô(ngDen));
+    return rtAll.filter((r) =>
+      (!rtLoai || r.nganh === rtLoai) &&
+      (!rtMa || (rtMa.la_dong ? r.dong === rtMa.ma : (r.ma_tham_chieu === rtMa.ma || r.barcode === rtMa.ma || r.sku === rtMa.ma))) &&
+      ((r.gia || 0) >= tu && (r.gia || 0) <= den));
+  })();
+  const rtTt = rtHien ? {
+    so_cai: rtHien.reduce((t, r) => t + (r.so_luong || 0), 0),
+    so_luot: rtHien.length,
+    so_ch: new Set(rtHien.map((r) => r.ma_ch)).size,
+    moi_nhat: rtHien.reduce((m, r) => r.phut_truoc != null && (m == null || r.phut_truoc < m) ? r.phut_truoc : m, null),
+  } : null;
 
   // Bán theo giờ tương đương + nạp trước 2 danh sách để bấm là mở ngay
   useEffect(() => {
@@ -558,24 +580,50 @@ export default function Dashboard({ chonTab = () => {} }) {
                 onClick={() => setRtLoai(v)}>{t}</button>
             ))}
           </div>
-          <input className="rt-loc-ma" value={rtMaLoc} placeholder="Lọc theo mã hoặc dòng (vd MC037)…"
-            onChange={(e) => setRtMaLoc(e.target.value)} />
-          {rtMaLoc && <button className="rt-loc-xoa" onClick={() => setRtMaLoc('')}>×</button>}
+          <div className="rt-tim">
+            {rtMa ? (
+              <span className="rt-chip">
+                <b>{rtMa.ma}</b>{rtMa.la_dong ? ' · cả dòng' : ''}
+                <button onClick={() => { setRtMa(null); setRtQ(''); }}>×</button>
+              </span>
+            ) : (
+              <input className="rt-loc-ma" value={rtQ} placeholder="Tìm mã hoặc dòng (vd MC037 — gom các màu)…"
+                onChange={(e) => rtTimGy(e.target.value)}
+                onFocus={() => setRtMoGy(true)}
+                onBlur={() => setTimeout(() => setRtMoGy(false), 180)} />
+            )}
+            {rtMoGy && !rtMa && rtGoiY.length > 0 && (
+              <div className="td-goiy">
+                {rtGoiY.map((g) => (
+                  <div key={g.ma + g.la_dong} className="td-gy-o"
+                    onMouseDown={() => { setRtMa({ ma: g.ma, la_dong: g.la_dong }); setRtMoGy(false); }}>
+                    <span className="td-gy-anh">{g.hinh_url ? <img src={g.hinh_url} alt="" /> : <IcBox />}</span>
+                    <div className="td-gy-tt">
+                      <b>{g.ma}</b>
+                      {g.la_dong ? <span className="td-gy-dong">cả dòng · {g.so_bien_the} màu</span>
+                        : <span className="td-gy-mau">một màu</span>}
+                    </div>
+                    <span className="td-gy-them">Lọc</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="rt-co">
             <span>cỡ ảnh</span>
             <input type="range" min="1" max="5" value={rtCo} onChange={(e) => setRtCo(Number(e.target.value))} />
           </div>
         </div>
 
-        {rt === null ? <ChoTai chu="Đang lấy dữ liệu bán mới nhất…" />
-          : rt.length === 0 ? (
+        {rtHien === null ? <ChoTai chu="Đang lấy dữ liệu bán mới nhất…" />
+          : rtHien.length === 0 ? (
             <div className="rt-trong">
-              Chưa có lượt bán nào trong 24 giờ qua{rtLoai || rtMaLoc ? ' khớp bộ lọc' : ' ở mức giá này'}.
-              {ng?.tu > 0 && !rtLoai && !rtMaLoc && <> Thử hạ ngưỡng xuống dưới {fmtN(ng.tu)} đ.</>}
+              Chưa có lượt bán nào trong 24 giờ qua{rtLoai || rtMa ? ' khớp bộ lọc' : ' ở mức giá này'}.
+              {ng?.tu > 0 && !rtLoai && !rtMa && <> Thử hạ ngưỡng xuống dưới {fmtN(ng.tu)} đ.</>}
             </div>
           ) : (
             <div className={'rt-bang rt-co-' + rtCo}>
-              {rt.map((r) => (
+              {rtHien.map((r) => (
                 <div key={r.khoa} className={'rt-o' + (moiKhoa.has(r.khoa) ? ' moi' : '')}
                   onClick={() => xemPhanBo({ barcode: r.barcode, sku: r.sku, ten_sp: r.ten_sp, gia: r.gia })}
                   title="Bấm xem bán và tồn theo từng cửa hàng">
@@ -585,9 +633,10 @@ export default function Dashboard({ chonTab = () => {} }) {
                     {r.nganh && <span className={'rt-loai rt-loai-' + r.nganh.toLowerCase()}>{r.nganh === 'BH' ? 'Bảo hiểm' : 'Nón vải'}</span>}
                   </div>
                   <div className="rt-ten">{r.ten_sp || r.sku || r.barcode}</div>
-                  <div className="rt-ch">{r.ten_ch}</div>
+                  <div className="rt-ch">{r.ten_ch}{r.khu_vuc ? <i> · {String(r.khu_vuc).replace('Khu vực ', '')}</i> : null}</div>
                   <div className="rt-chan">
-                    <span className="rt-gio">{r.gio ? String(r.gio).slice(0, 5) : '—'}</span>
+                    <span className="rt-gio">{r.gio ? String(r.gio).slice(0, 5) : '—'}
+                      {r.phut_truoc != null && <i className="rt-phut">{r.phut_truoc < 1 ? 'vừa xong' : r.phut_truoc < 60 ? `${r.phut_truoc} phút trước` : `${Math.floor(r.phut_truoc / 60)}g${String(r.phut_truoc % 60).padStart(2, '0')} trước`}</i>}</span>
                     <span className="rt-sl">{fmtN(r.so_luong)}</span>
                   </div>
                 </div>
@@ -596,7 +645,8 @@ export default function Dashboard({ chonTab = () => {} }) {
           )}
 
         {/* QUAN TÂM RIÊNG — theo dõi mã (khác với bộ lọc trên) */}
-        <TheoDoiSP nguoi={user?.ma_dang_nhap || user?.ma_ch || 'khach'} onXem={xemTd} onLoc={(ma) => setRtMaLoc(ma)} />
+        <TheoDoiSP nguoi={user?.ma_dang_nhap || user?.ma_ch || 'khach'} onXem={xemTd}
+          onLoc={(ma, laDong) => setRtMa({ ma, la_dong: laDong })} />
 
         {/* Nhịp bán theo khung giờ — chỉ hiện khi dữ liệu đã có giờ */}
         {kg?.co_du_lieu && (
