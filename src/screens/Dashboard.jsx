@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
+import { useApp } from '../App.jsx';
 import { IcRefresh, IcAlert, IcClock, IcBox, IcPulse } from '../lib/icons.jsx';
 
 const fmtN = (n) => n == null ? '—' : Number(n).toLocaleString('vi');
@@ -122,12 +123,104 @@ function Chart({ data }) {
   );
 }
 
+// ===== KHỐI THEO DÕI SẢN PHẨM (lưu mã quan tâm theo tài khoản) =====
+function TheoDoiSP({ nguoi, onXem }) {
+  const [ds, setDs] = useState(null);          // danh sách mã đang theo dõi
+  const [q, setQ] = useState('');              // ô nhập/tìm mã
+  const [goiY, setGoiY] = useState([]);        // gợi ý autocomplete
+  const [mo, setMo] = useState(false);         // đang mở dropdown gợi ý
+  const timer = useRef(null);
+
+  const taiDs = async () => {
+    const { data } = await sb.rpc('fn_td_ds', { p_nguoi: nguoi });
+    setDs(data || []);
+  };
+  useEffect(() => { taiDs(); }, []);   // eslint-disable-line
+
+  const timGoiY = (v) => {
+    setQ(v); setMo(true);
+    clearTimeout(timer.current);
+    if (v.trim().length < 2) { setGoiY([]); return; }
+    timer.current = setTimeout(async () => {
+      const { data } = await sb.rpc('fn_td_goi_y', { p_tu: v, p_gioi_han: 12 });
+      setGoiY(data || []);
+    }, 220);
+  };
+  const them = async (ma) => {
+    await sb.rpc('fn_td_luu', { p_nguoi: nguoi, p_ma: ma });
+    setQ(''); setGoiY([]); setMo(false); taiDs();
+  };
+  const xoa = async (ma, e) => {
+    e.stopPropagation();
+    await sb.rpc('fn_td_xoa', { p_nguoi: nguoi, p_ma: ma }); taiDs();
+  };
+
+  return (
+    <div className="card tq-card td-card" style={{ marginTop: 14 }}>
+      <div className="td-dau">
+        <div className="tq-card-tit" style={{ margin: 0 }}>THEO DÕI SẢN PHẨM
+          <span className="tq-tit-phu">lưu mã quan tâm — còn đó khi mở lại</span></div>
+        <div className="td-o">
+          <input value={q} placeholder="Gõ mã để thêm (vd MC037 gom cả dòng, hoặc MC037-DN1 một màu)"
+            onChange={(e) => timGoiY(e.target.value)}
+            onFocus={() => setMo(true)}
+            onBlur={() => setTimeout(() => setMo(false), 180)} />
+          {mo && goiY.length > 0 && (
+            <div className="td-goiy">
+              {goiY.map((g) => (
+                <div key={g.ma + g.la_dong} className="td-gy-o" onMouseDown={() => them(g.ma)}>
+                  <span className="td-gy-anh">{g.hinh_url ? <img src={g.hinh_url} alt="" /> : <IcBox />}</span>
+                  <div className="td-gy-tt">
+                    <b>{g.ma}</b>
+                    {g.la_dong
+                      ? <span className="td-gy-dong">cả dòng · {g.so_bien_the} màu</span>
+                      : <span className="td-gy-mau">một màu</span>}
+                  </div>
+                  <span className="td-gy-them">+ Thêm</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {ds === null ? <ChoTai chu="Đang tải danh sách theo dõi…" />
+        : ds.length === 0 ? (
+          <div className="td-trong">Chưa theo dõi mã nào. Gõ mã ở ô trên để bắt đầu.</div>
+        ) : (
+          <div className="td-luoi">
+            {ds.map((r) => (
+              <div key={r.ma} className="td-the" onClick={() => onXem(r.ma)}
+                title="Bấm xem chi tiết từng màu + cửa hàng đã bán">
+                <button className="td-xoa" onClick={(e) => xoa(r.ma, e)} title="Bỏ theo dõi">×</button>
+                <div className="td-the-anh">{r.hinh_url ? <img src={r.hinh_url} alt="" loading="lazy"
+                  onError={(e) => { e.target.style.display = 'none'; }} /> : <IcBox />}</div>
+                <div className="td-the-tt">
+                  <div className="td-the-ma">{r.ma}</div>
+                  <div className="td-the-ten">{r.ten_sp}</div>
+                  <div className="td-the-so">
+                    <span title="Bán 30 ngày"><b>{fmtN(r.ban_30)}</b> bán</span>
+                    <span title="Tồn cửa hàng"><b>{fmtN(r.ton)}</b> tồn</span>
+                    <span title="Số cửa hàng đang có"><b>{r.so_ch}</b> CH</span>
+                    {r.so_bien_the > 1 && <span className="td-mau">{r.so_bien_the} màu</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+    </div>
+  );
+}
+
 export default function Dashboard({ chonTab = () => {} }) {
+  const { user } = useApp();
   const [d, setD] = useState(null);
   const [luc, setLuc] = useState(null);
   const [tai, setTai] = useState(false);
   const [anh, setAnh] = useState(null);
   const [modal, setModal] = useState(null);      // { loai, ds }
+  const [tdCt, setTdCt] = useState(null);        // chi tiết mã theo dõi: null | 'dang' | {..}
   const [cu, setCu] = useState(false);          // số liệu đang là bản cache cũ
   const [loi, setLoi] = useState(null);
   const [sp, setSp] = useState(null);           // khối sản phẩm: null | 'dang' | {..}
@@ -180,6 +273,13 @@ export default function Dashboard({ chonTab = () => {} }) {
     setCcMa({ sp: r, ds: null });
     const { data } = await sb.rpc('fn_tq_cao_cap_ch', { p_barcode: r.barcode });
     setCcMa({ sp: r, ds: data || [] });
+  };
+
+  // Chi tiết 1 mã theo dõi: các màu (biến thể) + cửa hàng đã bán
+  const xemTd = async (ma) => {
+    setTdCt('dang');
+    const { data } = await sb.rpc('fn_td_chi_tiet', { p_ma: ma });
+    setTdCt(data || { ma, bien_the: [], cua_hang: [] });
   };
 
   const napChuoi = async () => {
@@ -471,6 +571,58 @@ export default function Dashboard({ chonTab = () => {} }) {
           </div>
         )}
       </div>
+
+      {/* ===== KHỐI: THEO DÕI SẢN PHẨM ===== */}
+      <TheoDoiSP nguoi={user?.ma_dang_nhap || user?.ma_ch || 'khach'} onXem={xemTd} />
+
+      {/* Modal chi tiết mã theo dõi: biến thể (màu) + cửa hàng đã bán */}
+      {tdCt && (
+        <LopPhu onClose={() => setTdCt(null)} rong={880}
+          tieuDe={tdCt === 'dang' ? 'Đang tải…' : `Chi tiết ${tdCt.ma}`}
+          phu={tdCt !== 'dang' ? `${tdCt.so_bien_the} màu · bán 30 ngày ${fmtN(tdCt.ban_30)} · tồn ${fmtN(tdCt.ton)} · ${tdCt.so_ch} cửa hàng` : ''}>
+        {tdCt === 'dang' ? <ChoTai chu="Đang lấy chi tiết…" /> : (
+          <div style={{ padding: '4px 2px' }}>
+            <div className="tq-card-tit" style={{ marginBottom: 10 }}>CÁC MÀU (biến thể)</div>
+            <div className="td-bt-luoi">
+              {(tdCt.bien_the || []).map((b) => (
+                <div key={b.ma_tham_chieu} className="td-bt-o">
+                  <div className="td-bt-anh">{b.hinh_url
+                    ? <img src={b.hinh_url} alt="" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
+                    : <IcBox />}</div>
+                  <div className="td-bt-ma">{b.ma_tham_chieu}</div>
+                  <div className="td-bt-ten">{b.ten_sp}</div>
+                  <div className="td-bt-so"><span><b>{fmtN(b.ban_30)}</b> bán</span><span><b>{fmtN(b.ton)}</b> tồn</span></div>
+                </div>
+              ))}
+            </div>
+
+            <div className="tq-card-tit" style={{ margin: '16px 0 8px' }}>CỬA HÀNG ĐÃ BÁN / CÒN TỒN
+              <span className="tq-tit-phu">30 ngày gần nhất</span></div>
+            <div className="tbl-wrap" style={{ maxHeight: '44vh' }}>
+              <table className="tbl">
+                <thead><tr><th className="ct-stt">#</th><th>Cửa hàng</th><th className="ct-giua">Khu vực</th>
+                  <th className="ct-giua">Bán 30n</th><th className="ct-giua">Tồn</th><th className="ct-giua">Bán gần nhất</th></tr></thead>
+                <tbody>
+                  {(tdCt.cua_hang || []).map((h, i) => (
+                    <tr key={h.ma_ch}>
+                      <td className="ct-stt">{i + 1}</td>
+                      <td><b>{h.ten}</b> <span style={{ color: 'var(--ink-3)', fontSize: 11 }}>{h.ma_ch}</span></td>
+                      <td className="ct-giua">{h.khu_vuc || '—'}</td>
+                      <td className="ct-giua">{h.ban_30 > 0 ? fmtN(h.ban_30) : '—'}</td>
+                      <td className="ct-giua">{h.ton > 0 ? fmtN(h.ton) : <span style={{ color: 'var(--ink-3)' }}>hết</span>}</td>
+                      <td className="ct-giua">{fmtNgay(h.ngay_cuoi)}</td>
+                    </tr>
+                  ))}
+                  {(!tdCt.cua_hang || tdCt.cua_hang.length === 0) && (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--ink-2)', padding: 20 }}>Chưa có cửa hàng nào bán/tồn mã này trong 30 ngày.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        </LopPhu>
+      )}
 
       {/* ===== TẦNG 3: CHUỖI GIAO HÀNG (đấu nối vận đơn <-> phiếu) ===== */}
       <div className="card tq-card" style={{ marginBottom: 14 }}>

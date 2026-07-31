@@ -2269,3 +2269,52 @@ textarea.inp { height: auto; padding: 10px 12px; }
 
 /* v3.55.4 — input Chốt căn giữa trong cột */
 .ct-inp { text-align: center; width: 60px; margin: 0 auto; display: block; }
+
+/* ===== v3.56.1 — THEO DÕI SẢN PHẨM ===== */
+.td-dau { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.td-o { position: relative; flex: 1; min-width: 280px; max-width: 520px; }
+.td-o > input { width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 10px;
+  padding: 0 12px; font-size: 13px; background: #fff; color: var(--ink); }
+.td-o > input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(63,182,168,.15); }
+.td-goiy { position: absolute; top: 42px; left: 0; right: 0; z-index: 40; background: #fff;
+  border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 44px rgba(20,33,58,.18);
+  overflow: hidden; max-height: 340px; overflow-y: auto; }
+.td-gy-o { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; }
+.td-gy-o:hover { background: #F2F0EA; }
+.td-gy-o + .td-gy-o { border-top: 1px solid var(--line); }
+.td-gy-anh { width: 34px; height: 34px; border-radius: 8px; overflow: hidden; background: #F2F0EA;
+  display: flex; align-items: center; justify-content: center; flex: 0 0 34px; color: var(--ink-3); }
+.td-gy-anh img { width: 100%; height: 100%; object-fit: cover; }
+.td-gy-tt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.td-gy-tt b { font-size: 13px; color: var(--ink); }
+.td-gy-dong { font-size: 11px; color: var(--teal-deep); font-weight: 600; }
+.td-gy-mau { font-size: 11px; color: var(--ink-3); }
+.td-gy-them { font-size: 12px; font-weight: 700; color: var(--teal-deep); }
+.td-trong { padding: 22px; text-align: center; color: var(--ink-2); font-size: 13px; }
+.td-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 12px; }
+.td-the { position: relative; display: flex; gap: 11px; padding: 11px; border: 1px solid var(--line);
+  border-radius: 13px; background: #fff; cursor: pointer; transition: box-shadow .14s, border-color .14s; }
+.td-the:hover { border-color: var(--teal); box-shadow: 0 8px 22px rgba(20,33,58,.12); }
+.td-xoa { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%;
+  background: #F2F0EA; color: var(--ink-2); font-size: 15px; line-height: 1; display: flex;
+  align-items: center; justify-content: center; z-index: 2; }
+.td-xoa:hover { background: var(--magenta); color: #fff; }
+.td-the-anh { width: 62px; height: 62px; border-radius: 10px; overflow: hidden; background: #F2F0EA;
+  display: flex; align-items: center; justify-content: center; flex: 0 0 62px; color: var(--ink-3); }
+.td-the-anh img { width: 100%; height: 100%; object-fit: cover; }
+.td-the-tt { min-width: 0; flex: 1; }
+.td-the-ma { font-size: 13.5px; font-weight: 800; color: var(--ink); font-family: 'JetBrains Mono', monospace; }
+.td-the-ten { font-size: 11.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 1px 0 6px; }
+.td-the-so { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--ink-2); }
+.td-the-so b { color: var(--ink); }
+.td-mau { color: var(--gold); font-weight: 700; }
+/* Modal chi tiết */
+.td-bt-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.td-bt-o { border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
+.td-bt-anh { width: 100%; aspect-ratio: 1; border-radius: 9px; overflow: hidden; background: #F2F0EA;
+  display: flex; align-items: center; justify-content: center; color: var(--ink-3); margin-bottom: 7px; }
+.td-bt-anh img { width: 100%; height: 100%; object-fit: cover; }
+.td-bt-ma { font-size: 12.5px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--ink); }
+.td-bt-ten { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-bt-so { display: flex; justify-content: center; gap: 12px; margin-top: 5px; font-size: 11px; color: var(--ink-2); }
+.td-bt-so b { color: var(--ink); }
