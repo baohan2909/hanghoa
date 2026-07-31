@@ -2326,3 +2326,8 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .cc-ngay input[type=date]:focus { outline: none; border-color: var(--teal); }
 .mm-gia b { font-size: 12.5px; }
 .mm-o.mm-canh { border-color: rgba(214,0,108,.28); }
+
+/* v3.57.1 — ô Theo dõi mã GỘP trong khối Hàng vừa bán (không phải card riêng) */
+.td-khu { margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line); }
+.td-tit { font-size: 12px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .3px; }
+.td-tit-phu { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--ink-3); margin-left: 8px; font-size: 11px; }

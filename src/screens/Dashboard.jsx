@@ -157,10 +157,10 @@ function TheoDoiSP({ nguoi, onXem }) {
   };
 
   return (
-    <div className="card tq-card td-card" style={{ marginTop: 14 }}>
+    <div className="td-khu">
       <div className="td-dau">
-        <div className="tq-card-tit" style={{ margin: 0 }}>THEO DÕI SẢN PHẨM
-          <span className="tq-tit-phu">lưu mã quan tâm — còn đó khi mở lại</span></div>
+        <div className="td-tit">Theo dõi mã
+          <span className="td-tit-phu">lưu mã quan tâm — còn đó khi mở lại</span></div>
         <div className="td-o">
           <input value={q} placeholder="Gõ mã để thêm (vd MC037 gom cả dòng, hoặc MC037-DN1 một màu)"
             onChange={(e) => timGoiY(e.target.value)}
@@ -526,6 +526,9 @@ export default function Dashboard({ chonTab = () => {} }) {
           )}
         </div>
 
+        {/* Ô theo dõi mã — nằm trong khối Hàng vừa bán */}
+        <TheoDoiSP nguoi={user?.ma_dang_nhap || user?.ma_ch || 'khach'} onXem={xemTd} />
+
         {rt === null ? <ChoTai chu="Đang lấy dữ liệu bán mới nhất…" />
           : rt.length === 0 ? (
             <div className="rt-trong">
@@ -581,9 +584,6 @@ export default function Dashboard({ chonTab = () => {} }) {
           </div>
         )}
       </div>
-
-      {/* ===== KHỐI: THEO DÕI SẢN PHẨM ===== */}
-      <TheoDoiSP nguoi={user?.ma_dang_nhap || user?.ma_ch || 'khach'} onXem={xemTd} />
 
       {/* Modal chi tiết mã theo dõi: biến thể (màu) + cửa hàng đã bán */}
       {tdCt && (
