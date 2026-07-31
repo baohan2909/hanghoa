@@ -1975,9 +1975,9 @@ textarea.inp { height: auto; padding: 10px 12px; }
   min-height: 31px; }
 .rt-ch { font-size: 11px; font-weight: 600; color: var(--teal-deep); margin-top: 5px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rt-chan { display: flex; align-items: baseline; justify-content: space-between; margin-top: 6px;
+.rt-chan { display: flex; align-items: flex-start; justify-content: space-between; margin-top: 6px;
   padding-top: 6px; border-top: 1px solid #F2F0EA; }
-.rt-gio { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.rt-gio { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--ink-2); display: flex; flex-direction: column; line-height: 1.35; }
 .rt-sl { font-family: var(--font-mono); font-size: 15px; font-weight: 800; color: var(--magenta); }
 .rt-gia { position: absolute; top: 14px; right: 14px; background: rgba(20,18,14,.72); color: #fff;
   font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; }
@@ -2357,8 +2357,8 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .rt-anh .tqa-boc { width: 100%; height: 100%; display: block; }
 .rt-anh .tqa, .rt-anh .tqa-trong { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
 .rt-anh .tqa-trong { display: flex; align-items: center; justify-content: center; background: #F2F0EA; color: var(--ink-3); }
-.rt-loai { position: absolute; bottom: 8px; left: 8px; font-size: 9px; font-weight: 700; padding: 2px 6px;
-  border-radius: 5px; color: #fff; }
+.rt-loai { position: absolute; top: 8px; left: 8px; font-size: 9px; font-weight: 700; padding: 2px 6px;
+  border-radius: 5px; color: #fff; z-index: 2; }
 .rt-loai-bh { background: rgba(30,95,99,.85); }
 .rt-loai-nv { background: rgba(203,164,90,.9); }
 
@@ -2369,7 +2369,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .rt-chip button { width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.18);
   color: #fff; font-size: 14px; line-height: 1; }
 .rt-chip button:hover { background: var(--magenta); }
-.rt-phut { font-style: normal; color: var(--ink-3); font-size: 10px; margin-left: 6px; }
+.rt-phut { font-style: normal; color: var(--ink-3); font-size: 9.5px; font-weight: 500; font-family: var(--font-sans, inherit); }
 .rt-ch i { font-style: normal; color: var(--ink-3); font-size: 10.5px; }
 .td-tg { position: absolute; top: 6px; right: 32px; width: 22px; height: 22px; border-radius: 50%;
   background: #F2F0EA; font-size: 11px; line-height: 1; display: flex; align-items: center;

@@ -389,9 +389,11 @@ export default function Dashboard({ chonTab = () => {} }) {
     const q = (rtQ || '').trim().toLowerCase();
     return rtAll.filter((r) =>
       (!rtLoai || r.nganh === rtLoai) &&
-      (!q || (r.dong || '').toLowerCase().includes(q) || (r.ma_tham_chieu || '').toLowerCase().includes(q)
-          || (r.ten_sp || '').toLowerCase().includes(q) || (r.sku || '').toLowerCase().includes(q)
-          || (r.barcode || '').toLowerCase().includes(q)) &&
+      (!q || (r.dong || '').toLowerCase() === q                       // đúng dòng (vd MC037)
+          || (r.dong || '').toLowerCase().startsWith(q)               // đang gõ dở tên dòng
+          || (r.ma_tham_chieu || '').toLowerCase().startsWith(q)      // mã đầy đủ MC037-DN1
+          || (r.barcode || '').toLowerCase() === q
+          || (r.sku || '').toLowerCase() === q) &&
       ((r.gia || 0) >= tu && (r.gia || 0) <= den));
   })();
   // Gợi ý tức thì TỪ dữ liệu đã tải (không gọi server) — theo DÒNG, kèm số màu
@@ -401,7 +403,7 @@ export default function Dashboard({ chonTab = () => {} }) {
     const m = new Map();
     for (const r of rtAll) {
       const dong = r.dong || '';
-      if (!dong.toLowerCase().includes(q)) continue;
+      if (!dong.toLowerCase().startsWith(q)) continue;
       if (!m.has(dong)) m.set(dong, { ma: dong, so_mau: new Set(), hinh: r.hinh_url, nganh: r.nganh, so_luot: 0 });
       const o = m.get(dong); o.so_mau.add(r.ma_tham_chieu); o.so_luot++;
       if (!o.hinh && r.hinh_url) o.hinh = r.hinh_url;
