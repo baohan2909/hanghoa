@@ -2318,3 +2318,11 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .td-bt-ten { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .td-bt-so { display: flex; justify-content: center; gap: 12px; margin-top: 5px; font-size: 11px; color: var(--ink-2); }
 .td-bt-so b { color: var(--ink); }
+
+/* v3.57.0 — bộ lọc ngày hàng cao cấp + badge giá/cảnh báo trên thẻ mm-o */
+.cc-ngay { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--ink-2); }
+.cc-ngay input[type=date] { height: 30px; border: 1px solid var(--line); border-radius: 8px; padding: 0 8px;
+  font-size: 12px; background: #fff; color: var(--ink); font-family: inherit; }
+.cc-ngay input[type=date]:focus { outline: none; border-color: var(--teal); }
+.mm-gia b { font-size: 12.5px; }
+.mm-o.mm-canh { border-color: rgba(214,0,108,.28); }
