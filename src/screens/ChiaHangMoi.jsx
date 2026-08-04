@@ -83,9 +83,15 @@ export default function ChiaHangMoi() {
     clearTimeout(timRef.current[key]);
     if (v.trim().length < 1) { capNhat(id, field === 'sp' ? { goiY: [] } : { goiYTC: [] }); return; }
     timRef.current[key] = setTimeout(async () => {
-      const { data, error } = await sb.rpc('fn_tim_sp', { p_q: v.trim() });
-      if (error) { baoToast('Lỗi tìm kiếm: ' + error.message); return; }
-      capNhat(id, field === 'sp' ? { goiY: data || [] } : { goiYTC: data || [] });
+      if (field === 'tc') {
+        const { data, error } = await sb.rpc('fn_td_goi_y', { p_tu: v.trim() });
+        if (error) { baoToast('Lỗi tìm kiếm: ' + error.message); return; }
+        capNhat(id, { goiYTC: data || [] });
+      } else {
+        const { data, error } = await sb.rpc('fn_tim_sp', { p_q: v.trim() });
+        if (error) { baoToast('Lỗi tìm kiếm: ' + error.message); return; }
+        capNhat(id, { goiY: data || [] });
+      }
     }, 300);
   };
   // Giải một phạm vi {loai,giaTri,ds} thành danh sách ma_ch qua fn_ds_cua_hang.
@@ -110,7 +116,7 @@ export default function ChiaHangMoi() {
   };
 
   const chonSP = (id, g) => capNhat(id, { sp: g, q: g.ma_tham_chieu || g.sku || g.barcode, goiY: [], nganh3: g.nganh_3 || '' });
-  const chonTC = (id, g) => capNhat(id, { thamChieu: g, qTC: g.ma_tham_chieu || g.sku || g.barcode, goiYTC: [] });
+  const chonTC = (id, g) => capNhat(id, { thamChieu: { ma_tham_chieu: g.ma, la_dong: g.la_dong, barcode: null }, qTC: g.ma, goiYTC: [] });
 
   const chiaDong = async (d) => {
     if (!d.sp || !d.tong || (!d.nganh3 && !d.thamChieu)) {
@@ -400,17 +406,17 @@ export default function ChiaHangMoi() {
               </select>
             </div>
             <div style={{ position: 'relative', flex: '1 1 220px' }}>
-              <div className="lbl">Mã tham chiếu (tùy chọn — ưu tiên hơn ngành)</div>
+              <div className="lbl">Mã tham chiếu (tùy chọn — gõ MC037 để lấy cả dòng)</div>
               <input className="inp" style={{ width: '100%' }}
-                placeholder="Mã cũ tương tự…" value={d.qTC} onChange={(e) => goTim(d.id, 'tc', e.target.value)} />
+                placeholder="Mã dòng hoặc mã màu tương tự…" value={d.qTC} onChange={(e) => goTim(d.id, 'tc', e.target.value)} />
               {d.goiYTC.length > 0 && (
                 <div className="goiy-pop">
                   {d.goiYTC.map((g) => (
-                    <div key={g.barcode} className="goiy-item" style={{ cursor: 'pointer' }} onClick={() => chonTC(d.id, g)}>
+                    <div key={g.ma} className="goiy-item" style={{ cursor: 'pointer' }} onClick={() => chonTC(d.id, g)}>
                       <AnhMini url={g.hinh_url} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.ma_tham_chieu || g.sku}</div>
-                        <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3}</div>
+                        <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.ma}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.la_dong ? `cả dòng · ${g.so_bien_the} màu` : (g.ten_sp || 'một màu')}</div>
                       </div>
                     </div>
                   ))}
@@ -440,7 +446,7 @@ export default function ChiaHangMoi() {
 
           {d.thamChieu && (
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--teal-deep)' }}>
-              Chia theo tỷ trọng bán của <b className="mono">{d.thamChieu.ma_tham_chieu || d.thamChieu.sku}</b> (60 ngày)
+              Chia theo tỷ trọng bán của <b className="mono">{d.thamChieu.ma_tham_chieu}</b>{d.thamChieu.la_dong ? ' (cả dòng, mọi màu)' : ''} (60 ngày)
             </div>
           )}
 
