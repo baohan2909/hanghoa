@@ -189,18 +189,14 @@ export default function ChiaHangMoi() {
       await Promise.all(d.ct.map((r) => sb.from('chia_hang_moi_ct').update({ sl_chot: r.sl_chot }).eq('id', r.id)));
       await sb.from('chia_hang_moi').update({ trang_thai: 'CHOT' }).eq('id', d.batchId);
     }
-    // Mã phiếu cột E: HM + YYYYMMDD + kho cho + kho nhận + STT trong ngày
-    // STT tăng dần theo TỪNG CẶP (kho cho, kho nhận) trong lần xuất này
+    // Mã phiếu cột E: HM + YYYYMMDD + kho nguồn + cửa hàng.
+    // CÙNG cửa hàng (cùng kho nguồn) -> CÙNG 1 mã phiếu, mọi mã hàng gộp 1 phiếu (Odoo ra 1 phiếu).
     const ngay = isoVN().replace(/-/g, '');
-    const dem = {};
     const rowsX = [];
     daChia.forEach((d) => {
       const khoCho = khoNguon(d.sp) || 'KHO';
       d.ct.filter((r) => r.sl_chot > 0).forEach((r) => {
-        const cap = khoCho + '|' + r.ma_ch;
-        dem[cap] = (dem[cap] || 0) + 1;
-        const stt = String(dem[cap]).padStart(2, '0');
-        const maPhieu = `HM${ngay}-${khoCho}-${r.ma_ch}-${stt}`;
+        const maPhieu = `HM${ngay}-${khoCho}-${r.ma_ch}`;
         rowsX.push({
           'Kho nguồn': khoCho,
           'Kho đích': r.ma_ch,
