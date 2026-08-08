@@ -22,3 +22,5 @@ export const IcTrophy  = (p) => <I d="M8 4h8v6a4 4 0 0 1-8 0V4z M8 5H4v2a4 4 0 0
 export const IcFlash   = (p) => <I d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" {...p} />;
 export const IcTarget  = (p) => <I d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z M12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" {...p} />;
 export const IcHeart   = (p) => <I d="M12 20s-7-4.6-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.4-9 9-9 9z" {...p} />;
+export const IcTower   = (p) => <I d="M9 21V10l3-3 3 3v11 M6 21h12 M9 13h6 M9 17h6 M12 3v2" {...p} />;
+export const IcTag     = (p) => <I d="M20 12 12 20l-8-8V4h8l8 8z M8 8a1 1 0 1 0 0-.01" {...p} />;

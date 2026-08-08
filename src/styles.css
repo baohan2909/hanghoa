@@ -2385,3 +2385,54 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .rt-lammoi { width: 24px; height: 24px; border-radius: 7px; background: #F2F0EA; color: var(--ink-2);
   font-size: 14px; margin-left: 8px; line-height: 1; }
 .rt-lammoi:hover { background: var(--teal-deep); color: #fff; }
+
+/* ===== ĐẤU TRƯỜNG — 3 GAME MỚI (Leo tháp / Đoán giá / Phản xạ) ===== */
+/* Badge tầng (Leo tháp) + số câu (Đoán giá) */
+.dt-tang { font-family: var(--font-mono); font-size: 13px; font-weight: 800; color: #fff;
+  background: var(--teal-deep); padding: 5px 12px; border-radius: 9px; letter-spacing: .5px; white-space: nowrap; }
+.dt-tang.boss { background: var(--magenta); animation: dtBossNhip 1s ease-in-out infinite; }
+.dt-tang-ct { font-weight: 600; opacity: .82; font-size: 11.5px; }
+@keyframes dtBossNhip { 0%,100% { box-shadow: 0 0 6px rgba(214,0,108,.5); } 50% { box-shadow: 0 0 16px rgba(214,0,108,.85); } }
+
+/* PHẢN XẠ — thẻ phát biểu + 2 nút to */
+.dt-ds-the { background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow);
+  padding: 20px 18px; text-align: center; }
+.dt-ds-hinh { width: 128px; height: 128px; margin: 0 auto 10px; border-radius: 12px; overflow: hidden; background: #F2F0EA; }
+.dt-ds-hinh img { width: 100%; height: 100%; object-fit: contain; }
+.dt-ds-ten { font-size: 15.5px; font-weight: 700; color: var(--ink); }
+.dt-ds-dong { font-family: var(--font-mono); font-size: 24px; font-weight: 800; color: var(--teal-deep); margin-top: 6px; }
+.dt-ds-nut2 { display: flex; gap: 12px; margin-top: 14px; }
+.dt-ds-nut { flex: 1; height: 64px; border-radius: 14px; font-size: 19px; font-weight: 800; letter-spacing: 1px;
+  color: #fff; cursor: pointer; transition: transform .1s, opacity .18s, box-shadow .18s; }
+.dt-ds-nut.dung { background: var(--teal-deep); }
+.dt-ds-nut.sai { background: var(--magenta); }
+.dt-ds-nut:active { transform: scale(.97); }
+.dt-ds-nut.ok { box-shadow: 0 0 16px rgba(63,182,168,.55); }
+.dt-ds-nut.truot { opacity: .55; filter: saturate(.4); }
+.dt-ds-nut.mo { opacity: .35; }
+
+/* ĐOÁN GIÁ — ảnh + slider + chốt */
+.dt-dg-the { background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow);
+  padding: 18px; text-align: center; }
+.dt-dg-hinh { width: 168px; height: 168px; margin: 0 auto 10px; border-radius: 14px; overflow: hidden; background: #F2F0EA; }
+.dt-dg-hinh img { width: 100%; height: 100%; object-fit: contain; }
+.dt-dg-ten { font-size: 15px; font-weight: 700; color: var(--ink); }
+.dt-dg-gia { font-family: var(--font-mono); font-size: 34px; font-weight: 800; color: var(--magenta);
+  letter-spacing: -.5px; margin: 8px 0 2px; }
+.dt-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 12px; border-radius: 8px;
+  background: #EAEEF0; box-shadow: inset 0 1px 3px rgba(20,33,58,.1); outline: none; margin-top: 8px; }
+.dt-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--grad); box-shadow: 0 0 12px rgba(63,182,168,.5); cursor: pointer; border: 3px solid #fff; }
+.dt-slider::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%;
+  background: var(--teal); box-shadow: 0 0 12px rgba(63,182,168,.5); cursor: pointer; border: 3px solid #fff; }
+.dt-slider:disabled { opacity: .55; }
+.dt-dg-moc { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-2); margin-top: 4px; }
+.dt-dg-chot { width: 100%; margin-top: 12px; height: 46px; font-size: 15px; letter-spacing: 1px; }
+.dt-dg-kq { margin-top: 12px; font-size: 14px; padding: 10px 12px; border-radius: 10px; }
+.dt-dg-kq.tot { background: #E9F5F2; color: var(--teal-deep); }
+.dt-dg-kq.tam { background: #FBF4E4; color: #8A6D2B; }
+.dt-dg-kq.xa  { background: #FCE9F2; color: var(--magenta); }
+.dt-kq-tang { margin-top: 4px; font-size: 14px; color: var(--ink-2); }
+.dt-kq-tang b { color: var(--teal-deep); font-size: 16px; }
+.dt-thunghiem { display: inline-block; margin-left: 6px; font-size: 9px; font-weight: 800; letter-spacing: .5px;
+  color: #fff; background: var(--gold); padding: 2px 7px; border-radius: 8px; vertical-align: 2px; }
