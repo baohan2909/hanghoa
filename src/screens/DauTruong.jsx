@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb, rpcHet } from '../lib/supabase.js';
-import { IcTrophy, IcFlash, IcTarget, IcHeart, IcRefresh, IcPulse, IcTower, IcTag } from '../lib/icons.jsx';
+import { IcTrophy, IcFlash, IcTarget, IcHeart, IcRefresh, IcPulse, IcTower, IcTag, IcSort, IcBrain, IcAlert, IcScale, IcPuzzle } from '../lib/icons.jsx';
 import { DateBox, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
@@ -17,8 +17,14 @@ const CHE_DO = {
   THAP:     { ten: 'Leo tháp',   Ic: IcTower,  giay: 0,   thuNghiem: true,   mota: 'Leo tầng vô hạn — mỗi tầng 3 câu PHẢI ĐÚNG CẢ 3, giờ mỗi câu rút ngắn theo tầng. SAI 1 CÂU LÀ RƠI. Mỗi 5 tầng gặp BOSS thưởng lớn.' },
   DOANGIA:  { ten: 'Đoán giá',   Ic: IcTag,    giay: 0,   thuNghiem: true,   mota: '8 sản phẩm — KÉO THANH chọn giá niêm yết. Càng sát giá thật điểm càng cao, lệch quá 18% mất trắng.' },
   PHANXA:   { ten: 'Phản xạ',    Ic: IcPulse,  giay: 45,  thuNghiem: true,  mota: '45 giây ĐÚNG/SAI chớp nhoáng — 3 giây mỗi câu, combo nhân điểm tới ×2.5, sai bị trừ. Dành cho phản xạ thép.' },
+  XEPGIA:   { ten: 'Xếp giá',    Ic: IcSort,   giay: 0,   thuNghiem: true, mota: '8 vòng — bấm 4 sản phẩm LẦN LƯỢT theo giá tăng hoặc giảm dần (đề đảo chiều). Bấm sai mất phần còn lại của vòng.' },
+  KYUC:     { ten: 'Ký ức',      Ic: IcBrain,  giay: 0,   thuNghiem: true, mota: 'Nhìn kệ 5 sản phẩm + giá trong 6 GIÂY rồi kệ biến mất — trả lời 3 câu về những gì vừa thấy. 4 kệ liên tiếp.' },
+  SANLOI:   { ten: 'Săn lỗi',    Ic: IcAlert,  giay: 0,   thuNghiem: true, mota: 'Phiếu 4 dòng sản phẩm + giá, ĐÚNG 1 dòng gắn sai giá — tìm ra trong 12 giây. Nghiệp vụ soát phiếu thật.' },
+  CAOTHAP:  { ten: 'Cao – Thấp', Ic: IcScale,  giay: 0,   thuNghiem: true, mota: 'Chuỗi vô hạn — biết giá mốc, đoán sản phẩm kế CAO hay THẤP hơn. Đúng thành mốc mới, SAI LÀ ĐỨT CHUỖI.' },
+  GIAIMA:   { ten: 'Giải mã',    Ic: IcPuzzle, giay: 0,   thuNghiem: true, mota: '5 vụ án — manh mối mở dần (ngành, khoảng giá, dòng mã, ảnh mờ). Đoán càng SỚM điểm càng cao: 400 → 80.' },
 };
 const DOANGIA_SO_CAU = 8;
+const XEPGIA_VONG = 8, KYUC_BO = 4, SANLOI_VONG = 8, GIAIMA_VONG = 5;
 const DAILY_SO_CAU = 10;
 const HUY_HIEU = {
   TAN_BINH:   { ten: 'Tân binh',      mota: 'Hoàn thành lượt thi đầu tiên' },
@@ -466,6 +472,119 @@ function sinhCauGia(pool, daDung) {
   }
   return null;
 }
+// ===== XẾP GIÁ: 4 SP giá KHÁC nhau đủ xa để xếp được =====
+function sinhVongXG(pool, daDung) {
+  const hopLeHinh = (u) => typeof u === 'string' && /^https?:\/\//.test(u.trim());
+  for (let lan = 0; lan < 25; lan++) {
+    const ung = xao(pool.filter((s) => Number(s.gia) > 0 && hopLeHinh(s.hinh_url)));
+    const chon = [];
+    for (const sp of ung) {
+      if (chon.some((c) => Math.abs(Number(c.gia) - Number(sp.gia)) / Number(sp.gia) < 0.07)) continue; // giá phải lệch ≥7%
+      if (daDung.has(sp.barcode)) continue;
+      chon.push(sp);
+      if (chon.length === 4) break;
+    }
+    if (chon.length < 4) { daDung.clear(); continue; }
+    chon.forEach((c) => daDung.add(c.barcode));
+    const chieu = Math.random() < 0.5 ? 'TANG' : 'GIAM';
+    const thuTu = [...chon].sort((a, b) => chieu === 'TANG' ? a.gia - b.gia : b.gia - a.gia).map((x) => x.barcode);
+    return { loai: 'XG', ds: xao(chon).map((sp) => ({ ...sp, hinh: nenHinh(sp.hinh_url) })), chieu, thuTu };
+  }
+  return null;
+}
+
+// ===== KÝ ỨC: kệ 5 SP + bộ 3 câu hỏi về kệ =====
+function sinhBoKyUc(pool, daDung) {
+  const hopLeHinh = (u) => typeof u === 'string' && /^https?:\/\//.test(u.trim());
+  const ung = xao(pool.filter((s) => Number(s.gia) > 0 && hopLeHinh(s.hinh_url) && !daDung.has(s.barcode)));
+  if (ung.length < 9) daDung.clear();
+  const nguon = ung.length >= 9 ? ung : xao(pool.filter((s) => Number(s.gia) > 0 && hopLeHinh(s.hinh_url)));
+  if (nguon.length < 9) return null;
+  // 5 SP lên kệ, giá đôi một khác nhau
+  const ke = [];
+  for (const sp of nguon) {
+    if (ke.some((k) => Number(k.gia) === Number(sp.gia))) continue;
+    ke.push(sp); if (ke.length === 5) break;
+  }
+  if (ke.length < 5) return null;
+  ke.forEach((k) => daDung.add(k.barcode));
+  const ngoai = nguon.filter((s) => !ke.some((k) => k.barcode === s.barcode)).slice(0, 4);
+  const keH = ke.map((sp) => ({ ...sp, hinh: nenHinh(sp.hinh_url) }));
+  // 3 câu: (a) SP nào giá X (đáp án hình) · (b) giá của [tên] · (c) SP nào KHÔNG có trên kệ
+  const a = keH[Math.floor(Math.random() * 5)];
+  const b = keH[Math.floor(Math.random() * 5)];
+  const cauA = { hoi: `Sản phẩm nào trên kệ có giá ${fmtVND(a.gia)}?`, laHinh: true,
+    dapAn: xao(keH.slice(0, 4).includes(a) ? keH.slice(0, 4) : [a, ...keH.filter((x) => x !== a).slice(0, 3)])
+      .map((x) => ({ hinh: x.hinh, dung: x.barcode === a.barcode })) };
+  const giaKhac = xao(keH.filter((x) => x.barcode !== b.barcode)).slice(0, 3).map((x) => Number(x.gia));
+  const cauB = { hoi: `“${b.ten}” trên kệ có giá bao nhiêu?`, laHinh: false,
+    dapAn: xao([{ nhan: fmtVND(b.gia), dung: true }, ...giaKhac.map((g) => ({ nhan: fmtVND(g), dung: false }))]) };
+  const l = ngoai[0];
+  const cauC = l ? { hoi: 'Sản phẩm nào KHÔNG có trên kệ vừa xem?', laHinh: true,
+    dapAn: xao([{ hinh: nenHinh(l.hinh_url), dung: true }, ...xao(keH).slice(0, 3).map((x) => ({ hinh: x.hinh, dung: false }))]) } : cauB;
+  return { ke: keH, cauHoi: xao([cauA, cauB, cauC]) };
+}
+
+// ===== SĂN LỖI: phiếu 4 dòng, đúng 1 dòng sai giá =====
+function sinhVongSL(pool, daDung) {
+  for (let lan = 0; lan < 25; lan++) {
+    const ung = xao(pool.filter((s) => Number(s.gia) > 0 && !daDung.has(s.barcode))).slice(0, 4);
+    if (ung.length < 4) { daDung.clear(); continue; }
+    ung.forEach((s) => daDung.add(s.barcode));
+    const iSai = Math.floor(Math.random() * 4);
+    const spSai = ung[iSai];
+    // giá sai = giá THẬT của SP khác lệch 12–45% (đủ soi ra nếu thuộc giá)
+    const giaLech = pool.map((x) => Number(x.gia)).filter((g) => {
+      if (!g || g === Number(spSai.gia)) return false;
+      const d = Math.abs(g - spSai.gia) / spSai.gia; return d >= 0.12 && d <= 0.45;
+    });
+    if (!giaLech.length) continue;
+    const giaSai = giaLech[Math.floor(Math.random() * giaLech.length)];
+    return { loai: 'SL', dong: ung.map((sp, i) => ({ sp, giaHien: i === iSai ? giaSai : Number(sp.gia), sai: i === iSai })) };
+  }
+  return null;
+}
+
+// ===== CAO–THẤP: cặp mốc + SP kế (giá khác nhau ≥4%) =====
+function sinhCauCT(pool, mocSp, daDung) {
+  const hopLeHinh = (u) => typeof u === 'string' && /^https?:\/\//.test(u.trim());
+  for (let lan = 0; lan < 25; lan++) {
+    const ung = pool.filter((s) => Number(s.gia) > 0 && hopLeHinh(s.hinh_url)
+      && (!mocSp || s.barcode !== mocSp.barcode) && !daDung.has(s.barcode)
+      && (!mocSp || Math.abs(Number(s.gia) - Number(mocSp.gia)) / Number(mocSp.gia) >= 0.04));
+    if (!ung.length) { daDung.clear(); continue; }
+    const sp = ung[Math.floor(Math.random() * ung.length)];
+    daDung.add(sp.barcode);
+    return { ...sp, hinh: nenHinh(sp.hinh_url) };
+  }
+  return null;
+}
+
+// ===== GIẢI MÃ: SP bí ẩn + 6 đáp án + manh mối =====
+function sinhVongGM(pool, daDung) {
+  const hopLeHinh = (u) => typeof u === 'string' && /^https?:\/\//.test(u.trim());
+  for (let lan = 0; lan < 25; lan++) {
+    const ung = pool.filter((s) => Number(s.gia) > 0 && hopLeHinh(s.hinh_url) && !daDung.has(s.barcode));
+    if (!ung.length) { daDung.clear(); continue; }
+    const sp = ung[Math.floor(Math.random() * ung.length)];
+    daDung.add(sp.barcode);
+    const pt = phanTichMa(sp.ten);
+    const nhieu = xao(pool.filter((x) => x.barcode !== sp.barcode && hopLeHinh(x.hinh_url))).slice(0, 5);
+    if (nhieu.length < 5) continue;
+    const gia = Number(sp.gia);
+    const thap = Math.floor(gia * 0.8 / 100000) * 100000, cao = Math.ceil(gia * 1.2 / 100000) * 100000;
+    const manh = [
+      `Ngành: ${sp.nganh_3 || 'đang giấu'} · Khoảng giá: ${fmtVND(thap)} – ${fmtVND(cao)}`,
+      `Giá chính xác: ${fmtVND(gia)}` + (pt ? ` · Dòng mã bắt đầu: ${String(pt.so || '').slice(0, 5) || sp.ten.slice(0, 6)}` : ` · Tên bắt đầu: “${sp.ten.slice(0, 7)}…”`),
+      'ẢNH MỜ của sản phẩm (nhìn kỹ dáng)',
+      'ẢNH RÕ — cơ hội cuối',
+    ];
+    return { loai: 'GM', sp: { ...sp, hinh: nenHinh(sp.hinh_url) }, manh,
+      dapAn: xao([{ ...sp, hinh: nenHinh(sp.hinh_url), dung: true },
+        ...nhieu.map((x) => ({ ...x, hinh: nenHinh(x.hinh_url), dung: false }))]) };
+  }
+  return null;
+}
 export default function DauTruong() {
   const { user, baoToast } = useApp();
   const [view, setView] = useState('SANH');          // SANH | DEM | CHOI | KETQUA
@@ -493,9 +612,19 @@ export default function DauTruong() {
   const [cauTang, setCauTang] = useState(0);         // LEO THÁP: câu thứ mấy trong tầng (0-2)
   const [giaChon, setGiaChon] = useState(0);         // ĐOÁN GIÁ: giá đang kéo
   const [dgKq, setDgKq] = useState(null);            // ĐOÁN GIÁ: kết quả câu vừa {lech, diemCau}
+  const [vong, setVong] = useState(0);               // XG/KYUC/SL/GM: vòng hiện tại (0-based)
+  const [xgBam, setXgBam] = useState([]);            // XẾP GIÁ: barcode đã bấm đúng thứ tự
+  const [xgSai, setXgSai] = useState(null);          // XẾP GIÁ: barcode vừa bấm sai
+  const [kyPha, setKyPha] = useState('NHIN');        // KÝ ỨC: NHIN | HOI
+  const [kyBo, setKyBo] = useState(null);            // KÝ ỨC: bộ hiện tại {ke, cauHoi}
+  const [kyCau, setKyCau] = useState(0);             // KÝ ỨC: câu 0-2 trong bộ
+  const [ctMoc, setCtMoc] = useState(null);          // CAO-THẤP: SP mốc hiện tại
+  const [gmMuc, setGmMuc] = useState(0);             // GIẢI MÃ: mức manh mối đã mở (0-3)
   const [kq, setKq] = useState(null);                // {hang, best}
   const daDung = useRef(new Set());
   const tangRef = useRef(1);                          // LEO THÁP: tầng đồng bộ tức thì (tránh trễ closure)
+  const vongRef = useRef(0);                          // vòng đồng bộ tức thì
+  const ctMocRef = useRef(null);                      // CAO-THẤP: mốc đồng bộ
   const daCau = useRef(new Set());     // chữ ký câu đã ra — không lặp trong ván
   const lichSuCau = useRef(loadLichSu());   // câu đã ra các VÁN GẦN ĐÂY (localStorage) — tránh lặp giữa ván
   const cauVanNay = useRef(new Set());      // chỉ câu MỚI sinh trong ván này (để lưu vào lịch sử)
@@ -537,6 +666,8 @@ export default function DauTruong() {
     loaiGanDay.current = [];
     setDiem(0); setSoCau(0); setSoDung(0); setCombo(0); setComboMax(0); setMang(3); setChon(null); setKq(null);
     setTang(1); tangRef.current = 1; setCauTang(0); setGiaChon(0); setDgKq(null);
+    setVong(0); vongRef.current = 0; setXgBam([]); setXgSai(null);
+    setKyPha('NHIN'); setKyBo(null); setKyCau(0); setCtMoc(null); ctMocRef.current = null; setGmMuc(0);
     setTgConLai(CHE_DO[cheDo].giay || 0); setTgCau(7);
     setDem(3); dangChoi.current = true; setView('DEM');
   };
@@ -551,7 +682,7 @@ export default function DauTruong() {
 
   // đồng hồ tổng (TOCDO/CHINHXAC/PHANXA) — tính bằng MỐC THỜI GIAN THẬT, chạy đúng cả khi ẩn app
   useEffect(() => {
-    if (view !== 'CHOI' || cheDo === 'SINHTON' || cheDo === 'DAILY' || cheDo === 'THAP' || cheDo === 'DOANGIA') return;
+    if (view !== 'CHOI' || !(CHE_DO[cheDo].giay > 0)) return;
     const tongGiay = CHE_DO[cheDo].giay;
     const ketThucLuc = Date.now() + tgConLai * 1000;   // mốc kết thúc tuyệt đối
     tRef.current = setInterval(() => {
@@ -569,9 +700,9 @@ export default function DauTruong() {
     return () => { clearInterval(tRef.current); document.removeEventListener('visibilitychange', onVis); };
   }, [view]);   // eslint-disable-line
 
-  // đồng hồ mỗi câu (SINHTON / THAP / PHANXA / DOANGIA) — timestamp thật
+  // đồng hồ mỗi câu — timestamp thật (mọi chế độ có giờ theo câu)
   useEffect(() => {
-    const coDongHoCau = cheDo === 'SINHTON' || cheDo === 'THAP' || cheDo === 'PHANXA' || cheDo === 'DOANGIA';
+    const coDongHoCau = ['SINHTON', 'THAP', 'PHANXA', 'DOANGIA', 'XEPGIA', 'KYUC', 'SANLOI', 'CAOTHAP', 'GIAIMA'].includes(cheDo);
     if (view !== 'CHOI' || !coDongHoCau || chon !== null) return;
     const hetLuc = Date.now() + tgCau * 1000;
     tCauRef.current = setInterval(() => {
@@ -581,11 +712,16 @@ export default function DauTruong() {
         clearInterval(tCauRef.current);
         if (cheDo === 'DOANGIA') chotGia();          // hết giờ -> chốt giá đang kéo
         else if (cheDo === 'PHANXA') traLoiDS(null); // hết giờ = sai
+        else if (cheDo === 'XEPGIA') xgHetGio();
+        else if (cheDo === 'KYUC') { if (kyPha === 'NHIN') kyHetNhin(); else traLoiKy(-1); }
+        else if (cheDo === 'SANLOI') bamSL(-1);
+        else if (cheDo === 'CAOTHAP') traLoiCT(null);
+        else if (cheDo === 'GIAIMA') traLoiGM(-1);
         else traLoi(-1);
       }
     }, 100);
     return () => clearInterval(tCauRef.current);
-  }, [view, cau, chon]);   // eslint-disable-line
+  }, [view, cau, chon, kyPha, kyCau]);   // eslint-disable-line
 
   // sinh câu đầu khi vào CHOI
   useEffect(() => {
@@ -593,6 +729,61 @@ export default function DauTruong() {
   }, [view]);   // eslint-disable-line
 
   const cauMoi = () => {
+    // ===== XẾP GIÁ: vòng 4 SP, 20s =====
+    if (cheDo === 'XEPGIA') {
+      if (vongRef.current >= XEPGIA_VONG) { ketThuc(); return; }
+      const c = sinhVongXG(pool, daDung.current);
+      if (!c) { ketThuc(); return; }
+      c.ds.forEach((x) => { const im = new Image(); im.src = x.hinh; });
+      setCau(c); setChon(null); setXgBam([]); setXgSai(null); setTgCau(20);
+      batDauCau.current = Date.now();
+      return;
+    }
+    // ===== KÝ ỨC: bộ mới (pha NHÌN 6s) hoặc câu kế trong bộ =====
+    if (cheDo === 'KYUC') {
+      if (vongRef.current >= KYUC_BO) { ketThuc(); return; }
+      const bo = sinhBoKyUc(pool, daDung.current);
+      if (!bo) { ketThuc(); return; }
+      bo.ke.forEach((x) => { const im = new Image(); im.src = x.hinh; });
+      setKyBo(bo); setKyPha('NHIN'); setKyCau(0);
+      setCau({ loai: 'KY' }); setChon(null); setTgCau(6);
+      batDauCau.current = Date.now();
+      return;
+    }
+    // ===== SĂN LỖI: phiếu mới, 12s =====
+    if (cheDo === 'SANLOI') {
+      if (vongRef.current >= SANLOI_VONG) { ketThuc(); return; }
+      const c = sinhVongSL(pool, daDung.current);
+      if (!c) { ketThuc(); return; }
+      setCau(c); setChon(null); setTgCau(12);
+      batDauCau.current = Date.now();
+      return;
+    }
+    // ===== CAO–THẤP: mốc + SP kế, 8s =====
+    if (cheDo === 'CAOTHAP') {
+      let moc = ctMocRef.current;
+      if (!moc) {
+        moc = sinhCauCT(pool, null, daDung.current);
+        if (!moc) { ketThuc(); return; }
+        ctMocRef.current = moc; setCtMoc(moc);
+      }
+      const sp = sinhCauCT(pool, moc, daDung.current);
+      if (!sp) { ketThuc(); return; }
+      setCau({ loai: 'CT', sp }); setChon(null); setTgCau(8);
+      batDauCau.current = Date.now();
+      return;
+    }
+    // ===== GIẢI MÃ: vụ án mới, 30s =====
+    if (cheDo === 'GIAIMA') {
+      if (vongRef.current >= GIAIMA_VONG) { ketThuc(); return; }
+      const c = sinhVongGM(pool, daDung.current);
+      if (!c) { ketThuc(); return; }
+      const im = new Image(); im.src = c.sp.hinh;
+      c.dapAn.forEach((x) => { const i2 = new Image(); i2.src = x.hinh; });
+      setCau(c); setChon(null); setGmMuc(0); setTgCau(30);
+      batDauCau.current = Date.now();
+      return;
+    }
     // ===== PHẢN XẠ: câu Đúng/Sai, 3 giây =====
     if (cheDo === 'PHANXA') {
       const c = sinhCauDS(pool, daCau.current);
@@ -743,6 +934,104 @@ export default function DauTruong() {
     }, 30);
   };
 
+  // ===== XẾP GIÁ: bấm SP kế tiếp theo chiều =====
+  const bamXG = (bc) => {
+    if (!cau || cau.loai !== 'XG' || chon !== null || xgBam.includes(bc) || xgSai) return;
+    const viTriKe = cau.thuTu[xgBam.length];
+    if (bc === viTriKe) {
+      const moi = [...xgBam, bc];
+      setXgBam(moi); setDiem((d) => d + 40); setSoCau((n) => n + 1); setSoDung((n) => n + 1);
+      if (moi.length >= 4) {
+        setDiem((d) => d + 60);   // hoàn hảo cả 4
+        setCombo((c) => { const nc = c + 1; setComboMax((m) => Math.max(m, nc)); return nc; });
+        clearInterval(tCauRef.current); setChon(1);
+        vongRef.current += 1; setVong(vongRef.current);
+        setTimeout(() => { if (dangChoi.current) cauMoi(); }, 800);
+      }
+    } else {
+      clearInterval(tCauRef.current);
+      setXgSai(bc); setChon(0); setSoCau((n) => n + 1); setCombo(0);
+      vongRef.current += 1; setVong(vongRef.current);
+      setTimeout(() => { if (dangChoi.current) cauMoi(); }, 1400);
+    }
+  };
+  const xgHetGio = () => {   // hết 20s: mất phần còn lại
+    setChon(0); setCombo(0);
+    vongRef.current += 1; setVong(vongRef.current);
+    setTimeout(() => { if (dangChoi.current) cauMoi(); }, 1000);
+  };
+
+  // ===== KÝ ỨC: hết 6s nhìn -> sang câu hỏi =====
+  const kyHetNhin = () => { setKyPha('HOI'); setKyCau(0); setChon(null); setTgCau(10); batDauCau.current = Date.now(); };
+  const traLoiKy = (idx) => {
+    if (chon !== null || !kyBo) return;
+    clearInterval(tCauRef.current);
+    const c = kyBo.cauHoi[kyCau];
+    const dung = idx >= 0 && c.dapAn[idx]?.dung;
+    setChon(idx); setSoCau((n) => n + 1);
+    if (dung) {
+      setDiem((d) => d + 120); setSoDung((n) => n + 1);
+      setCombo((cb) => { const nc = cb + 1; setComboMax((m) => Math.max(m, nc)); return nc; });
+    } else setCombo(0);
+    setTimeout(() => {
+      if (!dangChoi.current) return;
+      if (kyCau + 1 < 3) { setKyCau((k) => k + 1); setChon(null); setTgCau(10); batDauCau.current = Date.now(); }
+      else { vongRef.current += 1; setVong(vongRef.current); cauMoi(); }
+    }, 600);
+  };
+
+  // ===== SĂN LỖI: bấm dòng nghi sai =====
+  const bamSL = (idx) => {
+    if (!cau || cau.loai !== 'SL' || chon !== null) return;
+    clearInterval(tCauRef.current);
+    const dung = idx >= 0 && cau.dong[idx]?.sai;
+    setChon(idx); setSoCau((n) => n + 1);
+    if (dung) {
+      const giay = (Date.now() - batDauCau.current) / 1000;
+      setDiem((d) => d + 120 + Math.max(0, Math.round(60 * (1 - giay / 12))));
+      setSoDung((n) => n + 1);
+      setCombo((c) => { const nc = c + 1; setComboMax((m) => Math.max(m, nc)); return nc; });
+    } else { setDiem((d) => Math.max(0, d - 30)); setCombo(0); }
+    vongRef.current += 1; setVong(vongRef.current);
+    setTimeout(() => { if (dangChoi.current) cauMoi(); }, 1300);
+  };
+
+  // ===== CAO–THẤP: đoán cao/thấp so với mốc =====
+  const traLoiCT = (caoHon) => {
+    if (!cau || cau.loai !== 'CT' || chon !== null) return;
+    clearInterval(tCauRef.current);
+    const moc = ctMocRef.current;
+    const dung = caoHon === null ? false
+      : caoHon ? Number(cau.sp.gia) >= Number(moc.gia) : Number(cau.sp.gia) <= Number(moc.gia);
+    setChon(caoHon === null ? -1 : (caoHon ? 1 : 0));
+    setSoCau((n) => n + 1);
+    if (dung) {
+      setSoDung((n) => n + 1);
+      setCombo((c) => { const nc = c + 1; setComboMax((m) => Math.max(m, nc));
+        setDiem((d) => d + 50 + 5 * nc); return nc; });
+      ctMocRef.current = cau.sp; setCtMoc(cau.sp);
+      setTimeout(() => { if (dangChoi.current) cauMoi(); }, 900);
+    } else {
+      setTimeout(() => ketThuc(0), 1100);   // đứt chuỗi = kết thúc
+    }
+  };
+
+  // ===== GIẢI MÃ: mở thêm manh mối / chọn đáp án =====
+  const themManhGM = () => { if (cau?.loai === 'GM' && chon === null && gmMuc < 3) setGmMuc((m) => m + 1); };
+  const traLoiGM = (idx) => {
+    if (!cau || cau.loai !== 'GM' || chon !== null) return;
+    clearInterval(tCauRef.current);
+    const dung = idx >= 0 && cau.dapAn[idx]?.dung;
+    setChon(idx); setSoCau((n) => n + 1);
+    if (dung) {
+      setDiem((d) => d + [400, 250, 150, 80][gmMuc]);
+      setSoDung((n) => n + 1);
+      setCombo((c) => { const nc = c + 1; setComboMax((m) => Math.max(m, nc)); return nc; });
+    } else { setDiem((d) => Math.max(0, d - 50)); setCombo(0); }
+    vongRef.current += 1; setVong(vongRef.current);
+    setTimeout(() => { if (dangChoi.current) cauMoi(); }, 1400);
+  };
+
   const dangLuu = useRef(false);
   const ketThuc = async () => {
     if (dangLuu.current) return; dangLuu.current = true; dangChoi.current = false;
@@ -774,8 +1063,15 @@ export default function DauTruong() {
     const CD = CHE_DO[cheDo];
     const laBossThap = cheDo === 'THAP' && tang % 5 === 0;
     const tgCauMax = cheDo === 'SINHTON' ? 7 : cheDo === 'PHANXA' ? 3 : cheDo === 'DOANGIA' ? 15
-      : cheDo === 'THAP' ? (laBossThap ? 10 : Math.max(3.5, 8 - 0.5 * (tang - 1))) : 7;
-    const coDhCau = cheDo === 'SINHTON' || cheDo === 'THAP' || cheDo === 'PHANXA' || cheDo === 'DOANGIA';
+      : cheDo === 'THAP' ? (laBossThap ? 10 : Math.max(3.5, 8 - 0.5 * (tang - 1)))
+      : cheDo === 'XEPGIA' ? 20 : cheDo === 'KYUC' ? (kyPha === 'NHIN' ? 6 : 10)
+      : cheDo === 'SANLOI' ? 12 : cheDo === 'CAOTHAP' ? 8 : cheDo === 'GIAIMA' ? 30 : 7;
+    const coDhCau = ['SINHTON', 'THAP', 'PHANXA', 'DOANGIA', 'XEPGIA', 'KYUC', 'SANLOI', 'CAOTHAP', 'GIAIMA'].includes(cheDo);
+    const nhanVong = cheDo === 'XEPGIA' ? `VÒNG ${Math.min(vong + 1, XEPGIA_VONG)}/${XEPGIA_VONG}`
+      : cheDo === 'KYUC' ? `KỆ ${Math.min(vong + 1, KYUC_BO)}/${KYUC_BO}${kyPha === 'HOI' ? ` · CÂU ${kyCau + 1}/3` : ''}`
+      : cheDo === 'SANLOI' ? `PHIẾU ${Math.min(vong + 1, SANLOI_VONG)}/${SANLOI_VONG}`
+      : cheDo === 'CAOTHAP' ? `CHUỖI ×${combo}`
+      : cheDo === 'GIAIMA' ? `VỤ ${Math.min(vong + 1, GIAIMA_VONG)}/${GIAIMA_VONG}` : null;
     const pct = coDhCau ? (tgCau / tgCauMax) * 100
       : cheDo === 'DAILY' ? ((DAILY_SO_CAU - soCau) / DAILY_SO_CAU) * 100
       : (tgConLai / CD.giay) * 100;
@@ -789,7 +1085,9 @@ export default function DauTruong() {
               : Math.ceil(tgConLai) + 's'}</span>
           </div>
           <div className="dt-diem">{diem.toLocaleString('vi')}</div>
-          {cheDo === 'THAP' ? (
+          {nhanVong ? (
+            <div className={'dt-tang' + (cheDo === 'CAOTHAP' && combo >= 5 ? ' boss' : '')}>{nhanVong}</div>
+          ) : cheDo === 'THAP' ? (
             <div className={'dt-tang' + (laBossThap ? ' boss' : '')}>
               {laBossThap ? 'BOSS ' : 'TẦNG '}{tang}{!laBossThap && <span className="dt-tang-ct"> · {cauTang + 1}/3</span>}
             </div>
@@ -806,7 +1104,132 @@ export default function DauTruong() {
           )}
         </div>
 
-        {cau.loai === 'DS' ? (
+        {cau.loai === 'XG' ? (
+          // ===== XẾP GIÁ: bấm 4 thẻ theo thứ tự =====
+          <div className="dt-cau" key={'xg' + vong}>
+            <div className="dt-hoi">Bấm lần lượt theo giá <b className={cau.chieu === 'TANG' ? 'dt-xg-tang' : 'dt-xg-giam'}>
+              {cau.chieu === 'TANG' ? 'TĂNG DẦN (rẻ → đắt)' : 'GIẢM DẦN (đắt → rẻ)'}</b></div>
+            <div className="dt-xg-luoi">
+              {cau.ds.map((sp) => {
+                const viTri = xgBam.indexOf(sp.barcode);
+                const loDapAn = chon !== null;
+                const thuTuDung = cau.thuTu.indexOf(sp.barcode) + 1;
+                return (
+                  <button key={sp.barcode} onClick={() => bamXG(sp.barcode)}
+                    className={'dt-xg-o dt-vao' + (viTri >= 0 ? ' bam' : '') + (xgSai === sp.barcode ? ' saibam' : '') + (loDapAn && viTri < 0 ? ' mo' : '')}>
+                    <div className="dt-xg-hinh"><img src={sp.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e)} /></div>
+                    <div className="dt-xg-ten">{sp.ten}</div>
+                    {viTri >= 0 && <div className="dt-xg-so">{viTri + 1}</div>}
+                    {loDapAn && <div className="dt-xg-kq">{thuTuDung}. {fmtVND(sp.gia)}</div>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : cau.loai === 'KY' && kyBo ? (
+          // ===== KÝ ỨC: pha NHÌN kệ / pha HỎI =====
+          kyPha === 'NHIN' ? (
+            <div className="dt-cau" key={'ky' + vong}>
+              <div className="dt-hoi">GHI NHỚ kệ hàng — còn <b style={{ color: 'var(--magenta)' }}>{tgCau.toFixed(0)}s</b></div>
+              <div className="dt-ky-ke">
+                {kyBo.ke.map((sp) => (
+                  <div key={sp.barcode} className="dt-ky-o dt-vao">
+                    <div className="dt-ky-hinh"><img src={sp.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e)} /></div>
+                    <div className="dt-ky-ten">{sp.ten}</div>
+                    <div className="dt-ky-gia">{fmtVND(sp.gia)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="dt-cau" key={'kyc' + kyCau}>
+              <div className="dt-hoi">{kyBo.cauHoi[kyCau].hoi}</div>
+              {kyBo.cauHoi[kyCau].laHinh ? (
+                <div className="dt-hinh-luoi">
+                  {kyBo.cauHoi[kyCau].dapAn.map((a, i) => (
+                    <button key={i} onClick={() => traLoiKy(i)} style={{ animationDelay: (i * 60) + 'ms' }}
+                      className={'dt-hinh-o dt-vao' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
+                      <img src={a.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e)} />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="dt-dapan">
+                  {kyBo.cauHoi[kyCau].dapAn.map((a, i) => (
+                    <button key={i} onClick={() => traLoiKy(i)} style={{ animationDelay: (i * 55) + 'ms' }}
+                      className={'dt-da dt-vao' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
+                      {a.nhan}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        ) : cau.loai === 'SL' ? (
+          // ===== SĂN LỖI: phiếu 4 dòng, bấm dòng sai giá =====
+          <div className="dt-cau" key={'sl' + vong}>
+            <div className="dt-hoi">Phiếu này có <b style={{ color: 'var(--magenta)' }}>ĐÚNG 1 DÒNG SAI GIÁ</b> — bấm vào dòng đó!</div>
+            <div className="dt-sl-phieu dt-vao">
+              {cau.dong.map((d, i) => (
+                <button key={i} onClick={() => bamSL(i)}
+                  className={'dt-sl-dong' + (chon === null ? '' : d.sai ? ' ladong-sai' : chon === i ? ' bamnham' : '')}>
+                  <span className="dt-sl-ten">{d.sp.ten}</span>
+                  <span className="dt-sl-gia">{fmtVND(d.giaHien)}</span>
+                  {chon !== null && d.sai && <span className="dt-sl-that">giá đúng: {fmtVND(d.sp.gia)}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : cau.loai === 'CT' ? (
+          // ===== CAO–THẤP: mốc vs SP kế =====
+          <div className="dt-cau" key={'ct' + soCau}>
+            <div className="dt-ct-cap">
+              <div className="dt-ct-o moc dt-vao">
+                <div className="dt-ct-hinh"><img src={ctMoc?.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e)} /></div>
+                <div className="dt-ct-ten">{ctMoc?.ten}</div>
+                <div className="dt-ct-gia">{ctMoc && fmtVND(ctMoc.gia)}</div>
+              </div>
+              <div className="dt-ct-vs">VS</div>
+              <div className="dt-ct-o dt-vao">
+                <div className="dt-ct-hinh"><img src={cau.sp.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e)} /></div>
+                <div className="dt-ct-ten">{cau.sp.ten}</div>
+                <div className="dt-ct-gia">{chon === null ? '???' : fmtVND(cau.sp.gia)}</div>
+              </div>
+            </div>
+            <div className="dt-ds-nut2">
+              <button className={'dt-ds-nut dung' + (chon === null ? '' : (Number(cau.sp.gia) >= Number(ctMoc?.gia) ? ' ok' : chon === 1 ? ' truot' : ' mo'))}
+                onClick={() => traLoiCT(true)}>CAO HƠN ▲</button>
+              <button className={'dt-ds-nut sai' + (chon === null ? '' : (Number(cau.sp.gia) <= Number(ctMoc?.gia) ? ' ok' : chon === 0 ? ' truot' : ' mo'))}
+                onClick={() => traLoiCT(false)}>THẤP HƠN ▼</button>
+            </div>
+          </div>
+        ) : cau.loai === 'GM' ? (
+          // ===== GIẢI MÃ: manh mối mở dần + 6 đáp án =====
+          <div className="dt-cau" key={'gm' + vong}>
+            <div className="dt-hoi">SẢN PHẨM BÍ ẨN — đoán càng sớm điểm càng cao: <b style={{ color: 'var(--teal-deep)' }}>{[400, 250, 150, 80][gmMuc]} điểm</b></div>
+            <div className="dt-gm-manh dt-vao">
+              {cau.manh.slice(0, gmMuc + 1).map((m, i) => (
+                <div key={i} className="dt-gm-dong">
+                  <span className="dt-gm-stt">{i + 1}</span>
+                  {i <= 1 ? <span>{m}</span> : (
+                    <span className="dt-gm-anhbox"><img src={cau.sp.hinh} alt="" className={i === 2 ? 'dt-gm-mo' : ''} onError={(e) => falbackGoc(e)} /></span>
+                  )}
+                </div>
+              ))}
+              {gmMuc < 3 && chon === null && (
+                <button className="btn-mini dt-gm-them" onClick={themManhGM}>+ Thêm manh mối (còn {[, 250, 150, 80][gmMuc + 1]} điểm)</button>
+              )}
+            </div>
+            <div className="dt-gm-luoi">
+              {cau.dapAn.map((a, i) => (
+                <button key={i} onClick={() => traLoiGM(i)} style={{ animationDelay: (i * 40) + 'ms' }}
+                  className={'dt-hinh-o dt-vao' + (chon === null ? '' : a.dung ? ' dung' : chon === i ? ' sai' : ' mo')}>
+                  <img src={a.hinh} alt="" loading="eager" onError={(e) => falbackGoc(e)} />
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : cau.loai === 'DS' ? (
           // ===== PHẢN XẠ: phát biểu + 2 nút ĐÚNG/SAI to =====
           <div className="dt-cau" key={soCau}>
             <div className="dt-ds-the dt-vao">
@@ -893,6 +1316,7 @@ export default function DauTruong() {
         <div className="dt-kq-tit">KẾT THÚC — {CHE_DO[cheDo].ten.toUpperCase()}</div>
         <div className="dt-kq-diem">{diem.toLocaleString('vi')}</div>
         {cheDo === 'THAP' && <div className="dt-kq-tang">Rơi ở tầng <b>{tang}</b> — hoàn thành trọn <b>{tang - 1}</b> tầng</div>}
+        {cheDo === 'CAOTHAP' && <div className="dt-kq-tang">Chuỗi dài nhất: <b>×{comboMax}</b> lần đoán đúng liên tiếp</div>}
         {kq && kq.hang <= 10 && <div className="dt-kq-top"><IcTrophy width={16} /> LỌT TOP {kq.hang} TOÀN HỆ THỐNG!</div>}
         <div className="the-hang" style={{ justifyContent: 'center', marginTop: 18 }}>
           <div className="the-g"><span className="the-g-n">{soCau}</span><span className="the-g-t">câu đã trả lời</span></div>
@@ -948,6 +1372,9 @@ export default function DauTruong() {
             <b> Leo tháp</b>: điểm câu + thưởng <b>100×tầng</b> khi trọn tầng, hạ BOSS +<b>600×</b> mốc.
             <b> Đoán giá</b>: sát ≤2% được <b>300</b>, lệch quá 18% mất trắng.
             <b> Phản xạ</b>: đúng +25 nhân combo tới <b>×2.5</b>, sai −15.
+            <b> Xếp giá</b>: mỗi vị trí đúng +40, trọn vòng +60.
+            <b> Ký ức</b>: +120/câu nhớ đúng. <b>Săn lỗi</b>: +120 & thưởng tốc độ, bấm nhầm −30.
+            <b> Cao–Thấp</b>: +50 + 5×chuỗi, sai là đứt. <b>Giải mã</b>: đoán sớm 400 → muộn 80, sai −50.
             Câu hỏi sinh ngẫu nhiên từ dữ liệu thật: giá niêm yết, nhận diện hình, ngành hàng, so sánh giá.
           </div>
           <button className="btn btn-ai dt-batdau" onClick={batDau}>

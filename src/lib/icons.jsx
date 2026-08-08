@@ -24,3 +24,7 @@ export const IcTarget  = (p) => <I d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7
 export const IcHeart   = (p) => <I d="M12 20s-7-4.6-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.4-9 9-9 9z" {...p} />;
 export const IcTower   = (p) => <I d="M9 21V10l3-3 3 3v11 M6 21h12 M9 13h6 M9 17h6 M12 3v2" {...p} />;
 export const IcTag     = (p) => <I d="M20 12 12 20l-8-8V4h8l8 8z M8 8a1 1 0 1 0 0-.01" {...p} />;
+export const IcSort    = (p) => <I d="M4 6h16 M4 12h11 M4 18h6" {...p} />;
+export const IcBrain   = (p) => <I d="M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-1 5.8V15a3 3 0 0 0 3 3h1V4z M15 4a3 3 0 0 1 3 3v1a3 3 0 0 1 1 5.8V15a3 3 0 0 1-3 3h-1V4z M12 4v14" {...p} />;
+export const IcScale   = (p) => <I d="M12 3v18 M8 21h8 M12 6 5 8l2.5 5a3 3 0 0 1-5 0L5 8 M12 6l7 2-2.5 5a3 3 0 0 0 5 0L19 8" {...p} />;
+export const IcPuzzle  = (p) => <I d="M10 3h4v3a2 2 0 1 0 4 0h3v4h-3a2 2 0 1 0 0 4h3v4h-4v-3a2 2 0 1 0-4 0v3H6v-4H3v-4h3a2 2 0 1 0 0-4H3V3h7z" {...p} />;

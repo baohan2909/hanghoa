@@ -2436,3 +2436,66 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .dt-kq-tang b { color: var(--teal-deep); font-size: 16px; }
 .dt-thunghiem { display: inline-block; margin-left: 6px; font-size: 9px; font-weight: 800; letter-spacing: .5px;
   color: #fff; background: var(--gold); padding: 2px 7px; border-radius: 8px; vertical-align: 2px; }
+
+/* ===== ĐẤU TRƯỜNG — 5 GAME TƯ DUY (Xếp giá / Ký ức / Săn lỗi / Cao-Thấp / Giải mã) ===== */
+/* XẾP GIÁ */
+.dt-xg-tang { color: var(--teal-deep); } .dt-xg-giam { color: var(--magenta); }
+.dt-xg-luoi { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.dt-xg-o { position: relative; background: var(--surface); border: 2px solid var(--line); border-radius: 12px;
+  padding: 10px; cursor: pointer; text-align: center; transition: border-color .12s, transform .1s, opacity .2s; }
+.dt-xg-o:active { transform: scale(.98); }
+.dt-xg-o.bam { border-color: var(--teal); box-shadow: 0 0 12px rgba(63,182,168,.35); }
+.dt-xg-o.saibam { border-color: var(--magenta); box-shadow: 0 0 12px rgba(214,0,108,.4); }
+.dt-xg-o.mo { opacity: .62; }
+.dt-xg-hinh { height: 92px; border-radius: 9px; overflow: hidden; background: #F2F0EA; }
+.dt-xg-hinh img { width: 100%; height: 100%; object-fit: contain; }
+.dt-xg-ten { font-size: 12px; font-weight: 600; color: var(--ink); margin-top: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-xg-so { position: absolute; top: 6px; left: 6px; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--teal-deep); color: #fff; font-weight: 800; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; }
+.dt-xg-kq { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--teal-deep); margin-top: 3px; }
+/* KÝ ỨC */
+.dt-ky-ke { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.dt-ky-o { background: var(--surface); border-radius: 11px; box-shadow: var(--shadow); padding: 8px; text-align: center; }
+.dt-ky-hinh { height: 76px; border-radius: 8px; overflow: hidden; background: #F2F0EA; }
+.dt-ky-hinh img { width: 100%; height: 100%; object-fit: contain; }
+.dt-ky-ten { font-size: 10.5px; font-weight: 600; color: var(--ink); margin-top: 5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-ky-gia { font-family: var(--font-mono); font-size: 12.5px; font-weight: 800; color: var(--magenta); }
+/* SĂN LỖI */
+.dt-sl-phieu { background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+.dt-sl-dong { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px;
+  border-bottom: 1px solid var(--line); background: #fff; cursor: pointer; text-align: left;
+  transition: background .12s; position: relative; }
+.dt-sl-dong:hover { background: #F4FAF9; }
+.dt-sl-ten { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--ink); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-sl-gia { font-family: var(--font-mono); font-size: 15px; font-weight: 800; color: var(--teal-deep); }
+.dt-sl-dong.ladong-sai { background: #FCE9F2; }
+.dt-sl-dong.ladong-sai .dt-sl-gia { color: var(--magenta); text-decoration: line-through; }
+.dt-sl-dong.bamnham { background: #FBF4E4; }
+.dt-sl-that { font-size: 11.5px; font-weight: 700; color: var(--green); white-space: nowrap; }
+/* CAO–THẤP */
+.dt-ct-cap { display: flex; align-items: stretch; gap: 10px; }
+.dt-ct-o { flex: 1; background: var(--surface); border-radius: 12px; box-shadow: var(--shadow);
+  padding: 12px; text-align: center; min-width: 0; }
+.dt-ct-o.moc { outline: 2px solid var(--teal); }
+.dt-ct-hinh { height: 108px; border-radius: 9px; overflow: hidden; background: #F2F0EA; }
+.dt-ct-hinh img { width: 100%; height: 100%; object-fit: contain; }
+.dt-ct-ten { font-size: 12px; font-weight: 600; color: var(--ink); margin-top: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-ct-gia { font-family: var(--font-mono); font-size: 19px; font-weight: 800; color: var(--magenta); margin-top: 2px; }
+.dt-ct-vs { align-self: center; font-weight: 800; font-size: 14px; color: var(--ink-2); }
+/* GIẢI MÃ */
+.dt-gm-manh { background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow);
+  padding: 12px 14px; margin-bottom: 12px; }
+.dt-gm-dong { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 13px;
+  font-weight: 600; color: var(--ink); }
+.dt-gm-stt { flex: 0 0 22px; height: 22px; border-radius: 50%; background: var(--teal-deep); color: #fff;
+  font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.dt-gm-anhbox { width: 110px; height: 110px; border-radius: 10px; overflow: hidden; background: #F2F0EA; }
+.dt-gm-anhbox img { width: 100%; height: 100%; object-fit: contain; }
+.dt-gm-mo { filter: blur(9px) saturate(.7); }
+.dt-gm-them { margin-top: 6px; }
+.dt-gm-luoi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
