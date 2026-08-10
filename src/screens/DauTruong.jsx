@@ -10,20 +10,27 @@ import { useApp } from '../App.jsx';
 // Điểm = (100 + bonus nhanh tối đa 50) × hệ số combo (1 + 0.1×combo, trần ×2).
 
 const CHE_DO = {
-  TOCDO:    { ten: 'Tốc độ',     Ic: IcFlash,  giay: 60,  mota: '60 giây — trả lời càng nhiều càng tốt. Sai không trừ điểm nhưng mất chuỗi combo.' },
-  CHINHXAC: { ten: 'Chính xác',  Ic: IcTarget, giay: 90,  mota: '90 giây — đúng +điểm, sai −50. Dành cho người chắc kiến thức.' },
-  SINHTON:  { ten: 'Sinh tồn',   Ic: IcHeart,  giay: 0,   mota: 'Không giới hạn giờ — 3 mạng, mỗi câu chỉ 7 giây. Sai hoặc hết giờ mất 1 mạng.' },
-  DAILY:    { ten: 'Thử thách ngày', Ic: IcTrophy, giay: 0, mota: 'Mỗi ngày 1 đề — 10 câu GIỐNG NHAU cho cả hệ thống, mỗi người chỉ thi 1 lần. So kè công bằng tuyệt đối.' },
-  THAP:     { ten: 'Leo tháp',   Ic: IcTower,  giay: 0,   thuNghiem: true,   mota: 'Leo tầng vô hạn — mỗi tầng 3 câu PHẢI ĐÚNG CẢ 3, giờ mỗi câu rút ngắn theo tầng. SAI 1 CÂU LÀ RƠI. Mỗi 5 tầng gặp BOSS thưởng lớn.' },
-  DOANGIA:  { ten: 'Đoán giá',   Ic: IcTag,    giay: 0,   thuNghiem: true,   mota: '8 sản phẩm — KÉO THANH chọn giá niêm yết. Càng sát giá thật điểm càng cao, lệch quá 18% mất trắng.' },
-  PHANXA:   { ten: 'Phản xạ',    Ic: IcPulse,  giay: 45,  thuNghiem: true,  mota: '45 giây ĐÚNG/SAI chớp nhoáng — 3 giây mỗi câu, combo nhân điểm tới ×2.5, sai bị trừ. Dành cho phản xạ thép.' },
-  XEPGIA:   { ten: 'Xếp giá',    Ic: IcSort,   giay: 0,   thuNghiem: true, mota: '8 vòng — bấm 4 sản phẩm LẦN LƯỢT theo giá tăng hoặc giảm dần (đề đảo chiều). Bấm sai mất phần còn lại của vòng.' },
-  KYUC:     { ten: 'Ký ức',      Ic: IcBrain,  giay: 0,   thuNghiem: true, mota: 'Nhìn kệ 5 sản phẩm + giá trong 6 GIÂY rồi kệ biến mất — trả lời 3 câu về những gì vừa thấy. 4 kệ liên tiếp.' },
-  SANLOI:   { ten: 'Săn lỗi',    Ic: IcAlert,  giay: 0,   thuNghiem: true, mota: 'Phiếu 4 dòng sản phẩm + giá, ĐÚNG 1 dòng gắn sai giá — tìm ra trong 12 giây. Nghiệp vụ soát phiếu thật.' },
-  CAOTHAP:  { ten: 'Cao – Thấp', Ic: IcScale,  giay: 0,   thuNghiem: true, mota: 'Chuỗi vô hạn — biết giá mốc, đoán sản phẩm kế CAO hay THẤP hơn. Đúng thành mốc mới, SAI LÀ ĐỨT CHUỖI.' },
-  GIAIMA:   { ten: 'Giải mã',    Ic: IcPuzzle, giay: 0,   thuNghiem: true, mota: '5 vụ án — manh mối mở dần (ngành, khoảng giá, dòng mã, ảnh mờ). Đoán càng SỚM điểm càng cao: 400 → 80.' },
-  CHUYENGIA:{ ten: 'Chuyên gia', Ic: IcSpark,  giay: 0,   thuNghiem: true, mota: '12 câu từ KHO KIẾN THỨC nội bộ (chất liệu, bảo quản, tư vấn…). Trả lời xong hiện GIẢI THÍCH — vừa thi vừa học.' },
+  TOCDO:    { ten: 'Tốc độ', nhom: 'nhanh',     Ic: IcFlash,  giay: 60,  mota: '60 giây — trả lời càng nhiều càng tốt. Sai không trừ điểm nhưng mất chuỗi combo.' },
+  CHINHXAC: { ten: 'Chính xác', nhom: 'nhanh',  Ic: IcTarget, giay: 90,  mota: '90 giây — đúng +điểm, sai −50. Dành cho người chắc kiến thức.' },
+  SINHTON:  { ten: 'Sinh tồn', nhom: 'nhanh',   Ic: IcHeart,  giay: 0,   mota: 'Không giới hạn giờ — 3 mạng, mỗi câu chỉ 7 giây. Sai hoặc hết giờ mất 1 mạng.' },
+  DAILY:    { ten: 'Thử thách ngày', nhom: 'thuthach', Ic: IcTrophy, giay: 0, mota: 'Mỗi ngày 1 đề — 10 câu GIỐNG NHAU cho cả hệ thống, mỗi người chỉ thi 1 lần. So kè công bằng tuyệt đối.' },
+  THAP:     { ten: 'Leo tháp', nhom: 'thuthach',   Ic: IcTower,  giay: 0,   thuNghiem: true,   mota: 'Leo tầng vô hạn — mỗi tầng 3 câu PHẢI ĐÚNG CẢ 3, giờ mỗi câu rút ngắn theo tầng. SAI 1 CÂU LÀ RƠI. Mỗi 5 tầng gặp BOSS thưởng lớn.' },
+  DOANGIA:  { ten: 'Đoán giá', nhom: 'gia',   Ic: IcTag,    giay: 0,   thuNghiem: true,   mota: '8 sản phẩm — KÉO THANH chọn giá niêm yết. Càng sát giá thật điểm càng cao, lệch quá 18% mất trắng.' },
+  PHANXA:   { ten: 'Phản xạ', nhom: 'nhanh',    Ic: IcPulse,  giay: 45,  thuNghiem: true,  mota: '45 giây ĐÚNG/SAI chớp nhoáng — 3 giây mỗi câu, combo nhân điểm tới ×2.5, sai bị trừ. Dành cho phản xạ thép.' },
+  XEPGIA:   { ten: 'Xếp giá', nhom: 'gia',    Ic: IcSort,   giay: 0,   thuNghiem: true, mota: '8 vòng — bấm 4 sản phẩm LẦN LƯỢT theo giá tăng hoặc giảm dần (đề đảo chiều). Bấm sai mất phần còn lại của vòng.' },
+  KYUC:     { ten: 'Ký ức', nhom: 'suyluan',      Ic: IcBrain,  giay: 0,   thuNghiem: true, mota: 'Nhìn kệ 5 sản phẩm + giá trong 6 GIÂY rồi kệ biến mất — trả lời 3 câu về những gì vừa thấy. 4 kệ liên tiếp.' },
+  SANLOI:   { ten: 'Săn lỗi', nhom: 'gia',    Ic: IcAlert,  giay: 0,   thuNghiem: true, mota: 'Phiếu 4 dòng sản phẩm + giá, ĐÚNG 1 dòng gắn sai giá — tìm ra trong 12 giây. Nghiệp vụ soát phiếu thật.' },
+  CAOTHAP:  { ten: 'Cao – Thấp', nhom: 'gia', Ic: IcScale,  giay: 0,   thuNghiem: true, mota: 'Chuỗi vô hạn — biết giá mốc, đoán sản phẩm kế CAO hay THẤP hơn. Đúng thành mốc mới, SAI LÀ ĐỨT CHUỖI.' },
+  GIAIMA:   { ten: 'Giải mã', nhom: 'suyluan',    Ic: IcPuzzle, giay: 0,   thuNghiem: true, mota: '5 vụ án — manh mối mở dần (ngành, khoảng giá, dòng mã, ảnh mờ). Đoán càng SỚM điểm càng cao: 400 → 80.' },
+  CHUYENGIA:{ ten: 'Chuyên gia', nhom: 'kienthuc', Ic: IcSpark,  giay: 0,   thuNghiem: true, mota: '12 câu từ KHO KIẾN THỨC nội bộ (chất liệu, bảo quản, tư vấn…). Trả lời xong hiện GIẢI THÍCH — vừa thi vừa học.' },
 };
+const NHOM_GAME = [
+  { id: 'nhanh',    ten: 'Tốc độ & phản xạ',  mota: 'Nhanh tay nhanh mắt' },
+  { id: 'gia',      ten: 'Bậc thầy giá',       mota: 'Thuộc giá, đọc vị sản phẩm' },
+  { id: 'suyluan',  ten: 'Trí nhớ & suy luận', mota: 'Ghi nhớ và lập luận' },
+  { id: 'thuthach', ten: 'Thử thách',          mota: 'Bản lĩnh và độ lì' },
+  { id: 'kienthuc', ten: 'Kiến thức sản phẩm', mota: 'Hiểu sâu hàng hoá Nón Sơn' },
+];
 const DOANGIA_SO_CAU = 8;
 const XEPGIA_VONG = 8, KYUC_BO = 4, SANLOI_VONG = 8, GIAIMA_VONG = 5, CHUYENGIA_SO_CAU = 12;
 const DAILY_SO_CAU = 10;
@@ -591,8 +598,9 @@ export default function DauTruong() {
   const [view, setView] = useState('SANH');          // SANH | DEM | CHOI | KETQUA
   const [sanhTab, setSanhTab] = useState('CHOI');    // CHOI | LOG (admin)
   const laAdmin = user.vai_tro === 'ADMIN';
+  const CheHienTai = CHE_DO[cheDo];
   const [cheDo, setCheDo] = useState('TOCDO');
-  const [tabTop, setTabTop] = useState('TOCDO');
+  // (bỏ tabTop — bảng vàng bám game đang chọn cheDo)
   const [top, setTop] = useState(null);
   const [pool, setPool] = useState(null);
   const [hoso, setHoso] = useState(null);
@@ -642,7 +650,7 @@ export default function DauTruong() {
       : await sb.rpc('fn_thi_top', { p_che_do: cd });
     setTop(data || []);
   };
-  useEffect(() => { taiTop(tabTop); }, [tabTop]);
+  useEffect(() => { if (view === 'SANH') taiTop(cheDo); }, [cheDo, view]);
   useEffect(() => {
     if (view === 'SANH') sb.rpc('fn_thi_hoso', { p_token: user.token }).then(({ data }) => setHoso(data));
   }, [view]);   // eslint-disable-line
@@ -1086,7 +1094,7 @@ export default function DauTruong() {
       const { data, error } = await sb.rpc('fn_thi_luu', {
         p_token: user.token, p_che_do: cheDo, p_diem: d, p_so_cau: sc, p_so_dung: sd, p_combo: cm });
       if (error) baoToast('Không lưu được kết quả: ' + error.message);
-      else { setKq(data); taiTop(cheDo); setTabTop(cheDo); }
+      else { setKq(data); taiTop(cheDo); }
       dangLuu.current = false;
     }, 50);
   };
@@ -1116,30 +1124,37 @@ export default function DauTruong() {
     return (
       <div className="dt-choi">
         <div className="dt-bar">
+          <div className="dt-bar-top">
+            <div className="dt-diem-o">
+              <div className="dt-diem-nhan">ĐIỂM</div>
+              <div className="dt-diem">{diem.toLocaleString('vi')}</div>
+            </div>
+            <div className="dt-bar-badges">
+              {nhanVong ? (
+                <div className={'dt-tang' + (cheDo === 'CAOTHAP' && combo >= 5 ? ' boss' : '')}>{nhanVong}</div>
+              ) : cheDo === 'THAP' ? (
+                <div className={'dt-tang' + (laBossThap ? ' boss' : '')}>
+                  {laBossThap ? 'BOSS ' : 'TẦNG '}{tang}{!laBossThap && <span className="dt-tang-ct"> · {cauTang + 1}/3</span>}
+                </div>
+              ) : cheDo === 'DOANGIA' ? (
+                <div className="dt-tang">CÂU {Math.min(soCau + 1, DOANGIA_SO_CAU)}/{DOANGIA_SO_CAU}</div>
+              ) : (
+                <div className={'dt-cap dt-cap' + Math.min(3, Math.floor(soCau / 4))} title="Độ khó tăng dần theo tiến trình">
+                  C{Math.min(3, Math.floor(soCau / 4)) + 1}
+                </div>
+              )}
+              {combo >= 2 && <div className="dt-combo" key={combo}>×{combo}</div>}
+              {cheDo === 'SINHTON' && (
+                <div className="dt-mang">{[1, 2, 3].map((i) => <IcHeart key={i} width={17} style={{ opacity: i <= mang ? 1 : .18, color: 'var(--magenta)' }} />)}</div>
+              )}
+            </div>
+          </div>
           <div className="dt-bar-tg">
             <div className="dt-bar-fill" style={{ width: pct + '%', background: pct < 25 ? 'var(--magenta)' : 'var(--grad)' }} />
             <span className="dt-bar-txt">{coDhCau ? tgCau.toFixed(1) + 's'
               : cheDo === 'DAILY' ? `Câu ${Math.min(soCau + 1, DAILY_SO_CAU)}/${DAILY_SO_CAU}`
               : Math.ceil(tgConLai) + 's'}</span>
           </div>
-          <div className="dt-diem">{diem.toLocaleString('vi')}</div>
-          {nhanVong ? (
-            <div className={'dt-tang' + (cheDo === 'CAOTHAP' && combo >= 5 ? ' boss' : '')}>{nhanVong}</div>
-          ) : cheDo === 'THAP' ? (
-            <div className={'dt-tang' + (laBossThap ? ' boss' : '')}>
-              {laBossThap ? 'BOSS ' : 'TẦNG '}{tang}{!laBossThap && <span className="dt-tang-ct"> · {cauTang + 1}/3</span>}
-            </div>
-          ) : cheDo === 'DOANGIA' ? (
-            <div className="dt-tang">CÂU {Math.min(soCau + 1, DOANGIA_SO_CAU)}/{DOANGIA_SO_CAU}</div>
-          ) : (
-            <div className={'dt-cap dt-cap' + Math.min(3, Math.floor(soCau / 4))} title="Độ khó tăng dần theo tiến trình">
-              C{Math.min(3, Math.floor(soCau / 4)) + 1}
-            </div>
-          )}
-          {combo >= 2 && <div className="dt-combo" key={combo}>×{combo}</div>}
-          {cheDo === 'SINHTON' && (
-            <div className="dt-mang">{[1, 2, 3].map((i) => <IcHeart key={i} width={18} style={{ opacity: i <= mang ? 1 : .18, color: 'var(--magenta)' }} />)}</div>
-          )}
         </div>
 
         {cau.loai === 'XG' ? (
@@ -1368,7 +1383,7 @@ export default function DauTruong() {
         {kq && <div className="dt-kq-best">Hạng lượt này: <b>#{kq.hang}</b> · Kỷ lục của bạn: <b>{Number(kq.best).toLocaleString('vi')}</b></div>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 20 }}>
           <button className="btn btn-ai" onClick={batDau}><IcRefresh width={15} /> Chơi lại</button>
-          <button className="btn btn-ghost" onClick={() => { setView('SANH'); taiTop(tabTop); }}>Về sảnh</button>
+          <button className="btn btn-ghost" onClick={() => { setView('SANH'); taiTop(cheDo); }}>Về sảnh</button>
         </div>
       </div>
     );
@@ -1398,30 +1413,41 @@ export default function DauTruong() {
 
       {sanhTab === 'LOG' ? <NhatKy /> : sanhTab === 'GIAI' ? <GiaiDau /> : (
       <div className="dt-sanh">
-        <div>
-          <div className="dt-modes">
-            {Object.entries(CHE_DO).filter(([, cd]) => !cd.thuNghiem || laAdmin).map(([id, cd]) => (
-              <button key={id} className={'dt-mode' + (cheDo === id ? ' on' : '')} onClick={() => setCheDo(id)}>
-                <cd.Ic width={26} />
-                <div className="dt-mode-ten">{cd.ten}{cd.thuNghiem && <span className="dt-thunghiem">MỚI · ADMIN</span>}</div>
-                <div className="dt-mode-mota">{cd.mota}</div>
-              </button>
-            ))}
+        <div className="dt-sanh-trai">
+          {NHOM_GAME.map((ng) => {
+            const games = Object.entries(CHE_DO).filter(([, cd]) => cd.nhom === ng.id && (!cd.thuNghiem || laAdmin));
+            if (!games.length) return null;
+            return (
+              <div key={ng.id} className="dt-nhom">
+                <div className="dt-nhom-head">
+                  <span className="dt-nhom-ten">{ng.ten}</span>
+                  <span className="dt-nhom-mota">{ng.mota}</span>
+                </div>
+                <div className="dt-modes">
+                  {games.map(([id, cd]) => (
+                    <button key={id} className={'dt-mode' + (cheDo === id ? ' on' : '')} onClick={() => setCheDo(id)}>
+                      <div className="dt-mode-ic"><cd.Ic width={22} /></div>
+                      <div className="dt-mode-noi">
+                        <div className="dt-mode-ten">{cd.ten}{cd.thuNghiem && <span className="dt-thunghiem">MỚI</span>}</div>
+                        <div className="dt-mode-mota">{cd.mota}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="dt-sanh-phai">
+          <div className="dt-chon card">
+            <div className="dt-chon-ic"><CheHienTai.Ic width={30} /></div>
+            <div className="dt-chon-ten">{CheHienTai.ten}</div>
+            <div className="dt-chon-mota">{CheHienTai.mota}</div>
+            <button className="btn btn-ai dt-batdau" onClick={batDau}>
+              <IcFlash width={16} /> VÀO TRẬN
+            </button>
           </div>
-          <div className="dt-luat">
-            Trắc nghiệm: điểm mỗi câu = <b>100</b> + thưởng tốc độ (tối đa <b>+50</b>) × hệ số combo (tối đa <b>×2</b>).
-            <b> Leo tháp</b>: điểm câu + thưởng <b>100×tầng</b> khi trọn tầng, hạ BOSS +<b>600×</b> mốc.
-            <b> Đoán giá</b>: sát ≤2% được <b>300</b>, lệch quá 18% mất trắng.
-            <b> Phản xạ</b>: đúng +25 nhân combo tới <b>×2.5</b>, sai −15.
-            <b> Xếp giá</b>: mỗi vị trí đúng +40, trọn vòng +60.
-            <b> Ký ức</b>: +120/câu nhớ đúng. <b>Săn lỗi</b>: +120 & thưởng tốc độ, bấm nhầm −30.
-            <b> Cao–Thấp</b>: +50 + 5×chuỗi, sai là đứt. <b>Giải mã</b>: đoán sớm 400 → muộn 80, sai −50.
-            <b> Chuyên gia</b>: câu hỏi kiến thức nội bộ, có giải thích sau mỗi câu.
-            Câu hỏi sinh ngẫu nhiên từ dữ liệu thật: giá niêm yết, nhận diện hình, ngành hàng, so sánh giá.
-          </div>
-          <button className="btn btn-ai dt-batdau" onClick={batDau}>
-            <IcFlash width={16} /> VÀO TRẬN — {CHE_DO[cheDo].ten}
-          </button>
 
           {hoso && hoso.luot > 0 && (
             <div className="card dt-hoso">
@@ -1443,35 +1469,29 @@ export default function DauTruong() {
               )}
             </div>
           )}
-        </div>
 
-        <div className="card dt-top">
-          <div className="dt-top-head">
-            <IcTrophy width={18} style={{ color: 'var(--gold)' }} />
-            <span>Bảng vàng Top 10</span>
-          </div>
-          <div className="nhom-tabs nhom-deu" style={{ margin: '10px 0' }}>
-            {Object.entries(CHE_DO).filter(([, cd]) => !cd.thuNghiem || laAdmin).map(([id, cd]) => (
-              <button key={id} className={'nhom-tab' + (tabTop === id ? ' on' : '')} style={{ height: 34, padding: '0 6px', fontSize: 11.5 }}
-                onClick={() => setTabTop(id)}>{cd.ten}</button>
-            ))}
-          </div>
-          {!top ? <div className="dt-top-trong">Đang tải…</div>
-            : top.length === 0 ? <div className="dt-top-trong">Chưa có ai ghi danh — hãy là người đầu tiên!</div>
-            : (
-              <div className="dt-top-list">
-                {top.map((r, i) => (
-                  <div key={r.ma_nguoi} className={'dt-top-item' + (r.ma_nguoi === user.ma_dang_nhap ? ' toi' : '') + (i < 3 ? ' top3' : '')}>
-                    <span className={'dt-hang h' + (i + 1)}>{i + 1}</span>
-                    <div className="dt-top-ten">
-                      <div>{r.ten_nguoi}</div>
-                      <div className="dt-top-sub">{r.ma_ch || r.ma_nguoi} · đúng {r.so_dung}/{r.so_cau} · combo ×{r.combo_max}</div>
+          <div className="card dt-top">
+            <div className="dt-top-head">
+              <IcTrophy width={18} style={{ color: 'var(--gold)' }} />
+              <span>Bảng vàng · {CheHienTai.ten}</span>
+            </div>
+            {!top ? <div className="dt-top-trong">Đang tải…</div>
+              : top.length === 0 ? <div className="dt-top-trong">Chưa có ai ghi danh — hãy là người đầu tiên!</div>
+              : (
+                <div className="dt-top-list">
+                  {top.map((r, i) => (
+                    <div key={r.ma_nguoi} className={'dt-top-item' + (r.ma_nguoi === user.ma_dang_nhap ? ' toi' : '') + (i < 3 ? ' top3' : '')}>
+                      <span className={'dt-hang h' + (i + 1)}>{i + 1}</span>
+                      <div className="dt-top-ten">
+                        <div>{r.ten_nguoi}</div>
+                        <div className="dt-top-sub">{r.ma_ch || r.ma_nguoi} · đúng {r.so_dung}/{r.so_cau} · combo ×{r.combo_max}</div>
+                      </div>
+                      <b className="dt-top-diem">{Number(r.diem).toLocaleString('vi')}</b>
                     </div>
-                    <b className="dt-top-diem">{Number(r.diem).toLocaleString('vi')}</b>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+          </div>
         </div>
       </div>
       )}
