@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb, rpcHet } from '../lib/supabase.js';
-import { IcTrophy, IcFlash, IcTarget, IcHeart, IcRefresh, IcPulse, IcTower, IcTag, IcSort, IcBrain, IcAlert, IcScale, IcPuzzle } from '../lib/icons.jsx';
+import { IcTrophy, IcFlash, IcTarget, IcHeart, IcRefresh, IcPulse, IcTower, IcTag, IcSort, IcBrain, IcAlert, IcScale, IcPuzzle, IcSpark } from '../lib/icons.jsx';
 import { DateBox, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
@@ -22,9 +22,10 @@ const CHE_DO = {
   SANLOI:   { ten: 'Săn lỗi',    Ic: IcAlert,  giay: 0,   thuNghiem: true, mota: 'Phiếu 4 dòng sản phẩm + giá, ĐÚNG 1 dòng gắn sai giá — tìm ra trong 12 giây. Nghiệp vụ soát phiếu thật.' },
   CAOTHAP:  { ten: 'Cao – Thấp', Ic: IcScale,  giay: 0,   thuNghiem: true, mota: 'Chuỗi vô hạn — biết giá mốc, đoán sản phẩm kế CAO hay THẤP hơn. Đúng thành mốc mới, SAI LÀ ĐỨT CHUỖI.' },
   GIAIMA:   { ten: 'Giải mã',    Ic: IcPuzzle, giay: 0,   thuNghiem: true, mota: '5 vụ án — manh mối mở dần (ngành, khoảng giá, dòng mã, ảnh mờ). Đoán càng SỚM điểm càng cao: 400 → 80.' },
+  CHUYENGIA:{ ten: 'Chuyên gia', Ic: IcSpark,  giay: 0,   thuNghiem: true, mota: '12 câu từ KHO KIẾN THỨC nội bộ (chất liệu, bảo quản, tư vấn…). Trả lời xong hiện GIẢI THÍCH — vừa thi vừa học.' },
 };
 const DOANGIA_SO_CAU = 8;
-const XEPGIA_VONG = 8, KYUC_BO = 4, SANLOI_VONG = 8, GIAIMA_VONG = 5;
+const XEPGIA_VONG = 8, KYUC_BO = 4, SANLOI_VONG = 8, GIAIMA_VONG = 5, CHUYENGIA_SO_CAU = 12;
 const DAILY_SO_CAU = 10;
 const HUY_HIEU = {
   TAN_BINH:   { ten: 'Tân binh',      mota: 'Hoàn thành lượt thi đầu tiên' },
@@ -625,6 +626,7 @@ export default function DauTruong() {
   const tangRef = useRef(1);                          // LEO THÁP: tầng đồng bộ tức thì (tránh trễ closure)
   const vongRef = useRef(0);                          // vòng đồng bộ tức thì
   const ctMocRef = useRef(null);                      // CAO-THẤP: mốc đồng bộ
+  const ktDe = useRef([]);                            // CHUYÊN GIA: đề từ kho kiến thức
   const daCau = useRef(new Set());     // chữ ký câu đã ra — không lặp trong ván
   const lichSuCau = useRef(loadLichSu());   // câu đã ra các VÁN GẦN ĐÂY (localStorage) — tránh lặp giữa ván
   const cauVanNay = useRef(new Set());      // chỉ câu MỚI sinh trong ván này (để lưu vào lịch sử)
@@ -647,6 +649,31 @@ export default function DauTruong() {
 
   // ---- bắt đầu lượt ----
   const batDau = async () => {
+    // ===== CHUYÊN GIA: đề từ KHO KIẾN THỨC (schema kienthuc) =====
+    if (cheDo === 'CHUYENGIA') {
+      const { data, error } = await sb.schema('kienthuc').rpc('fn_ra_de', { p_so_cau: CHUYENGIA_SO_CAU });
+      if (error) { baoToast('Chưa nối được kho kiến thức: ' + error.message); return; }
+      const tho = Array.isArray(data) ? data : [];
+      // chuẩn hóa: tách nhãn "A. " khỏi nội dung, xáo đáp án, tìm đáp án đúng theo nhãn HOẶC nội dung
+      const de = tho.map((c) => {
+        const dsTho = Array.isArray(c.dap_an) ? c.dap_an : [];
+        const dung = String(c.dap_an_dung || '').trim();
+        const ds = dsTho.map((d) => {
+          const m = String(d).match(/^([A-Da-d])[.)]\s*(.+)$/);
+          const nhan = m ? m[2].trim() : String(d).trim();
+          const laDung = m ? m[1].toUpperCase() === dung.toUpperCase() || nhan === dung : nhan === dung;
+          return { nhan, dung: laDung };
+        });
+        if (!ds.some((d) => d.dung) || ds.length < 2) return null;   // câu hỏng -> bỏ
+        return { loai: 'KT', hoi: c.cau_hoi, dapAn: xao(ds), giaiThich: c.giai_thich, chuDe: c.chu_de };
+      }).filter(Boolean);
+      if (de.length < 5) { baoToast('Kho kiến thức chưa đủ câu hỏi hợp lệ (cần ≥5, đang có ' + de.length + '). Anh nạp thêm trên Sheet rồi đồng bộ nhé.'); return; }
+      ktDe.current = de;
+      setDiem(0); setSoCau(0); setSoDung(0); setCombo(0); setComboMax(0); setChon(null); setKq(null);
+      setPool([{ barcode: '_KT' }]);   // pool giả để vòng đời câu chạy
+      setDem(3); dangChoi.current = true; setView('DEM');
+      return;
+    }
     if (cheDo === 'DAILY') {
       const { data: daThi } = await sb.rpc('fn_thi_daily_da_thi', { p_token: user.token });
       if (daThi) { baoToast('Hôm nay bạn đã thi Thử thách ngày — quay lại ngày mai'); return; }
@@ -702,7 +729,7 @@ export default function DauTruong() {
 
   // đồng hồ mỗi câu — timestamp thật (mọi chế độ có giờ theo câu)
   useEffect(() => {
-    const coDongHoCau = ['SINHTON', 'THAP', 'PHANXA', 'DOANGIA', 'XEPGIA', 'KYUC', 'SANLOI', 'CAOTHAP', 'GIAIMA'].includes(cheDo);
+    const coDongHoCau = ['SINHTON', 'THAP', 'PHANXA', 'DOANGIA', 'XEPGIA', 'KYUC', 'SANLOI', 'CAOTHAP', 'GIAIMA', 'CHUYENGIA'].includes(cheDo);
     if (view !== 'CHOI' || !coDongHoCau || chon !== null) return;
     const hetLuc = Date.now() + tgCau * 1000;
     tCauRef.current = setInterval(() => {
@@ -729,6 +756,14 @@ export default function DauTruong() {
   }, [view]);   // eslint-disable-line
 
   const cauMoi = () => {
+    // ===== CHUYÊN GIA: câu kế trong đề kiến thức, 20s =====
+    if (cheDo === 'CHUYENGIA') {
+      const c = ktDe.current[soCau];
+      if (!c) { ketThuc(); return; }
+      setCau(c); setChon(null); setTgCau(20);
+      batDauCau.current = Date.now();
+      return;
+    }
     // ===== XẾP GIÁ: vòng 4 SP, 20s =====
     if (cheDo === 'XEPGIA') {
       if (vongRef.current >= XEPGIA_VONG) { ketThuc(); return; }
@@ -891,10 +926,12 @@ export default function DauTruong() {
         });
       }
     }
-    if (cheDo === 'DAILY' && soCau + 1 >= DAILY_SO_CAU) {
-      setTimeout(() => ketThuc(), 600);
+    if ((cheDo === 'DAILY' && soCau + 1 >= DAILY_SO_CAU)
+        || (cheDo === 'CHUYENGIA' && soCau + 1 >= ktDe.current.length)) {
+      setTimeout(() => ketThuc(), cheDo === 'CHUYENGIA' ? 2000 : 600);
     } else {
-      setTimeout(() => { if (dangChoi.current) cauMoi(); }, 550);
+      // CHUYÊN GIA: chờ lâu hơn để đọc GIẢI THÍCH trước khi sang câu
+      setTimeout(() => { if (dangChoi.current) cauMoi(); }, cheDo === 'CHUYENGIA' ? 2200 : 550);
     }
   };
 
@@ -1065,13 +1102,14 @@ export default function DauTruong() {
     const tgCauMax = cheDo === 'SINHTON' ? 7 : cheDo === 'PHANXA' ? 3 : cheDo === 'DOANGIA' ? 15
       : cheDo === 'THAP' ? (laBossThap ? 10 : Math.max(3.5, 8 - 0.5 * (tang - 1)))
       : cheDo === 'XEPGIA' ? 20 : cheDo === 'KYUC' ? (kyPha === 'NHIN' ? 6 : 10)
-      : cheDo === 'SANLOI' ? 12 : cheDo === 'CAOTHAP' ? 8 : cheDo === 'GIAIMA' ? 30 : 7;
-    const coDhCau = ['SINHTON', 'THAP', 'PHANXA', 'DOANGIA', 'XEPGIA', 'KYUC', 'SANLOI', 'CAOTHAP', 'GIAIMA'].includes(cheDo);
+      : cheDo === 'SANLOI' ? 12 : cheDo === 'CAOTHAP' ? 8 : cheDo === 'GIAIMA' ? 30 : cheDo === 'CHUYENGIA' ? 20 : 7;
+    const coDhCau = ['SINHTON', 'THAP', 'PHANXA', 'DOANGIA', 'XEPGIA', 'KYUC', 'SANLOI', 'CAOTHAP', 'GIAIMA', 'CHUYENGIA'].includes(cheDo);
     const nhanVong = cheDo === 'XEPGIA' ? `VÒNG ${Math.min(vong + 1, XEPGIA_VONG)}/${XEPGIA_VONG}`
       : cheDo === 'KYUC' ? `KỆ ${Math.min(vong + 1, KYUC_BO)}/${KYUC_BO}${kyPha === 'HOI' ? ` · CÂU ${kyCau + 1}/3` : ''}`
       : cheDo === 'SANLOI' ? `PHIẾU ${Math.min(vong + 1, SANLOI_VONG)}/${SANLOI_VONG}`
       : cheDo === 'CAOTHAP' ? `CHUỖI ×${combo}`
-      : cheDo === 'GIAIMA' ? `VỤ ${Math.min(vong + 1, GIAIMA_VONG)}/${GIAIMA_VONG}` : null;
+      : cheDo === 'GIAIMA' ? `VỤ ${Math.min(vong + 1, GIAIMA_VONG)}/${GIAIMA_VONG}`
+      : cheDo === 'CHUYENGIA' ? `CÂU ${Math.min(soCau + 1, ktDe.current.length)}/${ktDe.current.length}` : null;
     const pct = coDhCau ? (tgCau / tgCauMax) * 100
       : cheDo === 'DAILY' ? ((DAILY_SO_CAU - soCau) / DAILY_SO_CAU) * 100
       : (tgConLai / CD.giay) * 100;
@@ -1301,6 +1339,9 @@ export default function DauTruong() {
                 </button>
               ))}
             </div>
+            {cau.loai === 'KT' && chon !== null && cau.giaiThich && (
+              <div className="dt-kt-giai dt-vao"><b>Giải thích:</b> {cau.giaiThich}</div>
+            )}
           </>
         )}
         </div>
@@ -1375,6 +1416,7 @@ export default function DauTruong() {
             <b> Xếp giá</b>: mỗi vị trí đúng +40, trọn vòng +60.
             <b> Ký ức</b>: +120/câu nhớ đúng. <b>Săn lỗi</b>: +120 & thưởng tốc độ, bấm nhầm −30.
             <b> Cao–Thấp</b>: +50 + 5×chuỗi, sai là đứt. <b>Giải mã</b>: đoán sớm 400 → muộn 80, sai −50.
+            <b> Chuyên gia</b>: câu hỏi kiến thức nội bộ, có giải thích sau mỗi câu.
             Câu hỏi sinh ngẫu nhiên từ dữ liệu thật: giá niêm yết, nhận diện hình, ngành hàng, so sánh giá.
           </div>
           <button className="btn btn-ai dt-batdau" onClick={batDau}>

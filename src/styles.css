@@ -2499,3 +2499,5 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .dt-gm-mo { filter: blur(9px) saturate(.7); }
 .dt-gm-them { margin-top: 6px; }
 .dt-gm-luoi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.dt-kt-giai { margin-top: 12px; background: #FBF7EC; border-left: 3px solid var(--gold);
+  border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--ink); line-height: 1.5; }
