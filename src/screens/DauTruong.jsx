@@ -598,8 +598,8 @@ export default function DauTruong() {
   const [view, setView] = useState('SANH');          // SANH | DEM | CHOI | KETQUA
   const [sanhTab, setSanhTab] = useState('CHOI');    // CHOI | LOG (admin)
   const laAdmin = user.vai_tro === 'ADMIN';
-  const CheHienTai = CHE_DO[cheDo];
   const [cheDo, setCheDo] = useState('TOCDO');
+  const CheHienTai = CHE_DO[cheDo];
   // (bỏ tabTop — bảng vàng bám game đang chọn cheDo)
   const [top, setTop] = useState(null);
   const [pool, setPool] = useState(null);
