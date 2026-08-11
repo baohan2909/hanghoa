@@ -77,6 +77,22 @@ export default function ChiaHangMoi() {
 
   const capNhat = (id, patch) => setDong((ds) => ds.map((d) => d.id === id ? { ...d, ...patch } : d));
 
+  // Copy CẤU HÌNH NHÓM của 1 dòng đã chia -> dòng mới (nhập mã mới, khỏi chọn lại nhóm)
+  const copyNhom = (d) => {
+    const moi = {
+      ...dongMoi(),
+      phamVi: d.phamVi,          // phạm vi/nhóm cửa hàng đã chọn
+      chiaMin: d.chiaMin, chiaMax: d.chiaMax,
+      nganh3: d.thamChieu ? '' : d.nganh3,   // giữ cách chia (tham chiếu hoặc ngành)
+      thamChieu: d.thamChieu, qTC: d.thamChieu ? d.qTC : '',
+    };
+    setDong((ds) => {
+      const i = ds.findIndex((x) => x.id === d.id);
+      const out = [...ds]; out.splice(i + 1, 0, moi); return out;   // chèn ngay dưới dòng vừa copy
+    });
+    baoToast('Đã tạo mã mới giữ nguyên nhóm — chỉ cần nhập mã và số lượng.');
+  };
+
   const goTim = (id, field, v) => {
     capNhat(id, field === 'sp' ? { q: v, sp: null } : { qTC: v, thamChieu: null });
     const key = id + field;
@@ -436,6 +452,7 @@ export default function ChiaHangMoi() {
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               {!d.ct && <button className="btn btn-primary" disabled={busy} onClick={() => chiaDong(d)}>Chia</button>}
+              {d.ct && <button className="btn-mini btn-teal" onClick={() => copyNhom(d)} title="Tạo mã mới giữ nguyên nhóm cửa hàng đã chọn">＋ Mã mới cùng nhóm</button>}
               {dong.length > 1 && <button className="btn-mini btn-danger" onClick={() => setDong((ds) => ds.filter((x) => x.id !== d.id))}>－</button>}
             </div>
           </div>
