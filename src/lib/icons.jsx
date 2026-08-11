@@ -28,3 +28,6 @@ export const IcSort    = (p) => <I d="M4 6h16 M4 12h11 M4 18h6" {...p} />;
 export const IcBrain   = (p) => <I d="M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-1 5.8V15a3 3 0 0 0 3 3h1V4z M15 4a3 3 0 0 1 3 3v1a3 3 0 0 1 1 5.8V15a3 3 0 0 1-3 3h-1V4z M12 4v14" {...p} />;
 export const IcScale   = (p) => <I d="M12 3v18 M8 21h8 M12 6 5 8l2.5 5a3 3 0 0 1-5 0L5 8 M12 6l7 2-2.5 5a3 3 0 0 0 5 0L19 8" {...p} />;
 export const IcPuzzle  = (p) => <I d="M10 3h4v3a2 2 0 1 0 4 0h3v4h-3a2 2 0 1 0 0 4h3v4h-4v-3a2 2 0 1 0-4 0v3H6v-4H3v-4h3a2 2 0 1 0 0-4H3V3h7z" {...p} />;
+export const IcChat2   = (p) => <I d="M21 12a8 8 0 0 1-8 8H4l2.5-2.5A8 8 0 1 1 21 12z M8 10h8 M8 13.5h5" {...p} />;
+export const IcGrid    = (p) => <I d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z" {...p} />;
+export const IcTool    = (p) => <I d="M14.5 6.5a4 4 0 0 0-5.6 4.9L3 17.3V21h3.7l5.9-5.9a4 4 0 0 0 4.9-5.6l-2.8 2.8-2.5-.7-.7-2.5 2.9-2.6z" {...p} />;

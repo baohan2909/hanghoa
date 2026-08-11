@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb, rpcHet } from '../lib/supabase.js';
-import { IcTrophy, IcFlash, IcTarget, IcHeart, IcRefresh, IcPulse, IcTower, IcTag, IcSort, IcBrain, IcAlert, IcScale, IcPuzzle, IcSpark } from '../lib/icons.jsx';
+import { IcTrophy, IcFlash, IcTarget, IcHeart, IcRefresh, IcPulse, IcTower, IcTag, IcSort, IcBrain, IcAlert, IcScale, IcPuzzle, IcSpark, IcChat2, IcGrid, IcTool } from '../lib/icons.jsx';
 import { DateBox, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
@@ -22,7 +22,10 @@ const CHE_DO = {
   SANLOI:   { ten: 'Săn lỗi', nhom: 'gia',    Ic: IcAlert,  giay: 0,   thuNghiem: true, mota: 'Phiếu 4 dòng sản phẩm + giá, ĐÚNG 1 dòng gắn sai giá — tìm ra trong 12 giây. Nghiệp vụ soát phiếu thật.' },
   CAOTHAP:  { ten: 'Cao – Thấp', nhom: 'gia', Ic: IcScale,  giay: 0,   thuNghiem: true, mota: 'Chuỗi vô hạn — biết giá mốc, đoán sản phẩm kế CAO hay THẤP hơn. Đúng thành mốc mới, SAI LÀ ĐỨT CHUỖI.' },
   GIAIMA:   { ten: 'Giải mã', nhom: 'suyluan',    Ic: IcPuzzle, giay: 0,   thuNghiem: true, mota: '5 vụ án — manh mối mở dần (ngành, khoảng giá, dòng mã, ảnh mờ). Đoán càng SỚM điểm càng cao: 400 → 80.' },
-  CHUYENGIA:{ ten: 'Chuyên gia', nhom: 'kienthuc', Ic: IcSpark,  giay: 0,   thuNghiem: true, mota: '12 câu từ KHO KIẾN THỨC nội bộ (chất liệu, bảo quản, tư vấn…). Trả lời xong hiện GIẢI THÍCH — vừa thi vừa học.' },
+  CHUYENGIA:{ ten: 'Chuyên gia', nhom: 'kienthuc', Ic: IcSpark,  giay: 0,   thuNghiem: true, mota: '12 câu TỰ SINH từ kho kiến thức sản phẩm — chất liệu, cách giặt, vật liệu bảo hiểm. Có GIẢI THÍCH sau mỗi câu.' },
+  TUVAN:    { ten: 'Tư vấn khách', nhom: 'kienthuc', Ic: IcChat2, giay: 0,  thuNghiem: true, mota: 'Khách ảo bước vào với NHU CẦU THẬT — chọn đúng sản phẩm phù hợp, rồi trả lời câu chăm sóc. Mô phỏng bán hàng thực chiến.' },
+  XUONG:    { ten: 'Xưởng lắp ráp', nhom: 'kienthuc', Ic: IcTool, giay: 0,  thuNghiem: true, mota: 'Lắp nón bảo hiểm ĐÚNG VẬT LIỆU từng bộ phận. Chuẩn cả 4 bộ phận là XUẤT XƯỞNG — thưởng lớn.' },
+  GHEPCAP:  { ten: 'Ghép cặp', nhom: 'suyluan', Ic: IcGrid, giay: 120, thuNghiem: true, mota: 'Lật thẻ ghép MÃ SẢN PHẨM với đúng thuộc tính của nó trong 120 giây. Lật càng ít, điểm càng cao.' },
 };
 const NHOM_GAME = [
   { id: 'nhanh',    ten: 'Tốc độ & phản xạ',  mota: 'Nhanh tay nhanh mắt' },
@@ -32,7 +35,7 @@ const NHOM_GAME = [
   { id: 'kienthuc', ten: 'Kiến thức sản phẩm', mota: 'Hiểu sâu hàng hoá Nón Sơn' },
 ];
 const DOANGIA_SO_CAU = 8;
-const XEPGIA_VONG = 8, KYUC_BO = 4, SANLOI_VONG = 8, GIAIMA_VONG = 5, CHUYENGIA_SO_CAU = 12;
+const XEPGIA_VONG = 8, KYUC_BO = 4, SANLOI_VONG = 8, GIAIMA_VONG = 5, CHUYENGIA_SO_CAU = 12, TUVAN_SO_KHACH = 5, XUONG_SO_NON = 4, GHEPCAP_SO_BAN = 2;
 const DAILY_SO_CAU = 10;
 const HUY_HIEU = {
   TAN_BINH:   { ten: 'Tân binh',      mota: 'Hoàn thành lượt thi đầu tiên' },
@@ -593,6 +596,166 @@ function sinhVongGM(pool, daDung) {
   }
   return null;
 }
+// ===== KIẾN THỨC THÔ -> TỰ SINH CÂU (Chuyên gia v2) =====
+function fmtGiaKT(g) {
+  const t = String(g || '').trim();
+  return /^\d{2,6}$/.test(t) ? fmtVND(Number(t) * 1000) : t;   // sheet ghi đơn vị nghìn
+}
+function sinhCauKienThuc(pool, daKy) {
+  if (!pool || !pool.length) return null;
+  for (let lan = 0; lan < 40; lan++) {
+    const m = pool[Math.floor(Math.random() * pool.length)];
+    const d = m.du_lieu || {};
+    const giai = cat300(m.noi_dung);
+    // ----- NÓN: chất liệu / cách giặt / giá / phụ kiện -----
+    if (d.loai === 'NON' && d.ma) {
+      const dang = ['CL', 'GIAT', 'GIA', 'PK'][Math.floor(Math.random() * 4)];
+      const ky = 'KT_' + m.ma + '_' + dang;
+      if (daKy.has(ky)) continue;
+      if (dang === 'CL' && d.cl) {
+        const nh = nhieuKT(pool, (x) => x.du_lieu?.loai === 'NON' && x.du_lieu.cl, (x) => x.du_lieu.cl, d.cl);
+        if (nh.length === 3) { daKy.add(ky); return cauKT(`Chất liệu chính của mã ${d.ma} là gì?`, d.cl, nh, giai); }
+      }
+      if (dang === 'GIAT' && d.giat) {
+        const nh = ['Giặt tay nhẹ với nước', 'Giặt hấp', 'Giặt khô', 'Chỉ lau bằng khăn ẩm, không giặt nước'].filter((x) => x !== d.giat).slice(0, 3);
+        if (nh.length === 3) { daKy.add(ky); return cauKT(`Mã ${d.ma} nên được vệ sinh thế nào?`, d.giat, nh, giai); }
+      }
+      if (dang === 'GIA' && d.gia) {
+        const nh = nhieuKT(pool, (x) => x.du_lieu?.loai === 'NON' && x.du_lieu.gia, (x) => fmtGiaKT(x.du_lieu.gia), fmtGiaKT(d.gia));
+        if (nh.length === 3) { daKy.add(ky); return cauKT(`Mã ${d.ma} có giá niêm yết bao nhiêu?`, fmtGiaKT(d.gia), nh, giai); }
+      }
+      if (dang === 'PK' && d.pk && d.pk.length > 4) {
+        const nh = nhieuKT(pool, (x) => x.du_lieu?.loai === 'NON' && x.du_lieu.pk && x.du_lieu.pk.length > 4, (x) => x.du_lieu.pk, d.pk);
+        if (nh.length === 3) { daKy.add(ky); return cauKT(`Phụ kiện / trang trí của mã ${d.ma} là gì?`, d.pk, nh, giai); }
+      }
+      continue;
+    }
+    // ----- BẢO HIỂM vật liệu -----
+    if (d.loai === 'BH_VL' && d.bo_phan && d.gia_tri) {
+      const ky = 'KT_' + m.ma;
+      if (daKy.has(ky)) continue;
+      let nh = nhieuKT(pool, (x) => x.du_lieu?.loai === 'BH_VL' && chuanKT(x.du_lieu.bo_phan) === chuanKT(d.bo_phan), (x) => x.du_lieu.gia_tri, d.gia_tri);
+      if (nh.length < 3) nh = nh.concat(nhieuKT(pool, (x) => x.du_lieu?.loai === 'BH_VL', (x) => x.du_lieu.gia_tri, d.gia_tri).filter((v) => !nh.includes(v)).slice(0, 3 - nh.length));
+      if (nh.length === 3) { daKy.add(ky); return cauKT(`Ở nón bảo hiểm loại ${d.loai_bh}, bộ phận ${d.bo_phan} được làm từ gì?`, d.gia_tri, nh, giai); }
+      continue;
+    }
+    // ----- BẢO HIỂM chi tiết: vai trò (đảo chiều) / thành phần -----
+    if (d.loai === 'BH_CT' && d.bo_phan) {
+      const dang = d.vai_tro && Math.random() < 0.55 ? 'VT' : 'TP';
+      const ky = 'KT_' + m.ma + '_' + dang;
+      if (daKy.has(ky)) continue;
+      if (dang === 'VT' && d.vai_tro) {
+        const nh = nhieuKT(pool, (x) => x.du_lieu?.loai === 'BH_CT', (x) => x.du_lieu.bo_phan, d.bo_phan);
+        if (nh.length === 3) { daKy.add(ky); return cauKT(`Bộ phận nào của nón bảo hiểm có vai trò: "${d.vai_tro}"?`, d.bo_phan, nh, giai); }
+      }
+      if (dang === 'TP' && d.thanh_phan) {
+        const nh = nhieuKT(pool, (x) => x.du_lieu?.loai === 'BH_CT' && x.du_lieu.thanh_phan, (x) => x.du_lieu.thanh_phan, d.thanh_phan);
+        if (nh.length === 3) { daKy.add(ky); return cauKT(`Bộ phận ${d.bo_phan} của nón bảo hiểm dùng thành phần gì?`, d.thanh_phan, nh, giai); }
+      }
+    }
+  }
+  return null;
+}
+function cauKT(hoi, dung, nhieu, giai) {
+  return { loai: 'KT', hoi, giaiThich: giai, dapAn: xao([{ nhan: dung, dung: true }, ...nhieu.map((n) => ({ nhan: n, dung: false }))]) };
+}
+function nhieuKT(pool, loc, lay, dung) {
+  const kq = [], da = new Set([chuanKT(dung)]);
+  for (const x of xao(pool.filter(loc))) {
+    const v = lay(x);
+    if (!v || da.has(chuanKT(v))) continue;
+    da.add(chuanKT(v)); kq.push(v);
+    if (kq.length === 3) break;
+  }
+  return kq;
+}
+function chuanKT(s) { return String(s || '').trim().toUpperCase().replace(/\s+/g, ' '); }
+function cat300(s) { s = String(s || '').trim(); return s.length > 300 ? s.slice(0, 299) + '…' : s; }
+
+// ===== TƯ VẤN KHÁCH: sinh khách + 6 lựa chọn (đúng duy nhất theo tiêu chí) =====
+const TV_TEN_KHACH = ['Chị Lan', 'Anh Minh', 'Cô Hoa', 'Chú Tùng', 'Bạn Vy', 'Chị Ngọc', 'Anh Khoa', 'Cô Mai'];
+function sinhKhachTV(pool, daKy) {
+  const nons = pool.filter((x) => x.du_lieu?.loai === 'NON' && x.du_lieu.ma && x.du_lieu.gia && /^\d{2,6}$/.test(String(x.du_lieu.gia).trim()));
+  if (nons.length < 8) return null;
+  for (let lan = 0; lan < 30; lan++) {
+    const dich = nons[Math.floor(Math.random() * nons.length)];
+    if (daKy.has('TV_' + dich.ma)) continue;
+    const dd = dich.du_lieu, giaD = Number(dd.gia);
+    const coCL = dd.cl && Math.random() < 0.6;
+    // nhiễu: vi phạm ít nhất 1 tiêu chí (khác loại nón, hoặc giá lệch >35%, hoặc khác chất liệu khi có tiêu chí CL)
+    const nhieu = xao(nons.filter((x) => {
+      if (x.ma === dich.ma) return false;
+      const d2 = x.du_lieu, g2 = Number(d2.gia);
+      const saiLoai = d2.chu_de !== dd.chu_de;
+      const saiGia = Math.abs(g2 - giaD) / giaD > 0.35;
+      const saiCL = coCL && chuanKT(d2.cl) !== chuanKT(dd.cl);
+      return saiLoai || saiGia || saiCL;
+    })).slice(0, 5);
+    if (nhieu.length < 5) continue;
+    daKy.add('TV_' + dich.ma);
+    const tieuChi = [
+      'muốn mua ' + dd.chu_de.toLowerCase(),
+      'tầm giá khoảng ' + fmtGiaKT(dd.gia),
+    ];
+    if (coCL) tieuChi.push('thích chất liệu ' + dd.cl.toLowerCase());
+    return {
+      loai: 'TV', buoc: 1,
+      khach: TV_TEN_KHACH[Math.floor(Math.random() * TV_TEN_KHACH.length)],
+      tieuChi, dich,
+      luaChon: xao([dich, ...nhieu]),
+      giatDung: dd.giat || null,
+    };
+  }
+  return null;
+}
+
+// ===== GHÉP CẶP: 6 cặp mã <-> thuộc tính =====
+function sinhBanGC(pool, daKy) {
+  const nons = xao(pool.filter((x) => x.du_lieu?.loai === 'NON' && x.du_lieu.ma && !daKy.has('GC_' + x.du_lieu.ma)
+    && (x.du_lieu.cl || /^\d{2,6}$/.test(String(x.du_lieu.gia || '').trim()))));
+  const chon = [];
+  const daTT = new Set();
+  for (const x of nons) {
+    const d = x.du_lieu;
+    // thuộc tính: ưu tiên chất liệu, thiếu thì giá — PHẢI khác nhau trong bàn (tránh 2 đáp án đúng)
+    const tt = d.cl && !daTT.has(chuanKT(d.cl)) ? d.cl
+      : (/^\d{2,6}$/.test(String(d.gia || '').trim()) && !daTT.has(chuanKT(fmtGiaKT(d.gia))) ? fmtGiaKT(d.gia) : null);
+    if (!tt) continue;
+    daTT.add(chuanKT(tt));
+    chon.push({ ma: d.ma, tt });
+    if (chon.length === 6) break;
+  }
+  if (chon.length < 6) return null;
+  chon.forEach((c) => daKy.add('GC_' + c.ma));
+  const the = [];
+  chon.forEach((c, i) => {
+    the.push({ id: i * 2, capId: i, kieu: 'MA', text: c.ma, mo: false, xong: false });
+    the.push({ id: i * 2 + 1, capId: i, kieu: 'TT', text: c.tt, mo: false, xong: false });
+  });
+  return xao(the).map((t, i) => ({ ...t, viTri: i }));
+}
+
+// ===== XƯỞNG LẮP RÁP: 1 loại BH + 4 bộ phận, mỗi bộ phận 3 lựa chọn =====
+function sinhNonXL(pool, daKy) {
+  const vls = pool.filter((x) => x.du_lieu?.loai === 'BH_VL' && x.du_lieu.loai_bh && x.du_lieu.bo_phan && x.du_lieu.gia_tri);
+  if (vls.length < 8) return null;
+  // gom theo loại
+  const theoLoai = {};
+  vls.forEach((x) => { (theoLoai[x.du_lieu.loai_bh] = theoLoai[x.du_lieu.loai_bh] || []).push(x.du_lieu); });
+  const loais = xao(Object.keys(theoLoai).filter((l) => theoLoai[l].length >= 4 && !daKy.has('XL_' + l)));
+  if (!loais.length) { daKy.clear(); return null; }
+  const loai = loais[0];
+  daKy.add('XL_' + loai);
+  const hangs = xao(theoLoai[loai]).slice(0, 4).map((d) => {
+    // nhiễu: giá trị của CÙNG bộ phận ở loại khác; thiếu thì bộ phận khác
+    let nh = nhieuKT(vls, (x) => chuanKT(x.du_lieu.bo_phan) === chuanKT(d.bo_phan) && x.du_lieu.loai_bh !== loai, (x) => x.du_lieu.gia_tri, d.gia_tri).slice(0, 2);
+    if (nh.length < 2) nh = nh.concat(nhieuKT(vls, (x) => x.du_lieu.loai_bh !== loai, (x) => x.du_lieu.gia_tri, d.gia_tri).filter((v) => !nh.includes(v)).slice(0, 2 - nh.length));
+    if (nh.length < 2) return null;
+    return { bo_phan: d.bo_phan, luaChon: xao([{ text: d.gia_tri, dung: true }, ...nh.map((v) => ({ text: v, dung: false }))]) };
+  }).filter(Boolean);
+  if (hangs.length < 4) return null;
+  return { loai: 'XL', loaiBH: loai, gia: (theoLoai[loai][0] || {}).gia || '', hangs };
+}
 export default function DauTruong() {
   const { user, baoToast } = useApp();
   const [view, setView] = useState('SANH');          // SANH | DEM | CHOI | KETQUA
@@ -634,7 +797,12 @@ export default function DauTruong() {
   const tangRef = useRef(1);                          // LEO THÁP: tầng đồng bộ tức thì (tránh trễ closure)
   const vongRef = useRef(0);                          // vòng đồng bộ tức thì
   const ctMocRef = useRef(null);                      // CAO-THẤP: mốc đồng bộ
-  const ktDe = useRef([]);                            // CHUYÊN GIA: đề từ kho kiến thức
+  const ktPool = useRef([]);                          // kho KIẾN THỨC THÔ (Chuyên gia/Tư vấn/Xưởng/Ghép cặp)
+  const [gcThe, setGcThe] = useState([]);             // GHÉP CẶP: bộ thẻ
+  const [gcLat, setGcLat] = useState([]);             // GHÉP CẶP: 2 vị trí đang lật
+  const [gcLuot, setGcLuot] = useState(0);            // GHÉP CẶP: số lượt lật
+  const [xlChon, setXlChon] = useState({});           // XƯỞNG: {hàng: index lựa chọn}
+  const [xlKq, setXlKq] = useState(null);             // XƯỞNG: kết quả chấm
   const daCau = useRef(new Set());     // chữ ký câu đã ra — không lặp trong ván
   const lichSuCau = useRef(loadLichSu());   // câu đã ra các VÁN GẦN ĐÂY (localStorage) — tránh lặp giữa ván
   const cauVanNay = useRef(new Set());      // chỉ câu MỚI sinh trong ván này (để lưu vào lịch sử)
@@ -657,27 +825,19 @@ export default function DauTruong() {
 
   // ---- bắt đầu lượt ----
   const batDau = async () => {
-    // ===== CHUYÊN GIA: đề từ KHO KIẾN THỨC (schema kienthuc) =====
-    if (cheDo === 'CHUYENGIA') {
-      const { data, error } = await sb.schema('kienthuc').rpc('fn_ra_de', { p_so_cau: CHUYENGIA_SO_CAU });
+    // ===== KIẾN THỨC THÔ: Chuyên gia / Tư vấn khách / Xưởng / Ghép cặp =====
+    if (cheDo === 'CHUYENGIA' || cheDo === 'TUVAN' || cheDo === 'XUONG' || cheDo === 'GHEPCAP') {
+      const pLoai = cheDo === 'XUONG' ? 'BH_VL' : null;
+      const { data, error } = await sb.schema('kienthuc').rpc('fn_kt_pool', { p_loai: pLoai, p_so: 500 });
       if (error) { baoToast('Chưa nối được kho kiến thức: ' + error.message); return; }
-      const tho = Array.isArray(data) ? data : [];
-      // chuẩn hóa: tách nhãn "A. " khỏi nội dung, xáo đáp án, tìm đáp án đúng theo nhãn HOẶC nội dung
-      const de = tho.map((c) => {
-        const dsTho = Array.isArray(c.dap_an) ? c.dap_an : [];
-        const dung = String(c.dap_an_dung || '').trim();
-        const ds = dsTho.map((d) => {
-          const m = String(d).match(/^([A-Da-d])[.)]\s*(.+)$/);
-          const nhan = m ? m[2].trim() : String(d).trim();
-          const laDung = m ? m[1].toUpperCase() === dung.toUpperCase() || nhan === dung : nhan === dung;
-          return { nhan, dung: laDung };
-        });
-        if (!ds.some((d) => d.dung) || ds.length < 2) return null;   // câu hỏng -> bỏ
-        return { loai: 'KT', hoi: c.cau_hoi, dapAn: xao(ds), giaiThich: c.giai_thich, chuDe: c.chu_de };
-      }).filter(Boolean);
-      if (de.length < 5) { baoToast('Kho kiến thức chưa đủ câu hỏi hợp lệ (cần ≥5, đang có ' + de.length + '). Anh nạp thêm trên Sheet rồi đồng bộ nhé.'); return; }
-      ktDe.current = de;
+      const pool = Array.isArray(data) ? data.filter((x) => x && x.du_lieu) : [];
+      const canToiThieu = cheDo === 'XUONG' ? 8 : 10;
+      if (pool.length < canToiThieu) { baoToast('Kho kiến thức chưa đủ dữ liệu (' + pool.length + ' mục). Anh chạy đồng bộ sản phẩm (dongBoSanPham_TatCa) nhé.'); return; }
+      ktPool.current = pool;
       setDiem(0); setSoCau(0); setSoDung(0); setCombo(0); setComboMax(0); setChon(null); setKq(null);
+      setVong(0); vongRef.current = 0;
+      setGcThe([]); setGcLat([]); setGcLuot(0); setXlChon({}); setXlKq(null);
+      setTgConLai(CHE_DO[cheDo].giay || 0);
       setPool([{ barcode: '_KT' }]);   // pool giả để vòng đời câu chạy
       setDem(3); dangChoi.current = true; setView('DEM');
       return;
@@ -737,7 +897,7 @@ export default function DauTruong() {
 
   // đồng hồ mỗi câu — timestamp thật (mọi chế độ có giờ theo câu)
   useEffect(() => {
-    const coDongHoCau = ['SINHTON', 'THAP', 'PHANXA', 'DOANGIA', 'XEPGIA', 'KYUC', 'SANLOI', 'CAOTHAP', 'GIAIMA', 'CHUYENGIA'].includes(cheDo);
+    const coDongHoCau = ['SINHTON', 'THAP', 'PHANXA', 'DOANGIA', 'XEPGIA', 'KYUC', 'SANLOI', 'CAOTHAP', 'GIAIMA', 'CHUYENGIA', 'TUVAN', 'XUONG'].includes(cheDo);
     if (view !== 'CHOI' || !coDongHoCau || chon !== null) return;
     const hetLuc = Date.now() + tgCau * 1000;
     tCauRef.current = setInterval(() => {
@@ -752,6 +912,8 @@ export default function DauTruong() {
         else if (cheDo === 'SANLOI') bamSL(-1);
         else if (cheDo === 'CAOTHAP') traLoiCT(null);
         else if (cheDo === 'GIAIMA') traLoiGM(-1);
+        else if (cheDo === 'TUVAN') { if (cau?.buoc === 2) chonTVGiat(null); else chonTV(-1); }
+        else if (cheDo === 'XUONG') xuatXuong();
         else traLoi(-1);
       }
     }, 100);
@@ -764,12 +926,38 @@ export default function DauTruong() {
   }, [view]);   // eslint-disable-line
 
   const cauMoi = () => {
-    // ===== CHUYÊN GIA: câu kế trong đề kiến thức, 20s =====
+    // ===== CHUYÊN GIA v2: TỰ SINH câu từ kiến thức thô, 20s =====
     if (cheDo === 'CHUYENGIA') {
-      const c = ktDe.current[soCau];
+      const c = sinhCauKienThuc(ktPool.current, daCau.current);
       if (!c) { ketThuc(); return; }
       setCau(c); setChon(null); setTgCau(20);
       batDauCau.current = Date.now();
+      return;
+    }
+    // ===== TƯ VẤN KHÁCH: khách mới, 25s bước chọn SP =====
+    if (cheDo === 'TUVAN') {
+      if (vongRef.current >= TUVAN_SO_KHACH) { ketThuc(); return; }
+      const c = sinhKhachTV(ktPool.current, daCau.current);
+      if (!c) { ketThuc(); return; }
+      setCau(c); setChon(null); setTgCau(25);
+      batDauCau.current = Date.now();
+      return;
+    }
+    // ===== XƯỞNG LẮP RÁP: nón mới, 45s =====
+    if (cheDo === 'XUONG') {
+      if (vongRef.current >= XUONG_SO_NON) { ketThuc(); return; }
+      const c = sinhNonXL(ktPool.current, daCau.current);
+      if (!c) { ketThuc(); return; }
+      setCau(c); setChon(null); setXlChon({}); setXlKq(null); setTgCau(45);
+      batDauCau.current = Date.now();
+      return;
+    }
+    // ===== GHÉP CẶP: bàn mới (đồng hồ TỔNG 120s, không đồng hồ câu) =====
+    if (cheDo === 'GHEPCAP') {
+      if (vongRef.current >= GHEPCAP_SO_BAN) { ketThuc(); return; }
+      const the = sinhBanGC(ktPool.current, daCau.current);
+      if (!the) { ketThuc(); return; }
+      setCau({ loai: 'GC' }); setGcThe(the); setGcLat([]); setChon(null);
       return;
     }
     // ===== XẾP GIÁ: vòng 4 SP, 20s =====
@@ -935,7 +1123,7 @@ export default function DauTruong() {
       }
     }
     if ((cheDo === 'DAILY' && soCau + 1 >= DAILY_SO_CAU)
-        || (cheDo === 'CHUYENGIA' && soCau + 1 >= ktDe.current.length)) {
+        || (cheDo === 'CHUYENGIA' && soCau + 1 >= CHUYENGIA_SO_CAU)) {
       setTimeout(() => ketThuc(), cheDo === 'CHUYENGIA' ? 2000 : 600);
     } else {
       // CHUYÊN GIA: chờ lâu hơn để đọc GIẢI THÍCH trước khi sang câu
@@ -1077,6 +1265,94 @@ export default function DauTruong() {
     setTimeout(() => { if (dangChoi.current) cauMoi(); }, 1400);
   };
 
+  // ===== TƯ VẤN KHÁCH =====
+  const chonTV = (idx) => {
+    if (!cau || cau.loai !== 'TV' || cau.buoc !== 1 || chon !== null) return;
+    clearInterval(tCauRef.current);
+    const dung = cau.luaChon[idx]?.ma === cau.dich.ma;
+    setChon(idx); setSoCau((n) => n + 1);
+    if (dung) {
+      const giay = (Date.now() - batDauCau.current) / 1000;
+      setDiem((d) => d + 150 + Math.max(0, Math.round(50 * (1 - giay / 25))));
+      setSoDung((n) => n + 1);
+      setCombo((c) => { const nc = c + 1; setComboMax((m) => Math.max(m, nc)); return nc; });
+      setTimeout(() => {
+        if (!dangChoi.current) return;
+        if (cau.giatDung) { setCau({ ...cau, buoc: 2 }); setChon(null); setTgCau(12); batDauCau.current = Date.now(); }
+        else { vongRef.current += 1; setVong(vongRef.current); cauMoi(); }
+      }, 900);
+    } else {
+      setDiem((d) => Math.max(0, d - 50)); setCombo(0);
+      vongRef.current += 1; setVong(vongRef.current);
+      setTimeout(() => { if (dangChoi.current) cauMoi(); }, 1300);
+    }
+  };
+  const chonTVGiat = (nhom) => {
+    if (!cau || cau.loai !== 'TV' || cau.buoc !== 2 || chon !== null) return;
+    clearInterval(tCauRef.current);
+    const dung = nhom !== null && nhom === cau.giatDung;
+    setChon(nhom === null ? -1 : nhom); setSoCau((n) => n + 1);
+    if (dung) { setDiem((d) => d + 100); setSoDung((n) => n + 1); }
+    else { setDiem((d) => Math.max(0, d - 30)); setCombo(0); }
+    vongRef.current += 1; setVong(vongRef.current);
+    setTimeout(() => { if (dangChoi.current) cauMoi(); }, 1100);
+  };
+
+  // ===== GHÉP CẶP =====
+  const bamGC = (viTri) => {
+    if (cheDo !== 'GHEPCAP' || gcLat.length >= 2) return;
+    const the = gcThe[viTri];
+    if (!the || the.mo || the.xong) return;
+    const latMoi = [...gcLat, viTri];
+    setGcThe((ds) => ds.map((t, i) => i === viTri ? { ...t, mo: true } : t));
+    setGcLat(latMoi);
+    if (latMoi.length === 2) {
+      setGcLuot((l) => l + 1);
+      const tA = gcThe[latMoi[0]], tB = the;
+      const dung = tA && tB && tA.capId === tB.capId;
+      setTimeout(() => {
+        if (!dangChoi.current) return;
+        if (dung) {
+          setDiem((d) => d + 80); setSoDung((n) => n + 1); setSoCau((n) => n + 1);
+          setGcThe((ds) => {
+            const moi = ds.map((t, i) => latMoi.includes(i) ? { ...t, xong: true } : t);
+            if (moi.every((t) => t.xong)) {
+              // xong bàn: bonus theo lượt ít + sang bàn mới
+              setDiem((dd) => dd + Math.max(0, 400 - Math.max(0, (gcLuot + 1 - 6)) * 40));
+              vongRef.current += 1; setVong(vongRef.current);
+              setTimeout(() => { if (dangChoi.current) cauMoi(); }, 700);
+            }
+            return moi;
+          });
+        } else {
+          setSoCau((n) => n + 1);
+          setGcThe((ds) => ds.map((t, i) => latMoi.includes(i) && !t.xong ? { ...t, mo: false } : t));
+        }
+        setGcLat([]);
+      }, dung ? 350 : 750);
+    }
+  };
+
+  // ===== XƯỞNG LẮP RÁP =====
+  const chonXL = (hang, idx) => {
+    if (!cau || cau.loai !== 'XL' || xlKq) return;
+    setXlChon((c) => ({ ...c, [hang]: idx }));
+  };
+  const xuatXuong = () => {
+    if (!cau || cau.loai !== 'XL' || xlKq) return;
+    clearInterval(tCauRef.current);
+    let dungSo = 0;
+    cau.hangs.forEach((h, i) => { if (h.luaChon[xlChon[i]]?.dung) dungSo++; });
+    const tron = dungSo === cau.hangs.length;
+    setDiem((d) => d + dungSo * 100 + (tron ? 200 : 0));
+    setSoCau((n) => n + cau.hangs.length); setSoDung((n) => n + dungSo);
+    if (tron) setCombo((c) => { const nc = c + 1; setComboMax((m) => Math.max(m, nc)); return nc; });
+    else setCombo(0);
+    setXlKq({ dungSo, tron });
+    vongRef.current += 1; setVong(vongRef.current);
+    setTimeout(() => { if (dangChoi.current) cauMoi(); }, 2000);
+  };
+
   const dangLuu = useRef(false);
   const ketThuc = async () => {
     if (dangLuu.current) return; dangLuu.current = true; dangChoi.current = false;
@@ -1110,14 +1386,17 @@ export default function DauTruong() {
     const tgCauMax = cheDo === 'SINHTON' ? 7 : cheDo === 'PHANXA' ? 3 : cheDo === 'DOANGIA' ? 15
       : cheDo === 'THAP' ? (laBossThap ? 10 : Math.max(3.5, 8 - 0.5 * (tang - 1)))
       : cheDo === 'XEPGIA' ? 20 : cheDo === 'KYUC' ? (kyPha === 'NHIN' ? 6 : 10)
-      : cheDo === 'SANLOI' ? 12 : cheDo === 'CAOTHAP' ? 8 : cheDo === 'GIAIMA' ? 30 : cheDo === 'CHUYENGIA' ? 20 : 7;
-    const coDhCau = ['SINHTON', 'THAP', 'PHANXA', 'DOANGIA', 'XEPGIA', 'KYUC', 'SANLOI', 'CAOTHAP', 'GIAIMA', 'CHUYENGIA'].includes(cheDo);
+      : cheDo === 'SANLOI' ? 12 : cheDo === 'CAOTHAP' ? 8 : cheDo === 'GIAIMA' ? 30 : cheDo === 'CHUYENGIA' ? 20 : cheDo === 'TUVAN' ? (cau?.buoc === 2 ? 12 : 25) : cheDo === 'XUONG' ? 45 : 7;
+    const coDhCau = ['SINHTON', 'THAP', 'PHANXA', 'DOANGIA', 'XEPGIA', 'KYUC', 'SANLOI', 'CAOTHAP', 'GIAIMA', 'CHUYENGIA', 'TUVAN', 'XUONG'].includes(cheDo);
     const nhanVong = cheDo === 'XEPGIA' ? `VÒNG ${Math.min(vong + 1, XEPGIA_VONG)}/${XEPGIA_VONG}`
       : cheDo === 'KYUC' ? `KỆ ${Math.min(vong + 1, KYUC_BO)}/${KYUC_BO}${kyPha === 'HOI' ? ` · CÂU ${kyCau + 1}/3` : ''}`
       : cheDo === 'SANLOI' ? `PHIẾU ${Math.min(vong + 1, SANLOI_VONG)}/${SANLOI_VONG}`
       : cheDo === 'CAOTHAP' ? `CHUỖI ×${combo}`
       : cheDo === 'GIAIMA' ? `VỤ ${Math.min(vong + 1, GIAIMA_VONG)}/${GIAIMA_VONG}`
-      : cheDo === 'CHUYENGIA' ? `CÂU ${Math.min(soCau + 1, ktDe.current.length)}/${ktDe.current.length}` : null;
+      : cheDo === 'CHUYENGIA' ? `CÂU ${Math.min(soCau + 1, CHUYENGIA_SO_CAU)}/${CHUYENGIA_SO_CAU}`
+      : cheDo === 'TUVAN' ? `KHÁCH ${Math.min(vong + 1, TUVAN_SO_KHACH)}/${TUVAN_SO_KHACH}`
+      : cheDo === 'XUONG' ? `NÓN ${Math.min(vong + 1, XUONG_SO_NON)}/${XUONG_SO_NON}`
+      : cheDo === 'GHEPCAP' ? `BÀN ${Math.min(vong + 1, GHEPCAP_SO_BAN)}/${GHEPCAP_SO_BAN} · ${gcLuot} lượt` : null;
     const pct = coDhCau ? (tgCau / tgCauMax) * 100
       : cheDo === 'DAILY' ? ((DAILY_SO_CAU - soCau) / DAILY_SO_CAU) * 100
       : (tgConLai / CD.giay) * 100;
@@ -1157,7 +1436,89 @@ export default function DauTruong() {
           </div>
         </div>
 
-        {cau.loai === 'XG' ? (
+        {cau.loai === 'TV' ? (
+          // ===== TƯ VẤN KHÁCH: bong bóng thoại + lưới lựa chọn =====
+          <div className="dt-cau" key={'tv' + vong + '_' + cau.buoc}>
+            <div className="dt-tv-thoai dt-vao">
+              <div className="dt-tv-avatar">{cau.khach.split(' ').pop().charAt(0)}</div>
+              <div className="dt-tv-bong">
+                <div className="dt-tv-ten">{cau.khach}</div>
+                {cau.buoc === 1 ? (
+                  <div className="dt-tv-loi">Em ơi, chị/anh {cau.tieuChi.join(', ')} — em tư vấn giúp mẫu nào hợp nhất nha!</div>
+                ) : (
+                  <div className="dt-tv-loi">Mẫu này ưng rồi đó em! À mà cho hỏi — nón này <b>vệ sinh thế nào</b> cho bền vậy em?</div>
+                )}
+              </div>
+            </div>
+            {cau.buoc === 1 ? (
+              <div className="dt-tv-luoi">
+                {cau.luaChon.map((sp, i) => {
+                  const d = sp.du_lieu;
+                  const laDich = sp.ma === cau.dich.ma;
+                  return (
+                    <button key={sp.ma} onClick={() => chonTV(i)} style={{ animationDelay: (i * 45) + 'ms' }}
+                      className={'dt-tv-sp dt-vao' + (chon === null ? '' : laDich ? ' dung' : chon === i ? ' sai' : ' mo')}>
+                      <div className="dt-tv-ma">{d.ma}</div>
+                      <div className="dt-tv-loai">{d.chu_de}{d.cl ? ' · ' + d.cl : ''}</div>
+                      <div className="dt-tv-gia">{fmtGiaKT(d.gia)}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="dt-dapan">
+                {['Giặt tay nhẹ với nước', 'Giặt hấp', 'Giặt khô', 'Chỉ lau bằng khăn ẩm, không giặt nước'].map((nh, i) => (
+                  <button key={i} onClick={() => chonTVGiat(nh)} style={{ animationDelay: (i * 55) + 'ms' }}
+                    className={'dt-da dt-vao' + (chon === null ? '' : nh === cau.giatDung ? ' dung' : chon === nh ? ' sai' : ' mo')}>
+                    {nh}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : cau.loai === 'GC' ? (
+          // ===== GHÉP CẶP: lưới thẻ lật =====
+          <div className="dt-cau" key={'gc' + vong}>
+            <div className="dt-hoi">Lật thẻ, ghép <b style={{ color: 'var(--teal-deep)' }}>MÃ</b> với đúng <b style={{ color: 'var(--magenta)' }}>thuộc tính</b> của nó</div>
+            <div className="dt-gc-luoi">
+              {gcThe.map((t, i) => (
+                <button key={t.id} onClick={() => bamGC(i)}
+                  className={'dt-gc-the' + (t.mo || t.xong ? ' mo' : '') + (t.xong ? ' xong' : '') + (t.kieu === 'MA' ? ' la-ma' : '')}>
+                  {(t.mo || t.xong) ? <span className="dt-gc-chu">{t.text}</span> : <span className="dt-gc-up">NS</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : cau.loai === 'XL' ? (
+          // ===== XƯỞNG LẮP RÁP: chọn vật liệu từng bộ phận =====
+          <div className="dt-cau" key={'xl' + vong}>
+            <div className="dt-hoi">Lắp <b style={{ color: 'var(--teal-deep)' }}>nón bảo hiểm loại {cau.loaiBH}</b>{cau.gia ? ` (giá ${cau.gia})` : ''} — chọn ĐÚNG vật liệu từng bộ phận</div>
+            <div className="dt-xl-bang dt-vao">
+              {cau.hangs.map((h, hi) => (
+                <div key={hi} className="dt-xl-hang">
+                  <div className="dt-xl-bp">{h.bo_phan}</div>
+                  <div className="dt-xl-opts">
+                    {h.luaChon.map((lc, li) => (
+                      <button key={li} onClick={() => chonXL(hi, li)}
+                        className={'dt-xl-opt' + (xlChon[hi] === li ? ' chon' : '')
+                          + (xlKq ? (lc.dung ? ' dung' : xlChon[hi] === li ? ' sai' : ' mo') : '')}>
+                        {lc.text}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {!xlKq ? (
+              <button className="btn btn-ai dt-xl-nut" disabled={Object.keys(xlChon).length < cau.hangs.length}
+                onClick={xuatXuong}>XUẤT XƯỞNG ({Object.keys(xlChon).length}/{cau.hangs.length})</button>
+            ) : (
+              <div className={'dt-xl-kq' + (xlKq.tron ? ' tron' : '')}>
+                {xlKq.tron ? 'XUẤT XƯỞNG THÀNH CÔNG! Chuẩn cả ' + cau.hangs.length + ' bộ phận (+200 thưởng)' : `Đúng ${xlKq.dungSo}/${cau.hangs.length} bộ phận`}
+              </div>
+            )}
+          </div>
+        ) : cau.loai === 'XG' ? (
           // ===== XẾP GIÁ: bấm 4 thẻ theo thứ tự =====
           <div className="dt-cau" key={'xg' + vong}>
             <div className="dt-hoi">Bấm lần lượt theo giá <b className={cau.chieu === 'TANG' ? 'dt-xg-tang' : 'dt-xg-giam'}>
