@@ -630,8 +630,16 @@ export default function XinHang() {
         )}
       </div>
 
-      {lichCH && lichCH.length > 0 && (() => {
+      {lichCH !== null && (() => {
         const homNay = isoVN();
+        // Cửa hàng CHƯA có lịch nào -> vẫn hiện banner cảnh báo (trước đây ẩn hẳn gây khó hiểu)
+        if (!lichCH.length) {
+          return (
+            <div className="lich-banner-thin" style={{ borderLeft: '3px solid var(--ink-3)' }}>
+              <span className="lbt-txt" style={{ color: 'var(--ink-2)' }}>📅 Cửa hàng <b>chưa có lịch đề nghị</b> trong hệ thống — BQL cần tạo lịch (Lịch đề nghị › Ma trận &amp; Tạo lịch).</span>
+            </div>
+          );
+        }
         const homNayLich = lichCH.find((l) => l.ngay === homNay);
         const sapToi = lichCH.filter((l) => l.ngay > homNay).slice(0, 4);
         const fmtDM2 = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
