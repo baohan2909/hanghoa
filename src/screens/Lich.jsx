@@ -478,32 +478,40 @@ function TabAuto({ rows, homNay, taiLai }) {
 
   // TẠO LỊCH TỰ ĐỘNG — gọi thẳng backend (mọi máy ra kết quả như nhau, khớp cron)
   //  Sinh từ HÔM NAY tới ngày "Đến", GIỮ nguyên lịch cũ (backend on-conflict-do-nothing).
+  const [xtRows, setXtRows] = useState(null);   // danh sách ngày mới chờ áp dụng
+  const [xtTai, setXtTai] = useState(null);     // tải mỗi ngày (cảnh báo >40)
+
+  // Bấm "Tạo lịch" -> XEM TRƯỚC (không ghi), hiện ô vàng + cảnh báo, chờ Xác nhận
   const taoTuDong = async () => {
     setBusy(true);
-    const { data, error } = await sb.rpc('fn_lich_sinh_tiep',
+    const { data, error } = await sb.rpc('fn_lich_xem_truoc',
       { p_token: user.token, p_tu: homNay, p_den: denM });
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã sinh ${data?.so_ngay_sinh ?? 0} ngày-lịch mới cho ${data?.so_ch ?? 0} cửa hàng (giữ nguyên lịch cũ).`);
-    taiLai();
+    const rows = data?.rows || [];
+    if (!rows.length) { baoToast('Không có ngày-lịch mới nào cần tạo trong khoảng này.'); return; }
+    const setMoi = new Set(rows.map((r) => r.ma_ch + '|' + r.ngay));
+    const byCh = {};
+    rows.forEach((r) => { (byCh[r.ma_ch] = byCh[r.ma_ch] || []).push(r.ngay); });
+    const next = base.map((r) => byCh[r.ma_ch]
+      ? { ...r, ngay_lich: [...new Set([...(r.ngay_lich || []), ...byCh[r.ma_ch]])].sort() }
+      : r);
+    setLocal(next); setPreview(setMoi); setXtRows(rows); setXtTai(data.tai || []);
+    baoToast(`Xem trước: ${data.so_moi} ngày-lịch mới cho ${data.so_ch} cửa hàng`
+      + (data.so_ngay_qua_40 > 0 ? ` · ${data.so_ngay_qua_40} ngày vượt 40` : '') + '. Kiểm rồi Xác nhận.');
   };
 
+  // Xác nhận -> ghi đúng danh sách đã xem trước
   const xacNhan = async () => {
-    if (!preview || !preview.size) return;
+    if (!xtRows || !xtRows.length) return;
     setBusy(true);
-    // Gom ô mới thành rows import CHỈ cho khoảng [tuM,denM] — nhưng import xóa cả kỳ,
-    // nên ta ghi từng ô mới bằng fn_sua_lich_ngay (an toàn, không xóa lịch cũ).
-    let ok = 0;
-    for (const key of preview) {
-      const [ma_ch, ngay] = key.split('|');
-      const { error } = await sb.rpc('fn_sua_lich_ngay', { p_token: user.token, p_ma_ch: ma_ch, p_ngay: ngay, p_co: true });
-      if (!error) ok++;
-    }
+    const { data, error } = await sb.rpc('fn_lich_ap_dung', { p_token: user.token, p_rows: xtRows });
     setBusy(false);
-    baoToast(`Đã tạo ${ok} ngày-lịch mới`);
-    setPreview(null); setLocal(null); taiLai();
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã tạo ${data?.da_tao ?? 0} ngày-lịch mới.`);
+    setPreview(null); setLocal(null); setXtRows(null); setXtTai(null); taiLai();
   };
-  const huyPreview = () => { setPreview(null); setLocal(null); };
+  const huyPreview = () => { setPreview(null); setLocal(null); setXtRows(null); setXtTai(null); };
 
   // Tick 1 ô (chỉ khi không ở chế độ preview)
   const tick = async (r, ngay, dangCo) => {
@@ -577,7 +585,7 @@ function TabAuto({ rows, homNay, taiLai }) {
           )}
           {!preview ? (
             <>
-              <button className="btn btn-ai" onClick={taoTuDong} disabled={busy}>{busy ? 'Đang tạo…' : '✨ Tạo lịch tới ngày Đến'}</button>
+              <button className="btn btn-ai" onClick={taoTuDong} disabled={busy}>{busy ? 'Đang tính…' : '✨ Tạo lịch (xem trước)'}</button>
               <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>Nhập Excel
                 <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => docFile(e.target.files?.[0])} /></label>
               <button className="btn btn-ghost" onClick={xuatFile}>Xuất Excel</button>
@@ -592,8 +600,21 @@ function TabAuto({ rows, homNay, taiLai }) {
       </div>
 
       {preview && (
-        <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(203,164,90,.12)', borderRadius: 8, fontSize: 12.5, color: '#8a6a24' }}>
+        <div style={{ marginTop: 10, padding: '10px 12px', background: 'rgba(203,164,90,.12)', borderRadius: 8, fontSize: 12.5, color: '#8a6a24' }}>
           Đang xem trước — ô <b style={{ color: 'var(--gold)' }}>vàng</b> là lịch mới sẽ tạo. Bấm <b>Xác nhận</b> để lưu, hoặc <b>Hủy</b> để bỏ.
+          {xtTai && xtTai.length > 0 && (
+            <div className="lich-tai-dai">
+              {xtTai.map((t) => (
+                <div key={t.ngay} className={'lich-tai-o' + (t.qua ? ' qua' : '')} title={t.ngay + (t.qua ? ' · vượt 40' : '')}>
+                  <span className="lich-tai-ngay">{t.ngay.slice(8, 10)}/{t.ngay.slice(5, 7)}</span>
+                  <span className="lich-tai-so">{t.so}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {xtTai && xtTai.some((t) => t.qua) && (
+            <div style={{ marginTop: 6, fontWeight: 700 }}>⚠ Có ngày vượt 40 cửa hàng (ô đỏ) — chủ yếu do lịch cũ đã dày; anh có thể tick bỏ bớt bằng tay sau khi tạo.</div>
+          )}
         </div>
       )}
 
