@@ -430,14 +430,28 @@ function TabNhom({ tu, den, taiLai }) {
 function TabAuto({ rows, homNay, taiLai }) {
   const { user, baoToast } = useApp();
   const [tuM, setTuM] = useState(iso(new Date(Date.now() - 3 * 864e5)));
-  const [denM, setDenM] = useState(iso(new Date(Date.now() + 28 * 864e5)));
+  const [denM, setDenM] = useState(iso(new Date(Date.now() + 30 * 864e5)));
   const [kv, setKv] = useState('ALL');
   const [nhom, setNhom] = useState('ALL');
   const [q, setQ] = useState('');
   const [preview, setPreview] = useState(null);   // Set "ma_ch|ngay" các ô MỚI tạo
   const [local, setLocal] = useState(null);       // ma trận cục bộ khi có preview
   const [busy, setBusy] = useState(false);
+  const [auto, setAuto] = useState(null);         // trạng thái tự chạy hằng ngày
   const fileRef = useRef(null);
+
+  useEffect(() => { (async () => {
+    try { const { data } = await sb.rpc('fn_lich_auto_get'); setAuto(data); } catch {}
+  })(); }, []);
+
+  // BẬT/TẮT tự động chạy ngầm hằng ngày (cuốn chiếu tới hôm nay + số ngày)
+  const toggleAuto = async () => {
+    const bat = !auto?.bat;
+    const { data, error } = await sb.rpc('fn_lich_auto_set', { p_token: user.token, p_bat: bat, p_so_ngay: 30 });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    setAuto(data);
+    baoToast(bat ? 'Đã BẬT — mỗi ngày hệ thống tự nối lịch đủ 30 ngày tới.' : 'Đã TẮT tự động sinh lịch.');
+  };
 
   const base = local || rows || [];
   const dsKV = useMemo(() => [...new Set(base.map((r) => r.khu_vuc).filter(Boolean))].sort(), [base]);
@@ -462,50 +476,16 @@ function TabAuto({ rows, homNay, taiLai }) {
     return { oLich, chuaCo, tong: hien.length, moi: preview ? preview.size : 0 };
   }, [hien, tuM, denM, preview]);
 
-  // TẠO LỊCH TỰ ĐỘNG (preview phía client) — N1/N2 giữ thứ kỳ trước, N3 chu kỳ ~11, né T7/CN
-  const taoTuDong = () => {
-    const moi = new Set();
-    const next = base.map((r) => {
-      const cu = new Set(r.ngay_lich || []);
-      const truoc = (r.ngay_lich || []).filter((n) => n < tuM);
-      if (r.nhom_ch === 1 || r.nhom_ch === 2) {
-        // các thứ (dow) đã dùng gần đây; mặc định N1 T2+T5, N2 T3
-        let dows = [...new Set(truoc.slice(-8).map((n) => dow(n)))];
-        if (!dows.length) dows = r.nhom_ch === 1 ? [1, 4] : [2];
-        dsNgay.forEach((n) => {
-          const d = dow(n);
-          if (d !== 0 && d !== 6 && dows.includes(d) && n >= tuM && !cu.has(n)) {
-            cu.add(n); moi.add(r.ma_ch + '|' + n);
-          }
-        });
-      } else {
-        // N3: chu kỳ trung bình kỳ trước (fallback 11), tiếp từ ngày cuối
-        const sorted = truoc.slice().sort();
-        let ck = 11;
-        if (sorted.length >= 2) {
-          let tot = 0, cnt = 0;
-          for (let i = 1; i < sorted.length; i++) {
-            const kc = Math.round((new Date(sorted[i]) - new Date(sorted[i - 1])) / 864e5);
-            if (kc >= 5 && kc <= 20) { tot += kc; cnt++; }
-          }
-          if (cnt) ck = Math.round(tot / cnt);
-        }
-        let d = sorted.length ? themNgay(sorted[sorted.length - 1], ck)
-          : themNgay(tuM, Math.abs(hashStr(r.ma_ch)) % ck);
-        let guard = 0;
-        while (d <= denM && guard++ < 40) {
-          if (d >= tuM) {
-            let dd = d; const w = dow(dd);
-            if (w === 6) dd = themNgay(dd, -1); else if (w === 0) dd = themNgay(dd, 1);
-            if (!cu.has(dd)) { cu.add(dd); moi.add(r.ma_ch + '|' + dd); }
-          }
-          d = themNgay(d, ck);
-        }
-      }
-      return { ...r, ngay_lich: [...cu].sort() };
-    });
-    setLocal(next); setPreview(moi);
-    baoToast(`Xem trước: sẽ tạo ${moi.size} ngày-lịch mới. Kiểm tra rồi Xác nhận.`);
+  // TẠO LỊCH TỰ ĐỘNG — gọi thẳng backend (mọi máy ra kết quả như nhau, khớp cron)
+  //  Sinh từ HÔM NAY tới ngày "Đến", GIỮ nguyên lịch cũ (backend on-conflict-do-nothing).
+  const taoTuDong = async () => {
+    setBusy(true);
+    const { data, error } = await sb.rpc('fn_lich_sinh_tiep',
+      { p_token: user.token, p_tu: homNay, p_den: denM });
+    setBusy(false);
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã sinh ${data?.so_ngay_sinh ?? 0} ngày-lịch mới cho ${data?.so_ch ?? 0} cửa hàng (giữ nguyên lịch cũ).`);
+    taiLai();
   };
 
   const xacNhan = async () => {
@@ -587,10 +567,17 @@ function TabAuto({ rows, homNay, taiLai }) {
         </div>
         <Sel value={kv} onChange={setKv} placeholder="Khu vực" options={[{ value: 'ALL', label: 'Mọi khu vực' }, ...dsKV.map((k) => ({ value: k, label: k }))]} style={{ minWidth: 170 }} />
         <input className="inp" placeholder="Tìm cửa hàng…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 180 }} />
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          {auto && (
+            <button className={'lich-auto-tg' + (auto.bat ? ' on' : '')} onClick={toggleAuto}
+              title={auto.chay_luc ? ('Lần chạy gần nhất: ' + new Date(auto.chay_luc).toLocaleString('vi')) : 'Chưa chạy lần nào'}>
+              <span className="lich-auto-dot" />
+              Tự chạy hằng ngày: <b>{auto.bat ? 'BẬT' : 'TẮT'}</b>
+            </button>
+          )}
           {!preview ? (
             <>
-              <button className="btn btn-ai" onClick={taoTuDong} disabled={busy}>✨ Tạo lịch tự động</button>
+              <button className="btn btn-ai" onClick={taoTuDong} disabled={busy}>{busy ? 'Đang tạo…' : '✨ Tạo lịch tới ngày Đến'}</button>
               <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>Nhập Excel
                 <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => docFile(e.target.files?.[0])} /></label>
               <button className="btn btn-ghost" onClick={xuatFile}>Xuất Excel</button>

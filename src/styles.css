@@ -2579,3 +2579,15 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .dt-xl-kq { margin-top: 12px; text-align: center; font-weight: 800; font-size: 14.5px; padding: 12px;
   border-radius: 12px; background: #FBF4E4; color: #8A6D2B; }
 .dt-xl-kq.tron { background: #E9F5F2; color: var(--teal-deep); box-shadow: 0 0 14px rgba(63,182,168,.35); }
+
+/* Công tắc tự chạy lịch hằng ngày */
+.lich-auto-tg { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px;
+  border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--ink-2); transition: all .14s; }
+.lich-auto-tg:hover { border-color: var(--teal); }
+.lich-auto-tg.on { border-color: var(--teal); background: #E9F5F2; color: var(--teal-deep); }
+.lich-auto-tg b { color: var(--ink-3); }
+.lich-auto-tg.on b { color: var(--teal-deep); }
+.lich-auto-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-3); flex: 0 0 9px; }
+.lich-auto-tg.on .lich-auto-dot { background: var(--teal); box-shadow: 0 0 8px rgba(63,182,168,.7); animation: lichPulse 1.8s infinite; }
+@keyframes lichPulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
