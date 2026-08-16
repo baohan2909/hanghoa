@@ -274,8 +274,11 @@ export default function XinHang() {
       try {
         const raw = localStorage.getItem(KEY(maCH));
         if (raw) { const d = JSON.parse(raw);
-          napDraft.current = d.daNhap || null;
-          // KHÔNG khôi phục tuNgay từ nháp — luôn tính mới theo nhóm (tránh giữ ngày cũ sai)
+          // Nháp CHỈ sống trong NGÀY lưu. Nháp qua ngày = kỳ đề nghị khác -> nếu áp sẽ
+          // ĐÈ số cũ lên kết quả AI mới (AI=0 mà ô nhảy 1). Qua ngày -> BỎ + xoá.
+          const cungNgay = d.luc && isoVN(new Date(d.luc)) === isoVN();
+          if (cungNgay) napDraft.current = d.daNhap || null;
+          else { napDraft.current = null; localStorage.removeItem(KEY(maCH)); }
         } else napDraft.current = null;
       } catch { napDraft.current = null; }
       setRows(null);
