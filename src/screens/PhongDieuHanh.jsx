@@ -50,10 +50,28 @@ export default function PhongDieuHanh({ chonTab }) {
   const { user } = useApp();
   const [ds, setDs] = useState(null);
   const [moPhongCo, setMoPhongCo] = useState(false);
-  const [chon, setChon] = useState(null);   // cửa hàng đang xem hồ sơ
+  const [chon, setChon] = useState(null);   // cửa hàng đang xem hồ sơ nhanh
+  const [ho, setHo] = useState(null);       // hồ sơ 360° chi tiết (modal)
+  const [hoTai, setHoTai] = useState(false);
   const [kv, setKv] = useState('ALL');
   const [nhom, setNhom] = useState('ALL');
   const [gio, setGio] = useState(new Date());
+
+  const moHoSo = async (c) => {
+    setChon(c); setHo({ ...c, _load: true }); setHoTai(true);
+    try {
+      const { data, error } = await sb.rpc('fn_dieu_hanh_ch', { p_token: user.token, p_ma_ch: c.ma_ch });
+      if (error || !data) throw error || new Error('no data');
+      setHo({ ...c, ...data });
+    } catch {
+      // mô phỏng chi tiết khi chưa có backend
+      setHo({ ...c, _mp: true,
+        ma_het: c.ma_het_lau ? [{ ma: c.ma_het_lau, ten: '', so_ngay: c.ngay_het_lau }] : [],
+        lich_su_xin: [{ ngay: c.xin_cuoi, loai: 'DINH_KY', trang_thai: 'DUYET', tre: !!c.tre_lich }],
+        lich_toi: [c.lich_toi], ton: { tong: '—', so_ma: '—' }, cldn: { hang: c.cldn } });
+    }
+    setHoTai(false);
+  };
 
   useEffect(() => { const t = setInterval(() => setGio(new Date()), 1000); return () => clearInterval(t); }, []);
 
@@ -126,7 +144,7 @@ export default function PhongDieuHanh({ chonTab }) {
           <div className="ndh-map">
             {loc.map((c) => { const b = BAC(c.diem); return (
               <div key={c.ma_ch} className={'ndh-o h' + b.h + (chon?.ma_ch === c.ma_ch ? ' sel' : '')}
-                title={c.ten + ' · ' + c.diem + 'đ · ' + b.ten} onClick={() => setChon(c)}>{c.diem}</div>
+                title={c.ten + ' · ' + c.diem + 'đ · ' + b.ten} onClick={() => moHoSo(c)}>{c.diem}</div>
             ); })}
           </div>
           <div className="ndh-cg">
@@ -143,7 +161,7 @@ export default function PhongDieuHanh({ chonTab }) {
           <h3><span className="dot do" />TOP THIẾU HÀNG TRẦM TRỌNG</h3>
           <div className="ndh-nk">
             {top.map((c, i) => (
-              <div key={c.ma_ch} className={'ndh-nkr' + (chon?.ma_ch === c.ma_ch ? ' sel' : '')} onClick={() => setChon(c)}>
+              <div key={c.ma_ch} className={'ndh-nkr' + (chon?.ma_ch === c.ma_ch ? ' sel' : '')} onClick={() => moHoSo(c)}>
                 <div className="h">{i + 1}</div>
                 <div className="mid">
                   <div className="ten">{c.ten} <b>· {c.diem}đ</b></div>
@@ -186,7 +204,7 @@ export default function PhongDieuHanh({ chonTab }) {
           <h3><span className="dot mag" />RADAR CHUYÊN CẦN · ai đang lơ là</h3>
           <div className="ndh-radar">
             {[...loc].filter((c) => c.bo_lich || c.tre_lich || c.tuan_thu < 70).sort((a, b) => a.tuan_thu - b.tuan_thu).slice(0, 6).map((c) => (
-              <div key={c.ma_ch} onClick={() => setChon(c)}>
+              <div key={c.ma_ch} onClick={() => moHoSo(c)}>
                 <span className="ch">{c.tuan_thu < 50 ? '🔴' : '🟡'} <b>{c.ten}</b></span>
                 <span className="mo">{c.bo_lich ? 'bỏ lịch · ' : ''}{c.tre_lich ? `trễ ${c.tre_lich}n · ` : ''}tuân thủ {c.tuan_thu}%</span>
               </div>
@@ -196,6 +214,71 @@ export default function PhongDieuHanh({ chonTab }) {
           </div>
         </div>
       </div>
+
+      {/* MODAL HỒ SƠ 360° */}
+      {ho && (
+        <div className="ndh-modal" onClick={() => setHo(null)}>
+          <div className="ndh-mbox" onClick={(e) => e.stopPropagation()}>
+            <div className="ndh-mhd">
+              <div>
+                <div className="ndh-mten">{ho.ten}</div>
+                <div className="ndh-msub">{ho.ma_ch} · {ho.khu_vuc} · Nhóm {ho.nhom_ch}{ho.chu_ky_ngay ? ` · chu kỳ ${ho.chu_ky_ngay}n` : ''}</div>
+              </div>
+              {(() => { const b = BAC(ho.diem); return (
+                <div className="ndh-mdiem" style={{ color: b.mau, borderColor: b.mau }}>
+                  <span>{ho.diem}</span><small>{b.ten}</small>
+                </div>
+              ); })()}
+              <button className="ndh-mx" onClick={() => setHo(null)}>✕</button>
+            </div>
+            {ho._mp && <div className="ndh-mp" style={{ margin: '0 0 12px' }}>⚙ Chi tiết mô phỏng — chạy fn_dieu_hanh_ch để hiện số thật.</div>}
+
+            <div className="ndh-mgrid">
+              {/* MÃ ĐANG HẾT */}
+              <div className="ndh-mcol">
+                <h4>MÃ ĐANG HẾT · hàng gì hết bao lâu</h4>
+                {(ho.ma_het && ho.ma_het.length) ? (
+                  <table className="ndh-mtb">
+                    <thead><tr><th>Mã</th><th>Sản phẩm</th><th className="r">Số ngày</th></tr></thead>
+                    <tbody>{ho.ma_het.map((m, i) => (
+                      <tr key={i}><td className="ma">{m.ma}</td><td className="ten">{m.ten || '—'}</td>
+                        <td className={'r ' + (m.so_ngay >= 5 ? 'do' : 'cam')}>{m.so_ngay}n</td></tr>
+                    ))}</tbody>
+                  </table>
+                ) : <div className="ndh-trong">Không có mã nào đang hết 👍</div>}
+              </div>
+
+              {/* DÒNG THỜI GIAN XIN */}
+              <div className="ndh-mcol">
+                <h4>DÒNG THỜI GIAN XIN HÀNG · chuyên cần</h4>
+                {(ho.lich_su_xin && ho.lich_su_xin.length && ho.lich_su_xin[0].ngay) ? (
+                  <div className="ndh-tl">
+                    {ho.lich_su_xin.filter((x) => x.ngay).map((x, i) => (
+                      <div key={i} className="ndh-tli">
+                        <span className={'ndh-tld' + (x.tre ? ' tre' : '')} />
+                        <span className="ng">{fmtNgay(x.ngay)}</span>
+                        <span className="lo">{x.loai === 'DINH_KY' ? 'Định kỳ' : x.loai}{x.tre ? ' · trễ' : ''}</span>
+                        <span className="tt">{x.trang_thai}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="ndh-trong">Chưa có đơn xin nào gần đây</div>}
+                {ho.lich_toi && ho.lich_toi.filter(Boolean).length > 0 && (
+                  <div className="ndh-lichtoi">Lịch xin tới: {ho.lich_toi.filter(Boolean).map(fmtNgay).join(' · ')}</div>
+                )}
+              </div>
+            </div>
+
+            {/* CHỈ SỐ NHANH */}
+            <div className="ndh-mchiso">
+              <div><span>Tồn hiện có</span><b>{ho.ton?.tong ?? '—'}{ho.ton?.so_ma != null ? ` · ${ho.ton.so_ma} mã` : ''}</b></div>
+              <div><span>Định mức BH</span><b>{ho.dm_bh ? `${ho.dm_bh.min}–${ho.dm_bh.max}` : (ho.ton_dat != null ? ho.ton_dat + '%' : '—')}</b></div>
+              <div><span>Tuân thủ lịch</span><b className={ho.tuan_thu < 70 ? 'xau' : 'ok'}>{ho.tuan_thu != null ? ho.tuan_thu + '%' : '—'}</b></div>
+              <div><span>Chất lượng ĐN</span><b className={(ho.cldn?.hang || ho.cldn) >= 'C' ? 'xau' : 'ok'}>{ho.cldn?.hang || ho.cldn || '—'}</b></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
