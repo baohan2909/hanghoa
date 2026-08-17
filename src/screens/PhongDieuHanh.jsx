@@ -59,11 +59,12 @@ export default function PhongDieuHanh({ chonTab }) {
   const [gio, setGio] = useState(new Date());
 
   const moHoSo = async (c) => {
-    setChon(c); setHo({ ...c, _load: true }); setHoTai(true);
+    setChon(c); setHo({ ...c, lich_toi: [], ma_het: [], lich_su_xin: [], _load: true }); setHoTai(true);
     try {
       const { data, error } = await sb.rpc('fn_dieu_hanh_ch', { p_token: user.token, p_ma_ch: c.ma_ch });
       if (error || !data) throw error || new Error('no data');
-      setHo({ ...c, ...data });
+      const arr = (x) => Array.isArray(x) ? x : (x ? [x] : []);
+      setHo({ ...c, ...data, ma_het: arr(data.ma_het), lich_su_xin: arr(data.lich_su_xin), lich_toi: arr(data.lich_toi) });
     } catch {
       // mô phỏng chi tiết khi chưa có backend
       setHo({ ...c, _mp: true,
@@ -267,7 +268,7 @@ export default function PhongDieuHanh({ chonTab }) {
                     ))}
                   </div>
                 ) : <div className="ndh-trong">Chưa có đơn xin nào gần đây</div>}
-                {ho.lich_toi && ho.lich_toi.filter(Boolean).length > 0 && (
+                {Array.isArray(ho.lich_toi) && ho.lich_toi.filter(Boolean).length > 0 && (
                   <div className="ndh-lichtoi">Lịch xin tới: {ho.lich_toi.filter(Boolean).map(fmtNgay).join(' · ')}</div>
                 )}
               </div>
