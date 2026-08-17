@@ -46,7 +46,7 @@ function moPhong() {
   return ds;
 }
 
-export default function PhongDieuHanh() {
+export default function PhongDieuHanh({ chonTab }) {
   const { user } = useApp();
   const [ds, setDs] = useState(null);
   const [moPhongCo, setMoPhongCo] = useState(false);
@@ -56,6 +56,13 @@ export default function PhongDieuHanh() {
   const [gio, setGio] = useState(new Date());
 
   useEffect(() => { const t = setInterval(() => setGio(new Date()), 1000); return () => clearInterval(t); }, []);
+
+  // TOÀN MÀN HÌNH — khóa cuộn trang nền khi phòng điều hành mở
+  useEffect(() => {
+    const truoc = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = truoc; };
+  }, []);
 
   useEffect(() => { (async () => {
     try {
@@ -79,11 +86,11 @@ export default function PhongDieuHanh() {
   const top = useMemo(() => [...loc].sort((a, b) => a.diem - b.diem).slice(0, 6), [loc]);
   const luoiKV = useMemo(() => [...new Set((ds || []).map((c) => c.khu_vuc))], [ds]);
 
-  if (!ds) return <div className="ndh-load">Đang tải phòng điều hành…</div>;
+  if (!ds) return <div className="ndh full"><div className="ndh-load">Đang mở phòng điều hành…</div></div>;
   const cur = chon || top[0];
 
   return (
-    <div className="ndh">
+    <div className="ndh full">
       {/* HEADER */}
       <div className="ndh-hd">
         <div className="ndh-logo">NS COMMAND<span>PHÒNG ĐIỀU HÀNH · 360°</span></div>
@@ -97,6 +104,10 @@ export default function PhongDieuHanh() {
           </select>
         </div>
         <div className="ndh-clock">{gio.toLocaleTimeString('vi-VN', { hour12: false })} · {gio.toLocaleDateString('vi-VN')}</div>
+        <button className="ndh-thoat" onClick={() => chonTab && chonTab('dashboard')} title="Thoát phòng điều hành">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          <span>Thoát</span>
+        </button>
       </div>
 
       {moPhongCo && <div className="ndh-mp">⚙ Đang hiển thị dữ liệu MÔ PHỎNG — chạy SQL backend (fn_dieu_hanh_tong) để hiện số thật.</div>}
