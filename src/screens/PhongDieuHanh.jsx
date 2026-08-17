@@ -36,37 +36,12 @@ const khoangCach = (a, b) => {
   return Math.round(R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s)));
 };
 
-function moPhong() {
-  const KV = ['Hồ Chí Minh', 'Hà Nội', 'Tây Nam Bộ', 'Đông Nam Bộ', 'Trung Tây Nguyên', 'Bắc Trung Bộ'];
-  const MA = ['MC008-TR130', 'NS008BTG-XL', 'NS012CKT-ĐN123-M', 'MC037-DN1', 'NS014EMP-TR133-L'];
-  const ds = [];
-  for (let i = 0; i < 205; i++) {
-    const diem = Math.max(12, Math.min(99, Math.round(72 + (Math.random() - 0.5) * 74)));
-    const soHet = diem < 55 ? Math.round((60 - diem) / 4) : Math.round(Math.random() * 3);
-    const dm = 400 + Math.round(Math.random() * 300), ton = Math.round(dm * diem / 100);
-    ds.push({
-      ma_ch: 'CH0' + (5000 + i), ten: KV[i % 6].split(' ').slice(-1) + ' CH ' + (i + 1),
-      khu_vuc: KV[i % 6], nhom_ch: (i % 3) + 1, diem,
-      ton_dat: Math.round(diem * 0.9 + Math.random() * 10), tong_ton: ton, dm_min: dm,
-      sl_thieu: Math.max(0, dm - ton), gia_tri_het: soHet * (300000 + Math.round(Math.random() * 700000)),
-      so_het: soHet, ma_het_lau: soHet ? MA[i % 5] : null, ngay_het_lau: soHet ? Math.round(Math.random() * 12) : 0,
-      xin_cuoi: iso(new Date(Date.now() - Math.round(Math.random() * 14) * 864e5)),
-      tre_lich: diem < 55 ? Math.round(Math.random() * 3) : 0,
-      lich_toi: iso(new Date(Date.now() + Math.round(Math.random() * 6) * 864e5)),
-      bo_lich: diem < 45 ? 1 : 0, tuan_thu: Math.round(Math.min(100, diem + Math.random() * 20)),
-      cldn: diem >= 80 ? 'A' : diem >= 65 ? 'B' : diem >= 50 ? 'C' : 'D',
-    });
-  }
-  return ds;
-}
-
 export default function PhongDieuHanh({ chonTab }) {
   const { user } = useApp();
   const [cheDo, setCheDo] = useState('ch');
   const [ds, setDs] = useState(null);
   const [dsMa, setDsMa] = useState(null);
-  const [moPhongCo, setMoPhongCo] = useState(false);
-  const [loiThat, setLoiThat] = useState(null);
+  const [loiTai, setLoiTai] = useState(null);
   const [chon, setChon] = useState(null);
   const [ho, setHo] = useState(null);
   const [hoMa, setHoMa] = useState(null);
@@ -83,14 +58,17 @@ export default function PhongDieuHanh({ chonTab }) {
     return () => { document.body.style.overflow = truoc; };
   }, []);
 
-  useEffect(() => { (async () => {
+  const taiDs = async () => {
+    setLoiTai(null);
     try {
       const { data, error } = await sb.rpc('fn_dieu_hanh_tong', { p_token: user.token });
       if (error) throw new Error('[' + (error.code || '?') + '] ' + (error.message || 'RPC lỗi'));
-      if (!Array.isArray(data) || !data.length) throw new Error('Hàm trả về rỗng/không phải mảng');
-      setDs(data); setMoPhongCo(false); setLoiThat(null);
-    } catch (e) { setDs(moPhong()); setMoPhongCo(true); setLoiThat(e.message || String(e)); }
-  })(); }, [user]);
+      if (!Array.isArray(data)) throw new Error('Hàm trả về không phải mảng');
+      if (!data.length) throw new Error('Chưa có dữ liệu — chạy SQL 158 để nạp cache điểm sức khỏe');
+      setDs(data); setLoiTai(null);
+    } catch (e) { setDs(null); setLoiTai(e.message || String(e)); }
+  };
+  useEffect(() => { taiDs(); }, [user]);
 
   useEffect(() => { if (cheDo !== 'ma' || dsMa) return; (async () => {
     try {
@@ -131,10 +109,7 @@ export default function PhongDieuHanh({ chonTab }) {
       const arr = (x) => Array.isArray(x) ? x : (x ? [x] : []);
       setHo({ ...c, ...data, ds_het: arr(data.ds_het), lich_su_xin: arr(data.lich_su_xin), lich_toi: arr(data.lich_toi) });
     } catch (e) {
-      setHo({ ...c, _mp: true, _loi: e.message || String(e),
-        ds_het: c.ma_het_lau ? [{ ma: c.ma_het_lau, gia: c.gia_tri_het, so_ngay: c.ngay_het_lau }] : [],
-        lich_su_xin: c.xin_cuoi ? [{ ngay: c.xin_cuoi, trang_thai: 'DUYET', tre: !!c.tre_lich }] : [],
-        lich_toi: c.lich_toi ? [c.lich_toi] : [] });
+      setHo({ ...c, _loi: e.message || String(e), ds_het: [], lich_su_xin: [], lich_toi: [] });
     }
   };
 
@@ -148,7 +123,25 @@ export default function PhongDieuHanh({ chonTab }) {
     } catch (e) { setHoMa({ ...m, _loi: e.message || String(e), ds_het: [], ds_con: [] }); }
   };
 
-  if (!ds) return <div className="ndh full"><div className="ndh-load">Đang mở phòng điều hành…</div></div>;
+  if (!ds) return (
+    <div className="ndh full">
+      <div className="ndh-hd">
+        <div className="ndh-logo">NS COMMAND<span>PHÒNG ĐIỀU HÀNH · 360°</span></div>
+        <div style={{ flex: 1 }} />
+        <button className="ndh-thoat" onClick={() => chonTab && chonTab('dashboard')} title="Thoát">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg><span>Thoát</span>
+        </button>
+      </div>
+      {loiTai ? (
+        <div className="ndh-loi-man">
+          <div className="ic">⚠</div>
+          <div className="tt">Chưa nạp được dữ liệu</div>
+          <div className="ms">{loiTai}</div>
+          <button className="ndh-thu-lai" onClick={taiDs}>Thử lại</button>
+        </div>
+      ) : <div className="ndh-load">Đang mở phòng điều hành…</div>}
+    </div>
+  );
 
   return (
     <div className="ndh full">
@@ -164,8 +157,6 @@ export default function PhongDieuHanh({ chonTab }) {
           <span>Thoát</span>
         </button>
       </div>
-
-      {moPhongCo && <div className="ndh-mp">⚙ Đang MÔ PHỎNG{loiThat ? ' — Lỗi thật: ' + loiThat : ''}. Chạy SQL backend để hiện số thật.</div>}
 
       {cheDo === 'ch' ? (
         <TheoCuaHang {...{ loc, dsSort, tk, kv, setKv, nhom, setNhom, luoiKV, locBac, setLocBac, q, setQ, sortCh, setSortCh, chon, moHoSo }} />
@@ -302,7 +293,7 @@ function ModalCH({ ho, setHo }) {
           <div className="ndh-mdiem" style={{ color: b.mau, borderColor: b.mau }}><span>{ho.diem}</span><small>{b.ten}</small></div>
           <button className="ndh-mx" onClick={() => setHo(null)}>✕</button>
         </div>
-        {ho._mp && <div className="ndh-mp" style={{ margin: '0 0 12px' }}>⚙ Chi tiết mô phỏng{ho._loi ? ' — Lỗi: ' + ho._loi : ''}.</div>}
+        {ho._loi && <div className="ndh-mp" style={{ margin: '0 0 12px' }}>⚠ Không tải được chi tiết — {ho._loi}</div>}
         <div className="ndh-mkpi">
           <div className="k do"><span className="v">{fmtSo(ho.so_ma_het ?? ho.so_het)}</span><span className="l">Mã đang hết</span></div>
           <div className="k cam"><span className="v">{fmtSo(ho.sl_thieu)}</span><span className="l">SL thiếu định mức</span></div>

@@ -2789,3 +2789,10 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ndh-dc-r-r{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
 .ndh-dc-r-r .ton{font:800 12px var(--font-mono);color:var(--teal2)}
 .ndh-dc-r-r .km{font-size:10px;color:var(--ngold);font-family:var(--font-mono)}
+
+/* Phòng điều hành — màn lỗi (bỏ mô phỏng) */
+.ndh-loi-man{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:60vh;text-align:center}
+.ndh-loi-man .ic{font-size:44px}
+.ndh-loi-man .tt{font-size:19px;font-weight:800;color:var(--nchu)}
+.ndh-loi-man .ms{font-size:13px;color:var(--nmo);font-family:var(--font-mono);max-width:560px;background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.25);border-radius:10px;padding:10px 14px}
+.ndh-thu-lai{margin-top:6px;background:linear-gradient(135deg,#177E74,#3FB6A8);color:#fff;border:0;border-radius:10px;padding:10px 24px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(23,126,116,.4)}
