@@ -14,6 +14,8 @@ export const IcSpark   = (p) => <I d="M12 2l1.8 5.6L19.5 9l-5.7 1.4L12 16l-1.8-5
 export const IcOut     = (p) => <I d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9" {...p} />;
 export const IcDown    = (p) => <I d="M12 3v12 M6 11l6 6 6-6 M4 21h16" {...p} />;
 export const IcRefresh = (p) => <I d="M21 12a9 9 0 1 1-2.6-6.4 M21 3v6h-6" {...p} />;
+export const IcRadar   = (p) => <I d="M12 12l6-3 M12 3a9 9 0 1 0 9 9 M12 7a5 5 0 1 0 5 5" {...p} />;
+export const IcShield  = (p) => <I d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z M9 12l2 2 4-4" {...p} />;
 export const IcAlert   = (p) => <I d="M12 3 2 20h20L12 3z M12 10v4 M12 17.5v.01" {...p} />;
 export const IcSearch  = (p) => <I d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M21 21l-4.7-4.7" {...p} />;
 export const IcBox     = (p) => <I d="M21 8 12 3 3 8v8l9 5 9-5V8z M3 8l9 5 9-5 M12 13v8" {...p} />;
