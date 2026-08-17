@@ -164,14 +164,22 @@ export default function ChiaHangMoi() {
     const { data, error: e2 } = await sb.from('chia_hang_moi_ct')
       .select('*').eq('batch_id', id).order('sl_de_xuat', { ascending: false });
     if (e2) { baoToast('Lỗi đọc kết quả: ' + e2.message); return false; }
-    // Lấy TỒN HIỆN TẠI của chính mã này ở các cửa hàng -> để đối chiếu CH nào ĐÃ CÓ hàng
+    // Lấy TỒN của mã này ở các cửa hàng -> đối chiếu CH nào ĐÃ CÓ hàng.
+    // ton_du_tinh = tồn thực + hàng ĐANG ĐI ĐƯỜNG (đã xin/đã chia, chưa nhận).
     let tonMap = {};
     if (data && data.length) {
       const { data: tk } = await sb.from('ton_kho')
-        .select('ma_ch, ton_hien_tai').eq('barcode', d.sp.barcode).gt('ton_hien_tai', 0);
-      tonMap = Object.fromEntries((tk || []).map((t) => [t.ma_ch, t.ton_hien_tai]));
+        .select('ma_ch, ton_hien_tai, ton_du_tinh').eq('barcode', d.sp.barcode);
+      tonMap = Object.fromEntries((tk || []).map((t) => {
+        const thuc = t.ton_hien_tai || 0;
+        const duTinh = (t.ton_du_tinh == null ? thuc : t.ton_du_tinh);   // gồm đi đường
+        return [t.ma_ch, { thuc, duTinh, tren_duong: Math.max(0, duTinh - thuc) }];
+      }));
     }
-    const ctData = (data || []).map((r) => ({ ...r, ton_dang_co: tonMap[r.ma_ch] || 0 }));
+    const ctData = (data || []).map((r) => {
+      const m = tonMap[r.ma_ch];
+      return { ...r, ton_dang_co: m ? m.duTinh : 0, ton_thuc: m ? m.thuc : 0, ton_duong: m ? m.tren_duong : 0 };
+    });
     if (!data || !data.length) {
       baoToast(d.thamChieu ? 'Mã tham chiếu chưa có bán 60 ngày — thử mã khác' : 'Ngành này chưa có bán 60 ngày — hãy chọn MÃ THAM CHIẾU tương tự để chia');
     }
@@ -493,7 +501,7 @@ export default function ChiaHangMoi() {
                     <thead><tr><th className="ct-stt">#</th>
                       <th className="sortable" onClick={() => dsCt('cuahang')}>Cửa hàng{icCt('cuahang')}</th>
                       <th className="ct-giua sortable" style={{ width: 150 }} onClick={() => dsCt('khuvuc')}>Khu vực{icCt('khuvuc')}</th>
-                      <th className="ct-giua sortable" style={{ width: 72 }} onClick={() => dsCt('ton_dang_co')} title="Tồn hiện tại của mã này ở cửa hàng — có số nghĩa là CH đã có hàng (đã xin trước đó)">Đã có{icCt('ton_dang_co')}</th>
+                      <th className="ct-giua sortable" style={{ width: 82 }} onClick={() => dsCt('ton_dang_co')} title="Tồn thực + hàng đang đi đường (đã xin/đã chia chưa nhận) của mã này ở cửa hàng. Số cam = tồn thực; ✈ = đang về.">Đã có{icCt('ton_dang_co')}</th>
                       <th className="ct-giua sortable" style={{ width: 72 }} onClick={() => dsCt('ty_le')}>Tỷ lệ{icCt('ty_le')}</th>
                       <th className="ct-giua sortable" style={{ width: 80 }} onClick={() => dsCt('sl_de_xuat')}>Đề xuất{icCt('sl_de_xuat')}</th>
                       <th className="ct-giua sortable" style={{ width: 90 }} onClick={() => dsCt('sl_chot')}>Chốt{icCt('sl_chot')}</th>
@@ -505,7 +513,11 @@ export default function ChiaHangMoi() {
                           <td><b>{tenCH[r.ma_ch] || r.ma_ch}</b> <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{r.ma_ch}</span></td>
                           <td className="ct-giua">{kvCH[r.ma_ch] || '—'}</td>
                           <td className="ct-giua">{r.ton_dang_co > 0
-                            ? <b className="ct-dacos">{r.ton_dang_co}</b> : <span className="ct-khong">·</span>}</td>
+                            ? <span className="ct-dacoz">
+                                <b className="ct-dacos">{r.ton_dang_co}</b>
+                                {r.ton_duong > 0 && <small className="ct-duong" title={`${r.ton_thuc} tồn thực + ${r.ton_duong} đang về`}>✈{r.ton_duong}</small>}
+                              </span>
+                            : <span className="ct-khong">·</span>}</td>
                           <td className="ct-giua">{Math.round((r.ty_le || 0) * 100)}%</td>
                           <td className="ct-giua">{r.sl_de_xuat}</td>
                           <td className="ct-giua"><input className="qty-input ct-inp" type="number" min="0" value={r.sl_chot}

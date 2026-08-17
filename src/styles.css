@@ -2708,3 +2708,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .ndh-mchiso b{font-size:15px;color:var(--nchu);font-family:var(--font-mono)}
 .ndh-mchiso b.ok{color:var(--teal2)}.ndh-mchiso b.xau{color:var(--ndo)}
 @media(max-width:640px){.ndh-mgrid,.ndh-mchiso{grid-template-columns:1fr}}
+
+/* Cột "Đã có" (Chia hàng mới): tồn thực + hàng đi đường */
+.ct-dacoz{display:inline-flex;align-items:center;gap:4px;justify-content:center}
+.ct-duong{font-size:10px;font-weight:700;color:var(--teal-deep);background:#E9F5F2;border:1px solid var(--teal);border-radius:6px;padding:0 4px;line-height:1.5;white-space:nowrap}
