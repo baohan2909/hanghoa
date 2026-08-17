@@ -50,6 +50,7 @@ export default function PhongDieuHanh({ chonTab }) {
   const { user } = useApp();
   const [ds, setDs] = useState(null);
   const [moPhongCo, setMoPhongCo] = useState(false);
+  const [loiThat, setLoiThat] = useState(null);
   const [chon, setChon] = useState(null);   // cửa hàng đang xem hồ sơ nhanh
   const [ho, setHo] = useState(null);       // hồ sơ 360° chi tiết (modal)
   const [hoTai, setHoTai] = useState(false);
@@ -85,10 +86,13 @@ export default function PhongDieuHanh({ chonTab }) {
   useEffect(() => { (async () => {
     try {
       const { data, error } = await sb.rpc('fn_dieu_hanh_tong', { p_token: user.token });
-      if (error || !Array.isArray(data)) throw error || new Error('no data');
-      setDs(data); setMoPhongCo(false);
-    } catch {
-      setDs(moPhong()); setMoPhongCo(true);   // chưa có backend -> mô phỏng
+      if (error) throw new Error('[' + (error.code || '?') + '] ' + (error.message || error.hint || 'RPC lỗi'));
+      if (data == null) throw new Error('Hàm trả về null — kiểm quyền hoặc token');
+      if (!Array.isArray(data)) throw new Error('Hàm trả về không phải mảng (kiểu ' + typeof data + ')');
+      if (!data.length) throw new Error('Hàm trả về rỗng — chưa có cửa hàng hoạt động khớp điều kiện');
+      setDs(data); setMoPhongCo(false); setLoiThat(null);
+    } catch (e) {
+      setDs(moPhong()); setMoPhongCo(true); setLoiThat(e.message || String(e));   // rơi về mô phỏng, GHI lỗi thật
     }
   })(); }, [user]);
 
@@ -128,7 +132,7 @@ export default function PhongDieuHanh({ chonTab }) {
         </button>
       </div>
 
-      {moPhongCo && <div className="ndh-mp">⚙ Đang hiển thị dữ liệu MÔ PHỎNG — chạy SQL backend (fn_dieu_hanh_tong) để hiện số thật.</div>}
+      {moPhongCo && <div className="ndh-mp">⚙ Đang hiển thị dữ liệu MÔ PHỎNG{loiThat ? ' — Lỗi thật: ' + loiThat : ''}. Cần chạy SQL backend fn_dieu_hanh_tong (schema chiahang) để hiện số thật.</div>}
 
       {/* KPI */}
       <div className="ndh-kpis">
