@@ -20,6 +20,15 @@ const BAC = (d) =>
 
 const iso = (d) => (d || new Date()).toISOString().slice(0, 10);
 const fmtNgay = (s) => s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '—';
+const fmtSo = (n) => (n == null || n === '—') ? '—' : Number(n).toLocaleString('vi-VN');
+const fmtTien = (n) => {
+  if (n == null || n === '—' || !Number(n)) return '—';
+  const v = Number(n);
+  if (v >= 1e9) return (v / 1e9).toFixed(1).replace('.0', '') + ' tỷ';
+  if (v >= 1e6) return (v / 1e6).toFixed(1).replace('.0', '') + ' tr';
+  if (v >= 1e3) return Math.round(v / 1e3) + 'k';
+  return String(v);
+};
 
 // ---- MÔ PHỎNG (chỉ dùng khi backend chưa sẵn sàng) ----
 function moPhong() {
@@ -30,10 +39,13 @@ function moPhong() {
     const diem = Math.max(12, Math.min(99, Math.round(72 + (Math.random() - 0.5) * 74)));
     const nhom = (i % 3) + 1;
     const soHet = diem < 55 ? Math.round((60 - diem) / 4) : Math.round(Math.random() * 3);
+    const dm = 400 + Math.round(Math.random() * 300);
+    const ton = Math.round(dm * diem / 100);
     ds.push({
       ma_ch: 'CH0' + (5000 + i), ten: KV[i % 6].split(' ').slice(-1) + ' CH ' + (i + 1),
       khu_vuc: KV[i % 6], nhom_ch: nhom, diem,
-      ton_dat: Math.round(diem * 0.9 + Math.random() * 10),
+      ton_dat: Math.round(diem * 0.9 + Math.random() * 10), tong_ton: ton, dm_min: dm,
+      sl_thieu: Math.max(0, dm - ton), gia_tri_het: soHet * (300000 + Math.round(Math.random() * 700000)),
       so_het: soHet, ma_het_lau: soHet ? MA[i % 5] : null, ngay_het_lau: soHet ? Math.round(Math.random() * 12) : 0,
       xin_cuoi: iso(new Date(Date.now() - Math.round(Math.random() * 14) * 864e5)),
       tre_lich: diem < 55 ? Math.round(Math.random() * 3) : 0,
@@ -59,18 +71,19 @@ export default function PhongDieuHanh({ chonTab }) {
   const [gio, setGio] = useState(new Date());
 
   const moHoSo = async (c) => {
-    setChon(c); setHo({ ...c, lich_toi: [], ma_het: [], lich_su_xin: [], _load: true }); setHoTai(true);
+    setChon(c); setHo({ ...c, ds_het: [], lich_su_xin: [], lich_toi: [], _load: true }); setHoTai(true); setLoiThat(null);
     try {
       const { data, error } = await sb.rpc('fn_dieu_hanh_ch', { p_token: user.token, p_ma_ch: c.ma_ch });
-      if (error || !data) throw error || new Error('no data');
+      if (error) throw new Error('[' + (error.code || '?') + '] ' + (error.message || 'RPC lỗi'));
+      if (!data) throw new Error('Hàm trả về null');
       const arr = (x) => Array.isArray(x) ? x : (x ? [x] : []);
-      setHo({ ...c, ...data, ma_het: arr(data.ma_het), lich_su_xin: arr(data.lich_su_xin), lich_toi: arr(data.lich_toi) });
-    } catch {
-      // mô phỏng chi tiết khi chưa có backend
-      setHo({ ...c, _mp: true,
-        ma_het: c.ma_het_lau ? [{ ma: c.ma_het_lau, ten: '', so_ngay: c.ngay_het_lau }] : [],
-        lich_su_xin: [{ ngay: c.xin_cuoi, loai: 'DINH_KY', trang_thai: 'DUYET', tre: !!c.tre_lich }],
-        lich_toi: [c.lich_toi], ton: { tong: '—', so_ma: '—' }, cldn: { hang: c.cldn } });
+      setHo({ ...c, ...data, ds_het: arr(data.ds_het), lich_su_xin: arr(data.lich_su_xin), lich_toi: arr(data.lich_toi), _loi: null });
+    } catch (e) {
+      // rơi mô phỏng chi tiết — GHI lỗi thật để chẩn đoán
+      setHo({ ...c, _mp: true, _loi: e.message || String(e),
+        ds_het: c.ma_het_lau ? [{ ma: c.ma_het_lau, gia: c.gia_tri_het, so_ngay: c.ngay_het_lau }] : [],
+        lich_su_xin: c.xin_cuoi ? [{ ngay: c.xin_cuoi, trang_thai: 'DUYET', tre: !!c.tre_lich }] : [],
+        lich_toi: c.lich_toi ? [c.lich_toi] : [] });
     }
     setHoTai(false);
   };
@@ -106,7 +119,14 @@ export default function PhongDieuHanh({ chonTab }) {
     return g;
   }, [loc]);
 
-  const top = useMemo(() => [...loc].sort((a, b) => a.diem - b.diem).slice(0, 6), [loc]);
+  const [topSap, setTopSap] = useState('diem');
+  const top = useMemo(() => {
+    const arr = [...loc];
+    if (topSap === 'so_het') arr.sort((a, b) => (b.so_het || 0) - (a.so_het || 0) || a.diem - b.diem);
+    else if (topSap === 'sl_thieu') arr.sort((a, b) => (b.sl_thieu || 0) - (a.sl_thieu || 0) || a.diem - b.diem);
+    else arr.sort((a, b) => a.diem - b.diem);
+    return arr.slice(0, 20);
+  }, [loc, topSap]);
   const luoiKV = useMemo(() => [...new Set((ds || []).map((c) => c.khu_vuc))], [ds]);
 
   if (!ds) return <div className="ndh full"><div className="ndh-load">Đang mở phòng điều hành…</div></div>;
@@ -163,19 +183,31 @@ export default function PhongDieuHanh({ chonTab }) {
 
         {/* TOP NGUY KỊCH */}
         <div className="ndh-pan">
-          <h3><span className="dot do" />TOP THIẾU HÀNG TRẦM TRỌNG</h3>
+          <h3><span className="dot do" />TOP THIẾU HÀNG · {topSap === 'diem' ? 'điểm thấp nhất' : topSap === 'so_het' ? 'nhiều mã hết nhất' : 'thiếu nhiều nhất'}
+            <span className="ndh-sap">
+              <button className={topSap === 'diem' ? 'on' : ''} onClick={() => setTopSap('diem')}>Điểm</button>
+              <button className={topSap === 'so_het' ? 'on' : ''} onClick={() => setTopSap('so_het')}>Mã hết</button>
+              <button className={topSap === 'sl_thieu' ? 'on' : ''} onClick={() => setTopSap('sl_thieu')}>SL thiếu</button>
+            </span>
+          </h3>
           <div className="ndh-nk">
-            {top.map((c, i) => (
+            {top.map((c, i) => { const b = BAC(c.diem); return (
               <div key={c.ma_ch} className={'ndh-nkr' + (chon?.ma_ch === c.ma_ch ? ' sel' : '')} onClick={() => moHoSo(c)}>
                 <div className="h">{i + 1}</div>
                 <div className="mid">
-                  <div className="ten">{c.ten} <b>· {c.diem}đ</b></div>
-                  <div className="sub">{c.so_het} mã hết{c.ma_het_lau ? ` · ${c.ma_het_lau} ${c.ngay_het_lau}n` : ''}{c.bo_lich ? ' · bỏ lịch' : ''}</div>
-                  <div className="bar"><i style={{ width: (100 - c.diem) + '%' }} /></div>
+                  <div className="ten">{c.ten} <span className="ndh-ma">{c.ma_ch}</span></div>
+                  <div className="ndh-chip-row">
+                    <span className="ndh-chip diem" style={{ color: b.mau, borderColor: b.mau }}>{c.diem}đ</span>
+                    <span className="ndh-chip"><b>{fmtSo(c.so_het)}</b> mã hết</span>
+                    <span className="ndh-chip"><b>{fmtSo(c.sl_thieu)}</b> thiếu</span>
+                    {c.gia_tri_het > 0 && <span className="ndh-chip tien">{fmtTien(c.gia_tri_het)}</span>}
+                    {c.bo_lich ? <span className="ndh-chip xau">bỏ lịch</span> : null}
+                  </div>
+                  <div className="bar"><i style={{ width: Math.min(100, c.dm_min ? Math.round(100 * c.sl_thieu / c.dm_min) : (100 - c.diem)) + '%' }} /></div>
                 </div>
-                <div className="ph">Xin cuối <b>{fmtNgay(c.xin_cuoi)}</b><br />Lịch tới <b className={c.bo_lich ? 'tre' : ''}>{fmtNgay(c.lich_toi)}</b></div>
+                <div className="ph">Xin cuối<br /><b>{fmtNgay(c.xin_cuoi)}</b></div>
               </div>
-            ))}
+            ); })}
           </div>
         </div>
       </div>
@@ -236,50 +268,61 @@ export default function PhongDieuHanh({ chonTab }) {
               ); })()}
               <button className="ndh-mx" onClick={() => setHo(null)}>✕</button>
             </div>
-            {ho._mp && <div className="ndh-mp" style={{ margin: '0 0 12px' }}>⚙ Chi tiết mô phỏng — chạy fn_dieu_hanh_ch để hiện số thật.</div>}
+            {ho._mp && <div className="ndh-mp" style={{ margin: '0 0 12px' }}>⚙ Chi tiết mô phỏng{ho._loi ? ' — Lỗi: ' + ho._loi : ''}. Chạy fn_dieu_hanh_ch để hiện số thật.</div>}
+
+            {/* HÀNG CHỈ SỐ NỔI BẬT */}
+            <div className="ndh-mkpi">
+              <div className="k do"><span className="v">{fmtSo(ho.so_ma_het ?? ho.so_het)}</span><span className="l">Mã đang hết</span></div>
+              <div className="k cam"><span className="v">{fmtSo(ho.sl_thieu)}</span><span className="l">SL thiếu định mức</span></div>
+              <div className="k"><span className="v">{fmtSo(ho.tong_ton)}</span><span className="l">Tồn hiện có{ho.so_ma_ton != null ? ` · ${ho.so_ma_ton} mã` : ''}</span></div>
+              <div className="k teal"><span className="v">{fmtTien(ho.gia_tri_ton)}</span><span className="l">Giá trị tồn</span></div>
+            </div>
 
             <div className="ndh-mgrid">
-              {/* MÃ ĐANG HẾT */}
+              {/* SẢN PHẨM ĐANG HẾT */}
               <div className="ndh-mcol">
-                <h4>MÃ ĐANG HẾT · hàng gì hết bao lâu</h4>
-                {(ho.ma_het && ho.ma_het.length) ? (
-                  <table className="ndh-mtb">
-                    <thead><tr><th>Mã</th><th>Sản phẩm</th><th className="r">Số ngày</th></tr></thead>
-                    <tbody>{ho.ma_het.map((m, i) => (
-                      <tr key={i}><td className="ma">{m.ma}</td><td className="ten">{m.ten || '—'}</td>
-                        <td className={'r ' + (m.so_ngay >= 5 ? 'do' : 'cam')}>{m.so_ngay}n</td></tr>
-                    ))}</tbody>
-                  </table>
-                ) : <div className="ndh-trong">Không có mã nào đang hết 👍</div>}
+                <h4>SẢN PHẨM ĐANG HẾT{ho.gia_tri_het > 0 ? ` · giá trị ${fmtTien(ho.gia_tri_het)}` : ''}</h4>
+                {(ho.ds_het && ho.ds_het.length) ? (
+                  <div className="ndh-mtb-wrap">
+                    <table className="ndh-mtb">
+                      <thead><tr><th>Mã sản phẩm</th><th className="r">Giá</th><th className="r">Số ngày hết</th></tr></thead>
+                      <tbody>{ho.ds_het.map((m, i) => (
+                        <tr key={i}><td className="ma">{m.ma}</td>
+                          <td className="r gia">{m.gia ? fmtTien(m.gia) : '—'}</td>
+                          <td className={'r ' + (m.so_ngay >= 7 ? 'do' : m.so_ngay >= 3 ? 'cam' : 'nhe')}>{m.so_ngay} ngày</td></tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                ) : <div className="ndh-trong">Không có sản phẩm nào đang hết</div>}
               </div>
 
-              {/* DÒNG THỜI GIAN XIN */}
+              {/* LỊCH SỬ ĐỀ NGHỊ */}
               <div className="ndh-mcol">
-                <h4>DÒNG THỜI GIAN XIN HÀNG · chuyên cần</h4>
+                <h4>LỊCH SỬ ĐỀ NGHỊ · 60 ngày</h4>
                 {(ho.lich_su_xin && ho.lich_su_xin.length && ho.lich_su_xin[0].ngay) ? (
                   <div className="ndh-tl">
-                    {ho.lich_su_xin.filter((x) => x.ngay).map((x, i) => (
+                    {ho.lich_su_xin.filter((x) => x.ngay).slice(0, 8).map((x, i) => (
                       <div key={i} className="ndh-tli">
                         <span className={'ndh-tld' + (x.tre ? ' tre' : '')} />
                         <span className="ng">{fmtNgay(x.ngay)}</span>
-                        <span className="lo">{x.loai === 'DINH_KY' ? 'Định kỳ' : x.loai}{x.tre ? ' · trễ' : ''}</span>
+                        <span className="lo">{x.tre ? 'Gửi trễ' : 'Đúng hạn'}</span>
                         <span className="tt">{x.trang_thai}</span>
                       </div>
                     ))}
                   </div>
-                ) : <div className="ndh-trong">Chưa có đơn xin nào gần đây</div>}
+                ) : <div className="ndh-trong">Chưa có đề nghị nào trong 60 ngày</div>}
                 {Array.isArray(ho.lich_toi) && ho.lich_toi.filter(Boolean).length > 0 && (
-                  <div className="ndh-lichtoi">Lịch xin tới: {ho.lich_toi.filter(Boolean).map(fmtNgay).join(' · ')}</div>
+                  <div className="ndh-lichtoi">Lịch đề nghị tới: {ho.lich_toi.filter(Boolean).map(fmtNgay).join(' · ')}</div>
                 )}
               </div>
             </div>
 
-            {/* CHỈ SỐ NHANH */}
+            {/* CHỈ SỐ ĐÁNH GIÁ */}
             <div className="ndh-mchiso">
-              <div><span>Tồn hiện có</span><b>{ho.ton?.tong ?? '—'}{ho.ton?.so_ma != null ? ` · ${ho.ton.so_ma} mã` : ''}</b></div>
-              <div><span>Định mức BH</span><b>{ho.dm_bh ? `${ho.dm_bh.min}–${ho.dm_bh.max}` : (ho.ton_dat != null ? ho.ton_dat + '%' : '—')}</b></div>
+              <div><span>Định mức tối thiểu</span><b>{fmtSo(ho.dm_min)}</b></div>
+              <div><span>Đạt định mức</span><b className={ho.ton_dat < 60 ? 'xau' : 'ok'}>{ho.ton_dat != null ? ho.ton_dat + '%' : '—'}</b></div>
               <div><span>Tuân thủ lịch</span><b className={ho.tuan_thu < 70 ? 'xau' : 'ok'}>{ho.tuan_thu != null ? ho.tuan_thu + '%' : '—'}</b></div>
-              <div><span>Chất lượng ĐN</span><b className={(ho.cldn?.hang || ho.cldn) >= 'C' ? 'xau' : 'ok'}>{ho.cldn?.hang || ho.cldn || '—'}</b></div>
+              <div><span>Chất lượng ĐN</span><b className={(ho.cldn >= 'C') ? 'xau' : 'ok'}>{ho.cldn || '—'}</b></div>
             </div>
           </div>
         </div>

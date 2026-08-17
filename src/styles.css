@@ -2712,3 +2712,27 @@ textarea.inp { height: auto; padding: 10px 12px; }
 /* Cột "Đã có" (Chia hàng mới): tồn thực + hàng đi đường */
 .ct-dacoz{display:inline-flex;align-items:center;gap:4px;justify-content:center}
 .ct-duong{font-size:10px;font-weight:700;color:var(--teal-deep);background:#E9F5F2;border:1px solid var(--teal);border-radius:6px;padding:0 4px;line-height:1.5;white-space:nowrap}
+
+/* Phòng điều hành v2 — Top giàu + Modal KPI */
+.ndh-sap{margin-left:auto;display:inline-flex;gap:4px}
+.ndh-sap button{background:rgba(255,255,255,.05);border:1px solid var(--vien);color:var(--nmo);border-radius:7px;padding:3px 9px;font:inherit;font-size:10px;cursor:pointer;text-transform:none;letter-spacing:0}
+.ndh-sap button.on{background:rgba(94,234,212,.14);border-color:var(--teal2);color:var(--teal2)}
+.ndh-nk{max-height:560px;overflow-y:auto;padding-right:4px}
+.ndh-ma{font-family:var(--font-mono);font-size:10px;color:var(--nmo);font-weight:600}
+.ndh-chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.ndh-chip{font-size:10.5px;background:rgba(255,255,255,.05);border:1px solid var(--vien);border-radius:6px;padding:2px 7px;color:var(--nmo)}
+.ndh-chip b{color:var(--nchu);font-family:var(--font-mono)}
+.ndh-chip.diem{border-width:1.5px;font-weight:800;font-family:var(--font-mono)}
+.ndh-chip.tien{color:var(--ngold);border-color:rgba(232,193,112,.3)}
+.ndh-chip.xau{color:var(--ndo);border-color:rgba(255,59,92,.3)}
+/* Modal KPI hàng nổi bật */
+.ndh-mkpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.ndh-mkpi .k{background:rgba(255,255,255,.03);border:1px solid var(--vien);border-radius:11px;padding:11px 13px;display:flex;flex-direction:column;gap:3px}
+.ndh-mkpi .v{font:900 22px var(--font-mono);color:var(--nchu)}
+.ndh-mkpi .l{font-size:10px;color:var(--nmo);letter-spacing:.3px}
+.ndh-mkpi .k.do .v{color:var(--ndo)}
+.ndh-mkpi .k.cam .v{color:var(--ngold)}
+.ndh-mkpi .k.teal .v{color:var(--teal2)}
+.ndh-mtb-wrap{max-height:230px;overflow-y:auto}
+.ndh-mtb .gia{font-family:var(--font-mono);color:var(--ngold);font-size:11px}
+.ndh-mtb td.r.nhe{color:var(--nmo);font-family:var(--font-mono)}
