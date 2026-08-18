@@ -14,11 +14,11 @@ import { useApp } from '../App.jsx';
 ================================================================ */
 
 const BAC = (d) =>
-  d >= 90 ? { h: 1, ten: 'Khỏe', mau: '#22F5A0' } :
-  d >= 75 ? { h: 2, ten: 'Ổn định', mau: '#2DE0FF' } :
-  d >= 55 ? { h: 3, ten: 'Theo dõi', mau: '#FFE83D' } :
-  d >= 35 ? { h: 4, ten: 'Cảnh báo', mau: '#FF9F1C' } :
-            { h: 5, ten: 'Nguy kịch', mau: '#FF2E97' };
+  d >= 90 ? { h: 1, ten: 'Khỏe', mau: '#34D399' } :
+  d >= 75 ? { h: 2, ten: 'Ổn định', mau: '#38BDF8' } :
+  d >= 55 ? { h: 3, ten: 'Theo dõi', mau: '#FBBF24' } :
+  d >= 35 ? { h: 4, ten: 'Cảnh báo', mau: '#F97316' } :
+            { h: 5, ten: 'Nguy kịch', mau: '#EC4899' };
 
 const fmtNgay = (s) => s ? String(s).slice(8, 10) + '/' + String(s).slice(5, 7) : '—';
 const fmtSo = (n) => (n == null || n === '') ? '—' : Number(n).toLocaleString('vi-VN');
@@ -377,20 +377,20 @@ function TongQuan({ ds, dsMa, tk, setBac, setKv, setBoLich }) {
 
     // 4 trạng thái màu neon riêng
     const tt = [
-      { key: 'het', mau: '#FF9F1C', ic: '⚠', nhan: 'Cửa hàng có mã hết', so: coHet, pc: Math.round(coHet / n * 100), loc: () => { setBac(null); setKv(null); setBoLich(false); } },
-      { key: 'ton', mau: '#FF9F1C', ic: '▼', nhan: 'Thiếu tồn so định mức', so: thieuTon, pc: Math.round(thieuTon / n * 100), loc: () => {} },
-      { key: 'lich', mau: '#FFE83D', ic: '✉', nhan: 'Bỏ lịch đề nghị', so: boLich, pc: Math.round(boLich / n * 100), loc: () => setBoLich(true) },
-      { key: 'sx', mau: '#2DE0FF', ic: '⚑', nhan: 'Mã cần sản xuất', so: sanXuat, pc: null, loc: () => {} },
+      { key: 'het', mau: '#F97316', ic: '⚠', nhan: 'Cửa hàng có mã hết', so: coHet, pc: Math.round(coHet / n * 100), loc: () => { setBac(null); setKv(null); setBoLich(false); } },
+      { key: 'ton', mau: '#F97316', ic: '▼', nhan: 'Thiếu tồn so định mức', so: thieuTon, pc: Math.round(thieuTon / n * 100), loc: () => {} },
+      { key: 'lich', mau: '#FBBF24', ic: '✉', nhan: 'Bỏ lịch đề nghị', so: boLich, pc: Math.round(boLich / n * 100), loc: () => setBoLich(true) },
+      { key: 'sx', mau: '#38BDF8', ic: '⚑', nhan: 'Mã cần sản xuất', so: sanXuat, pc: null, loc: () => {} },
     ];
 
     // vấn đề nổi bật nhất
     let noiBat;
-    if (nguy > 0 && nguy / n >= 0.15) noiBat = { mau: '#FF2E97', txt: `${nguy} cửa hàng đang NGUY KỊCH (${Math.round(nguy / n * 100)}% hệ thống) — cần can thiệp ngay`, loc: () => setBac(5) };
-    else if (thieuTon / n >= 0.5) noiBat = { mau: '#FF9F1C', txt: `Phần lớn hệ thống thiếu tồn: ${thieuTon}/${n} cửa hàng dưới định mức (${Math.round(thieuTon / n * 100)}%)`, loc: () => {} };
-    else if (coHet / n >= 0.4) noiBat = { mau: '#FF9F1C', txt: `${coHet}/${n} cửa hàng đang có mã hết (${Math.round(coHet / n * 100)}%) — ưu tiên điều chuyển & sản xuất`, loc: () => {} };
-    else if (boLich / n >= 0.3) noiBat = { mau: '#FFE83D', txt: `${boLich} cửa hàng bỏ lịch đề nghị kỳ này — nhắc kỷ luật`, loc: () => setBoLich(true) };
-    else if (kvYeu && kvYeu.tyLe >= 0.4) noiBat = { mau: '#FF9F1C', txt: `Khu vực ${kvYeu.k} tập trung cửa hàng yếu: ${kvYeu.yeu}/${kvYeu.n} cần chú ý`, loc: () => setKv(kvYeu.k) };
-    else noiBat = { mau: '#22F5A0', txt: `Hệ thống ổn định — ${tk.g[1] + tk.g[2]}/${n} cửa hàng khỏe/ổn, không có vấn đề nổi cộm`, loc: () => {} };
+    if (nguy > 0 && nguy / n >= 0.15) noiBat = { mau: '#EC4899', txt: `${nguy} cửa hàng đang NGUY KỊCH (${Math.round(nguy / n * 100)}% hệ thống) — cần can thiệp ngay`, loc: () => setBac(5) };
+    else if (thieuTon / n >= 0.5) noiBat = { mau: '#F97316', txt: `Phần lớn hệ thống thiếu tồn: ${thieuTon}/${n} cửa hàng dưới định mức (${Math.round(thieuTon / n * 100)}%)`, loc: () => {} };
+    else if (coHet / n >= 0.4) noiBat = { mau: '#F97316', txt: `${coHet}/${n} cửa hàng đang có mã hết (${Math.round(coHet / n * 100)}%) — ưu tiên điều chuyển & sản xuất`, loc: () => {} };
+    else if (boLich / n >= 0.3) noiBat = { mau: '#FBBF24', txt: `${boLich} cửa hàng bỏ lịch đề nghị kỳ này — nhắc kỷ luật`, loc: () => setBoLich(true) };
+    else if (kvYeu && kvYeu.tyLe >= 0.4) noiBat = { mau: '#F97316', txt: `Khu vực ${kvYeu.k} tập trung cửa hàng yếu: ${kvYeu.yeu}/${kvYeu.n} cần chú ý`, loc: () => setKv(kvYeu.k) };
+    else noiBat = { mau: '#34D399', txt: `Hệ thống ổn định — ${tk.g[1] + tk.g[2]}/${n} cửa hàng khỏe/ổn, không có vấn đề nổi cộm`, loc: () => {} };
 
     return { tt, noiBat, nguy, canh, n };
   }, [ds, dsMa, tk, setBac, setKv, setBoLich]);
