@@ -377,7 +377,7 @@ function TongQuan({ ds, dsMa, tk, setBac, setKv, setBoLich }) {
 
     // 4 trạng thái màu neon riêng
     const tt = [
-      { key: 'het', mau: '#FF2E97', ic: '⚠', nhan: 'Cửa hàng có mã hết', so: coHet, pc: Math.round(coHet / n * 100), loc: () => { setBac(null); setKv(null); setBoLich(false); } },
+      { key: 'het', mau: '#FF9F1C', ic: '⚠', nhan: 'Cửa hàng có mã hết', so: coHet, pc: Math.round(coHet / n * 100), loc: () => { setBac(null); setKv(null); setBoLich(false); } },
       { key: 'ton', mau: '#FF9F1C', ic: '▼', nhan: 'Thiếu tồn so định mức', so: thieuTon, pc: Math.round(thieuTon / n * 100), loc: () => {} },
       { key: 'lich', mau: '#FFE83D', ic: '✉', nhan: 'Bỏ lịch đề nghị', so: boLich, pc: Math.round(boLich / n * 100), loc: () => setBoLich(true) },
       { key: 'sx', mau: '#2DE0FF', ic: '⚑', nhan: 'Mã cần sản xuất', so: sanXuat, pc: null, loc: () => {} },
@@ -387,7 +387,7 @@ function TongQuan({ ds, dsMa, tk, setBac, setKv, setBoLich }) {
     let noiBat;
     if (nguy > 0 && nguy / n >= 0.15) noiBat = { mau: '#FF2E97', txt: `${nguy} cửa hàng đang NGUY KỊCH (${Math.round(nguy / n * 100)}% hệ thống) — cần can thiệp ngay`, loc: () => setBac(5) };
     else if (thieuTon / n >= 0.5) noiBat = { mau: '#FF9F1C', txt: `Phần lớn hệ thống thiếu tồn: ${thieuTon}/${n} cửa hàng dưới định mức (${Math.round(thieuTon / n * 100)}%)`, loc: () => {} };
-    else if (coHet / n >= 0.4) noiBat = { mau: '#FF2E97', txt: `${coHet}/${n} cửa hàng đang có mã hết (${Math.round(coHet / n * 100)}%) — ưu tiên điều chuyển & sản xuất`, loc: () => {} };
+    else if (coHet / n >= 0.4) noiBat = { mau: '#FF9F1C', txt: `${coHet}/${n} cửa hàng đang có mã hết (${Math.round(coHet / n * 100)}%) — ưu tiên điều chuyển & sản xuất`, loc: () => {} };
     else if (boLich / n >= 0.3) noiBat = { mau: '#FFE83D', txt: `${boLich} cửa hàng bỏ lịch đề nghị kỳ này — nhắc kỷ luật`, loc: () => setBoLich(true) };
     else if (kvYeu && kvYeu.tyLe >= 0.4) noiBat = { mau: '#FF9F1C', txt: `Khu vực ${kvYeu.k} tập trung cửa hàng yếu: ${kvYeu.yeu}/${kvYeu.n} cần chú ý`, loc: () => setKv(kvYeu.k) };
     else noiBat = { mau: '#22F5A0', txt: `Hệ thống ổn định — ${tk.g[1] + tk.g[2]}/${n} cửa hàng khỏe/ổn, không có vấn đề nổi cộm`, loc: () => {} };
@@ -421,7 +421,7 @@ function Ticker({ ds, dsMa, tk }) {
   const items = useMemo(() => {
     const t = [];
     [...(ds || [])].sort((a, b) => a.diem - b.diem).slice(0, 3).forEach((c) =>
-      t.push({ m: 'do', tx: `${c.ten} (${c.ma_ch}) — ${BAC(c.diem).ten} ${c.diem}đ · ${c.so_het || 0} mã hết · thiếu ${fmtSo(c.sl_thieu)} SP` }));
+      t.push({ m: BAC(c.diem).h === 5 ? 'do' : 'cam', tx: `${c.ten} (${c.ma_ch}) — ${BAC(c.diem).ten} ${c.diem}đ · ${c.so_het || 0} mã hết · thiếu ${fmtSo(c.sl_thieu)} SP` }));
     (dsMa || []).filter((m) => !m.so_ch_con).slice(0, 3).forEach((m) =>
       t.push({ m: 'cam', tx: `CẦN SẢN XUẤT ${m.ma} — hết ở ${m.so_ch_het} cửa hàng, không nơi nào còn tồn` }));
     (dsMa || []).filter((m) => m.so_ch_het >= 3 && m.so_ch_con > 0).slice(0, 2).forEach((m) =>
@@ -453,10 +453,9 @@ function Hero({ tk, bac, setBac, boLich, setBoLich }) {
     <>
       <div className="nd2-hero">
         <div className="nd2-gauge-box">
-          <span className="nd2-radar" />
           <svg viewBox="0 0 120 120" className="nd2-gauge">
             <circle cx="60" cy="60" r="52" className="rail" />
-            <circle cx="60" cy="60" r="52" className="val" style={{ stroke: b.mau, strokeDasharray: `${chu * p / 100} ${chu}`, filter: `drop-shadow(0 0 6px ${b.mau})` }} />
+            <circle cx="60" cy="60" r="52" className="val" style={{ stroke: b.mau, strokeDasharray: `${chu * p / 100} ${chu}` }} />
           </svg>
           <div className="nd2-gauge-num"><b style={{ color: b.mau }}>{tb}</b><span>SỨC KHỎE<br />TOÀN HỆ THỐNG</span></div>
         </div>
@@ -474,7 +473,7 @@ function Hero({ tk, bac, setBac, boLich, setBoLich }) {
         <div className="s"><span className="v cam">{fmtSo(thieu)}</span><span className="l">SP thiếu so định mức</span></div>
         <div className="s"><span className="v vang">{fmtSo(tk.chHet)}</span><span className="l">Cửa hàng đang có mã hết</span></div>
         <button className={'s bam' + (boLich ? ' on' : '')} onClick={() => setBoLich(!boLich)}>
-          <span className="v do">{tk.bo}</span><span className="l">CH bỏ lịch đề nghị{boLich ? ' · đang lọc' : ''}</span>
+          <span className="v vang">{tk.bo}</span><span className="l">CH bỏ lịch đề nghị{boLich ? ' · đang lọc' : ''}</span>
         </button>
       </div>
     </>

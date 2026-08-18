@@ -2824,7 +2824,7 @@ textarea.inp { height: auto; padding: 10px 12px; }
 .nd2-gauge-num span{font-size:8.5px;letter-spacing:1.6px;color:#8AA0C4;font-weight:700}
 .nd2-bacs{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
 .nd2-bac{position:relative;text-align:left;background:linear-gradient(160deg,#101B33,#121B30);border:1px solid rgba(148,163,184,.13);border-radius:15px;padding:14px 15px;cursor:pointer;font-family:inherit;color:#EAF2FF;transition:transform .18s,box-shadow .18s,border-color .18s;overflow:hidden}
-.nd2-bac::before{content:'';position:absolute;inset:0 auto 0 0;width:4px;background:var(--m);opacity:.9}
+.nd2-bac::before{content:'';position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:99px;background:var(--m);box-shadow:0 0 10px var(--m);opacity:.95}
 .nd2-bac:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.35)}
 .nd2-bac.on{border-color:var(--m);box-shadow:0 0 0 1px var(--m),0 10px 26px rgba(0,0,0,.35)}
 .nd2-bac .n{font:900 30px var(--font-mono);color:var(--m)}
@@ -2988,7 +2988,7 @@ input.nd2-in{min-width:230px}
 @media(max-width:860px){.nd2-strip{grid-template-columns:1fr}.nd2-bacs{grid-template-columns:repeat(2,1fr)}.nd2-bhd,.nd2-br{grid-template-columns:minmax(170px,1fr) 52px 62px 70px}.nd2-bhd .th:nth-child(n+5),.nd2-br .v:nth-child(n+5){display:none}.nd2-2cot{grid-template-columns:1fr}}
 
 /* nd2 v3.77 — việc cần xử lý + so sánh khu vực + nhãn việc */
-.nd2-tab .bdg{display:inline-block;margin-left:7px;font-style:normal;background:#FF2E97;color:#2A0A0A;font:800 10px var(--font-mono);border-radius:99px;padding:1px 7px;vertical-align:1px}
+.nd2-tab .bdg{display:inline-block;margin-left:7px;font-style:normal;background:#FF9F1C;color:#2A1400;font:800 10px var(--font-mono);border-radius:99px;padding:1px 7px;vertical-align:1px}
 .nd2-card .act{margin-top:8px;font-size:11px;font-weight:700;border-radius:8px;padding:6px 9px;border:1px solid}
 .nd2-card .act.chuyen{color:#FF2E97;border-color:rgba(255,46,151,.3);background:rgba(255,46,151,.06)}
 .nd2-card .act.bosung{color:#FF9F1C;border-color:rgba(251,146,60,.3);background:rgba(251,146,60,.06)}
