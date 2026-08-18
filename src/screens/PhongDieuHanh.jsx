@@ -14,11 +14,11 @@ import { useApp } from '../App.jsx';
 ================================================================ */
 
 const BAC = (d) =>
-  d >= 90 ? { h: 1, ten: 'Khỏe', mau: '#22C55E' } :
-  d >= 75 ? { h: 2, ten: 'Ổn định', mau: '#2DD4BF' } :
-  d >= 55 ? { h: 3, ten: 'Theo dõi', mau: '#FACC15' } :
-  d >= 35 ? { h: 4, ten: 'Cảnh báo', mau: '#FB923C' } :
-            { h: 5, ten: 'Nguy kịch', mau: '#F0409A' };
+  d >= 90 ? { h: 1, ten: 'Khỏe', mau: '#22F5A0' } :
+  d >= 75 ? { h: 2, ten: 'Ổn định', mau: '#2DE0FF' } :
+  d >= 55 ? { h: 3, ten: 'Theo dõi', mau: '#FFE83D' } :
+  d >= 35 ? { h: 4, ten: 'Cảnh báo', mau: '#FF9F1C' } :
+            { h: 5, ten: 'Nguy kịch', mau: '#FF2E97' };
 
 const fmtNgay = (s) => s ? String(s).slice(8, 10) + '/' + String(s).slice(5, 7) : '—';
 const fmtSo = (n) => (n == null || n === '') ? '—' : Number(n).toLocaleString('vi-VN');
@@ -139,12 +139,12 @@ export default function PhongDieuHanh({ chonTab }) {
       ...viecLam(c).map((v) => `• ${v.txt}`),
       `— CHỈ SỐ —`,
       `• Mã đang hết: ${fmtSo(c.so_ma_het ?? c.so_het)} · SL thiếu định mức: ${fmtSo(c.sl_thieu)}`,
-      `• Tồn: ${fmtSo(c.tong_ton)}${c.so_ma_ton != null ? ` (${c.so_ma_ton} mã)` : ''}${c.gia_tri_ton != null ? ` · Giá trị tồn: ${fmtTien(c.gia_tri_ton)}` : ''}`,
+      `• Tồn: ${fmtSo(c.tong_ton)}${c.so_ma_ton != null ? ` (${c.so_ma_ton} mã)` : ''}${c.gia_tri_ton != null ? ` · Giá trị tồn: ${fmtSo(c.gia_tri_ton)}đ` : ''}`,
       `• Tuân thủ lịch: ${c.tuan_thu != null ? c.tuan_thu + '%' : '—'} · CLDN: ${c.cldn || '—'} · Xin cuối: ${fmtNgay(c.xin_cuoi)}`,
     ];
     if (Array.isArray(c.ds_het) && c.ds_het.length) {
       dong.push(`— SẢN PHẨM ĐANG HẾT (${c.ds_het.length}) —`);
-      c.ds_het.slice(0, 10).forEach((m) => dong.push(`• ${m.ma}${m.gia ? ` · ${fmtTien(m.gia)}` : ''} · hết ${m.so_ngay} ngày`));
+      c.ds_het.slice(0, 10).forEach((m) => dong.push(`• ${m.ma}${m.gia ? ` · ${fmtSo(m.gia)}đ` : ''} · hết ${m.so_ngay} ngày`));
       if (c.ds_het.length > 10) dong.push(`… và ${c.ds_het.length - 10} mã khác`);
     }
     dong.push(`(NS COMMAND · ${gio.toLocaleTimeString('vi-VN', { hour12: false }).slice(0, 5)} ${gio.toLocaleDateString('vi-VN')})`);
@@ -212,20 +212,20 @@ export default function PhongDieuHanh({ chonTab }) {
     && (!q || (c.ten + ' ' + c.ma_ch).toLowerCase().includes(q.toLowerCase()))), [locCoBan, bac, boLich, q, locGhim, ghim]);
 
   const tk = useMemo(() => {
-    const g = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }; let thieu = 0, giaHet = 0, bo = 0, tongDiem = 0;
-    locCoBan.forEach((c) => { g[BAC(c.diem).h]++; thieu += c.sl_thieu || 0; giaHet += c.gia_tri_het || 0; bo += c.bo_lich ? 1 : 0; tongDiem += c.diem; });
-    return { g, thieu, giaHet, bo, tb: locCoBan.length ? Math.round(tongDiem / locCoBan.length) : 0, n: locCoBan.length };
+    const g = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }; let thieu = 0, giaHet = 0, bo = 0, tongDiem = 0, chHet = 0;
+    locCoBan.forEach((c) => { g[BAC(c.diem).h]++; thieu += c.sl_thieu || 0; giaHet += c.gia_tri_het || 0; bo += c.bo_lich ? 1 : 0; tongDiem += c.diem; if ((c.so_het || 0) > 0) chHet++; });
+    return { g, thieu, giaHet, chHet, bo, tb: locCoBan.length ? Math.round(tongDiem / locCoBan.length) : 0, n: locCoBan.length };
   }, [locCoBan]);
 
   const dsKV = useMemo(() => {
     const m = {};
     (ds || []).forEach((c) => {
       if (!c.khu_vuc) return;
-      (m[c.khu_vuc] = m[c.khu_vuc] || { ten: c.khu_vuc, n: 0, sum: 0, yeu: 0, nguy: 0, canh: 0, thieu: 0, giaHet: 0, het: 0 });
+      (m[c.khu_vuc] = m[c.khu_vuc] || { ten: c.khu_vuc, n: 0, sum: 0, yeu: 0, nguy: 0, canh: 0, thieu: 0, giaHet: 0, het: 0, chHet: 0 });
       const x = m[c.khu_vuc]; const h = BAC(c.diem).h;
       x.n++; x.sum += c.diem; if (c.diem < 55) x.yeu++;
       if (h === 5) x.nguy++; if (h === 4) x.canh++;
-      x.thieu += c.sl_thieu || 0; x.giaHet += c.gia_tri_het || 0; x.het += c.so_het || 0;
+      x.thieu += c.sl_thieu || 0; x.giaHet += c.gia_tri_het || 0; x.het += c.so_het || 0; if ((c.so_het||0)>0) x.chHet++;
     });
     return Object.values(m).map((x) => ({ ...x, tb: Math.round(x.sum / x.n) })).sort((a, b) => a.tb - b.tb);
   }, [ds]);
@@ -317,6 +317,7 @@ export default function PhongDieuHanh({ chonTab }) {
       {cheDo === 'ch' ? (
         <div className="nd2-body">
           <Hero tk={tk} bac={bac} setBac={setBac} boLich={boLich} setBoLich={setBoLich} />
+          <TongQuan ds={locCoBan} dsMa={dsMa} tk={tk} setBac={setBac} setKv={setKv} setBoLich={setBoLich} />
           <KhuVuc dsKV={dsKV} kv={kv} setKv={setKv} />
           <div className="nd2-bar">
             <input className="nd2-in" placeholder="Tìm tên hoặc mã cửa hàng…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -359,6 +360,62 @@ export default function PhongDieuHanh({ chonTab }) {
   );
 }
 
+/* ================== TỔNG QUAN SỨC KHỎE TOÀN HỆ THỐNG ================== */
+function TongQuan({ ds, dsMa, tk, setBac, setKv, setBoLich }) {
+  const info = useMemo(() => {
+    const n = ds.length || 1;
+    const thieuTon = ds.filter((c) => c.ton_dat != null && c.ton_dat < 100).length;
+    const coHet = tk.chHet;
+    const boLich = tk.bo;
+    const nguy = tk.g[5], canh = tk.g[4];
+    const sanXuat = (dsMa || []).filter((m) => !m.so_ch_con).length;
+    // khu vực yếu nhất theo số CH nguy kịch+cảnh báo
+    const kvMap = {};
+    ds.forEach((c) => { if (!c.khu_vuc) return; const h = BAC(c.diem).h;
+      (kvMap[c.khu_vuc] = kvMap[c.khu_vuc] || { n: 0, yeu: 0 }); kvMap[c.khu_vuc].n++; if (h >= 4) kvMap[c.khu_vuc].yeu++; });
+    const kvYeu = Object.entries(kvMap).map(([k, v]) => ({ k, ...v, tyLe: v.yeu / v.n })).filter((x) => x.yeu > 0).sort((a, b) => b.yeu - a.yeu)[0];
+
+    // 4 trạng thái màu neon riêng
+    const tt = [
+      { key: 'het', mau: '#FF2E97', ic: '⚠', nhan: 'Cửa hàng có mã hết', so: coHet, pc: Math.round(coHet / n * 100), loc: () => { setBac(null); setKv(null); setBoLich(false); } },
+      { key: 'ton', mau: '#FF9F1C', ic: '▼', nhan: 'Thiếu tồn so định mức', so: thieuTon, pc: Math.round(thieuTon / n * 100), loc: () => {} },
+      { key: 'lich', mau: '#FFE83D', ic: '✉', nhan: 'Bỏ lịch đề nghị', so: boLich, pc: Math.round(boLich / n * 100), loc: () => setBoLich(true) },
+      { key: 'sx', mau: '#2DE0FF', ic: '⚑', nhan: 'Mã cần sản xuất', so: sanXuat, pc: null, loc: () => {} },
+    ];
+
+    // vấn đề nổi bật nhất
+    let noiBat;
+    if (nguy > 0 && nguy / n >= 0.15) noiBat = { mau: '#FF2E97', txt: `${nguy} cửa hàng đang NGUY KỊCH (${Math.round(nguy / n * 100)}% hệ thống) — cần can thiệp ngay`, loc: () => setBac(5) };
+    else if (thieuTon / n >= 0.5) noiBat = { mau: '#FF9F1C', txt: `Phần lớn hệ thống thiếu tồn: ${thieuTon}/${n} cửa hàng dưới định mức (${Math.round(thieuTon / n * 100)}%)`, loc: () => {} };
+    else if (coHet / n >= 0.4) noiBat = { mau: '#FF2E97', txt: `${coHet}/${n} cửa hàng đang có mã hết (${Math.round(coHet / n * 100)}%) — ưu tiên điều chuyển & sản xuất`, loc: () => {} };
+    else if (boLich / n >= 0.3) noiBat = { mau: '#FFE83D', txt: `${boLich} cửa hàng bỏ lịch đề nghị kỳ này — nhắc kỷ luật`, loc: () => setBoLich(true) };
+    else if (kvYeu && kvYeu.tyLe >= 0.4) noiBat = { mau: '#FF9F1C', txt: `Khu vực ${kvYeu.k} tập trung cửa hàng yếu: ${kvYeu.yeu}/${kvYeu.n} cần chú ý`, loc: () => setKv(kvYeu.k) };
+    else noiBat = { mau: '#22F5A0', txt: `Hệ thống ổn định — ${tk.g[1] + tk.g[2]}/${n} cửa hàng khỏe/ổn, không có vấn đề nổi cộm`, loc: () => {} };
+
+    return { tt, noiBat, nguy, canh, n };
+  }, [ds, dsMa, tk, setBac, setKv, setBoLich]);
+
+  return (
+    <div className="nd2-tq">
+      <div className="nd2-tq-noibat" style={{ '--m': info.noiBat.mau }} onClick={info.noiBat.loc}>
+        <span className="ic">◉</span>
+        <div><b>VẤN ĐỀ NỔI BẬT NHẤT</b><span>{info.noiBat.txt}</span></div>
+        <em>→</em>
+      </div>
+      <div className="nd2-tq-tt">
+        {info.tt.map((t) => (
+          <button key={t.key} className="nd2-tq-o" style={{ '--m': t.mau }} onClick={t.loc}>
+            <span className="ic">{t.ic}</span>
+            <b>{fmtSo(t.so)}</b>
+            <span className="nh">{t.nhan}{t.pc != null ? ` · ${t.pc}%` : ''}</span>
+            <i className="thanh"><u style={{ width: (t.pc ?? Math.min(100, t.so)) + '%' }} /></i>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ================== TICKER LIVE ================== */
 function Ticker({ ds, dsMa, tk }) {
   const items = useMemo(() => {
@@ -371,7 +428,7 @@ function Ticker({ ds, dsMa, tk }) {
       t.push({ m: 'vang', tx: `ĐIỀU CHUYỂN ${m.ma} — ${m.so_ch_het} CH hết, ${m.so_ch_con} CH còn (tồn ${fmtSo(m.tong_ton_con)})` }));
     const bo = (ds || []).filter((c) => c.bo_lich).length;
     if (bo) t.push({ m: 'vang', tx: `${bo} cửa hàng đang bỏ lịch đề nghị kỳ này` });
-    t.push({ m: 'teal', tx: `Toàn hệ thống: thiếu ${fmtSo(tk.thieu)} SP so định mức · giá trị hàng đang hết ${fmtTien(tk.giaHet)} · sức khỏe TB ${tk.tb}đ` });
+    t.push({ m: 'teal', tx: `Toàn hệ thống: thiếu ${fmtSo(tk.thieu)} SP so định mức · ${fmtSo(tk.chHet)} cửa hàng đang có mã hết · sức khỏe TB ${tk.tb}đ` });
     return t;
   }, [ds, dsMa, tk]);
   if (!items.length) return null;
@@ -415,7 +472,7 @@ function Hero({ tk, bac, setBac, boLich, setBoLich }) {
       </div>
       <div className="nd2-strip">
         <div className="s"><span className="v cam">{fmtSo(thieu)}</span><span className="l">SP thiếu so định mức</span></div>
-        <div className="s"><span className="v vang">{fmtTien(tk.giaHet)}</span><span className="l">Giá trị hàng đang hết</span></div>
+        <div className="s"><span className="v vang">{fmtSo(tk.chHet)}</span><span className="l">Cửa hàng đang có mã hết</span></div>
         <button className={'s bam' + (boLich ? ' on' : '')} onClick={() => setBoLich(!boLich)}>
           <span className="v do">{tk.bo}</span><span className="l">CH bỏ lịch đề nghị{boLich ? ' · đang lọc' : ''}</span>
         </button>
@@ -482,7 +539,7 @@ function GridCH({ ds, moHoSo, chon, ghim, toggleGhim, chonKV }) {
 /* ================== BẢNG ================== */
 function BangCH({ ds, moHoSo, chon, sort, bamCot }) {
   const COT = [['ten', 'CỬA HÀNG', 'asc'], ['diem', 'ĐIỂM', 'asc'], ['ton_dat', 'TỒN/ĐM', 'asc'], ['so_het', 'MÃ HẾT', 'desc'],
-    ['sl_thieu', 'SL THIẾU', 'desc'], ['gia_tri_het', 'GT HẾT', 'desc'], ['tuan_thu', 'TUÂN THỦ', 'asc'], ['xin_cuoi', 'XIN CUỐI', 'asc']];
+    ['sl_thieu', 'SL THIẾU', 'desc'], ['tuan_thu', 'TUÂN THỦ', 'asc'], ['xin_cuoi', 'XIN CUỐI', 'asc']];
   return (
     <div className="nd2-bang">
       <div className="nd2-bhd">
@@ -501,7 +558,6 @@ function BangCH({ ds, moHoSo, chon, sort, bamCot }) {
             <div className="v">{c.ton_dat != null ? c.ton_dat + '%' : '—'}</div>
             <div className={'v' + (c.so_het > 0 ? ' xau' : '')}>{fmtSo(c.so_het)}</div>
             <div className={'v' + (c.sl_thieu > 0 ? ' cam' : '')}>{fmtSo(c.sl_thieu)}</div>
-            <div className="v vang">{c.gia_tri_het ? fmtTien(c.gia_tri_het) : '—'}</div>
             <div className="v">{c.tuan_thu != null ? c.tuan_thu + '%' : '—'}</div>
             <div className="v mo">{fmtNgay(c.xin_cuoi)}</div>
           </div>
@@ -541,7 +597,7 @@ function DrawerCH({ chon, dong, bcCH }) {
               <div className="k"><b className="do">{fmtSo(chon.so_ma_het ?? chon.so_het)}</b><span>Mã đang hết</span></div>
               <div className="k"><b className="cam">{fmtSo(chon.sl_thieu)}</b><span>SL thiếu định mức</span></div>
               <div className="k"><b>{fmtSo(chon.tong_ton)}</b><span>Tồn hiện có{chon.so_ma_ton != null ? ` · ${chon.so_ma_ton} mã` : ''}</span></div>
-              <div className="k"><b className="teal">{chon.gia_tri_ton != null ? fmtTien(chon.gia_tri_ton) : '—'}</b><span>Giá trị tồn</span></div>
+              <div className="k"><b className="teal">{chon.gia_tri_ton != null ? fmtSo(chon.gia_tri_ton) + 'đ' : '—'}</b><span>Giá trị tồn</span></div>
             </div>
 
             <div className="nd2-d-sec">
@@ -567,13 +623,13 @@ function DrawerCH({ chon, dong, bcCH }) {
             </div>
 
             <div className="nd2-d-sec">
-              <h4>SẢN PHẨM ĐANG HẾT{chon.gia_tri_het > 0 ? ` · tổng giá trị ${fmtTien(chon.gia_tri_het)}` : ''}</h4>
+              <h4>SẢN PHẨM ĐANG HẾT{chon.so_ma_het ? ` · ${chon.so_ma_het} mã` : ''}</h4>
               {chon.ds_het == null ? <div className="nd2-mini-load">Đang tải…</div>
                 : chon.ds_het.length ? (
                   <div className="nd2-cuon">
                     <table className="nd2-tb"><thead><tr><th>Mã sản phẩm</th><th className="r">Giá</th><th className="r">Đã hết</th></tr></thead>
                       <tbody>{chon.ds_het.map((m, i) => (
-                        <tr key={i}><td className="ma">{m.ma}</td><td className="r vang">{m.gia ? fmtTien(m.gia) : '—'}</td>
+                        <tr key={i}><td className="ma">{m.ma}</td><td className="r vang">{m.gia ? fmtSo(m.gia) + 'đ' : '—'}</td>
                           <td className={'r ' + (m.so_ngay >= 7 ? 'do' : m.so_ngay >= 3 ? 'cam' : 'mo')}>{m.so_ngay} ngày</td></tr>
                       ))}</tbody></table>
                   </div>
@@ -628,7 +684,7 @@ function TheoMa({ dsMa, q, setQ, locSX, setLocSX, moMa }) {
             <div key={m.barcode} className="nd2-br ma" onClick={() => moMa(m)}>
               <div className="l"><span className="stt">{i + 1}</span><div className="ai"><div className="ten code">{m.ma}</div>
                 {!m.so_ch_con && <div className="ma sx">⚑ cần sản xuất — không nơi nào còn hàng</div>}</div></div>
-              <div className="v vang">{m.gia ? fmtTien(m.gia) : '—'}</div>
+              <div className="v vang">{m.gia ? fmtSo(m.gia) + 'đ' : '—'}</div>
               <div className="v"><span className="bg do">{m.so_ch_het}</span></div>
               <div className="v"><span className={'bg ' + (m.so_ch_con ? 'teal' : 'xam')}>{m.so_ch_con}</span></div>
               <div className="v">{fmtSo(m.tong_ton_con)}</div>
@@ -679,7 +735,7 @@ function Palette({ ds, dsMa, q, setQ, dong, chonCH, chonMa }) {
             <div key={m.barcode} className="nd2-pal-i" onClick={() => chonMa(m)}>
               <span className="cham" style={{ background: '#F0409A' }} />
               <b className="code">{m.ma}</b><span className="mo">{m.so_ch_het} CH hết · {m.so_ch_con} CH còn</span>
-              <em className="vang">{m.gia ? fmtTien(m.gia) : ''}</em>
+              <em className="vang">{m.gia ? fmtSo(m.gia) + 'đ' : ''}</em>
             </div>
           ))}
           {!kq.ch.length && !kq.ma.length && <div className="nd2-trong nho">Không tìm thấy — thử từ khóa khác</div>}
@@ -696,7 +752,7 @@ function BangKV({ dsKV, chonKV }) {
     <div className="nd2-bang">
       <div className="nd2-bhd kv">
         <div className="th l">KHU VỰC · bấm để xem cửa hàng</div><div className="th">CH</div><div className="th">SỨC KHỎE TB</div>
-        <div className="th">NGUY KỊCH</div><div className="th">CẢNH BÁO</div><div className="th">MÃ HẾT</div><div className="th">SP THIẾU</div><div className="th">GT HÀNG HẾT</div>
+        <div className="th">NGUY KỊCH</div><div className="th">CẢNH BÁO</div><div className="th">MÃ HẾT</div><div className="th">SP THIẾU</div><div className="th">CH CÓ MÃ HẾT</div>
       </div>
       <div className="nd2-brows">
         {dsKV.map((k) => { const b = BAC(k.tb); return (
@@ -709,7 +765,7 @@ function BangKV({ dsKV, chonKV }) {
             <div className={'v' + (k.canh ? ' cam' : ' mo')}>{k.canh || '—'}</div>
             <div className={'v' + (k.het ? ' xau' : ' mo')}>{fmtSo(k.het)}</div>
             <div className="v cam">{fmtSo(k.thieu)}</div>
-            <div className="v vang">{k.giaHet ? fmtTien(k.giaHet) : '—'}</div>
+            <div className="v">{k.chHet || '—'}</div>
           </div>
         ); })}
       </div>
@@ -737,7 +793,7 @@ function TabViec({ ds, dsMa, moHoSo, moMa, bcViec }) {
           <div className="ds">
             {dangTaiMa ? <div className="nd2-mini-load">Đang tải…</div> : sx.length ? sx.map((m) => (
               <div key={m.barcode} className="i" onClick={() => moMa(m)}>
-                <div className="ai"><b className="code">{m.ma}</b><span>hết ở {m.so_ch_het} cửa hàng{m.gia ? ` · giá ${fmtTien(m.gia)}` : ''}</span></div><em>→</em>
+                <div className="ai"><b className="code">{m.ma}</b><span>hết ở {m.so_ch_het} cửa hàng{m.gia ? ` · giá ${fmtSo(m.gia)}đ` : ''}</span></div><em>→</em>
               </div>
             )) : <div className="nd2-trong nho">Không có mã nào — tốt</div>}
           </div>
@@ -797,7 +853,7 @@ function ModalMa({ hoMa, setHoMa }) {
         <div className="nd2-d-hd">
           <div className="ai">
             <div className="ten code">{hoMa.ma}</div>
-            <div className="ma">{hoMa.gia ? 'Giá ' + fmtTien(hoMa.gia) : ''} · {(hoMa.ds_het || []).length} CH hết · {(hoMa.ds_con || []).length} CH còn hàng</div>
+            <div className="ma">{hoMa.gia ? 'Giá ' + fmtSo(hoMa.gia) + 'đ' : ''} · {(hoMa.ds_het || []).length} CH hết · {(hoMa.ds_con || []).length} CH còn hàng</div>
           </div>
           <button className="x" onClick={() => setHoMa(null)}>✕</button>
         </div>

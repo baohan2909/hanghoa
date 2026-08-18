@@ -95,6 +95,26 @@ export default function ChiaHangMoi() {
     baoToast('Đã copy toàn bộ cấu hình — chỉ cần nhập MÃ HÀNG mới rồi bấm Chia.');
   };
 
+  // COPY KHUÔN: nhân bản NGUYÊN bảng chia (danh sách CH + số lượng) sang dòng mới,
+  // KHÔNG chia lại — chỉ cần nhập mã hàng mới. Dùng khi nhiều mã chia y hệt nhau.
+  const copyKhuon = (d) => {
+    if (!d.ct || !d.ct.length) { baoToast('Dòng này chưa có bảng chia để làm khuôn'); return; }
+    const moi = {
+      ...dongMoi(),
+      phamVi: d.phamVi, chiaMin: d.chiaMin, chiaMax: d.chiaMax, nganh3: d.nganh3,
+      thamChieu: d.thamChieu, qTC: d.qTC, tong: d.tong,
+      // GIỮ NGUYÊN bảng chia — clone ct với id mới, sl_chot y hệt; batchId=null (tạo khi xuất)
+      ct: d.ct.map((r) => ({ ...r, id: 'khuon_' + (seq) + '_' + r.ma_ch, sl_de_xuat: r.sl_chot })),
+      batchId: null, laKhuon: true, moRong: true,
+      // để trống mã hàng: q, sp
+    };
+    setDong((ds) => {
+      const i = ds.findIndex((x) => x.id === d.id);
+      const out = [...ds]; out.splice(i + 1, 0, moi); return out;
+    });
+    baoToast('Đã sao chép bảng chia y hệt — chỉ cần nhập MÃ HÀNG mới cho dòng này (không chia lại).');
+  };
+
   const goTim = (id, field, v) => {
     capNhat(id, field === 'sp' ? { q: v, sp: null } : { qTC: v, thamChieu: null });
     const key = id + field;
@@ -209,32 +229,46 @@ export default function ChiaHangMoi() {
   };
 
   const xuatTatCa = async () => {
-    const daChia = dong.filter((d) => d.ct && d.batchId);
-    if (!daChia.length) { baoToast('Chưa có dòng nào được chia'); return; }
-    for (const d of daChia) {
-      await Promise.all(d.ct.map((r) => sb.from('chia_hang_moi_ct').update({ sl_chot: r.sl_chot }).eq('id', r.id)));
-      await sb.from('chia_hang_moi').update({ trang_thai: 'CHOT' }).eq('id', d.batchId);
+    // Gồm cả dòng đã chia (có batchId) LẪN dòng khuôn (ct sẵn, có sp, chưa batchId)
+    const daChia = dong.filter((d) => d.ct && d.ct.length && d.sp);
+    if (!daChia.length) { baoToast('Chưa có dòng nào có bảng chia + mã hàng'); return; }
+
+    // CẢNH BÁO THIẾU: tổng số lượng chia của từng mã so với kho tổng của mã đó
+    const thieu = daChia.map((d) => {
+      const tong = d.ct.reduce((s, r) => s + (r.sl_chot || 0), 0);
+      const kho = Number(d.sp.kho_tong ?? d.sp.kho ?? NaN);
+      return { ma: d.sp.ma_tham_chieu || d.sp.sku || d.sp.barcode, tong, kho, thieu: Number.isFinite(kho) ? tong - kho : null };
+    }).filter((x) => x.thieu != null && x.thieu > 0);
+
+    if (thieu.length) {
+      const ds = thieu.map((x) => `• ${x.ma}: chia ${x.tong} nhưng kho tổng chỉ ${x.kho} (thiếu ${x.thieu})`).join('\n');
+      const ok = window.confirm(`⚠ CẢNH BÁO KHO TỔNG KHÔNG ĐỦ cho ${thieu.length} mã:\n\n${ds}\n\nVẫn xuất file? (Bấm Hủy để chỉnh số lượng trước)`);
+      if (!ok) return;
     }
-    // Mã phiếu cột E: HM + YYYYMMDD + kho nguồn + cửa hàng.
-    // CÙNG cửa hàng (cùng kho nguồn) -> CÙNG 1 mã phiếu, mọi mã hàng gộp 1 phiếu (Odoo ra 1 phiếu).
+
+    for (const d of daChia) {
+      // dòng đã chia (có batchId thật) -> chốt DB; dòng khuôn -> xuất thẳng, không lưu DB
+      if (d.batchId && !d.laKhuon) {
+        await Promise.all(d.ct.map((r) => r.id && !String(r.id).startsWith('khuon_') && !String(r.id).startsWith('moi_')
+          ? sb.from('chia_hang_moi_ct').update({ sl_chot: r.sl_chot }).eq('id', r.id) : Promise.resolve()));
+        await sb.from('chia_hang_moi').update({ trang_thai: 'CHOT' }).eq('id', d.batchId);
+      }
+    }
+
     const ngay = isoVN().replace(/-/g, '');
     const rowsX = [];
     daChia.forEach((d) => {
       const khoCho = khoNguon(d.sp) || 'KHO';
       d.ct.filter((r) => r.sl_chot > 0).forEach((r) => {
-        const maPhieu = `HM${ngay}-${khoCho}-${r.ma_ch}`;
         rowsX.push({
-          'Kho nguồn': khoCho,
-          'Kho đích': r.ma_ch,
-          'SKU/ Barcode': d.sp.sku || d.sp.barcode,
-          'Số lượng': r.sl_chot,
-          'Mã phiếu': maPhieu,
+          'Kho nguồn': khoCho, 'Kho đích': r.ma_ch,
+          'SKU/ Barcode': d.sp.sku || d.sp.barcode, 'Số lượng': r.sl_chot,
+          'Mã phiếu': `HM${ngay}-${khoCho}-${r.ma_ch}`,
         });
       });
     });
     const XLSX = await import('xlsx');
-    const ws = XLSX.utils.json_to_sheet(rowsX, {
-      header: ['Kho nguồn', 'Kho đích', 'SKU/ Barcode', 'Số lượng', 'Mã phiếu'] });
+    const ws = XLSX.utils.json_to_sheet(rowsX, { header: ['Kho nguồn', 'Kho đích', 'SKU/ Barcode', 'Số lượng', 'Mã phiếu'] });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Trang tính1');
     XLSX.writeFile(wb, `CHIAMOI_${isoVN()}.xlsx`);
@@ -400,7 +434,7 @@ export default function ChiaHangMoi() {
         <div key={d.id} className="card" style={{ marginTop: 12, padding: 14 }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ position: 'relative', flex: '1 1 240px' }}>
-              <div className="lbl">Mã hàng mới #{i + 1}</div>
+              <div className="lbl">Mã hàng mới #{i + 1}{d.laKhuon && <span style={{ marginLeft: 6, color: 'var(--gold)', fontWeight: 700, fontSize: 11 }}>⧉ dùng khuôn — nhập mã là xong, khỏi chia</span>}</div>
               <div style={{ position: 'relative' }}>
                 <IcSearch style={{ position: 'absolute', left: 11, top: 12, width: 16, height: 16, color: 'var(--ink-2)', pointerEvents: 'none' }} />
                 <input className="inp" style={{ paddingLeft: 32, width: '100%' }}
@@ -463,6 +497,7 @@ export default function ChiaHangMoi() {
             <div style={{ display: 'flex', gap: 6 }}>
               {!d.ct && <button className="btn btn-primary" disabled={busy} onClick={() => chiaDong(d)}>Chia</button>}
               {d.ct && <button className="btn-mini btn-teal" onClick={() => copyNhom(d)} title="Copy toàn bộ cấu hình, chỉ nhập mã hàng mới">＋ Mã mới (giữ cấu hình)</button>}
+              {d.ct && <button className="btn-mini btn-gold" onClick={() => copyKhuon(d)} title="Nhân bản NGUYÊN bảng chia (giữ số lượng), không chia lại — chỉ nhập mã">⧉ Nhân bản khuôn</button>}
               {dong.length > 1 && <button className="btn-mini btn-danger" onClick={() => setDong((ds) => ds.filter((x) => x.id !== d.id))}>－</button>}
             </div>
           </div>
