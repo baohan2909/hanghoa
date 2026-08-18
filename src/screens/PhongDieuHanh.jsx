@@ -18,7 +18,7 @@ const BAC = (d) =>
   d >= 75 ? { h: 2, ten: 'Ổn định', mau: '#2DD4BF' } :
   d >= 55 ? { h: 3, ten: 'Theo dõi', mau: '#FACC15' } :
   d >= 35 ? { h: 4, ten: 'Cảnh báo', mau: '#FB923C' } :
-            { h: 5, ten: 'Nguy kịch', mau: '#F87171' };
+            { h: 5, ten: 'Nguy kịch', mau: '#F0409A' };
 
 const fmtNgay = (s) => s ? String(s).slice(8, 10) + '/' + String(s).slice(5, 7) : '—';
 const fmtSo = (n) => (n == null || n === '') ? '—' : Number(n).toLocaleString('vi-VN');
@@ -281,7 +281,7 @@ export default function PhongDieuHanh({ chonTab }) {
         <button className={cheDo === 'viec' ? 'on' : ''} onClick={() => setCheDo('viec')}>Việc cần xử lý{soViec > 0 && <em className="bdg">{soViec}</em>}</button>
       </div>
       <div className="nd2-hd-r">
-        {capNhat && <span className="nd2-capnhat" title="Số liệu tính sẵn trong cache — chạy lại SQL 159 hoặc bật pg_cron để làm mới">Số liệu {fmtNgay(capNhat.slice(0, 10))} · {capNhat.slice(11, 16)}</span>}
+        {capNhat && <span className="nd2-capnhat" title="Số liệu tính sẵn trong cache — chạy lại SQL 159 hoặc bật pg_cron để làm mới. Đã loại hàng thu hồi khỏi mọi thống kê.">Số liệu {fmtNgay(capNhat.slice(0, 10))} · {capNhat.slice(11, 16)} · đã loại hàng thu hồi</span>}
         <button className="nd2-ic-btn" onClick={lamMoiApp} title="Tải lại số liệu">↻</button>
         <button className="nd2-ic-btn" onClick={() => setPal(true)} title="Tìm nhanh cửa hàng / mã — Ctrl+K">⌕</button>
         <span className="nd2-clock">{gio.toLocaleTimeString('vi-VN', { hour12: false }).split(':').map((x, i) => (
@@ -677,7 +677,7 @@ function Palette({ ds, dsMa, q, setQ, dong, chonCH, chonMa }) {
           {kq.ma.length > 0 && <div className="nd2-pal-nh">MÃ SẢN PHẨM ĐANG HẾT</div>}
           {kq.ma.map((m) => (
             <div key={m.barcode} className="nd2-pal-i" onClick={() => chonMa(m)}>
-              <span className="cham" style={{ background: '#F87171' }} />
+              <span className="cham" style={{ background: '#F0409A' }} />
               <b className="code">{m.ma}</b><span className="mo">{m.so_ch_het} CH hết · {m.so_ch_con} CH còn</span>
               <em className="vang">{m.gia ? fmtTien(m.gia) : ''}</em>
             </div>
