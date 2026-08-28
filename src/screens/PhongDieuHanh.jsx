@@ -527,7 +527,7 @@ function GridCH({ ds, moHoSo, chon, ghim, toggleGhim, chonKV }) {
             <span className={c.sl_thieu > 0 ? 'cam' : ''}><b>{fmtSo(c.sl_thieu)}</b> thiếu</span>
             <span>xin <b>{fmtNgay(c.xin_cuoi)}</b></span>
           </div>
-          <div className="day"><i style={{ width: Math.min(100, c.ton_dat || 0) + '%', background: b.mau }} /><span>{c.ton_dat != null ? c.ton_dat + '% định mức' : 'không định mức'}</span></div>
+          <div className="day"><span>{c.ton_dat != null ? c.ton_dat + '% định mức' : 'không định mức'}</span><div className="day-track"><i style={{ width: Math.min(100, c.ton_dat || 0) + '%', background: b.mau }} /></div></div>
           <div className={'act ' + viecLam(c)[0].loai}>{viecLam(c)[0].loai === 'ok' ? '✓' : '→'} {viecLam(c)[0].txt}</div>
         </div>
       ); })}

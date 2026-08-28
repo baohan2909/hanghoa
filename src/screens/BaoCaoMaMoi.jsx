@@ -42,7 +42,7 @@ export default function BaoCaoMaMoi() {
   const [theBan, setTheBan] = useState('ban');
 
   useEffect(() => {
-    sb.from('cua_hang').select('ma_ch, ten').or('ma_ch.like.CH%,ma_ch.like.DB%').order('ma_ch')
+    sb.from('cua_hang').select('ma_ch, ten').eq('hoat_dong', true).or('ma_ch.like.CH%,ma_ch.like.DB%').order('ma_ch')
       .then(({ data }) => setDsCH(data || []));
   }, []);
 

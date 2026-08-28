@@ -58,7 +58,7 @@ export default function ChiaHangMoi() {
 
   const [tenCH, setTenCH] = useState({});
   useEffect(() => {
-    sb.from('cua_hang').select('ma_ch, ten, khu_vuc').or('ma_ch.like.CH%,ma_ch.like.DB%')
+    sb.from('cua_hang').select('ma_ch, ten, khu_vuc').eq('hoat_dong', true).or('ma_ch.like.CH%,ma_ch.like.DB%')
       .then(({ data }) => {
         setTenCH(Object.fromEntries((data || []).map((c) => [c.ma_ch, c.ten])));
         setKvCH(Object.fromEntries((data || []).map((c) => [c.ma_ch, c.khu_vuc])));
@@ -67,7 +67,7 @@ export default function ChiaHangMoi() {
       .then(({ data }) => setDsNganh3((data || []).map((x) => x.nganh_3)));
     sb.from('tham_so').select('gia_tri').eq('key', 'kho_tong_ma').eq('pham_vi', 'GLOBAL').single()
       .then(({ data }) => setKhoMap(data?.gia_tri || {}));
-    sb.from('cua_hang').select('khu_vuc, nhom_ch').or('ma_ch.like.CH%,ma_ch.like.DB%')
+    sb.from('cua_hang').select('khu_vuc, nhom_ch').eq('hoat_dong', true).or('ma_ch.like.CH%,ma_ch.like.DB%')
       .then(({ data }) => {
         const kv = [...new Set((data || []).map((c) => c.khu_vuc).filter(Boolean))].sort();
         const nh = [...new Set((data || []).map((c) => c.nhom_ch).filter((x) => x != null))].sort((a, b) => a - b);

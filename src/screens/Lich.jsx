@@ -532,7 +532,7 @@ function TabAuto({ rows, homNay, taiLai }) {
       if (!colNgay.length) { baoToast('Không thấy cột ngày dd/mm'); setBusy(false); return; }
       let nam = +tuM.slice(0, 4), truoc = colNgay[0].mm;
       const ngayCua = colNgay.map((c) => { if (c.mm < truoc) nam++; truoc = c.mm; return { idx: c.idx, iso: `${nam}-${String(c.mm).padStart(2, '0')}-${String(c.dd).padStart(2, '0')}` }; });
-      const { data: dsCH } = await sb.from('cua_hang').select('ma_ch, ten').or('ma_ch.like.CH%,ma_ch.like.DB%');
+      const { data: dsCH } = await sb.from('cua_hang').select('ma_ch, ten').eq('hoat_dong', true).or('ma_ch.like.CH%,ma_ch.like.DB%');
       const map = {}; (dsCH || []).forEach((c) => { map[c.ten.trim().toUpperCase()] = c.ma_ch; });
       const out = [], kk = [];
       for (let i = 1; i < rowsF.length; i++) { const r = rowsF[i]; const ten = String(r?.[1] || '').trim(); if (!ten) continue;
