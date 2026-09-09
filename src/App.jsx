@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, lazy, Suspense, createContext, useContext, Component } from 'react';
 import { sb } from './lib/supabase.js';
-import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy, IcRadar } from './lib/icons.jsx';
+import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy, IcRadar, IcChat2 } from './lib/icons.jsx';
 import Login from './screens/Login.jsx';
 import XinHang from './screens/XinHang.jsx';
 
@@ -21,6 +21,7 @@ const YeuCauDieuPhoi = lazy(() => import('./screens/YeuCauDieuPhoi.jsx'));
 const ChatLuongDN = lazy(() => import('./screens/ChatLuongDN.jsx'));
 const ChiaHangMoi = lazy(() => import('./screens/ChiaHangMoi.jsx'));
 const PhongDieuHanh = lazy(() => import('./screens/PhongDieuHanh.jsx'));
+const BaoCaoTelegram = lazy(() => import('./screens/BaoCaoTelegram.jsx'));
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
@@ -51,6 +52,7 @@ const MENU = [
     { id: 'online',    ten: 'Theo dõi online', Ic: IcPulse, roles: ['ADMIN'] },
     { id: 'doisoat',   ten: 'Đối soát',       Ic: IcAlert, roles: ['ADMIN'] },
     { id: 'thamso',    ten: 'Tham số',        Ic: IcGear,  roles: ['ADMIN'] },
+    { id: 'baocaotg',  ten: 'Báo cáo Telegram', Ic: IcChat2, roles: ['ADMIN'] },
   ]},
 ];
 const TAB_MAC_DINH = { CH: 'xinhang', KHO: 'kho', DIEU_PHOI: 'dashboard', ADMIN: 'dashboard' };
@@ -197,7 +199,7 @@ export default function App() {
   if (!user) return <Login onOk={(u) => { localStorage.setItem('nsflow_user', JSON.stringify(u)); localStorage.setItem('nsflow_login_at', String(Date.now())); setUser(u); }} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich, dautruong: DauTruong,
-    giamsat: GiamSat, chiamoi: ChiaHangMoi, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh }[tab]
+    giamsat: GiamSat, chiamoi: ChiaHangMoi, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram }[tab]
     || (user.vai_tro === 'KHO' ? Kho : XinHang);
   const tabDem = user.vai_tro === 'KHO' ? 'kho' : 'duyet';
   const chonTab = (id) => { setTab(id); setMoMenu(false); };

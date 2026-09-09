@@ -3148,3 +3148,60 @@ input.nd2-in{min-width:230px}
 .nd2-tq-o .thanh{display:block;height:4px;border-radius:99px;background:rgba(138,160,196,.14);margin-top:9px;overflow:hidden}
 .nd2-tq-o .thanh u{display:block;height:100%;border-radius:99px;background:var(--m);box-shadow:0 0 8px var(--m);animation:nd2bar .8s cubic-bezier(.2,.7,.3,1) both}
 @media(max-width:860px){.nd2-tq-tt{grid-template-columns:repeat(2,1fr)}}
+
+/* ================= BÁO CÁO TELEGRAM (phân hệ 3 nhóm) ================= */
+.tg-load{padding:40px;text-align:center;color:var(--ink-2)}
+.tg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.tg-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;transition:.18s}
+.tg-card.off{opacity:.72}
+.tg-card.on{border-color:rgba(63,182,168,.4)}
+.tg-head{display:flex;align-items:center;gap:11px}
+.tg-ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:#fff;flex-shrink:0}
+.tg-ic svg{width:20px;height:20px}
+.tg-ic.all{background:linear-gradient(135deg,#1E5F63,#3FB6A8)}
+.tg-ic.list{background:linear-gradient(135deg,#14213A,#3FB6A8)}
+.tg-ic.het{background:linear-gradient(135deg,#B0344A,#D6006C)}
+.tg-ten{flex:1;min-width:0}
+.tg-ten b{display:block;font-size:14.5px;color:var(--ink);line-height:1.25}
+.tg-badge{display:inline-block;margin-top:3px;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:20px}
+.tg-badge.all{background:#EAF6F4;color:#1E5F63}
+.tg-badge.list{background:#EDF1FA;color:#14213A}
+.tg-badge.het{background:#FBE7F0;color:#D6006C}
+/* công tắc bật/tắt */
+.tg-sw{position:relative;width:44px;height:25px;flex-shrink:0;cursor:pointer}
+.tg-sw input{opacity:0;width:0;height:0;position:absolute}
+.tg-sw i{position:absolute;inset:0;background:#D4D0C6;border-radius:99px;transition:.2s}
+.tg-sw i::after{content:'';position:absolute;left:3px;top:3px;width:19px;height:19px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.tg-sw input:checked + i{background:var(--teal)}
+.tg-sw input:checked + i::after{transform:translateX(19px)}
+.tg-mo{font-size:12.5px;color:var(--ink-2);margin:11px 0 13px;line-height:1.45}
+/* ID nhóm */
+.tg-chat label{display:block;font-size:11px;font-weight:700;color:var(--ink-2);margin-bottom:5px;letter-spacing:.3px}
+.tg-chat-row{display:flex;gap:8px}
+.tg-chat-row input{flex:1;height:38px;border:1px solid var(--line);border-radius:10px;padding:0 12px;font:600 13px var(--font-mono);color:var(--ink);background:var(--bg)}
+.tg-chat-row input:focus{outline:2px solid var(--teal);outline-offset:1px;border-color:var(--teal)}
+/* chế độ hết hàng */
+.tg-chedo{display:flex;align-items:center;gap:7px;margin-top:12px;flex-wrap:wrap}
+.tg-chedo span{font-size:12px;color:var(--ink-2);font-weight:600}
+.tg-chedo button{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:6px 12px;font:600 12px var(--font-body);color:var(--ink-2);cursor:pointer;transition:.15s}
+.tg-chedo button.on{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 0 12px rgba(63,182,168,.35)}
+/* thống kê */
+.tg-stat{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.tg-stat div{text-align:center}
+.tg-stat b{display:block;font:800 18px var(--font-mono);color:var(--teal-deep)}
+.tg-stat span{font-size:11px;color:var(--ink-2)}
+/* hành động */
+.tg-act{display:flex;gap:8px;margin-top:14px}
+.tg-act .btn{flex:1}
+/* quản lý mã */
+.tg-ma{margin-top:13px;padding-top:13px;border-top:1px dashed var(--line)}
+.tg-ma-them{display:flex;gap:8px;align-items:flex-start;margin-bottom:11px}
+.tg-ma-them textarea{flex:1;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font:600 12.5px var(--font-body);color:var(--ink);resize:vertical;min-height:44px}
+.tg-ma-them textarea:focus{outline:2px solid var(--teal);outline-offset:1px;border-color:var(--teal)}
+.tg-ma-them .btn{align-self:stretch}
+.tg-ma-ds{display:flex;flex-wrap:wrap;gap:7px}
+.tg-ma-trong{font-size:12px;color:var(--ink-2);font-style:italic}
+.tg-chip{display:inline-flex;align-items:center;gap:5px;background:#EEF6F5;border:1px solid rgba(63,182,168,.3);border-radius:20px;padding:4px 6px 4px 11px;font:700 12px var(--font-mono);color:var(--teal-deep)}
+.tg-chip em{font-style:normal;font-weight:600;font-size:10.5px;color:var(--ink-2)}
+.tg-chip button{border:none;background:rgba(20,33,58,.08);color:var(--ink);width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:13px;line-height:1;display:grid;place-items:center}
+.tg-chip button:hover{background:var(--red);color:#fff}
