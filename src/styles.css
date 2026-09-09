@@ -3205,3 +3205,24 @@ input.nd2-in{min-width:230px}
 .tg-chip em{font-style:normal;font-weight:600;font-size:10.5px;color:var(--ink-2)}
 .tg-chip button{border:none;background:rgba(20,33,58,.08);color:var(--ink);width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:13px;line-height:1;display:grid;place-items:center}
 .tg-chip button:hover{background:var(--red);color:#fff}
+
+/* Báo cáo Telegram v2 — ô tìm gợi ý + mẫu tin */
+.tg-mau{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:16px}
+.tg-mau > b{font-size:13px;color:var(--teal-deep);display:block;margin-bottom:8px}
+.tg-mau pre{background:#0E1830;color:#EAF2FF;border-radius:10px;padding:13px 15px;font:600 12.5px var(--font-mono);line-height:1.55;white-space:pre-wrap;margin:0 0 9px;overflow:auto}
+.tg-mau span{font-size:12px;color:var(--ink-2);line-height:1.5}
+.tg-tim{position:relative;margin-bottom:11px}
+.tg-tim-ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--ink-2);pointer-events:none}
+.tg-tim-ic svg{width:16px;height:16px;display:block}
+.tg-tim > input{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;padding:0 12px 0 34px;font:600 13px var(--font-body);color:var(--ink);background:var(--bg)}
+.tg-tim > input:focus{outline:2px solid var(--teal);outline-offset:1px;border-color:var(--teal)}
+.tg-goiy{position:absolute;top:44px;left:0;right:0;z-index:30;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);overflow:hidden;max-height:280px;overflow-y:auto}
+.tg-goiy > button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:none;background:none;padding:9px 13px;cursor:pointer;border-bottom:1px solid var(--line);font-family:var(--font-body)}
+.tg-goiy > button:last-child{border-bottom:none}
+.tg-goiy > button:hover{background:#EEF6F5}
+.tg-goiy > button b{font:700 13px var(--font-mono);color:var(--ink)}
+.tg-goiy > button span{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px}
+.tg-goiy > button span.dong{background:#EAF6F4;color:#1E5F63}
+.tg-goiy > button span.day{background:#EDF1FA;color:#14213A}
+.tg-goiy > button em{font-style:normal;font-size:11.5px;color:var(--ink-2);margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}
+.tg-goiy-trong{display:block;padding:11px 13px;font-size:12px;color:var(--ink-2);font-style:italic}
