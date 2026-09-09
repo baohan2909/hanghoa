@@ -43,7 +43,7 @@ export default function BaoCaoTelegram() {
   useEffect(() => {
     if (mo == null || tim.trim().length < 2) { setGoiY([]); return; }
     const id = setTimeout(async () => {
-      const { data } = await sb.rpc('fn_td_goi_y', { p_tu: tim, p_gioi_han: 8 });
+      const { data } = await sb.rpc('fn_tg_goi_y', { p_tu: tim, p_gioi_han: 8 });
       setGoiY(data || []);
     }, 250);
     return () => clearTimeout(id);
@@ -171,7 +171,7 @@ export default function BaoCaoTelegram() {
                             <button key={(g.la_dong ? 'd' : 'f') + g.ma} onClick={() => chonMa(n.id, g.ma)}>
                               <b>{g.ma}</b>
                               <span className={g.la_dong ? 'dong' : 'day'}>
-                                {g.la_dong ? `dòng · ${g.so_bien_the} màu` : 'một màu'}
+                                {g.la_dong ? `dòng · ${g.so_mau} màu` : 'một màu'}
                               </span>
                               {g.ten_sp && <em>{g.ten_sp}</em>}
                             </button>
@@ -187,7 +187,7 @@ export default function BaoCaoTelegram() {
                       {list.length === 0 ? <span className="tg-ma-trong">Chưa có mã nào — gõ tìm ở ô trên rồi chọn</span> : (
                         list.map((m) => (
                           <span key={m.ma} className="tg-chip">
-                            {m.ma} <em>{m.so_bien_the} màu</em>
+                            {m.ma} <em>{m.so_mau} màu</em>
                             <button title="Bỏ mã" onClick={() => botMa(n.id, m.ma)}>×</button>
                           </span>
                         ))
