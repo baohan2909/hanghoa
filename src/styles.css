@@ -3226,3 +3226,22 @@ input.nd2-in{min-width:230px}
 .tg-goiy > button span.day{background:#EDF1FA;color:#14213A}
 .tg-goiy > button em{font-style:normal;font-size:11.5px;color:var(--ink-2);margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:40%}
 .tg-goiy-trong{display:block;padding:11px 13px;font-size:12px;color:var(--ink-2);font-style:italic}
+
+/* Báo cáo Telegram — ô tick chọn màu */
+.tg-goiy-inline{display:flex;flex-direction:column;gap:6px;margin-bottom:11px}
+.tg-goiy-inline > button{display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 12px;cursor:pointer;text-align:left;font-family:var(--font-body)}
+.tg-goiy-inline > button:hover{background:#EEF6F5;border-color:var(--teal)}
+.tg-goiy-inline > button b{font:700 13px var(--font-mono);color:var(--ink)}
+.tg-goiy-inline > button span.dong{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;background:#EAF6F4;color:#1E5F63}
+.tg-goiy-trong{padding:9px 2px;font-size:12px;color:var(--ink-2);font-style:italic;margin-bottom:8px}
+.tg-mau-box{border:1px solid rgba(63,182,168,.35);background:#F4FBFA;border-radius:12px;padding:11px 12px;margin-bottom:12px}
+.tg-mau-hd{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.tg-mau-hd b{font:800 14px var(--font-mono);color:var(--ink)}
+.tg-mau-hd i{font-style:normal;font-size:11px;color:var(--ink-2);background:#fff;border:1px solid var(--line);border-radius:20px;padding:1px 9px}
+.tg-mau-hd > button{margin-left:auto;border:none;background:none;color:var(--teal-deep);font:700 12px var(--font-body);cursor:pointer;text-decoration:underline}
+.tg-mau-grid{display:flex;flex-wrap:wrap;gap:7px;max-height:180px;overflow-y:auto;margin-bottom:11px}
+.tg-mau-o{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px 10px;font:700 12px var(--font-mono);color:var(--ink);cursor:pointer;user-select:none;transition:.12s}
+.tg-mau-o input{width:15px;height:15px;accent-color:var(--teal);cursor:pointer}
+.tg-mau-o.ck{background:var(--teal);border-color:var(--teal);color:#fff}
+.tg-mau-act{display:flex;gap:8px}
+.tg-mau-act .btn{flex:1}

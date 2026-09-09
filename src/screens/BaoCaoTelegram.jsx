@@ -28,7 +28,9 @@ export default function BaoCaoTelegram() {
   const [dsMa, setDsMa] = useState({});
   const [chatEdit, setChatEdit] = useState({});
   const [tim, setTim] = useState('');
-  const [goiY, setGoiY] = useState([]);
+  const [goiY, setGoiY] = useState([]);    // gợi ý MÃ DÒNG (khi gõ chưa ra màu)
+  const [mauDs, setMauDs] = useState([]);  // các MÀU của mã dòng để tick
+  const [tick, setTick] = useState(new Set());
   const [xemMau, setXemMau] = useState(false);
 
   const tai = async () => {
@@ -40,11 +42,16 @@ export default function BaoCaoTelegram() {
   };
   useEffect(() => { tai(); }, []);   // eslint-disable-line
 
+  // Gõ mã dòng -> hiện HẾT MÀU để tick; nếu chưa khớp dòng -> gợi ý mã dòng
   useEffect(() => {
-    if (mo == null || tim.trim().length < 2) { setGoiY([]); return; }
+    if (mo == null || tim.trim().length < 2) { setGoiY([]); setMauDs([]); return; }
     const id = setTimeout(async () => {
-      const { data } = await sb.rpc('fn_tg_goi_y', { p_tu: tim, p_gioi_han: 8 });
-      setGoiY(data || []);
+      const { data: mau } = await sb.rpc('fn_tg_mau', { p_model: tim });
+      if (mau && mau.length) { setMauDs(mau); setGoiY([]); setTick(new Set()); }
+      else {
+        const { data: g } = await sb.rpc('fn_tg_goi_y', { p_tu: tim, p_gioi_han: 10 });
+        setGoiY((g || []).filter((x) => x.la_dong)); setMauDs([]);
+      }
     }, 250);
     return () => clearTimeout(id);
   }, [tim, mo]);
@@ -64,19 +71,29 @@ export default function BaoCaoTelegram() {
     setDsMa((m) => ({ ...m, [id]: data || [] }));
   };
   const moMa = async (id) => {
-    if (mo === id) { setMo(null); setTim(''); setGoiY([]); return; }
-    setMo(id); setTim(''); setGoiY([]);
+    if (mo === id) { setMo(null); resetTim(); return; }
+    setMo(id); resetTim();
     if (!dsMa[id]) napMa(id);
   };
-  const chonMa = async (id, ma) => {
-    const { error } = await sb.rpc('fn_tg_them_ma', { p_nhom: id, p_ma: ma });
+  const resetTim = () => { setTim(''); setGoiY([]); setMauDs([]); setTick(new Set()); };
+
+  const themCaDong = async (id, model) => {
+    const { error } = await sb.rpc('fn_tg_them_ma', { p_nhom: id, p_ma: model });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast('Đã thêm ' + ma);
-    setTim(''); setGoiY([]); await napMa(id); tai();
+    baoToast('Đã thêm cả dòng ' + model); resetTim(); await napMa(id); tai();
+  };
+  const themDaChon = async (id) => {
+    const ds = [...tick].join('\n');
+    const { data, error } = await sb.rpc('fn_tg_them_ma_loat', { p_nhom: id, p_ds: ds });
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    baoToast(`Đã thêm ${data} mã`); resetTim(); await napMa(id); tai();
   };
   const botMa = async (id, ma) => {
     await sb.rpc('fn_tg_bot_ma', { p_nhom: id, p_ma: ma });
     await napMa(id); tai();
+  };
+  const doTick = (ma) => {
+    const s = new Set(tick); s.has(ma) ? s.delete(ma) : s.add(ma); setTick(s);
   };
   const guiThu = async (id) => {
     const { data, error } = await sb.rpc('fn_tg_gui_thu', { p_nhom: id });
@@ -163,28 +180,53 @@ export default function BaoCaoTelegram() {
                     <div className="tg-tim">
                       <span className="tg-tim-ic"><IcSearch /></span>
                       <input value={tim} autoFocus
-                        placeholder="Gõ mã để tìm (VD: MC037 hoặc MC037-ĐN1)…"
+                        placeholder="Gõ mã dòng (VD: MC037 hoặc XH001-118)…"
                         onChange={(e) => setTim(e.target.value)} />
-                      {goiY.length > 0 && (
-                        <div className="tg-goiy">
-                          {goiY.map((g) => (
-                            <button key={(g.la_dong ? 'd' : 'f') + g.ma} onClick={() => chonMa(n.id, g.ma)}>
-                              <b>{g.ma}</b>
-                              <span className={g.la_dong ? 'dong' : 'day'}>
-                                {g.la_dong ? `dòng · ${g.so_mau} màu` : 'một màu'}
-                              </span>
-                              {g.ten_sp && <em>{g.ten_sp}</em>}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {tim.trim().length >= 2 && goiY.length === 0 && (
-                        <div className="tg-goiy"><span className="tg-goiy-trong">Không tìm thấy mã khớp</span></div>
-                      )}
                     </div>
 
+                    {mauDs.length === 0 && goiY.length > 0 && (
+                      <div className="tg-goiy-inline">
+                        {goiY.map((g) => (
+                          <button key={g.ma} onClick={() => setTim(g.ma)}>
+                            <b>{g.ma}</b><span className="dong">dòng · {g.so_mau} màu</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {mauDs.length > 0 && (
+                      <div className="tg-mau-box">
+                        <div className="tg-mau-hd">
+                          <b>{tim.toUpperCase()}</b><i>{mauDs.length} màu</i>
+                          <button onClick={() => setTick(tick.size === mauDs.length ? new Set() : new Set(mauDs.map((m) => m.ma)))}>
+                            {tick.size === mauDs.length ? 'Bỏ chọn' : 'Chọn tất cả'}
+                          </button>
+                        </div>
+                        <div className="tg-mau-grid">
+                          {mauDs.map((m) => (
+                            <label key={m.ma} className={'tg-mau-o ' + (tick.has(m.ma) ? 'ck' : '')}>
+                              <input type="checkbox" checked={tick.has(m.ma)} onChange={() => doTick(m.ma)} />
+                              {m.mau}
+                            </label>
+                          ))}
+                        </div>
+                        <div className="tg-mau-act">
+                          <button className="btn btn-teal" disabled={!tick.size} onClick={() => themDaChon(n.id)}>
+                            Thêm {tick.size || ''} màu đã chọn
+                          </button>
+                          <button className="btn btn-primary" onClick={() => themCaDong(n.id, tim.toUpperCase())}>
+                            ＋ Cả dòng ({mauDs.length})
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {tim.trim().length >= 2 && mauDs.length === 0 && goiY.length === 0 && (
+                      <div className="tg-goiy-trong">Không tìm thấy mã dòng khớp</div>
+                    )}
+
                     <div className="tg-ma-ds">
-                      {list.length === 0 ? <span className="tg-ma-trong">Chưa có mã nào — gõ tìm ở ô trên rồi chọn</span> : (
+                      {list.length === 0 ? <span className="tg-ma-trong">Chưa có mã nào — gõ tìm rồi tick chọn màu</span> : (
                         list.map((m) => (
                           <span key={m.ma} className="tg-chip">
                             {m.ma} <em>{m.so_mau} màu</em>
