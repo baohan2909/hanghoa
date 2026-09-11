@@ -256,6 +256,9 @@ export default function ChiaHangMoi() {
     }
 
     const ngay = isoVN().replace(/-/g, '');
+    // Hậu tố mã phiếu để KHÔNG trùng khi tạo/xuất 2 lần cùng ngày:
+    //  dòng đã chia -> dùng batch id (duy nhất mỗi lần tạo); dòng khuôn -> HHMMSS.
+    const khuonTok = 'K' + new Date().toTimeString().slice(0, 8).replace(/:/g, '');
     const rowsX = [];
     daChia.forEach((d) => {
       const khoCho = khoNguon(d.sp) || 'KHO';
@@ -263,7 +266,7 @@ export default function ChiaHangMoi() {
         rowsX.push({
           'Kho nguồn': khoCho, 'Kho đích': r.ma_ch,
           'SKU/ Barcode': d.sp.sku || d.sp.barcode, 'Số lượng': r.sl_chot,
-          'Mã phiếu': `HM${ngay}-${khoCho}-${r.ma_ch}`,
+          'Mã phiếu': `HM${ngay}-${khoCho}-${r.ma_ch}-${d.batchId || khuonTok}`,
         });
       });
     });
