@@ -256,9 +256,22 @@ export default function ChiaHangMoi() {
     }
 
     const ngay = isoVN().replace(/-/g, '');
-    // Hậu tố mã phiếu để KHÔNG trùng khi tạo/xuất 2 lần cùng ngày:
-    //  dòng đã chia -> dùng batch id (duy nhất mỗi lần tạo); dòng khuôn -> HHMMSS.
-    const khuonTok = 'K' + new Date().toTimeString().slice(0, 8).replace(/:/g, '');
+    // MÃ PHIẾU: HM{ngày}-{kho nguồn}-{CH}-{STT}
+    //  · STT cấp MỘT LẦN cho mỗi cặp (kho nguồn + cửa hàng) -> MỌI mã của cửa hàng
+    //    đó gom CHUNG 1 mã phiếu (không còn mỗi mã một đơn).
+    //  · fn_cap_so_phieu cấp số tuần tự theo cửa hàng/ngày -> xuất 2 lần cùng ngày
+    //    thì STT khác nhau -> KHÔNG trùng đơn.
+    //  · Áp đồng nhất cho mọi dòng, kể cả dòng khuôn.
+    const capSTT = {};                       // 'kho|CH' -> STT
+    for (const d of daChia) {
+      const khoCho = khoNguon(d.sp) || 'KHO';
+      for (const r of d.ct.filter((x) => x.sl_chot > 0)) {
+        const k = khoCho + '|' + r.ma_ch;
+        if (capSTT[k]) continue;
+        const { data, error } = await sb.rpc('fn_cap_so_phieu', { p_ma_ch: r.ma_ch, p_so_luong: 1 });
+        capSTT[k] = error ? Date.now() % 100000 : data;   // lỗi RPC -> số dự phòng, vẫn không trùng
+      }
+    }
     const rowsX = [];
     daChia.forEach((d) => {
       const khoCho = khoNguon(d.sp) || 'KHO';
@@ -266,7 +279,7 @@ export default function ChiaHangMoi() {
         rowsX.push({
           'Kho nguồn': khoCho, 'Kho đích': r.ma_ch,
           'SKU/ Barcode': d.sp.sku || d.sp.barcode, 'Số lượng': r.sl_chot,
-          'Mã phiếu': `HM${ngay}-${khoCho}-${r.ma_ch}-${d.batchId || khuonTok}`,
+          'Mã phiếu': `HM${ngay}-${khoCho}-${r.ma_ch}-${capSTT[khoCho + '|' + r.ma_ch]}`,
         });
       });
     });
