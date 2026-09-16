@@ -262,14 +262,14 @@ export default function ChiaHangMoi() {
     //  · fn_cap_so_phieu cấp số tuần tự theo cửa hàng/ngày -> xuất 2 lần cùng ngày
     //    thì STT khác nhau -> KHÔNG trùng đơn.
     //  · Áp đồng nhất cho mọi dòng, kể cả dòng khuôn.
-    const capSTT = {};                       // 'kho|CH' -> STT
+    //  GOM THEO CỬA HÀNG: mỗi cửa hàng CHỈ MỘT số phiếu cho cả lần xuất này,
+    //  bất kể mã thuộc ngành nào / kho nguồn nào -> 1 cửa hàng = 1 đơn.
+    const capSTT = {};                       // ma_ch -> STT
     for (const d of daChia) {
-      const khoCho = khoNguon(d.sp) || 'KHO';
       for (const r of d.ct.filter((x) => x.sl_chot > 0)) {
-        const k = khoCho + '|' + r.ma_ch;
-        if (capSTT[k]) continue;
+        if (capSTT[r.ma_ch]) continue;
         const { data, error } = await sb.rpc('fn_cap_so_phieu', { p_ma_ch: r.ma_ch, p_so_luong: 1 });
-        capSTT[k] = error ? Date.now() % 100000 : data;   // lỗi RPC -> số dự phòng, vẫn không trùng
+        capSTT[r.ma_ch] = error ? Date.now() % 100000 : data;   // lỗi RPC -> số dự phòng, vẫn không trùng
       }
     }
     const rowsX = [];
@@ -279,7 +279,7 @@ export default function ChiaHangMoi() {
         rowsX.push({
           'Kho nguồn': khoCho, 'Kho đích': r.ma_ch,
           'SKU/ Barcode': d.sp.sku || d.sp.barcode, 'Số lượng': r.sl_chot,
-          'Mã phiếu': `HM${ngay}-${khoCho}-${r.ma_ch}-${capSTT[khoCho + '|' + r.ma_ch]}`,
+          'Mã phiếu': `HM${ngay}-${khoCho}-${r.ma_ch}-${capSTT[r.ma_ch]}`,
         });
       });
     });
