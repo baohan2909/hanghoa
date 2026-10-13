@@ -158,9 +158,14 @@ export default function GiamSat() {
   const bacThe = (id) => setLocThe((v) => v === id ? 'ALL' : id);
 
   const moNguon = async (r) => {
-    setChiTiet({ r, ds: null });
-    const { data } = await sb.rpc('fn_nguon_gan', { p_ma_ch: r.ma_ch, p_barcode: r.barcode });
-    setChiTiet((c) => c && c.r.barcode === r.barcode && c.r.ma_ch === r.ma_ch ? { r, ds: data || [] } : c);
+    setChiTiet({ r, ds: null, loi: null });
+    // PHẢI bắt error: trước đây chỉ lấy data, hàm lỗi -> data null -> màn hình
+    // hiện "Không nơi nào còn hàng" y như khi thật sự không có nguồn. Hai việc
+    // khác hẳn nhau, không được hiện giống nhau.
+    const { data, error } = await sb.rpc('fn_nguon_gan', { p_ma_ch: r.ma_ch, p_barcode: r.barcode });
+    setChiTiet((c) => (c && c.r.barcode === r.barcode && c.r.ma_ch === r.ma_ch)
+      ? { r, ds: error ? null : (data || []), loi: error ? error.message : null }
+      : c);
   };
 
   const xuatExcel = async () => {
@@ -359,7 +364,13 @@ export default function GiamSat() {
               <span>Kho tổng: <b style={{ color: chiTiet.r.kho_tong > 0 ? 'var(--teal-deep)' : 'var(--magenta)' }}>{chiTiet.r.kho_tong}</b></span>
               <span>Tồn ở CH khác: <b>{chiTiet.r.ton_ch_khac}</b> ({chiTiet.r.so_ch_khac} CH)</span>
             </div>
-            {!chiTiet.ds ? <div className="empty" style={{ padding: 20 }}>Đang tìm nguồn gần…</div>
+            {chiTiet.loi ? <div className="empty" style={{ padding: 20 }}>
+                  <div className="t" style={{ color: 'var(--magenta)' }}>Không tra được nguồn</div>
+                  <div style={{ fontSize: 12, marginTop: 6 }}>Hệ thống báo lỗi khi tìm nguồn — chưa chắc là hết hàng.</div>
+                  <div className="mono" style={{ fontSize: 11, marginTop: 8, color: 'var(--ink-2)', wordBreak: 'break-word' }}>{chiTiet.loi}</div>
+                  <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => moNguon(chiTiet.r)}>Thử lại</button>
+                </div>
+              : !chiTiet.ds ? <div className="empty" style={{ padding: 20 }}>Đang tìm nguồn gần…</div>
               : chiTiet.ds.length === 0 ? <div className="empty" style={{ padding: 20 }}>
                   <div className="t">Không nơi nào còn hàng</div>Cần sản xuất / tái bản mã này.</div>
               : (

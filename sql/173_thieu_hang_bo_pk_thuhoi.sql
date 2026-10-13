@@ -16,6 +16,19 @@
 -- ============================================================================
 set search_path = chiahang, public;
 
+-- ---------------------------------------------------------------------------
+-- (0) SOI BẢNG hang_dac_biet TRƯỚC — để thấy rõ cột ap_dung đang chứa gì.
+--     Chỉ để xem, không sửa gì.
+-- ---------------------------------------------------------------------------
+select column_name as cot, data_type as kieu
+from information_schema.columns
+where table_schema = 'chiahang' and table_name = 'hang_dac_biet'
+order by ordinal_position;
+
+select loai, ap_dung::text as ap_dung, count(*) as so_ma
+from chiahang.hang_dac_biet
+group by 1, 2 order by 1, 2;
+
 do $mig$
 declare
   v_ten      text;
@@ -30,15 +43,29 @@ declare
   v_vol      char;
   v_dk       text;          -- điều kiện lọc
   v_body     text;
-  v_co_apdung boolean;
+  v_kieu_ap  text;         -- kiểu dữ liệu thật của hang_dac_biet.ap_dung (KHÔNG đoán)
+  v_dk_ap    text;         -- mảnh điều kiện cho ap_dung, dựng theo đúng kiểu
   v_da_boc   boolean;      -- lần chạy trước đã bọc rồi?
   v_dem      int;
 begin
-  -- hang_dac_biet có cột ap_dung không? (dùng cho nhánh lọc thu hồi theo barcode)
-  select exists (
-    select 1 from information_schema.columns
-    where table_schema = 'chiahang' and table_name = 'hang_dac_biet' and column_name = 'ap_dung'
-  ) into v_co_apdung;
+  -- hang_dac_biet.ap_dung kiểu gì? DÒ THẬT, không đoán — lần trước đoán boolean nên nổ.
+  select data_type into v_kieu_ap
+  from information_schema.columns
+  where table_schema = 'chiahang' and table_name = 'hang_dac_biet' and column_name = 'ap_dung';
+
+  if v_kieu_ap is null then
+    v_dk_ap := '';                                   -- không có cột -> mọi dòng THU_HOI đều tính
+    raise notice 'hang_dac_biet KHÔNG có cột ap_dung -> lọc mọi dòng loai = THU_HOI';
+  elsif v_kieu_ap = 'boolean' then
+    v_dk_ap := ' and coalesce(h.ap_dung, true)';
+    raise notice 'hang_dac_biet.ap_dung kiểu boolean -> dùng coalesce(ap_dung, true)';
+  else
+    -- Kiểu chữ/số: chỉ bỏ khi ghi rõ là TẮT. Mọi giá trị khác (kể cả rỗng) coi như ĐANG ÁP DỤNG,
+    -- thà lọc dư một dòng thu hồi còn hơn để sót hàng thu hồi trong màn Thiếu hàng.
+    v_dk_ap := ' and lower(coalesce(h.ap_dung::text, '''')) not in'
+            || ' (''false'', ''f'', ''0'', ''no'', ''n'', ''khong'', ''không'', ''tat'', ''tắt'', ''off'')';
+    raise notice 'hang_dac_biet.ap_dung kiểu % -> chỉ bỏ qua khi giá trị ghi rõ là TẮT', v_kieu_ap;
+  end if;
 
   foreach v_ten in array array['fn_canh_bao', 'fn_can_san_xuat'] loop
     v_goc := v_ten || '_goc';
@@ -114,7 +141,7 @@ begin
     elsif 'barcode' = any(v_cols) then
       v_dk := v_dk || ' and not exists (select 1 from chiahang.hang_dac_biet h'
                    || ' where h.barcode = t.barcode and h.loai = ''THU_HOI'''
-                   || case when v_co_apdung then ' and coalesce(h.ap_dung, true)' else '' end || ')';
+                   || v_dk_ap || ')';
     else
       raise exception 'CHỐT KIỂM: chiahang.% không có dac_biet lẫn barcode, không lọc thu hồi được — dừng.', v_ten;
     end if;
@@ -145,32 +172,46 @@ end $mig$;
 
 -- ============================================================================
 -- KIỂM NGAY — các câu dưới TỰ IN KẾT QUẢ
+-- Gọi hàm bằng TÊN THAM SỐ (p_tu => ...) để không phụ thuộc thứ tự tham số.
 -- ============================================================================
 
--- (1) Hai hàm bọc đã nằm đúng chỗ chưa, ruột ra sao
+-- (1) Chữ ký thật của 4 hàm + ruột lớp bọc
 select p.proname as ham,
        pg_get_function_arguments(p.oid) as tham_so,
-       left(replace(pg_get_functiondef(p.oid), chr(10), ' '), 400) as ruot
+       left(replace(pg_get_functiondef(p.oid), chr(10), ' '), 420) as ruot
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'chiahang'
   and p.proname in ('fn_canh_bao', 'fn_can_san_xuat', 'fn_canh_bao_goc', 'fn_can_san_xuat_goc')
 order by p.proname;
 
--- (2) ĐẾM TRƯỚC / SAU — phải thấy số dòng giảm đúng bằng phụ kiện + thu hồi
+-- (2) ĐẾM TRƯỚC / SAU — số dòng phải giảm đúng bằng phụ kiện + thu hồi
 select 'fn_canh_bao' as ham,
-       (select count(*) from chiahang.fn_canh_bao_goc(current_date - 30, current_date - 1)) as truoc_khi_loc,
-       (select count(*) from chiahang.fn_canh_bao(current_date - 30, current_date - 1))     as sau_khi_loc;
+       (select count(*) from chiahang.fn_canh_bao_goc(p_tu => current_date - 30, p_den => current_date - 1)) as truoc_khi_loc,
+       (select count(*) from chiahang.fn_canh_bao(p_tu => current_date - 30, p_den => current_date - 1))     as sau_khi_loc;
 
--- (3) Còn sót phụ kiện hoặc thu hồi không? Phải ra 0 dòng.
-select t.barcode, t.ma_tham_chieu, t.nhom_hang, t.dac_biet
-from chiahang.fn_canh_bao(current_date - 30, current_date - 1) t
-where coalesce(t.nhom_hang, '') = 'PK' or coalesce(t.dac_biet, '') = 'THU_HOI'
+-- (3) Còn sót phụ kiện hoặc thu hồi không? PHẢI RA 0 DÒNG.
+select t.barcode, t.ma_tham_chieu, t.nganh_1, t.nhom_hang, t.dac_biet
+from chiahang.fn_canh_bao(p_tu => current_date - 30, p_den => current_date - 1) t
+where coalesce(t.nhom_hang, '') = 'PK'
+   or coalesce(chiahang.fn_la_pk(t.nganh_1), false)
+   or coalesce(t.dac_biet, '') = 'THU_HOI'
 limit 20;
 
--- (4) Cần sản xuất cũng sạch chưa
+-- (4) Đúng những mã nào bị loại khỏi màn Thiếu hàng (xem cho yên tâm)
+select t.barcode, t.ma_tham_chieu, t.nganh_1, t.nhom_hang, t.dac_biet,
+       case when coalesce(t.nhom_hang, '') = 'PK' or coalesce(chiahang.fn_la_pk(t.nganh_1), false)
+            then 'PHỤ KIỆN' else 'THU HỒI' end as ly_do_loai
+from chiahang.fn_canh_bao_goc(p_tu => current_date - 30, p_den => current_date - 1) t
+where coalesce(t.nhom_hang, '') = 'PK'
+   or coalesce(chiahang.fn_la_pk(t.nganh_1), false)
+   or coalesce(t.dac_biet, '') = 'THU_HOI'
+order by ly_do_loai, t.barcode
+limit 50;
+
+-- (5) Cần sản xuất cũng sạch chưa
 select 'fn_can_san_xuat' as ham,
-       (select count(*) from chiahang.fn_can_san_xuat_goc(30)) as truoc_khi_loc,
-       (select count(*) from chiahang.fn_can_san_xuat(30))     as sau_khi_loc;
+       (select count(*) from chiahang.fn_can_san_xuat_goc(p_so_ngay => 30)) as truoc_khi_loc,
+       (select count(*) from chiahang.fn_can_san_xuat(p_so_ngay => 30))     as sau_khi_loc;
 
 -- ============================================================================
 -- GỠ BỎ (nếu muốn quay lại như cũ) — bỏ dấu chú thích rồi chạy riêng khối này
