@@ -16,15 +16,41 @@ const dongMoi = () => ({ id: seq++, q: '', goiY: [], sp: null, nganh3: '',
   qTC: '', goiYTC: [], thamChieu: null, tong: '', ct: null, batchId: null, moRong: true,
   phamVi: null, chiaMin: '', chiaMax: '' });   // phamVi riêng; null = dùng phamViChung
 
+// ============================================================================
+// LƯU VIỆC ĐANG LÀM DỞ
+// Thoát màn / đóng tab / F5 đều KHÔNG mất. Chỉ mất khi bấm "Xóa tất cả".
+// Lưu trong máy (localStorage) nên không đụng gì tới dữ liệu trên hệ thống.
+// ============================================================================
+const LS_KEY = 'ns_chiahangmoi_dangdo_v1';
+const HAN_NGAY = 7;                      // bản nháp quá 7 ngày thì bỏ, tránh dùng nhầm số cũ
+
+const coViec = (ds) => (ds || []).some(
+  (d) => d.sp || d.thamChieu || String(d.tong || '').trim() || (d.ct && d.ct.length));
+
+const docNhap = () => {
+  try {
+    const o = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if (!o || !Array.isArray(o.dong) || !coViec(o.dong)) return null;
+    if (o.luc && Date.now() - o.luc > HAN_NGAY * 864e5) { localStorage.removeItem(LS_KEY); return null; }
+    // đẩy bộ đếm id vượt mọi id đã lưu -> dòng thêm mới không đụng key cũ
+    seq = Math.max(seq, ...o.dong.map((d) => Number(d.id) || 0)) + 1;
+    return o;
+  } catch { return null; }
+};
+const xoaNhap = () => { try { localStorage.removeItem(LS_KEY); } catch { /* bỏ qua */ } };
+
 export default function ChiaHangMoi() {
   const { user, baoToast, datBan } = useApp();
+  // Đọc bản nháp ĐÚNG MỘT LẦN lúc mở màn (useState lazy), trước mọi state khác dùng tới nó
+  const [nhapCu] = useState(docNhap);
+  const [bangKhoiPhuc, setBangKhoiPhuc] = useState(!!nhapCu);
   const [dsNganh3, setDsNganh3] = useState([]);
-  const [dong, setDong] = useState([dongMoi()]);
+  const [dong, setDong] = useState(() => nhapCu?.dong || [dongMoi()]);
   const [busy, setBusy] = useState(false);
   const [khoMap, setKhoMap] = useState({});
   const [moDS, setMoDS] = useState(false);   // mở bảng đối soát tổng hợp
   const [kvCH, setKvCH] = useState({});      // ma_ch -> khu_vuc
-  const [themCH, setThemCH] = useState([]);  // cửa hàng thêm tay vào bảng đối soát
+  const [themCH, setThemCH] = useState(() => nhapCu?.themCH || []);  // cửa hàng thêm tay vào bảng đối soát
   const [sortDS, setSortDS] = useState({ col: 'tong', dir: 'desc' });
   const [sortCt, setSortCt] = useState({ col: 'sl_de_xuat', dir: 'desc' });
   const dsCt = (c) => setSortCt((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
@@ -43,8 +69,8 @@ export default function ChiaHangMoi() {
   const [tdCH, setTdCH] = useState({});   // ma_ch -> bán 30 ngày (cột tham chiếu)
   const timRef = useRef({});
   // Phạm vi CHUNG áp cho mọi mã (mã nào có phamVi riêng thì ghi đè)
-  const [phamViChung, setPhamViChung] = useState({ loai: 'TAT_CA', giaTri: null, ds: null });
-  const [nguonBan, setNguonBan] = useState('TRONG_PHAM_VI');   // mặc định chia HẾT tổng cho nhóm đã chọn | TOAN_HE = chỉ chia phần tỷ trọng toàn hệ
+  const [phamViChung, setPhamViChung] = useState(() => nhapCu?.phamViChung || { loai: 'TAT_CA', giaTri: null, ds: null });
+  const [nguonBan, setNguonBan] = useState(() => nhapCu?.nguonBan || 'TRONG_PHAM_VI');   // mặc định chia HẾT tổng cho nhóm đã chọn | TOAN_HE = chỉ chia phần tỷ trọng toàn hệ
   const [moPV, setMoPV] = useState(null);   // đang mở bộ chọn phạm vi cho: 'chung' | id mã
   const [dsKhuVuc, setDsKhuVuc] = useState([]);
   const [dsNhom, setDsNhom] = useState([]);
@@ -55,6 +81,42 @@ export default function ChiaHangMoi() {
     datBan?.('chiamoi', co);
     return () => datBan?.('chiamoi', false);
   }, [dong]);   // eslint-disable-line
+
+  const luuLoiRef = useRef(false);
+  // TỰ LƯU việc đang làm dở sau mỗi thay đổi (chờ 600ms cho đỡ ghi liên tục).
+  // Bỏ goiY/goiYTC (danh sách gợi ý tạm) cho bản lưu gọn.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        if (!coViec(dong)) { xoaNhap(); return; }
+        localStorage.setItem(LS_KEY, JSON.stringify({
+          luc: Date.now(),
+          dong: dong.map((d) => ({ ...d, goiY: [], goiYTC: [] })),
+          phamViChung, nguonBan, themCH,
+        }));
+      } catch (e) {
+        // Hết dung lượng trình duyệt: báo 1 lần, không chặn việc chia
+        if (!luuLoiRef.current) { luuLoiRef.current = true;
+          baoToast('Không lưu được bản nháp (bộ nhớ trình duyệt đầy) — đừng thoát màn giữa chừng.'); }
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [dong, phamViChung, nguonBan, themCH]);   // eslint-disable-line
+
+  // XÓA TẤT CẢ — việc duy nhất làm trắng màn hình
+  const xoaTatCa = () => {
+    if (!coViec(dong)) { baoToast('Chưa có gì để xóa'); return; }
+    if (!window.confirm('Xóa TOÀN BỘ phần đang chia (mọi mã, mọi bảng chia đã làm)?\nKhông lấy lại được.')) return;
+    xoaNhap();
+    seq = 1;
+    setDong([dongMoi()]);
+    setPhamViChung({ loai: 'TAT_CA', giaTri: null, ds: null });
+    setNguonBan('TRONG_PHAM_VI');
+    setThemCH([]); setMoDS(false); setMoPV(null);
+    setTc({ q: '', chon: null, goiY: [], sl: null });
+    setBangKhoiPhuc(false);
+    baoToast('Đã xóa tất cả — bắt đầu lại từ đầu.');
+  };
 
   const [tenCH, setTenCH] = useState({});
   useEffect(() => {
@@ -425,8 +487,19 @@ export default function ChiaHangMoi() {
           <button className="btn btn-ai" onClick={xuatTatCa}>
             <IcDown style={{ verticalAlign: -3 }} /> Xuất tất cả{tongTatCa > 0 ? ` (${tongTatCa} sp)` : ''}
           </button>
+          <button className="btn btn-xoahet" onClick={xoaTatCa} title="Làm trắng màn hình — xóa mọi mã và bảng chia đang làm dở">
+            Xóa tất cả
+          </button>
         </div>
       </div>
+
+      {bangKhoiPhuc && (
+        <div className="chm-khoiphuc">
+          <b>Đã khôi phục phần chia đang làm dở</b>
+          <span>lưu lúc {new Date(nhapCu.luc).toLocaleString('vi-VN')} · {nhapCu.dong.length} mã — làm tiếp bình thường, hoặc bấm <b>Xóa tất cả</b> để bắt đầu lại.</span>
+          <button className="chm-kp-an" onClick={() => setBangKhoiPhuc(false)}>✕</button>
+        </div>
+      )}
 
       <div className="pv-thanh">
         <div className="pv-thanh-l">

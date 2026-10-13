@@ -3245,3 +3245,24 @@ input.nd2-in{min-width:230px}
 .tg-mau-o.ck{background:var(--teal);border-color:var(--teal);color:#fff}
 .tg-mau-act{display:flex;gap:8px}
 .tg-mau-act .btn{flex:1}
+
+/* ===== CHIA HÀNG MỚI — nút Xóa tất cả + băng báo khôi phục bản nháp ===== */
+.btn-xoahet{
+  background:#fff; color:var(--magenta);
+  border:1px solid rgba(214,0,108,.38); font-weight:700;
+}
+.btn-xoahet:hover{ background:#FCE8EF; border-color:var(--magenta); }
+
+.chm-khoiphuc{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  margin-top:12px; padding:10px 14px;
+  background:#FBF6E9; border:1px solid rgba(203,164,90,.45);
+  border-left:4px solid var(--gold); border-radius:10px;
+  font-size:12.5px; color:var(--ink);
+}
+.chm-khoiphuc > span{ color:var(--ink-2); }
+.chm-kp-an{
+  margin-left:auto; border:0; background:transparent; cursor:pointer;
+  color:var(--ink-2); font-size:14px; line-height:1; padding:4px 6px; border-radius:6px;
+}
+.chm-kp-an:hover{ background:rgba(203,164,90,.18); color:var(--ink); }

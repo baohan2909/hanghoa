@@ -22,6 +22,15 @@ const rpcAll = async (fn, args, onProgress) => {
 };
 const homQua = () => { const d = new Date(); d.setDate(d.getDate() - 1); return iso(d); };
 
+// ===== LOẠI KHỎI THIẾU HÀNG: phụ kiện + hàng thu hồi =====
+// Chốt chặn ở FRONT (backend đã lọc ở fn_canh_bao / fn_can_san_xuat — đây là lớp thứ 2,
+// phòng khi SQL chưa chạy hoặc có nguồn dữ liệu khác). Lọc NGAY khi nhận dữ liệu nên
+// mọi thứ phía sau (thẻ đếm, thống kê theo mã, xuất Excel) đều sạch theo.
+const laPK = (r) => r.nhom_hang === 'PK'
+  || /PHỤ KIỆN|PHU KIEN/i.test(String(r.nganh_1 || ''));
+const laThuHoi = (r) => r.dac_biet === 'THU_HOI';
+const locSach = (ds) => (ds || []).filter((r) => !laPK(r) && !laThuHoi(r));
+
 export default function GiamSat() {
   const { user, baoToast } = useApp();
   const [dsCH, setDsCH] = useState([]);
@@ -61,7 +70,7 @@ export default function GiamSat() {
     const { data, error } = await rpcAll('fn_canh_bao', args, setDaTai);
     setBusy(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    setRows(data || []);
+    setRows(locSach(data));   // bỏ phụ kiện + hàng thu hồi
   };
   const nhieuCH = pham !== 'ch';
   const [xem, setXem] = useState('ch');   // 'ch' theo cửa hàng | 'ma' thống kê theo mã
@@ -172,7 +181,7 @@ export default function GiamSat() {
 
   const taiCanSX = async () => {
     const { data, error } = await rpcAll('fn_can_san_xuat', { p_so_ngay: 30 });
-    if (!error) { setCanSX(data || []); setMoSX(true); } else baoToast('Loi: ' + error.message);
+    if (!error) { setCanSX(locSach(data)); setMoSX(true); } else baoToast('Loi: ' + error.message);
   };
   const xuatCanSX = async () => {
     if (!canSX?.length) return;
@@ -252,7 +261,8 @@ export default function GiamSat() {
               </div>
             )}
             <div className="nhom-tabs" style={{ margin: 0 }}>
-              {[['ALL', 'Tất cả'], ['BH_C', 'BH chính'], ['BH_S', 'BH sale'], ['NV_C', 'NV chính'], ['NV_S', 'NV sale'], ['PK', 'Phụ kiện']].map(([n, ten]) => (
+              {/* KHÔNG có mục Phụ kiện: màn Thiếu hàng chỉ theo dõi hàng bán (BH/NV) */}
+              {[['ALL', 'Tất cả'], ['BH_C', 'BH chính'], ['BH_S', 'BH sale'], ['NV_C', 'NV chính'], ['NV_S', 'NV sale']].map(([n, ten]) => (
                 <button key={n} className={'nhom-tab' + (nhomXem === n ? ' on' : '')} onClick={() => setNhomXem(n)}>
                   {ten}
                 </button>
