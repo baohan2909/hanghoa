@@ -3,6 +3,9 @@ import { sb, rpcHet } from '../lib/supabase.js';
 import { IcTrophy, IcFlash, IcTarget, IcHeart, IcRefresh, IcPulse, IcTower, IcTag, IcSort, IcBrain, IcAlert, IcScale, IcPuzzle, IcSpark, IcChat2, IcGrid, IcTool } from '../lib/icons.jsx';
 import { DateBox, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
+import DtNS, { goi as goiNS, gioPhut as gioNS, ngayThang as ngayNS } from './dtns/DtNS.jsx';
+import DtQuanTri from './dtns/DtQuanTri.jsx';
+import NhanVat from './dtns/NhanVat.jsx';
 
 // ĐẤU TRƯỜNG — thi đua kiến thức sản phẩm toàn hệ thống.
 // 3 chế độ: TOCDO 60s · CHINHXAC 90s (sai -50) · SINHTON 3 mạng, 7s/câu.
@@ -756,8 +759,19 @@ function sinhNonXL(pool, daKy) {
   if (hangs.length < 4) return null;
   return { loai: 'XL', loaiBH: loai, gia: (theoLoai[loai][0] || {}).gia || '', hangs };
 }
+// Bộ sinh câu dùng chung cho Đấu Trường Nón Sơn (Admin sinh đề từ chính các bộ câu này)
+const SINH = { sinhCau, sinhCauDS, sinhBoKyUc, sinhKhachTV, sinhCauKienThuc, fmtVND, fmtGiaKT, nenHinh };
+// Danh sách trò chơi cho nút bật/tắt của Admin. 'DTNS' = Đấu Trường Nón Sơn (phòng thi trực tiếp)
+const GAME_NS = { ten: 'Đấu Trường Nón Sơn', Ic: IcTrophy, mota: 'Phòng thi trực tiếp 20 người · 5 vòng · khán giả theo dõi · giải đấu vòng loại → chung kết.' };
+const DS_GAME = [{ id: 'DTNS', ...GAME_NS },
+  ...Object.entries(CHE_DO).map(([id, cd]) => ({ id, ten: cd.ten, mota: cd.mota, Ic: cd.Ic, thuNghiem: !!cd.thuNghiem }))];
+const AN_MAC_DINH = Object.entries(CHE_DO).filter(([, cd]) => cd.thuNghiem).map(([id]) => id);
+
 export default function DauTruong() {
   const { user, baoToast } = useApp();
+  // trò chơi Admin đang tắt (ẩn với cửa hàng). Chưa cài SQL 187 -> giữ như cũ + ẩn Nón Sơn.
+  const [gameAn, setGameAn] = useState(() => new Set([...AN_MAC_DINH, 'DTNS']));
+  const [nsTin, setNsTin] = useState(null);           // phiên Nón Sơn gần nhất cho thẻ giới thiệu
   const [view, setView] = useState('SANH');          // SANH | DEM | CHOI | KETQUA
   const [sanhTab, setSanhTab] = useState('CHOI');    // CHOI | LOG (admin)
   const laAdmin = user.vai_tro === 'ADMIN';
@@ -819,6 +833,20 @@ export default function DauTruong() {
     setTop(data || []);
   };
   useEffect(() => { if (view === 'SANH') taiTop(cheDo); }, [cheDo, view]);
+  useEffect(() => {
+    if (view !== 'SANH') return;
+    goiNS('fn_dt_game_an', {})
+      .then((d) => {
+        const an = new Set(Array.isArray(d) ? d : AN_MAC_DINH);
+        setGameAn(an);
+        if (!an.has('DTNS') || laAdmin) goiNS('fn_dt_sanh', { p_token: user.token }).then((x) => setNsTin(x)).catch(() => {});
+      })
+      .catch(() => setGameAn(new Set([...AN_MAC_DINH, 'DTNS'])));
+  }, [view]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const thayGame = (id) => laAdmin || !gameAn.has(id);
+  useEffect(() => {
+    if (!thayGame(cheDo)) { const dau = Object.keys(CHE_DO).find((id) => thayGame(id)); if (dau) setCheDo(dau); }
+  }, [gameAn]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (view === 'SANH') sb.rpc('fn_thi_hoso', { p_token: user.token }).then(({ data }) => setHoso(data));
   }, [view]);   // eslint-disable-line
@@ -1750,7 +1778,11 @@ export default function DauTruong() {
     );
   }
 
+  if (view === 'NS') return <DtNS onThoat={() => setView('SANH')} />;
+
   // ---- SẢNH ----
+  const nsHien = thayGame('DTNS');
+  const nsPhien = (nsTin?.phien || []).find((p) => p.trang_thai === 'DANG') || (nsTin?.phien || []).find((p) => p.trang_thai === 'SAN_SANG');
   return (
     <>
       <div className="cmdbar">
@@ -1763,6 +1795,7 @@ export default function DauTruong() {
           <button className={'nhom-tab' + (sanhTab === 'CHOI' ? ' on' : '')} onClick={() => setSanhTab('CHOI')}>Chơi &amp; Bảng vàng</button>
           <button className={'nhom-tab' + (sanhTab === 'GIAI' ? ' on' : '')} onClick={() => setSanhTab('GIAI')}>Giải đấu</button>
           <button className={'nhom-tab' + (sanhTab === 'LOG' ? ' on' : '')} onClick={() => setSanhTab('LOG')}>Nhật ký cửa hàng</button>
+          <button className={'nhom-tab' + (sanhTab === 'NSQT' ? ' on' : '')} onClick={() => setSanhTab('NSQT')}>Quản trị Nón Sơn</button>
         </div>
       )}
       {!laAdmin && (
@@ -1772,11 +1805,30 @@ export default function DauTruong() {
         </div>
       )}
 
-      {sanhTab === 'LOG' ? <NhatKy /> : sanhTab === 'GIAI' ? <GiaiDau /> : (
+      {sanhTab === 'NSQT' && laAdmin ? <DtQuanTri sinh={SINH} games={DS_GAME} />
+        : sanhTab === 'LOG' ? <NhatKy /> : sanhTab === 'GIAI' ? <GiaiDau /> : (
+      <>
+      {nsHien && (
+        <button className="ns-moi" onClick={() => setView('NS')}>
+          <div className="ns-moi-nv" aria-hidden="true">
+            {['k2', 'm5', 'q8'].map((sd, i) => <div key={sd} className={'ns-moi-ng n' + i}><NhanVat seed={sd} mood={i === 1 ? 'thang' : 'cho'} vang={i === 1} /></div>)}
+          </div>
+          <div className="ns-moi-noi">
+            <div className="ns-moi-nhan">PHÒNG THI TRỰC TIẾP{gameAn.has('DTNS') && laAdmin ? ' · ĐANG ẨN VỚI CỬA HÀNG' : ''}</div>
+            <div className="ns-moi-ten">Đấu Trường Nón Sơn</div>
+            <div className="ns-moi-mo">
+              {nsPhien
+                ? (nsPhien.trang_thai === 'DANG' ? `Đang thi: ${nsPhien.ten} — vào xem trực tiếp` : `Phiên kế tiếp: ${nsPhien.ten} · ${gioNS(nsPhien.bat_dau)} ${ngayNS(nsPhien.bat_dau)}`)
+                : '20 người cùng thi · 5 vòng · cả hệ thống theo dõi bảng điểm trực tiếp'}
+            </div>
+          </div>
+          <span className="ns-moi-nut"><IcFlash width={16} /> Vào đấu trường</span>
+        </button>
+      )}
       <div className="dt-sanh">
         <div className="dt-sanh-trai">
           {NHOM_GAME.map((ng) => {
-            const games = Object.entries(CHE_DO).filter(([, cd]) => cd.nhom === ng.id && (!cd.thuNghiem || laAdmin));
+            const games = Object.entries(CHE_DO).filter(([id, cd]) => cd.nhom === ng.id && thayGame(id));
             if (!games.length) return null;
             return (
               <div key={ng.id} className="dt-nhom">
@@ -1789,7 +1841,7 @@ export default function DauTruong() {
                     <button key={id} className={'dt-mode' + (cheDo === id ? ' on' : '')} onClick={() => setCheDo(id)}>
                       <div className="dt-mode-ic"><cd.Ic width={22} /></div>
                       <div className="dt-mode-noi">
-                        <div className="dt-mode-ten">{cd.ten}{cd.thuNghiem && <span className="dt-thunghiem">MỚI</span>}</div>
+                        <div className="dt-mode-ten">{cd.ten}{laAdmin && gameAn.has(id) ? <span className="dt-thunghiem an">ĐANG ẨN</span> : cd.thuNghiem && <span className="dt-thunghiem">MỚI</span>}</div>
                         <div className="dt-mode-mota">{cd.mota}</div>
                       </div>
                     </button>
@@ -1855,6 +1907,7 @@ export default function DauTruong() {
           </div>
         </div>
       </div>
+      </>
       )}
     </>
   );
