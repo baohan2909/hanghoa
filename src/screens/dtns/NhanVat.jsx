@@ -47,7 +47,8 @@ function NhanVat({ seed = '', mood = 'cho', vang = false, toi = false }) {
       ? <g stroke="#2A1E1E" strokeWidth="1.2" strokeLinecap="round"><path d="M25.6 17.2 Q27.6 15.8 29.6 17" /><path d="M34.4 17 Q36.4 15.8 38.4 17.2" /></g>
       : <g stroke="#2A1E1E" strokeWidth="1.2" strokeLinecap="round"><path d="M25.8 18 L29.4 17.6" /><path d="M34.6 17.6 L38.2 18" /></g>;
   return (
-    <svg className={'nv nv-' + mood + (toi ? ' nv-toi' : '')} viewBox="0 0 64 94" aria-hidden="true">
+    <svg className={'nv nv-' + mood + (toi ? ' nv-toi' : '')} viewBox="0 0 64 94" aria-hidden="true"
+      style={{ '--tre': -((h >>> 4) % 90) / 10 + 's', '--nhip': 7 + ((h >>> 9) % 50) / 10 + 's', '--tho': 2.6 + ((h >>> 13) % 14) / 10 + 's' }}>
       <ellipse cx="32" cy="89.5" rx="15" ry="2.6" className="nv-bong" />
       <g className="nv-than">
         {/* chân + quần đen + giày */}
@@ -56,6 +57,7 @@ function NhanVat({ seed = '', mood = 'cho', vang = false, toi = false }) {
         <ellipse cx="26.2" cy="87.2" rx="5" ry="2.3" fill="#E9EDF3" />
         <ellipse cx="37.8" cy="87.2" rx="5" ry="2.3" fill="#E9EDF3" />
         {/* tay (sau áo) */}
+        <g className="nv-tayg">
         <g stroke={da} strokeWidth="4.6" strokeLinecap="round" fill="none" className="nv-tay">
           {tayLen ? (<><path d="M15 46 L8.5 30" /><path d="M49 46 L55.5 30" /></>)
             : tayCam ? (<><path d="M15.4 48 L16 61" /><path d="M48.6 47.5 L45.5 41.5 L37.6 34.2" /></>)
@@ -66,13 +68,14 @@ function NhanVat({ seed = '', mood = 'cho', vang = false, toi = false }) {
             : tayCam ? (<><circle cx="16.1" cy="62.3" r="2.9" /><circle cx="36.6" cy="33.4" r="2.9" /></>)
             : (<><circle cx="16.1" cy="62.3" r="2.9" /><circle cx="47.9" cy="62.3" r="2.9" /></>)}
         </g>
+        </g>
         {/* áo thun trắng cổ tròn */}
         <path d="M20.6 37.6 Q32 34.6 43.4 37.6 L52 44.2 L48.2 50 L44.8 47.4 L44.8 63 Q32 65.2 19.2 63 L19.2 47.4 L15.8 50 L12 44.2 Z"
           fill="#FFFFFF" stroke="#C9D1DD" strokeWidth=".9" strokeLinejoin="round" />
         <path d="M27.2 37 Q32 41.6 36.8 37" fill="none" stroke="#C9D1DD" strokeWidth="1.2" strokeLinecap="round" />
         {/* cổ + đầu */}
         <rect x="28.6" y="31" width="6.8" height="6.4" rx="2" fill={da} />
-        <g className="nv-dau">
+        <g className="nv-dau"><g className="nv-ngo">
           <TocSau kieu={kieu} mau={toc} />
           <circle cx="32" cy="22" r="12.6" fill={da} />
           <ellipse cx="19.6" cy="23" rx="1.8" ry="2.6" fill={da} />
@@ -96,7 +99,7 @@ function NhanVat({ seed = '', mood = 'cho', vang = false, toi = false }) {
               <circle cx="32" cy="6.8" r="1.4" fill="#FFF2CF" />
             </g>
           )}
-        </g>
+        </g></g>
       </g>
       {/* huy hiệu trạng thái */}
       {mood === 'da-tl' && (<g className="nv-huy"><circle cx="53" cy="9" r="6.4" fill="#3FB6A8" /><path d="M50.2 9.2 L52.3 11.3 L56 7.2" stroke="#fff" strokeWidth="1.7" fill="none" strokeLinecap="round" strokeLinejoin="round" /></g>)}

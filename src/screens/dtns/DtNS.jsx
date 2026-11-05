@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { sb } from '../../lib/supabase.js';
 import { IcTrophy, IcClock, IcRefresh, IcOut, IcCheck, IcAlert, IcFlash, IcShield } from '../../lib/icons.jsx';
 import { Sel } from '../../lib/ui.jsx';
@@ -6,7 +7,7 @@ import { useApp } from '../../App.jsx';
 import NhanVat from './NhanVat.jsx';
 import { am, amDangBat, datAm, moKhoa } from './amThanh.js';
 import { VONG } from './dtSinhDe.js';
-import { IcMat, IcNguoi, IcLoa, IcLoaTat, IcDung, IcVe, IcMuiTen, IcLich, IcLen, IcXuong, IcSanKhau } from './dtIcons.jsx';
+import { IcMat, IcNguoi, IcLoa, IcLoaTat, IcDung, IcVe, IcMuiTen, IcLich, IcLen, IcXuong, IcSanKhau, IcToanMan } from './dtIcons.jsx';
 import './dtns.css';
 
 // ĐẤU TRƯỜNG NÓN SƠN — phòng thi trực tiếp: 20 ghế + khán giả, 5 vòng, máy chủ giữ nhịp và chấm điểm.
@@ -310,22 +311,24 @@ function TabTong({ toiMa }) {
   );
 }
 
-// ============================================================ PHÒNG THI
-const TANG = [5, 7, 8, 8, 8, 8];
-function boTriGhe(n, rongPx) {
-  // xếp theo hạng: tầng 1 = top 5 (to nhất, trên bục vàng), các tầng sau nhỏ dần
-  const out = []; let y = 0, i = 0, t = 0; const tang = [];
-  while (i < n) {
-    const c = Math.min(TANG[Math.min(t, TANG.length - 1)], n - i);
-    const toiDa = t === 0 ? 104 : t === 1 ? 84 : 74;
-    const w = Math.min(toiDa, (rongPx - 8) / Math.max(c, t === 0 ? 5 : TANG[Math.min(t, TANG.length - 1)]));
-    const cao = w * 94 / 64 + 34;
-    const tong = w * c; const le = (rongPx - tong) / 2;
-    for (let k = 0; k < c; k++) out.push({ x: le + k * w, y, w, tang: t });
-    tang.push({ y, cao, t });
-    y += cao + (t === 0 ? 14 : 6); i += c; t++;
+// ============================================================ PHÒNG THI (toàn màn hình)
+// Sân khấu: các bàn thi xếp theo hạng — dãy đầu là top dẫn đầu. Nhân vật ngồi sau bàn, bảng tên + điểm trên mặt bàn.
+function boTriBan(n, rong, hep) {
+  const moiDay = hep ? 5 : 10;
+  const out = []; const day = []; let y = 0;
+  for (let i = 0, t = 0; i < n; i += moiDay, t++) {
+    const c = Math.min(moiDay, n - i);
+    const w = Math.min(t === 0 ? (hep ? 74 : 92) : (hep ? 66 : 78), (rong - 6) / moiDay);
+    const cao = w * 0.62 + (hep ? 36 : 40) + (c > 1 ? (hep ? 6 : 12) : 0);
+    const le = (rong - w * c) / 2;
+    for (let k = 0; k < c; k++) {
+      const dx = c > 1 ? (k - (c - 1) / 2) / ((c - 1) / 2) : 0;   // -1..1: hai đầu dãy cong ra phía trước như hội trường
+      out.push({ x: le + k * w, y: y + dx * dx * (hep ? 6 : 12), w, day: t });
+    }
+    day.push({ y, cao, t });
+    y += cao + (hep ? 8 : 6);
   }
-  return { o: out, cao: y, tang };
+  return { o: out, cao: y, day };
 }
 
 function moodCua(g, st) {
@@ -340,58 +343,170 @@ function moodCua(g, st) {
   return 'cho';
 }
 
-const Ghe = memo(function Ghe({ g, vt, mood, toi, coHang, vang }) {
+const Ban = memo(function Ban({ g, vt, mood, toi, coHang, nhat }) {
   const [delta, setDelta] = useState(null);
   const truoc = useRef(g.diem);
   useEffect(() => {
     if (g.diem !== truoc.current) {
       const d = g.diem - truoc.current; truoc.current = g.diem;
-      setDelta(d); const t = setTimeout(() => setDelta(null), 1700); return () => clearTimeout(t);
+      setDelta(d); const t = setTimeout(() => setDelta(null), 1800); return () => clearTimeout(t);
     }
     return undefined;
   }, [g.diem]);
   return (
-    <div className={'ns-ghe t' + vt.tang + (toi ? ' toi' : '') + (mood === 'mat' ? ' mat' : '')}
-      style={{ transform: `translate3d(${vt.x}px, ${vt.y}px, 0)`, width: vt.w }}>
-      {coHang && <span className={'ns-ghe-hang' + (g.hang <= 3 ? ' h' + g.hang : '')}>{g.hang}</span>}
-      {toi && <span className="ns-ghe-ban">BẠN</span>}
-      {delta != null && delta !== 0 && <span className={'ns-ghe-delta' + (delta < 0 ? ' am' : '')}>{delta > 0 ? '+' : ''}{so(delta)}</span>}
-      <div className="ns-ghe-nv"><NhanVat seed={g.ma} mood={mood} vang={vang} toi={toi} /></div>
-      <div className="ns-ghe-ten" title={g.ten}>{g.ten}</div>
-      <div className="ns-ghe-diem">{coHang ? so(g.diem) : 'Ghế ' + g.ghe}</div>
+    <div className={'ns-ban t' + vt.day + ' m-' + mood + (toi ? ' toi' : '') + (nhat ? ' nhat' : '')}
+      style={{ transform: `translate3d(${vt.x}px, ${vt.y}px, 0)`, width: vt.w, '--w': vt.w + 'px' }}>
+      {nhat && <div className="ns-ban-den" />}
+      {delta != null && delta !== 0 && <span className={'ns-ban-delta' + (delta < 0 ? ' am' : '')}>{delta > 0 ? '+' : ''}{so(delta)}</span>}
+      <div className="ns-ban-nv"><NhanVat seed={g.ma} mood={mood} vang={nhat} toi={toi} /></div>
+      <div className="ns-ban-mat">
+        <div className="ns-ban-dong">
+          {coHang && <span className={'ns-ban-hang' + (g.hang <= 3 ? ' h' + g.hang : '')}>{g.hang}</span>}
+          <b className="ns-ban-ten" title={g.ten}>{g.ten}</b>
+        </div>
+        <i className="ns-ban-diem">{coHang ? so(g.diem) : 'Ghế ' + g.ghe}{toi && <em>BẠN</em>}</i>
+      </div>
     </div>
   );
 });
 
-function SanKhau({ st, toiMa }) {
-  const ref = useRef(null);
-  const [rong, setRong] = useState(420);
+function useRong(ref) {
+  const [rong, setRong] = useState(900);
   useLayoutEffect(() => {
     const el = ref.current; if (!el) return undefined;
     const ro = new ResizeObserver(([e]) => setRong(Math.round(e.contentRect.width)));
     ro.observe(el); setRong(el.clientWidth);
     return () => ro.disconnect();
-  }, []);
+  }, [ref]);
+  return rong;
+}
+
+function SanKhau({ st, toiMa, cang }) {
+  const ref = useRef(null);
+  const rong = useRong(ref);
+  const hep = rong < 640;
   const coHang = st.phien.trang_thai !== 'SAN_SANG';
   const ghe = useMemo(() => {
     const ds = [...(st.ghe || [])];
     return coHang ? ds.sort((a, b) => (a.hang ?? 999) - (b.hang ?? 999)) : ds.sort((a, b) => a.ghe - b.ghe);
   }, [st.ghe, coHang]);
-  const n = Math.max(ghe.length, coHang ? 0 : Math.min(st.phien.so_ghe, 20));
-  const bt = boTriGhe(Math.max(n, 1), rong);
+  const n = Math.max(ghe.length, coHang ? 1 : Math.min(st.phien.so_ghe, 20));
+  const bt = boTriBan(n, rong, hep);
   const conTrong = coHang ? 0 : Math.max(0, n - ghe.length);
+  const coDiem = ghe.some((g) => g.diem > 0);
   return (
-    <div className="ns-sk" ref={ref} style={{ height: bt.cao + 6 }}>
-      {bt.tang.map((t) => <div key={t.t} className={'ns-sk-tang t' + t.t} style={{ top: t.y + t.cao - 30, height: 30 }} />)}
+    <div className={'ns-sk' + (cang ? ' cang' : '') + ' pha-' + st.pha.toLowerCase()} ref={ref} style={{ height: bt.cao }}>
+      {bt.day.map((d) => <div key={d.t} className={'ns-sk-san t' + d.t} style={{ top: d.y + d.cao - 18 }} />)}
       {ghe.map((g, i) => (
-        <Ghe key={g.ma} g={g} vt={bt.o[i]} mood={moodCua(g, st)} toi={g.ma === toiMa} coHang={coHang}
-          vang={coHang && g.hang === 1 && (g.diem > 0 || st.pha === 'KET_THUC')} />
+        <Ban key={g.ma} g={g} vt={bt.o[i]} mood={moodCua(g, st)} toi={g.ma === toiMa} coHang={coHang}
+          nhat={coHang && g.hang === 1 && (coDiem || st.pha === 'KET_THUC')} />
       ))}
       {Array.from({ length: conTrong }).map((_, k) => {
         const vt = bt.o[ghe.length + k];
-        return vt ? <div key={'tr' + k} className={'ns-ghe trong t' + vt.tang} style={{ transform: `translate3d(${vt.x}px, ${vt.y}px, 0)`, width: vt.w }}>
-          <div className="ns-ghe-nv"><div className="ns-ghe-bong" /></div><div className="ns-ghe-ten">Ghế trống</div></div> : null;
+        return vt ? (
+          <div key={'tr' + k} className={'ns-ban trong t' + vt.day} style={{ transform: `translate3d(${vt.x}px, ${vt.y}px, 0)`, width: vt.w, '--w': vt.w + 'px' }}>
+            <div className="ns-ban-nv"><div className="ns-ban-ghe-trong" /></div>
+            <div className="ns-ban-mat"><div className="ns-ban-dong"><b className="ns-ban-ten">Ghế trống</b></div><i className="ns-ban-diem">chờ người vào</i></div>
+          </div>) : null;
       })}
+    </div>
+  );
+}
+
+// KHÁN ĐÀI (nhìn từ phía sau như ngồi trong hội trường): mỗi khán giả thật đang xem là một người ngồi ghế,
+// ghế gần sân khấu trước, giữa trước; người mới vào đứng dậy ngồi xuống + được chào tên.
+const MAU_KG = ['#3FB6A8', '#CBA45A', '#D6006C', '#6E8FD8', '#E9C9A6', '#2E8B57', '#F2D58E', '#9B6FC4', '#E06A6A', '#1E5F63', '#F4F1EA', '#4A5670'];
+const TOC_KG = ['#1E1B1A', '#3A2A20', '#2B2B33', '#55392A', '#121212'];
+const DA_KG = ['#F1CBA8', '#E2B48C', '#C98E62'];
+const KhanGiaSau = memo(function KhanGiaSau({ i, co }) {
+  const h = (i * 2654435761) >>> 0;
+  const ao = MAU_KG[h % MAU_KG.length], toc = TOC_KG[(h >>> 5) % TOC_KG.length], da = DA_KG[(h >>> 9) % 3];
+  const kieu = (h >>> 12) % 5, non = MAU_KG[(h >>> 15) % MAU_KG.length];
+  return (
+    <svg viewBox="0 0 40 46" className="kgs-svg" aria-hidden="true">
+      {co && (
+        <g className="kgs-nguoi">
+          <path d="M6 46 Q7 31 20 30 Q33 31 34 46 Z" fill={ao} />
+          <rect x="17" y="23" width="6" height="8" rx="2" fill={da} />
+          {kieu === 1 && <path d="M11 16 Q11 7 20 7 Q29 7 29 16 L30 32 Q20 35 10 32 Z" fill={toc} />}
+          <circle cx="11.6" cy="17.5" r="2" fill={da} /><circle cx="28.4" cy="17.5" r="2" fill={da} />
+          <circle cx="20" cy="16" r="8.6" fill={toc} stroke="rgba(190,240,232,.38)" strokeWidth=".9" />
+          {kieu === 2 && <circle cx="20" cy="6.2" r="3.6" fill={toc} />}
+          {kieu === 3 && <g><path d="M11 15 Q11 6 20 6 Q29 6 29 15 Z" fill={non} /><path d="M14 15 L26 15" stroke="rgba(0,0,0,.25)" strokeWidth="1.4" /></g>}
+          <g className="kgs-tay"><path d="M31 36 L35 20" stroke={da} strokeWidth="3.6" strokeLinecap="round" /><path d="M35.3 19 L37.6 4" stroke={non} strokeWidth="2.4" strokeLinecap="round" className="kgs-que" /></g>
+        </g>
+      )}
+      <path d={co ? 'M4 40 Q4 37 8 37 L32 37 Q36 37 36 40 L36 46 L4 46 Z' : 'M5 22 Q5 18 10 18 L30 18 Q35 18 35 22 L35 46 L5 46 Z'} className="kgs-ghe" />
+    </svg>
+  );
+});
+function KhanDai({ st, cang, hep }) {
+  const ref = useRef(null);
+  const rong = useRong(ref);
+  const n = st.so_xem || 0;
+  const co = hep ? [15, 18, 22, 27] : [19, 23, 28, 34];
+  // số ghế mỗi dãy (dãy sau hẹp hơn); xếp chỗ: dãy trước trước, trong dãy từ giữa ra
+  const day = co.map((c, r) => ({ c, so: Math.max(4, Math.floor((rong * (0.66 + r * 0.1)) / (c * 0.98))) }));
+  const thuTu = [];
+  for (let r = day.length - 1; r >= 0; r--) {
+    const m = day[r].so; const g = [];
+    for (let k = 0; k < m; k++) g.push(k);
+    g.sort((a, b) => Math.abs(a - (m - 1) / 2) - Math.abs(b - (m - 1) / 2));
+    g.forEach((k) => thuTu.push([r, k]));
+  }
+  const ngoi = {}; thuTu.slice(0, n).forEach(([r, k], i) => { ngoi[r + ':' + k] = i; });
+  const sucChua = thuTu.length;
+  const [tag, setTag] = useState([]);
+  const daChao = useRef(new Set());
+  useEffect(() => {
+    const moi = (st.kg_moi || []).filter((t) => !daChao.current.has(t));
+    if (!moi.length) return undefined;
+    moi.forEach((t) => daChao.current.add(t));
+    const id = Date.now();
+    setTag((x) => [...x, ...moi.map((t, i) => ({ id: id + i, t }))].slice(-3));
+    const h = setTimeout(() => setTag((x) => x.filter((y) => y.id < id)), 4200);
+    return () => clearTimeout(h);
+  }, [st.kg_moi]);
+  const rx = st.pha === 'KET_THUC' ? ' mung' : st.pha === 'CONG_BO' ? ' hoan-ho' : cang ? ' nin' : st.pha === 'NGHI' ? ' vo-tay' : '';
+  return (
+    <div className={'ns-kd' + rx} ref={ref}>
+      <div className="ns-kd-tag">{tag.map((x) => <span key={x.id}>{x.t} vừa vào khán đài</span>)}</div>
+      {day.map((d, r) => (
+        <div key={r} className={'ns-kd-day r' + r} style={{ '--s': d.c + 'px' }}>
+          {Array.from({ length: d.so }).map((_, k) => {
+            const vi = ngoi[r + ':' + k];
+            return (
+              <i key={k} className={'kgs' + (vi != null ? ' co' + (vi % 5 === 2 ? ' que' : '') : '')}
+                style={{ '--d': (((r * 31 + k * 17) % 23) / 18).toFixed(2) + 's' }}>
+                <KhanGiaSau i={r * 97 + k} co={vi != null} />
+              </i>
+            );
+          })}
+        </div>
+      ))}
+      <div className="ns-kd-nhan"><IcMat width={13} /> <b>{n}</b> khán giả{n > sucChua ? ` (+${n - sucChua} đứng)` : ''}{st.so_cho > 0 ? ` · ${st.so_cho} chờ ghế` : ''}</div>
+    </div>
+  );
+}
+
+// Bảng điểm sống (cạnh màn hình câu, máy tính): thấy rõ tên + mũi tên lên/xuống hạng
+function BangSong({ st, toiMa }) {
+  const cu = useRef({});
+  const ds = (st.ghe || []).filter((g) => g.hang).sort((a, b) => a.hang - b.hang);
+  const dich = {};
+  ds.forEach((g) => { const h = cu.current[g.ma]; dich[g.ma] = h ? h - g.hang : 0; });
+  useEffect(() => { const m = {}; ds.forEach((g) => { m[g.ma] = g.hang; }); cu.current = m; });
+  if (!ds.length) return null;
+  return (
+    <div className="ns-song">
+      <div className="ns-song-tit"><IcTrophy width={14} /> Bảng điểm</div>
+      {ds.map((g) => (
+        <div key={g.ma} className={'ns-song-d' + (g.ma === toiMa ? ' toi' : '') + (!g.ket_noi ? ' mat' : '') + (g.hang <= 3 ? ' h' + g.hang : '')}>
+          <span className="h">{g.hang}</span>
+          <span className="t">{g.ten}</span>
+          <b>{dich[g.ma] > 0 && <IcLen width={10} height={10} className="len" />}{dich[g.ma] < 0 && <IcXuong width={10} height={10} className="xuong" />}{so(g.diem)}</b>
+        </div>
+      ))}
     </div>
   );
 }
@@ -700,7 +815,7 @@ function Phong({ id, vaiXin, onRa }) {
         else if (d.vong === 2) noi('Nhìn thật kỹ kệ hàng — 6 giây thôi!');
       }
       if (d.pha === 'CONG_BO' && d.cong_bo && p) {
-        am.congBo();
+        am.congBo(); setTimeout(() => am.voTay(), 500);
         const ket = d.cong_bo.ket || {};
         const nDung = Object.values(ket).filter((x) => x === true).length;
         const nThi = (d.ghe || []).length;
@@ -787,8 +902,20 @@ function Phong({ id, vaiXin, onRa }) {
   useEffect(() => {
     if (!st || st.pha !== 'TRA_LOI' || con == null || st.phien.dung) { giayBao.current = null; return; }
     const g = Math.ceil(con / 1000);
-    if (g !== giayBao.current && g <= 5 && g > 0) { giayBao.current = g; if (g <= 3) am.tichGap(); else am.tich(); }
+    if (g !== giayBao.current && g <= 5 && g > 0) { giayBao.current = g; am.tim(); if (g <= 3) am.tichGap(); else am.tich(); }
   });
+  // toàn màn hình: che menu app, khoá cuộn trang nền
+  useEffect(() => {
+    document.body.classList.add('ns-full-mo');
+    return () => { document.body.classList.remove('ns-full-mo'); if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); };
+  }, []);
+  const [hep, setHep] = useState(() => window.innerWidth < 900);
+  useEffect(() => { const f = () => setHep(window.innerWidth < 900); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f); }, []);
+  const coFull = typeof document !== 'undefined' && !!document.documentElement.requestFullscreen;
+  const batFull = () => {
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    else document.documentElement.requestFullscreen?.().catch(() => {});
+  };
 
   const traLoi = async (i) => {
     const stt = st.stt;
@@ -827,12 +954,11 @@ function Phong({ id, vaiXin, onRa }) {
   };
 
   if (!st) {
-    return (
-      <div className="ns-phong dang-tai">
+    return createPortal(
+      <div className="ns-full dang-tai">
         <div className="ns-tai"><div className="ns-tai-vong" /><span>{loi ? 'Không vào được phòng: ' + loi : 'Đang vào phòng thi…'}</span>
-          {loi && <button className="btn btn-ghost" onClick={onRa}>Quay lại</button>}</div>
-      </div>
-    );
+          <button className="ns-lui-toi" onClick={onRa}><IcMuiTen width={15} /> Quay lại</button></div>
+      </div>, document.body);
   }
 
   const toi = st.toi || {};
@@ -861,9 +987,13 @@ function Phong({ id, vaiXin, onRa }) {
       : { lop: 'trong', chu: 'Hết giờ — bạn chưa trả lời' })
     : null;
 
-  return (
-    <div className={'ns-phong pha-' + pha.toLowerCase()}>
-      <div className="ns-phong-dau">
+  const cang = pha === 'TRA_LOI' && !st.phien.dung && con != null && con <= 5000;
+  const coBang = st.phien.trang_thai !== 'SAN_SANG' && !hep;
+
+  return createPortal(
+    <div className={'ns-full pha-' + pha.toLowerCase() + (cang ? ' cang' : '') + (st.phien.dung ? ' dung' : '')}>
+      <div className="ns-den-quet" aria-hidden="true"><i /><i /><b className="tuong trai" /><b className="tuong phai" /></div>
+      <div className="ns-top">
         <button className="ns-lui-toi" onClick={ra} title={pha === 'KET_THUC' ? 'Về sảnh' : 'Rời phòng'}><IcMuiTen width={15} /> <span className="chu">{pha === 'KET_THUC' ? 'Về sảnh' : 'Rời phòng'}</span></button>
         <div className="ns-phong-ten">
           <b>{st.phien.ten}</b>
@@ -872,31 +1002,29 @@ function Phong({ id, vaiXin, onRa }) {
           {toi.vai === 'CHOI' && <span className="chip gold">Ghế {toi.ghe}</span>}
         </div>
         {loi && <span className="ns-mat-mang"><IcRefresh width={13} /> Mất kết nối — đang thử lại</span>}
+        {coFull && <button className="ns-lui-toi ns-nut-full" onClick={batFull} title="Toàn màn hình"><IcToanMan width={15} /></button>}
       </div>
 
       <BangDien st={st} con={con} mc={mc} amOn={amOn} setAmOn={setAmOn} />
 
-      <div className="ns-than">
+      <div className={'ns-giua' + (coBang ? ' co-bang' : '')}>
         <div className="ns-man">
-          {tienDo != null && <div className="ns-thanh-tg"><i className={tienDo < 0.25 ? 'gap' : ''} style={{ width: tienDo * 100 + '%' }} /></div>}
+          {tienDo != null && <div className="ns-thanh-tg"><i className={tienDo < 0.34 ? 'gap' : ''} style={{ width: tienDo * 100 + '%' }} /></div>}
           {ketQuaToi && <div className={'ns-kq-toi ' + ketQuaToi.lop}>{ketQuaToi.chu}</div>}
           {man}
           {pha === 'CONG_BO' && cb?.giai && <div className="ns-giai-thich"><b>Giải thích:</b> {cb.giai}</div>}
           {pha === 'TRA_LOI' && !choi && <div className="ns-xem-chu"><IcMat width={14} /> Bạn đang xem — đáp án công bố khi hết giờ.</div>}
           {pha === 'TRA_LOI' && choi && chon != null && <div className="ns-xem-chu"><IcCheck width={14} /> Đã chốt. Chờ công bố đáp án…</div>}
-          {st.phien.dung && <div className="ns-tam-dung"><IcDung width={30} height={30} /><b>TẠM DỪNG</b><span>Ban tổ chức đang xử lý — đồng hồ đã dừng, không ai bị mất giờ.</span></div>}
+          {st.phien.dung && <div className="ns-tam-dung"><IcDung width={34} height={34} /><b>TẠM DỪNG</b><span>Ban tổ chức đang xử lý — đồng hồ đã dừng, không ai bị mất giờ.</span></div>}
           {toi.moi_ra && pha !== 'KET_THUC' && <div className="ns-canh"><IcAlert width={15} /> Bạn đã được ban tổ chức mời ra khỏi phiên — vẫn có thể theo dõi.</div>}
         </div>
-        <div className="ns-ben-phong">
-          <div className="ns-sk-tit"><IcSanKhau width={15} /> {st.phien.trang_thai === 'SAN_SANG' ? `Đã vào ${(st.ghe || []).length}/${st.phien.so_ghe} ghế` : 'Bảng xếp hạng trực tiếp'}</div>
-          <SanKhau st={st} toiMa={toi.ma} />
-          {mc.length > 1 && (
-            <div className="ns-mc-ds">
-              {mc.slice(1, 5).map((m) => <div key={m.id}>{m.txt}</div>)}
-            </div>
-          )}
-        </div>
+        {coBang && <BangSong st={st} toiMa={toi.ma} />}
       </div>
-    </div>
-  );
+
+      <div className="ns-duoi">
+        <div className="ns-sk-tit"><IcSanKhau width={14} /> {st.phien.trang_thai === 'SAN_SANG' ? `Sân thi · đã vào ${(st.ghe || []).length}/${st.phien.so_ghe} ghế` : 'Sân thi · xếp theo hạng trực tiếp'}</div>
+        <SanKhau st={st} toiMa={toi.ma} cang={cang} />
+        <KhanDai st={st} cang={cang} hep={hep} />
+      </div>
+    </div>, document.body);
 }

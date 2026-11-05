@@ -30,7 +30,22 @@ function not(tan, batDau, dai, { loai = 'sine', am = 0.12, truot = null } = {}) 
   o.start(t0); o.stop(t0 + dai + 0.02);
 }
 
+// tiếng ồn ngắn (vỗ tay khán đài)
+function on(batDau, dai, am = 0.05, loc = 1400) {
+  if (!bat || !ctx) return;
+  const t0 = ctx.currentTime + batDau;
+  const n = Math.floor(ctx.sampleRate * dai);
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate); const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = loc; f.Q.value = 0.8;
+  const g = ctx.createGain(); g.gain.value = am;
+  src.connect(f).connect(g).connect(ctx.destination); src.start(t0);
+}
+
 export const am = {
+  tim: () => { not(62, 0, 0.16, { am: 0.22, truot: 44 }); not(58, 0.18, 0.14, { am: 0.16, truot: 40 }); },
+  voTay: () => { for (let i = 0; i < 14; i++) on(i * 0.07 + Math.random() * 0.05, 0.06, 0.035 + Math.random() * 0.03, 1100 + Math.random() * 900); },
   tich: () => not(880, 0, 0.07, { loai: 'square', am: 0.04 }),
   tichGap: () => not(1320, 0, 0.09, { loai: 'square', am: 0.06 }),
   bam: () => not(520, 0, 0.06, { loai: 'triangle', am: 0.08 }),

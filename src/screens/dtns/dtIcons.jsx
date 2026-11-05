@@ -24,3 +24,4 @@ export const IcXuong   = (p) => <I d="M12 5v14 M6 13l6 6 6-6" {...p} />;
 export const IcXao     = (p) => <I d="M16 3h5v5 M4 20 21 3 M21 16v5h-5 M15 15l6 6 M4 4l5 5" {...p} />;
 export const IcKhoa    = (p) => <I d="M6 11h12v10H6z M8 11V7a4 4 0 0 1 8 0v4" {...p} />;
 export const IcSanKhau = (p) => <I d="M3 4h18 M5 4v4a7 7 0 0 0 14 0V4 M3 20h18 M7 20v-3h10v3" {...p} />;
+export const IcToanMan = (p) => <I d="M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5" {...p} />;
