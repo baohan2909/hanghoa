@@ -638,8 +638,11 @@ export default function ChiaHangMoi() {
                           <td className="ct-giua">{kvCH[r.ma_ch] || '—'}</td>
                           <td className="ct-giua">{r.ton_dang_co > 0
                             ? <span className="ct-dacoz">
-                                <b className="ct-dacos">{r.ton_dang_co}</b>
-                                {r.ton_duong > 0 && <small className="ct-duong" title={`${r.ton_thuc} tồn thực + ${r.ton_duong} đang về`}>✈{r.ton_duong}</small>}
+                                {r.ton_duong > 0
+                                  ? <span title={`${r.ton_thuc} tồn thực + ${r.ton_duong} đang về = ${r.ton_dang_co}`} style={{ whiteSpace: 'nowrap' }}>
+                                      {r.ton_thuc}<small className="ct-duong" style={{ margin: '0 3px' }}>+ {r.ton_duong}</small>= <b className="ct-dacos">{r.ton_dang_co}</b>
+                                    </span>
+                                  : <b className="ct-dacos">{r.ton_dang_co}</b>}
                               </span>
                             : <span className="ct-khong">·</span>}</td>
                           <td className="ct-giua">{Math.round((r.ty_le || 0) * 100)}%</td>

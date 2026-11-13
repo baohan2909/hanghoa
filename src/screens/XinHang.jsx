@@ -861,12 +861,17 @@ export default function XinHang() {
                           : <span style={{ fontWeight: 600 }}>{fmtVND(r.gia_niem_yet)}</span>}
                       </td>
                       <td className="num">
-                        {r.ton_truoc}
-                        {(() => { const di = (r.ton_du_tinh ?? 0) - (r.ton_truoc ?? 0);
-                          return di !== 0
-                            ? <b style={{ color: di > 0 ? 'var(--teal-deep)' : 'var(--magenta)', marginLeft: 3, fontSize: 12 }}>
-                                {di > 0 ? '+' + di : di}</b>
-                            : null; })()}
+                        {(() => { const thuc = r.ton_truoc ?? 0, di = (r.ton_du_tinh ?? 0) - thuc;
+                          // Hiển thị "thực tế + đi đường = tổng" (vd 30 + 20 = 50); không đi đường -> chỉ số thực tế
+                          if (di === 0) return thuc;
+                          return <span style={{ whiteSpace: 'nowrap' }}
+                            title={`Thực tế ${thuc} · ${di > 0 ? 'đang về' : 'đang xuất'} ${Math.abs(di)} · dự tính ${thuc + di}`}>
+                            {thuc}
+                            <span style={{ color: di > 0 ? 'var(--teal-deep)' : 'var(--magenta)', fontWeight: 700, fontSize: 12 }}>
+                              {di > 0 ? ' + ' + di : ' − ' + Math.abs(di)}</span>
+                            <span style={{ color: 'var(--ink-2)', fontSize: 12 }}> = </span>
+                            <b>{thuc + di}</b>
+                          </span>; })()}
                       </td>
                       <td className="num" style={r.kho_tong <= 0
                         ? { color: 'var(--magenta)', fontWeight: 700 }
