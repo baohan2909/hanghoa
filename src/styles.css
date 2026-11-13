@@ -3266,3 +3266,68 @@ input.nd2-in{min-width:230px}
   color:var(--ink-2); font-size:14px; line-height:1; padding:4px 6px; border-radius:6px;
 }
 .chm-kp-an:hover{ background:rgba(203,164,90,.18); color:var(--ink); }
+
+/* ===================== ĐỘI SALE (dsl-) — v3.99.0 ===================== */
+.dsl-canh { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 10px 14px;
+  border-radius: 10px; background: rgba(203,164,90,.14); color: #7A5B1E; font-size: 13px; font-weight: 600; }
+.dsl-canh svg { width: 16px; height: 16px; flex: none; }
+.dsl-trong { text-align: center; padding: 26px !important; color: var(--ink-2); }
+.dsl-duong { color: var(--teal-deep); font-weight: 700; }
+
+.dsl-kpis { display: grid; grid-template-columns: minmax(0,1.5fr) repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 16px; }
+@media (max-width: 1100px) { .dsl-kpis { grid-template-columns: repeat(3, minmax(0,1fr)); } .dsl-kpi:first-child { grid-column: 1 / -1; } }
+.dsl-kpi { display: flex; flex-direction: column; gap: 3px; background: var(--surface); border-radius: var(--r);
+  padding: 13px 15px; box-shadow: var(--shadow); border-top: 3px solid var(--ink); cursor: default; }
+.dsl-kpi.k-click { cursor: pointer; }
+.dsl-kpi .l { font-size: 11.5px; color: var(--ink-2); font-weight: 600; }
+.dsl-kpi .v { font-size: 22px; font-weight: 800; color: var(--ink); line-height: 1.15; }
+.dsl-kpi .v small { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.dsl-kpi .s { font-size: 11.5px; color: var(--ink-2); }
+.dsl-kpi.k-do { border-top-color: var(--magenta); } .dsl-kpi.k-do .v { color: var(--magenta); }
+.dsl-kpi.k-teal { border-top-color: var(--teal); background: linear-gradient(180deg, rgba(63,182,168,.10), #fff 70%); }
+.dsl-kpi.k-teal .v { color: var(--teal-deep); }
+.dsl-kpi.k-vang { border-top-color: var(--gold); } .dsl-kpi.k-vang .v { color: #9A7428; }
+
+.dsl-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.dsl-head > b { font-size: 15px; color: var(--ink); }
+.dsl-head .hh-tab svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 3px; }
+
+.dsl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 10px; }
+.dsl-doi { text-align: left; font: inherit; color: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 5px;
+  background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--teal);
+  border-radius: 12px; padding: 11px 12px; box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s, opacity .15s; }
+.dsl-doi:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.dsl-doi.s-do { border-left-color: var(--magenta); }
+.dsl-doi.s-vang { border-left-color: var(--gold); }
+.dsl-doi.s-moi { border-left-color: #A9B1BF; background: #FBFAF7; }
+.dsl-doi.s-on { outline: 2px solid var(--teal); box-shadow: 0 0 0 4px rgba(63,182,168,.18), var(--shadow-lg); }
+.dsl-doi.s-mo { opacity: .45; }
+.dsl-doi-top { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.dsl-doi-ten { font-weight: 800; font-size: 14px; color: var(--ink); }
+.dsl-doi-ngay { font-weight: 800; font-size: 20px; line-height: 1; }
+.dsl-doi-ngay small { font-size: 11px; font-weight: 600; }
+.dsl-doi-ton { font-size: 12.5px; }
+.dsl-doi-ban { font-size: 11px; color: var(--ink-2); }
+.dsl-spark { width: 100%; height: 30px; display: block; }
+.dsl-chips { display: flex; flex-wrap: wrap; gap: 4px; min-height: 4px; }
+.dsl-chip { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 20px; white-space: nowrap;
+  background: #EEF1F4; color: var(--ink-2); }
+.dsl-chip.c-do { background: rgba(214,0,108,.10); color: var(--magenta); }
+.dsl-chip.c-vang { background: rgba(203,164,90,.18); color: #87631F; }
+.dsl-chip.c-teal { background: rgba(63,182,168,.15); color: var(--teal-deep); }
+
+.dsl-th { cursor: pointer; user-select: none; white-space: nowrap; }
+.dsl-tbl { min-width: 880px; }
+.dsl-tbl td { vertical-align: middle; }
+.dsl-tbl tr.dsl-bo td { opacity: .4; }
+.dsl-ly { font-size: 12px; color: var(--ink-2); min-width: 240px; white-space: normal !important; }
+.dsl-ly b { color: var(--ink); }
+
+@media (max-width: 640px) {
+  .dsl-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .dsl-doi { padding: 9px 10px; }
+  .dsl-doi-ngay { font-size: 17px; }
+  .dsl-kpis { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .dsl-kpi .v { font-size: 18px; }
+}
+.dsl-duong.di { color: var(--magenta); }
