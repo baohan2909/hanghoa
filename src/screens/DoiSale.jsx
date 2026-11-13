@@ -195,7 +195,7 @@ export default function DoiSale() {
 
       <div className="hh-tabs dsl-man">
         <button className={'hh-tab' + (manHinh === 'tq' ? ' on' : '')} onClick={() => setManHinh('tq')}><IcGrid /> Tổng quan</button>
-        <button className={'hh-tab' + (manHinh === 'ban' ? ' on' : '')} onClick={() => setManHinh('ban')}><IcSpark /> Bàn chia hàng</button>
+        <button className={'hh-tab' + (manHinh === 'ban' ? ' on' : '')} onClick={() => setManHinh('ban')}><IcSpark /> Chia hàng đội sale</button>
       </div>
 
       <div className="toolbar">
@@ -255,10 +255,8 @@ export default function DoiSale() {
 
         {/* ===== Bản đồ đội ===== */}
         <div className="dsl-head">
-          <b>Bản đồ đội</b>
-          <span className="tq-ghi">{doi ? `Đang xem ${tenNgan(dsDoi.find((d) => d.ma_ch === doi)?.ten)} — bấm lại để bỏ lọc` : 'Bấm vào một đội để lọc danh sách bên dưới'}</span>
           <button className="btn btn-ai dsl-mo-ban" onClick={() => { setChonBan(doi ? [doi] : dsDoi.filter((d) => d.ma_sap_het > 0 || d.ma_het > 0 || d.chuyen_di > 0 || d.nhan_ve > 0).map((d) => d.ma_ch).sort()); setManHinh('ban'); }}>
-            <IcSpark /> Mở bàn chia {doi ? 'cho đội này' : 'các đội có vấn đề'}
+            <IcSpark /> Mở chia hàng đội sale
           </button>
           <div className="hh-tabs">
             {[['van_de', 'Vấn đề trước'], ['ban', 'Bán nhanh'], ['ton', 'Tồn nhiều'], ['ma', 'Theo mã']].map(([k, t]) => (
