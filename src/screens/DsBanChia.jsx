@@ -93,6 +93,50 @@ function AnhSP({ url, ten }) {
   );
 }
 
+// Bảng phân tích 1 ô — tính theo SỐ ĐANG NHẬP (không phải số gốc AI), cập nhật ngay khi sửa
+function TipO({ tip, sp, d, v, T, lenh }) {
+  const o = sp?.o?.[d.ma_ch];
+  const W = 300;
+  const left = tip.r.right + 8 + W > window.innerWidth ? Math.max(8, tip.r.left - W - 8) : tip.r.right + 8;
+  const top = Math.min(Math.max(8, tip.r.top - 10), window.innerHeight - 330);
+  const ten = tenNgan(d.ten);
+  if (!o) {
+    return createPortal(<div className="bc-tip" style={{ left, top, width: W }}>
+      <b>{ten} · {sp.ma_tham_chieu}</b><p>Đội chưa có mã này (không tồn, không bán).</p>
+      {v > 0 && <p>Chia <b className="ch-nhan">+{v}</b> → có {v} cái, chưa có số bán để tính ngày.</p>}
+    </div>, document.body);
+  }
+  const coTruoc = o.t + o.d, coSau = coTruoc + v;
+  const ndT = o.v > 0 ? Math.round((coTruoc / o.v) * 10) / 10 : null;
+  const ndS = o.v > 0 ? Math.round((coSau / o.v) * 10) / 10 : null;
+  const muc = Math.ceil(o.v * T.muc_tieu);
+  const ai = o.dx || 0;
+  const nguon = lenh.filter((l) => l.den === d.ma_ch).map((l) => `${tenNgan(l.tu_ten)} ${l.sl}`);
+  const dich = lenh.filter((l) => l.tu === d.ma_ch).map((l) => `${tenNgan(l.den_ten)} ${l.sl}`);
+  const canh = [];
+  if (v < 0 && -v > o.t) canh.push(`Cho ${-v} nhưng chỉ đang có ${o.t} cái thực (hàng đang về chưa tới).`);
+  if (v < 0 && o.moi) canh.push('Đội mới — chưa đủ thời gian bán, lấy hàng đi là sớm.');
+  if (o.v > 0 && coSau < muc) canh.push(`Sau chia còn thiếu ${muc - coSau} cái để đủ ${T.muc_tieu} ngày.`);
+  if (v > 0 && o.v > 0 && coSau > muc + Math.max(2, Math.ceil(o.v * 3))) canh.push(`Nhận dư ${coSau - muc} cái so với mục tiêu ${T.muc_tieu} ngày.`);
+  if (v > 0 && o.v === 0) canh.push(`Đội không bán mã này ${T.cua_so} ngày qua — nhận thêm có thể nằm kho.`);
+  const nd = (n) => (n == null ? '—' : n > 365 ? '>1 năm' : n + ' ngày');
+  return createPortal(
+    <div className="bc-tip" style={{ left, top, width: W }}>
+      <b>{ten} · {sp.ma_tham_chieu}</b>
+      <div className="bc-tip-g">
+        <span>Bán</span><em>{o.b} cái / {T.cua_so} ngày · {o.v}/ngày</em>
+        <span>Trước chia</span><em>{o.d ? <>{o.t}{o.d > 0 ? ` + ${o.d} đang về` : ` − ${-o.d} đang đi`} = </> : null}<b>{coTruoc}</b> cái · đủ <b style={{ color: mauNgay(ndT, T) }}>{nd(ndT)}</b></em>
+        <span>Chia</span><em><b className={v > 0 ? 'ch-nhan' : v < 0 ? 'ch-cho' : ''}>{v > 0 ? '+' + v : v || 0}</b>
+          {v !== ai ? <> · AI đề xuất {ai > 0 ? '+' + ai : ai}</> : <> · đúng số AI</>}</em>
+        <span>Sau chia</span><em><b>{coSau}</b> cái · đủ <b style={{ color: mauNgay(ndS, T) }}>{nd(ndS)}</b>{o.v > 0 ? ` (mục tiêu ${muc} = ${T.muc_tieu} ngày)` : ''}</em>
+        {nguon.length > 0 && <><span>Nhận từ</span><em>{nguon.join(' · ')}</em></>}
+        {dich.length > 0 && <><span>Cho đến</span><em>{dich.join(' · ')}</em></>}
+      </div>
+      {canh.length > 0 ? canh.map((c, i) => <p key={i} className="bc-tip-canh">{c}</p>)
+        : <p className="bc-tip-ok">Số chia hợp lý với sức bán.</p>}
+    </div>, document.body);
+}
+
 export default function DsBanChia({ dsDoi, ts, initChon }) {
   const { user, baoToast } = useApp();
   const daLuu = useRef(lsGet());
@@ -105,6 +149,7 @@ export default function DsBanChia({ dsDoi, ts, initChon }) {
   const [q, setQ] = useState('');
   const [chiCo, setChiCo] = useState(false);       // chỉ dòng đang có số
   const [xemTruoc, setXemTruoc] = useState(false);
+  const [tipO, setTipO] = useState(null);           // ô đang rê chuột: { bc, ma, left, top }
 
   // Lưu nháp: đội đã chọn + số đã sửa (tải lại trang không mất)
   useEffect(() => { lsSet({ chon, sua }); }, [chon, sua]);
@@ -285,7 +330,7 @@ export default function DsBanChia({ dsDoi, ts, initChon }) {
             <tbody>
               {dong.length === 0 ? (
                 <tr><td colSpan={cot.length + 2} className="dsl-trong">Không có mã nào cần xử lý giữa các đội đã chọn.</td></tr>
-              ) : dong.map((s) => {
+              ) : dong.map((s, ri) => {
                 const g = ghepDong(s, cot, giaTri);
                 const layKho = g.lenh.filter((l) => l.loai === 'kho').reduce((a, l) => a + l.sl, 0);
                 return (
@@ -297,26 +342,27 @@ export default function DsBanChia({ dsDoi, ts, initChon }) {
                         <small>{s.nganh_3 || s.nganh_1}</small>
                       </div>
                     </td>
-                    {cot.map((d) => {
+                    {cot.map((d, ci) => {
                       const o = s.o?.[d.ma_ch];
                       const v = giaTri(s.barcode, d.ma_ch);
                       const ai = o?.dx || 0;
                       const nd2 = ngaySau(o, v);
-                      const st = o?.can > 0 ? ' thieu' : o?.cho > 0 ? ' du' : '';
-                      const tip = o ? [
-                        `${tenNgan(d.ten)} · ${s.ma_tham_chieu}`,
-                        `Tồn: ${o.t}${o.d ? (o.d > 0 ? ' + đang về ' + o.d : ' − đang đi ' + (-o.d)) + ' = ' + (o.t + o.d) : ''}`,
-                        `Bán ${o.b} cái / ${T.cua_so} ngày (${o.v}/ngày) · còn ${o.nd ?? '—'} ngày`,
-                        o.can > 0 ? `Cần nhận: ${o.can} (để đủ ${T.muc_tieu} ngày)` : '',
-                        o.cho > 0 ? `Có thể cho: ${o.cho} (vẫn giữ đủ ${T.muc_tieu} ngày)` : '',
-                        o.moi ? 'Đội mới — không lấy hàng đi' : '',
-                        `AI đề xuất: ${ai > 0 ? '+' + ai : ai}${o.kx ? ' (từ kho ' + o.kx + ')' : ''}`,
-                        `Sau chia: ${o.t + o.d + v} cái${nd2 != null ? ' · đủ ' + nd2 + ' ngày' : ''}`,
-                      ].filter(Boolean).join('\n') : `${tenNgan(d.ten)} chưa có mã này`;
+                      // Màu ô theo SỐ ĐÃ CHIA: còn thiếu sau chia = hồng, vẫn dư = vàng, ổn = trắng
+                      const st = !o ? '' : (o.v > 0 && nd2 < T.sap_het) ? ' thieu'
+                        : (o.t + v > 0 && (o.b === 0 || (nd2 != null && nd2 > T.ton_lau)) && !o.moi && (o.t + v) - Math.ceil(o.v * T.muc_tieu) >= (T.min_sl || 3)) ? ' du' : '';
                       return (
-                        <td key={d.ma_ch} className={'bc-o' + st + (v > 0 ? ' co-nhan' : v < 0 ? ' co-cho' : '')} title={tip}>
+                        <td key={d.ma_ch} className={'bc-o' + st + (v > 0 ? ' co-nhan' : v < 0 ? ' co-cho' : '')}
+                          onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTipO({ bc: s.barcode, ma: d.ma_ch, r }); }}
+                          onMouseLeave={() => setTipO(null)}>
                           <input type="number" inputMode="numeric" value={v === 0 ? '' : v} placeholder="·"
+                            data-r={ri} data-c={ci}
                             onChange={(e) => datSo(s.barcode, d.ma_ch, parseInt(e.target.value, 10) || 0)}
+                            onKeyDown={(e) => {
+                              if (e.key !== 'Enter') return;
+                              e.preventDefault();
+                              const t = document.querySelector(`.bc-tbl input[data-r="${ri + (e.shiftKey ? -1 : 1)}"][data-c="${ci}"]`);
+                              if (t) { t.focus(); t.scrollIntoView({ block: 'nearest' }); } else e.currentTarget.blur();
+                            }}
                             onFocus={(e) => e.target.select()} />
                           {v !== ai && <span className="bc-ai" onClick={() => datSo(s.barcode, d.ma_ch, ai)} title="Bấm để lấy lại số AI">AI {ai > 0 ? '+' + ai : ai}</span>}
                           <div className="bc-o-ph">
@@ -394,6 +440,13 @@ export default function DsBanChia({ dsDoi, ts, initChon }) {
           </div>
         </div>
       )}
+      {tipO && spMap.get(tipO.bc) && (() => {
+        const sp = spMap.get(tipO.bc);
+        const d = cot.find((x) => x.ma_ch === tipO.ma);
+        if (!d) return null;
+        const g = ghepDong(sp, cot, giaTri);
+        return <TipO tip={tipO} sp={sp} d={d} v={giaTri(tipO.bc, tipO.ma)} T={T} lenh={g.lenh} />;
+      })()}
     </div>
   );
 }

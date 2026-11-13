@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
-import { Sel } from '../lib/ui.jsx';
 import { IcRefresh, IcDown, IcAlert, IcTruck, IcBox, IcClock, IcGrid, IcSpark } from '../lib/icons.jsx';
 import DsBanChia from './DsBanChia.jsx';
 
@@ -77,6 +76,27 @@ function maLenhMoi(tien) {
   const d = new Date();
   return tien + d.toISOString().slice(0, 10).replace(/-/g, '') + '-'
     + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+}
+
+// Ô nhập số ngày: gõ số, Enter hoặc rời ô mới áp dụng (không tính lại theo từng phím)
+function NgayIn({ nhan, sau, value, min, max, onChange, goiY }) {
+  const [v, setV] = useState(String(value));
+  useEffect(() => { setV(String(value)); }, [value]);
+  const chot = () => {
+    const n = Math.min(max, Math.max(min, parseInt(v, 10) || value));
+    setV(String(n));
+    if (n !== value) onChange(n);
+  };
+  return (
+    <label className="dsl-ngay" title={goiY}>
+      <span>{nhan}</span>
+      <input type="number" inputMode="numeric" min={min} max={max} value={v}
+        onChange={(e) => setV(e.target.value)} onBlur={chot}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+        onFocus={(e) => e.target.select()} />
+      <span>{sau}</span>
+    </label>
+  );
 }
 
 export default function DoiSale() {
@@ -199,14 +219,14 @@ export default function DoiSale() {
       </div>
 
       <div className="toolbar">
-        <Sel value={ts.cua_so} onChange={(v) => setTs({ ...ts, cua_so: v })}
-          options={[14, 28, 56].map((n) => ({ value: n, label: `Sức bán ${n} ngày` }))} />
-        <Sel value={ts.muc_tieu} onChange={(v) => setTs({ ...ts, muc_tieu: v })}
-          options={[14, 21, 30].map((n) => ({ value: n, label: `Đủ hàng ${n} ngày` }))} />
-        <Sel value={ts.sap_het} onChange={(v) => setTs({ ...ts, sap_het: v })}
-          options={[3, 5, 7, 10].map((n) => ({ value: n, label: `Sắp hết < ${n} ngày` }))} />
-        <Sel value={ts.ton_lau} onChange={(v) => setTs({ ...ts, ton_lau: v })}
-          options={[30, 45, 60, 90].map((n) => ({ value: n, label: `Tồn lâu > ${n} ngày` }))} />
+        <NgayIn nhan="Sức bán" sau="ngày" value={ts.cua_so} min={3} max={180} onChange={(v) => setTs({ ...ts, cua_so: v })}
+          goiY="Lấy số bán bao nhiêu ngày gần nhất để tính bán/ngày" />
+        <NgayIn nhan="Chia đủ dùng" sau="ngày" value={ts.muc_tieu} min={1} max={180} onChange={(v) => setTs({ ...ts, muc_tieu: v })}
+          goiY="Chia hàng để mỗi đội đủ bán bao nhiêu ngày" />
+        <NgayIn nhan="Sắp hết dưới" sau="ngày" value={ts.sap_het} min={1} max={90} onChange={(v) => setTs({ ...ts, sap_het: v })}
+          goiY="Đội còn ít hơn số ngày này là thiếu, cần bù" />
+        <NgayIn nhan="Tồn lâu trên" sau="ngày" value={ts.ton_lau} min={7} max={365} onChange={(v) => setTs({ ...ts, ton_lau: v })}
+          goiY="Đội còn nhiều hơn số ngày này (hoặc không bán) là dư, có thể cho" />
         {manHinh === 'tq' && <input className="flt-in" placeholder="Tìm mã / sản phẩm…" value={q}
           onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 160, flex: 1 }} />}
         {kq && <span className="sla-chip"><IcClock /> Tồn {gioVN(kq.tham_so?.ton_luc)} · Bán tới {ngayVN(kq.tham_so?.ban_moi_nhat)}</span>}
