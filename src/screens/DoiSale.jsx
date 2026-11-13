@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { Sel } from '../lib/ui.jsx';
-import { IcRefresh, IcDown, IcAlert, IcTruck, IcBox, IcClock } from '../lib/icons.jsx';
+import { IcRefresh, IcDown, IcAlert, IcTruck, IcBox, IcClock, IcGrid, IcSpark } from '../lib/icons.jsx';
+import DsBanChia from './DsBanChia.jsx';
 
 // ============================================================================
 // ĐỘI SALE — màn RIÊNG cho 20 đội sale (hoạt động độc lập với CH/ĐB)
@@ -88,6 +89,8 @@ export default function DoiSale() {
   const [sl, setSl] = useState({});              // khoá dòng -> SL sửa tay
   const [bo, setBo] = useState({});              // khoá dòng -> true = bỏ chọn
   const [sapXep, setSapXep] = useState('van_de');
+  const [manHinh, setManHinh] = useState('tq');   // tq = tổng quan | ban = bàn chia hàng
+  const [chonBan, setChonBan] = useState(null);
 
   const tai = async () => {
     setKq(null);
@@ -190,6 +193,11 @@ export default function DoiSale() {
         </div>
       </div>
 
+      <div className="hh-tabs dsl-man">
+        <button className={'hh-tab' + (manHinh === 'tq' ? ' on' : '')} onClick={() => setManHinh('tq')}><IcGrid /> Tổng quan</button>
+        <button className={'hh-tab' + (manHinh === 'ban' ? ' on' : '')} onClick={() => setManHinh('ban')}><IcSpark /> Bàn chia hàng</button>
+      </div>
+
       <div className="toolbar">
         <Sel value={ts.cua_so} onChange={(v) => setTs({ ...ts, cua_so: v })}
           options={[14, 28, 56].map((n) => ({ value: n, label: `Sức bán ${n} ngày` }))} />
@@ -199,11 +207,14 @@ export default function DoiSale() {
           options={[3, 5, 7, 10].map((n) => ({ value: n, label: `Sắp hết < ${n} ngày` }))} />
         <Sel value={ts.ton_lau} onChange={(v) => setTs({ ...ts, ton_lau: v })}
           options={[30, 45, 60, 90].map((n) => ({ value: n, label: `Tồn lâu > ${n} ngày` }))} />
-        <input className="flt-in" placeholder="Tìm mã / sản phẩm…" value={q}
-          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 160, flex: 1 }} />
+        {manHinh === 'tq' && <input className="flt-in" placeholder="Tìm mã / sản phẩm…" value={q}
+          onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 160, flex: 1 }} />}
         {kq && <span className="sla-chip"><IcClock /> Tồn {gioVN(kq.tham_so?.ton_luc)} · Bán tới {ngayVN(kq.tham_so?.ban_moi_nhat)}</span>}
       </div>
 
+      {manHinh === 'ban' ? (
+        <DsBanChia dsDoi={kq?.doi || []} ts={ts} initChon={chonBan} />
+      ) : (<>
       {(thieuLichSu || chuaCoBan) && (
         <div className="dsl-canh">
           <IcAlert /> {chuaCoBan
@@ -246,6 +257,9 @@ export default function DoiSale() {
         <div className="dsl-head">
           <b>Bản đồ đội</b>
           <span className="tq-ghi">{doi ? `Đang xem ${tenNgan(dsDoi.find((d) => d.ma_ch === doi)?.ten)} — bấm lại để bỏ lọc` : 'Bấm vào một đội để lọc danh sách bên dưới'}</span>
+          <button className="btn btn-ai dsl-mo-ban" onClick={() => { setChonBan(doi ? [doi] : dsDoi.filter((d) => d.ma_sap_het > 0 || d.ma_het > 0 || d.chuyen_di > 0 || d.nhan_ve > 0).map((d) => d.ma_ch).sort()); setManHinh('ban'); }}>
+            <IcSpark /> Mở bàn chia {doi ? 'cho đội này' : 'các đội có vấn đề'}
+          </button>
           <div className="hh-tabs">
             {[['van_de', 'Vấn đề trước'], ['ban', 'Bán nhanh'], ['ton', 'Tồn nhiều'], ['ma', 'Theo mã']].map(([k, t]) => (
               <button key={k} className={'hh-tab' + (sapXep === k ? ' on' : '')} onClick={() => setSapXep(k)}>{t}</button>
@@ -404,6 +418,7 @@ export default function DoiSale() {
           chỉ lấy hàng ĐANG CÓ (không lấy hàng đang về), luôn giữ lại đủ {T.muc_tieu} ngày bán. Dưới 3 cái thì bỏ qua.
           Bao bì (giá niêm yết 0đ: túi giấy, bao…) không tính.
         </div>
+      </>)}
       </>)}
     </>
   );
