@@ -1,0 +1,787 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { sb } from '../lib/supabase.js';
+import { useApp } from '../App.jsx';
+import { IcSpark, IcDown, IcAlert, IcCheck, IcBox, IcClock } from '../lib/icons.jsx';
+import { AnhSP } from './DsBanChia.jsx';
+import DsBanChia from './DsBanChia.jsx';
+
+// ============================================================================
+// CHIA HÀNG ĐỘI SALE (bản làm lại v3.102.0) — 4 chế độ:
+//   1. Chia từng đội   : việc hằng ngày. 1 đội / lần, bảng 1 dòng 1 mã, số thẳng cột,
+//                         xếp theo bán chạy, lọc kết hợp, nhập thùng đóng sẵn, tự động
+//                         hoặc tay, Xác nhận = GIỮ TỒN kho SA ngay + xuất file.
+//   2. Chia đồng loạt  : mẫu mới / đợt bổ sung: mã × đội, nhập nhanh bằng bàn phím.
+//   3. Phiếu đã chia   : phiếu đang giữ tồn / đã xuất / huỷ, tải lại file.
+//   4. Cân đối giữa đội: bàn chuyển hàng đội dư → đội thiếu (bản cũ, giữ nguyên).
+// Mọi số đang nhập TỰ LƯU (máy + máy chủ), lọc/tìm/đổi chế độ không mất số.
+// SQL: 194_chia_hang_doi_sale.sql (fn_ds_chia_doi, fn_ds_xac_nhan, fn_ds_giu_cap_nhat ...)
+// ============================================================================
+
+const fmtN = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
+const tenNgan = (t) => (t || '').replace(/^Đội SALE\s*/i, 'Đội ');
+const KHO_TEN = { SA05001: 'Kho Sale Bảo Hiểm Offline', SA05002: 'Kho Sale Nón vải' };
+const gio = (s) => (s ? new Date(s).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : '');
+const ngayGio = (s) => (s ? new Date(s).toLocaleString('vi', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '—');
+const lsGet = (k) => { try { return JSON.parse(localStorage.getItem('dsch.' + k) || 'null'); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem('dsch.' + k, JSON.stringify(v)); } catch { /* bỏ qua */ } };
+const lsDel = (k) => { try { localStorage.removeItem('dsch.' + k); } catch { /* bỏ qua */ } };
+const so = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : 0; };
+
+// ---------------------------------------------------------------------------
+// Tự lưu bản nháp: máy (ngay lập tức) + máy chủ (sau 1,2 giây ngừng gõ)
+// ---------------------------------------------------------------------------
+function useNhap(nguoi, khoa, macDinh) {
+  const [dl, setDl] = useState(() => lsGet(khoa)?.du_lieu || macDinh);
+  const [tt, setTt] = useState({ trang: 'yen', luc: lsGet(khoa)?.luc || null });
+  const hen = useRef(null);
+  const khoaRef = useRef(khoa);
+
+  // đổi khoá (đổi đội): nạp nháp của khoá mới — máy chủ thắng nếu mới hơn
+  useEffect(() => {
+    khoaRef.current = khoa;
+    const may = lsGet(khoa);
+    setDl(may?.du_lieu || macDinh);
+    setTt({ trang: 'yen', luc: may?.luc || null });
+    let huy = false;
+    sb.rpc('fn_ds_nhap_lay', { p_nguoi: nguoi }).then(({ data }) => {
+      if (huy || !data?.[khoa]) return;
+      const chu = data[khoa];
+      if (!may?.luc || new Date(chu.cap_nhat) > new Date(may.luc)) {
+        setDl(chu.du_lieu); lsSet(khoa, { du_lieu: chu.du_lieu, luc: chu.cap_nhat });
+        setTt({ trang: 'da_luu', luc: chu.cap_nhat });
+      }
+    });
+    return () => { huy = true; };
+  }, [khoa]);   // eslint-disable-line
+
+  const dat = useCallback((fn) => {
+    setDl((cu) => {
+      const moi = typeof fn === 'function' ? fn(cu) : fn;
+      const k = khoaRef.current, luc = new Date().toISOString();
+      lsSet(k, { du_lieu: moi, luc });
+      setTt({ trang: 'dang_luu', luc });
+      clearTimeout(hen.current);
+      hen.current = setTimeout(async () => {
+        const { data, error } = await sb.rpc('fn_ds_nhap_luu', { p_nguoi: nguoi, p_khoa: k, p_du_lieu: moi });
+        setTt(error ? { trang: 'loi', luc } : { trang: 'da_luu', luc: data || luc });
+      }, 1200);
+      return moi;
+    });
+  }, [nguoi]);
+
+  const xoa = useCallback(async () => {
+    clearTimeout(hen.current);
+    lsDel(khoaRef.current);
+    setDl(macDinh); setTt({ trang: 'yen', luc: null });
+    await sb.rpc('fn_ds_nhap_xoa', { p_nguoi: nguoi, p_khoa: khoaRef.current });
+  }, [nguoi]);   // eslint-disable-line
+  return [dl, dat, tt, xoa];
+}
+
+function TrangThaiLuu({ tt }) {
+  if (tt.trang === 'dang_luu') return <span className="ch-luu dang">● Đang lưu…</span>;
+  if (tt.trang === 'loi') return <span className="ch-luu loi" title="Số vẫn giữ trên máy này; có mạng sẽ lưu lại">● Chưa lưu lên máy chủ — vẫn giữ trên máy</span>;
+  if (tt.luc) return <span className="ch-luu ok">✓ Đã lưu {gio(tt.luc)}</span>;
+  return <span className="ch-luu">Tự lưu khi nhập</span>;
+}
+
+// Xuất Excel từ phiếu đã xác nhận (khuôn nhập Odoo như Yêu cầu ĐP)
+async function xuatPhieu(id, maPhieu) {
+  const { data, error } = await sb.rpc('fn_ds_phieu_ct', { p_id: id });
+  if (error) throw error;
+  const XLSX = await import('xlsx');
+  const dong = (data || []).map((r) => ({
+    'Kho chuyển': r.tu_kho, 'Tên kho chuyển': KHO_TEN[r.tu_kho] || r.tu_kho,
+    'Cửa hàng nhận': r.ma_ch, 'Tên cửa hàng nhận': r.ten_ch,
+    Barcode: r.barcode, 'Mã tham chiếu': r.ma_tham_chieu || '', 'Sản phẩm': r.nganh_3 || '',
+    'Số lượng': r.sl, 'Ghi chú': maPhieu + (r.sl_thung ? ` · thùng ${r.thung || ''} (${r.sl_thung})` : ''),
+  }));
+  const doi = {};
+  (data || []).forEach((r) => {
+    const x = (doi[r.ma_ch] = doi[r.ma_ch] || { 'Đội': r.ma_ch, 'Tên đội': r.ten_ch, 'Số mã': 0, 'Trong thùng': 0, 'Chia thêm': 0, 'Tổng': 0 });
+    x['Số mã'] += 1; x['Trong thùng'] += r.sl_thung; x['Chia thêm'] += r.sl - r.sl_thung; x['Tổng'] += r.sl;
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dong), 'DieuChuyen');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(Object.values(doi)), 'TongHopDoi');
+  XLSX.writeFile(wb, `${maPhieu}.xlsx`);
+  return dong.length;
+}
+
+function baoLoiXacNhan(kq, baoToast) {
+  if (kq?.loi === 'vuot_ton') {
+    baoToast(`Vượt tồn kho khả dụng ${kq.chi_tiet.length} mã: ` + kq.chi_tiet.slice(0, 4).map((x) => `${x.ma_tham_chieu} cần ${x.can}/còn ${x.con}`).join(' · '));
+  } else if (kq?.loi === 'thung_trung') {
+    baoToast('Thùng đã giao cho phiếu khác: ' + kq.chi_tiet.map((x) => `${x.ma_thung} → ${tenNgan(x.ma_ch)} (${x.ma_phieu})`).join(' · '));
+  } else if (kq?.loi === 'trong') baoToast('Chưa có số nào để xác nhận');
+  else baoToast('Không xác nhận được: ' + (kq?.loi || 'lỗi lạ'));
+}
+
+// ============================================================================
+// VỎ: chọn chế độ
+// ============================================================================
+export default function DsChiaHang({ dsDoi, ts }) {
+  const [che, setChe] = useState(() => lsGet('che') || 'doi');
+  useEffect(() => { lsSet('che', che); }, [che]);
+  const CHE = [['doi', 'Chia từng đội'], ['loat', 'Chia đồng loạt'], ['phieu', 'Phiếu đã chia'], ['can', 'Cân đối giữa đội']];
+  return (
+    <div className="ch">
+      <div className="ch-che">
+        {CHE.map(([k, t]) => <button key={k} className={che === k ? 'on' : ''} onClick={() => setChe(k)}>{t}</button>)}
+      </div>
+      {che === 'doi' && <ChiaDoi dsDoi={dsDoi} ts={ts} />}
+      {che === 'loat' && <ChiaLoat dsDoi={dsDoi} ts={ts} />}
+      {che === 'phieu' && <DsPhieu />}
+      {che === 'can' && <DsBanChia dsDoi={dsDoi} ts={ts} />}
+    </div>
+  );
+}
+
+// ============================================================================
+// 1. CHIA TỪNG ĐỘI
+// ============================================================================
+const LOC = [
+  ['canh', 'Dòng cần xem', 'Dòng nền hồng: vượt kho, bán chạy mà vẫn thiếu, thùng + chia thêm vượt mục tiêu, đội đang dư mà vẫn nhận'],
+  ['chay', 'Bán chạy', 'Top 15% mã bán nhiều nhất của đội'],
+  ['thap', 'Bán tốt tồn thấp', 'Đang bán nhưng còn dưới ngưỡng sắp hết'],
+  ['het', 'Đã hết', 'Có bán mà đội đang 0 hàng'],
+  ['kho', 'Kho có hàng', 'Kho SA còn khả dụng'],
+  ['thung', 'Có trong thùng', 'Mã nằm trong các thùng đã chọn'],
+  ['nhap', 'Đã nhập', 'Đã nhập số chia thêm'],
+  ['chua', 'Cần mà chưa chia', 'Gợi ý > 0 nhưng chưa nhập số'],
+  ['lau', 'Tồn lâu', 'Không bán trong cửa sổ hoặc còn quá ngưỡng tồn lâu'],
+  ['moi', 'Mã mới', 'Mã tạo trong 45 ngày'],
+];
+const SAP = [
+  ['ban_g', 'Bán nhiều → ít'], ['ban_t', 'Bán ít → nhiều'], ['nd_t', 'Bán chạy mà tồn thấp'],
+  ['ton_g', 'Tồn nhiều → ít'], ['ton_t', 'Tồn ít → nhiều'], ['kho_g', 'Kho còn nhiều'], ['ma', 'Mã A → Z'], ['nhom', 'Nhóm hàng'],
+];
+const ROW_H = 46;
+
+function ChiaDoi({ dsDoi, ts }) {
+  const { user, baoToast } = useApp();
+  const nguoi = user?.ma_dang_nhap || '';
+  const [doi, setDoi] = useState(() => lsGet('doi_dang') || null);
+  const [cuaSo, setCuaSo] = useState(() => lsGet('cua_so') || ts.cua_so || 28);
+  const [mucTieu, setMucTieu] = useState(() => lsGet('muc_tieu') || ts.muc_tieu || 21);
+  const [heSo, setHeSo] = useState(() => lsGet('he_so') || 100);
+  const [kq, setKq] = useState(null);
+  const [dang, setDang] = useState(false);
+  const [loc, setLoc] = useState(() => lsGet('loc') || []);
+  const [sap, setSap] = useState(() => lsGet('sap') || 'ban_g');
+  const [q, setQ] = useState('');
+  const [thungCt, setThungCt] = useState({});     // ma_thung -> {ct, da_giao, ...}
+  const [gui, setGui] = useState(false);
+  const [phieuMoi, setPhieuMoi] = useState(null);
+  const [nhapDs, setNhapDs] = useState({});
+  const sapHet = ts.sap_het || 7, tonLau = ts.ton_lau || 60;
+
+  useEffect(() => { lsSet('doi_dang', doi); }, [doi]);
+  useEffect(() => { lsSet('cua_so', cuaSo); lsSet('muc_tieu', mucTieu); lsSet('he_so', heSo); }, [cuaSo, mucTieu, heSo]);
+  useEffect(() => { lsSet('loc', loc); lsSet('sap', sap); }, [loc, sap]);
+
+  const khoa = 'doi:' + (doi || '-');
+  const [nhap, datNhap, ttLuu, xoaNhap] = useNhap(nguoi, khoa, { thung: [], sua: {} });
+  const sua = nhap.sua || {};
+  const thung = nhap.thung || [];
+
+  // danh sách nháp (đánh dấu đội đang dở)
+  const taiNhapDs = () => sb.rpc('fn_ds_nhap_lay', { p_nguoi: nguoi }).then(({ data }) => setNhapDs(data || {}));
+  useEffect(() => { taiNhapDs(); }, [doi]);   // eslint-disable-line
+
+  const tai = async () => {
+    if (!doi) return;
+    setDang(true);
+    const { data, error } = await sb.rpc('fn_ds_chia_doi', { p_ma_ch: doi, p_cua_so: cuaSo });
+    setDang(false);
+    if (error) { baoToast('Lỗi tải: ' + error.message); return; }
+    setKq(data);
+  };
+  useEffect(() => { setKq(null); setPhieuMoi(null); tai(); }, [doi, cuaSo]);   // eslint-disable-line
+
+  // chi tiết các thùng đã chọn
+  useEffect(() => {
+    const thieu = thung.filter((t) => !thungCt[t]);
+    if (!thieu.length) return;
+    sb.rpc('fn_ds_thung_lay', { p_ma: thieu }).then(({ data }) => {
+      setThungCt((m) => { const n = { ...m }; (data || []).forEach((t) => { n[t.ma_thung] = t; }); thieu.forEach((t) => { if (!n[t]) n[t] = { ma_thung: t, khong_co: true, ct: [] }; }); return n; });
+    });
+  }, [thung.join('|')]);   // eslint-disable-line
+
+  // số trong thùng theo barcode (chỉ thùng hợp lệ, chưa giao cho phiếu khác)
+  const trongThung = useMemo(() => {
+    const m = {}, khongMa = [];
+    thung.forEach((t) => {
+      const x = thungCt[t];
+      if (!x || x.khong_co || x.da_giao) return;
+      x.ct.forEach((c) => { if (c.b) m[c.b] = (m[c.b] || 0) + c.s; else khongMa.push(c.m); });
+    });
+    return { m, khongMa };
+  }, [thung, thungCt]);
+
+  // dòng: [barcode, mtc, n1, n3, img, ban, ban7, banCuoi, ton, ve, kd1, kd2, moi]
+  const dong = useMemo(() => {
+    const rows = (kq?.rows || []).map((r) => {
+      const ban = r[5], v = ban / cuaSo, co = r[8] + r[9], kd = r[10] + r[11];
+      const th = trongThung.m[r[0]] || 0;
+      const muc = Math.ceil(v * mucTieu * heSo / 100);
+      const goiY = ban > 0 ? Math.max(0, Math.min(muc - co - th, kd - th)) : 0;
+      const them = sua[r[0]] ?? 0;
+      const nhan = th + them;
+      const nd = v > 0 ? co / v : null;
+      const ndSau = v > 0 ? (co + nhan) / v : null;
+      const khoCon = kd - nhan;
+      return { bc: r[0], mtc: r[1], n1: r[2], n3: r[3], img: r[4], ban, ban7: r[6], banCuoi: r[7], ton: r[8], ve: r[9], kd, v, co, nd, th, muc, goiY, them, nhan, ndSau, khoCon, moi: r[12] };
+    });
+    const sorted = [...rows].sort((a, b) => b.ban - a.ban);
+    const nguongChay = sorted.length ? sorted[Math.max(0, Math.floor(sorted.filter((x) => x.ban > 0).length * 0.15) - 1)]?.ban || 1 : 1;
+    rows.forEach((x) => {
+      x.chay = x.ban > 0 && x.ban >= nguongChay;
+      const c = [];
+      if (x.khoCon < 0) c.push(`Vượt kho khả dụng ${-x.khoCon} cái (kho còn ${x.kd})`);
+      if (x.v > 0 && (x.ndSau ?? 0) < sapHet && x.chay) c.push(`Bán chạy mà sau chia chỉ đủ ${(x.ndSau ?? 0).toFixed(1)} ngày`);
+      if (x.th > 0 && x.them > 0 && x.co + x.nhan > x.muc + Math.max(2, Math.ceil(x.v * 3))) c.push(`Đã có ${x.th} trong thùng mà còn chia thêm ${x.them} — vượt mục tiêu ${x.muc}`);
+      if (x.nhan > 0 && x.nd != null && x.nd > tonLau) c.push(`Đội đang dư (đủ ${Math.round(x.nd)} ngày) mà vẫn nhận thêm`);
+      if (x.nhan > 0 && x.ban === 0 && x.ton > 0) c.push(`Đội không bán mã này ${cuaSo} ngày, vẫn còn ${x.ton}`);
+      x.canh = c;
+    });
+    return rows;
+  }, [kq, sua, trongThung, cuaSo, mucTieu, heSo, sapHet, tonLau]);
+
+  const hien = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    let v = dong.filter((x) => {
+      if (t && ![x.mtc, x.n3, x.n1, x.bc].some((s) => (s || '').toLowerCase().includes(t))) return false;
+      for (const l of loc) {
+        if (l === 'canh' && !x.canh.length) return false;
+        if (l === 'chay' && !x.chay) return false;
+        if (l === 'thap' && !(x.v > 0 && (x.nd ?? 0) < sapHet)) return false;
+        if (l === 'het' && !(x.ban > 0 && x.co <= 0)) return false;
+        if (l === 'kho' && !(x.kd > 0)) return false;
+        if (l === 'thung' && !(x.th > 0)) return false;
+        if (l === 'nhap' && !(x.them > 0)) return false;
+        if (l === 'chua' && !(x.goiY > 0 && !x.them)) return false;
+        if (l === 'lau' && !(x.ton > 0 && (x.ban === 0 || (x.nd ?? 0) > tonLau))) return false;
+        if (l === 'moi' && !x.moi) return false;
+      }
+      return true;
+    });
+    const f = {
+      ban_g: (a, b) => b.ban - a.ban || a.mtc.localeCompare(b.mtc), ban_t: (a, b) => a.ban - b.ban || a.mtc.localeCompare(b.mtc),
+      nd_t: (a, b) => ((a.v > 0 ? a.nd : 1e9) - (b.v > 0 ? b.nd : 1e9)) || b.ban - a.ban,
+      ton_g: (a, b) => b.co - a.co, ton_t: (a, b) => a.co - b.co, kho_g: (a, b) => b.kd - a.kd,
+      ma: (a, b) => a.mtc.localeCompare(b.mtc), nhom: (a, b) => (a.n3 || '').localeCompare(b.n3 || '') || b.ban - a.ban,
+    }[sap];
+    return v.sort(f);
+  }, [dong, q, loc, sap, sapHet, tonLau]);
+
+  const tong = useMemo(() => {
+    const t = { ma: 0, th: 0, them: 0, nhan: 0, vuot: 0, canh: 0 };
+    dong.forEach((x) => { if (x.nhan > 0) t.ma++; t.th += x.th; t.them += x.them; t.nhan += x.nhan; if (x.khoCon < 0) t.vuot++; if (x.canh.length) t.canh++; });
+    return t;
+  }, [dong]);
+
+  const datSo = (bc, v) => datNhap((d) => ({ ...d, sua: { ...(d.sua || {}), [bc]: so(v) } }));
+  const tuDong = (deCaSoTay) => {
+    datNhap((d) => {
+      const s = { ...(d.sua || {}) };
+      dong.forEach((x) => { if (deCaSoTay || !(x.bc in s)) s[x.bc] = x.goiY; });
+      return { ...d, sua: s };
+    });
+    baoToast(deCaSoTay ? 'Đã điền lại toàn bộ theo gợi ý' : 'Đã điền gợi ý vào các mã chưa nhập — số anh đã nhập giữ nguyên');
+  };
+  const xoaSo = () => { datNhap((d) => ({ ...d, sua: {} })); baoToast('Đã xoá số chia thêm (giữ thùng)'); };
+
+  // ---------- thùng ----------
+  const [tq, setTq] = useState('');
+  const [goiYThung, setGoiYThung] = useState([]);
+  useEffect(() => {
+    const t = tq.trim();
+    if (t.length < 2) { setGoiYThung([]); return; }
+    const h = setTimeout(() => sb.rpc('fn_ds_thung_tim', { p_q: t, p_gioi_han: 12 }).then(({ data }) => setGoiYThung(data || [])), 180);
+    return () => clearTimeout(h);
+  }, [tq]);
+  const themThung = (ma) => {
+    const m = (ma || '').trim();
+    if (!m) return;
+    if (thung.includes(m)) { baoToast('Thùng ' + m + ' đã có trong danh sách'); return; }
+    datNhap((d) => ({ ...d, thung: [...(d.thung || []), m] }));
+    setTq(''); setGoiYThung([]);
+  };
+  const boThung = (ma) => datNhap((d) => ({ ...d, thung: (d.thung || []).filter((x) => x !== ma) }));
+
+  // ---------- xác nhận ----------
+  const xacNhan = async () => {
+    const dongGui = dong.filter((x) => x.nhan > 0).map((x) => ({ ma_ch: doi, barcode: x.bc, sl: x.nhan, sl_thung: x.th }));
+    if (!dongGui.length) { baoToast('Chưa có số nào'); return; }
+    if (tong.vuot) { baoToast(`Còn ${tong.vuot} mã vượt kho khả dụng — sửa trước khi xác nhận (lọc theo dòng hồng)`); return; }
+    const thungHopLe = thung.filter((t) => thungCt[t] && !thungCt[t].khong_co && !thungCt[t].da_giao);
+    setGui(true);
+    const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'doi', nguoi, khoa_nhap: khoa, dong: dongGui, thung: thungHopLe.map((t) => ({ ma_thung: t, ma_ch: doi })) } });
+    setGui(false);
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    if (!data?.ok) { baoLoiXacNhan(data, baoToast); tai(); return; }
+    try { await xuatPhieu(data.id, data.ma_phieu); } catch (e) { baoToast('Đã giữ tồn nhưng xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
+    lsDel(khoa); await xoaNhap();
+    setThungCt({});
+    setPhieuMoi({ ...data, doi, sl: tong.nhan, ma: tong.ma });
+    baoToast(`Đã xác nhận ${data.ma_phieu}: ${fmtN(tong.nhan)} cái — tồn kho đã giữ cho đội`);
+    tai(); taiNhapDs();
+  };
+
+  // ---------- danh sách đội ----------
+  const doiSx = useMemo(() => [...dsDoi].sort((a, b) => a.ma_ch.localeCompare(b.ma_ch)), [dsDoi]);
+  const doiTiep = () => {
+    const i = doiSx.findIndex((d) => d.ma_ch === doi);
+    const n = doiSx[(i + 1) % doiSx.length];
+    if (n) setDoi(n.ma_ch);
+  };
+  const doiInfo = dsDoi.find((d) => d.ma_ch === doi);
+
+  // ---------- bảng ảo hoá ----------
+  const khung = useRef(null);
+  const [cuon, setCuon] = useState(0);
+  const [cao, setCao] = useState(600);
+  useEffect(() => {
+    const el = khung.current; if (!el) return;
+    const ro = new ResizeObserver(() => setCao(el.clientHeight));
+    ro.observe(el); return () => ro.disconnect();
+  }, [kq]);
+  const dau = Math.max(0, Math.floor(cuon / ROW_H) - 8);
+  const cuoi = Math.min(hien.length, Math.ceil((cuon + cao) / ROW_H) + 8);
+  const diDen = (i) => {
+    if (i < 0 || i >= hien.length) return;
+    const el = khung.current;
+    const top = i * ROW_H, vung = el.clientHeight - ROW_H * 2;
+    if (top < el.scrollTop) el.scrollTop = top;
+    else if (top > el.scrollTop + vung) el.scrollTop = top - vung;
+    setTimeout(() => { const o = el.querySelector(`input[data-r="${i}"]`); if (o) { o.focus(); o.select(); } }, 40);
+  };
+
+  if (!doi) {
+    return (
+      <div className="ch-chon-doi card">
+        <b>Chọn đội để chia hàng</b>
+        <div className="ch-doi-luoi">
+          {doiSx.map((d) => (
+            <button key={d.ma_ch} onClick={() => setDoi(d.ma_ch)} className={nhapDs['doi:' + d.ma_ch] ? 'co-nhap' : ''}>
+              <b>{tenNgan(d.ten)}</b>
+              <small>{d.moi ? 'đội mới' : d.ngay_du == null ? '—' : `đủ ${d.ngay_du > 365 ? '>1 năm' : d.ngay_du + ' ngày'}`}</small>
+              {nhapDs['doi:' + d.ma_ch] && <i>nháp</i>}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ch-doi">
+      {/* ===== Dải đội: chuyển đội 1 chạm ===== */}
+      <div className="ch-dai">
+        {doiSx.map((d) => (
+          <button key={d.ma_ch} className={(d.ma_ch === doi ? 'on ' : '') + (nhapDs['doi:' + d.ma_ch] ? 'co-nhap' : '')}
+            onClick={() => setDoi(d.ma_ch)} title={nhapDs['doi:' + d.ma_ch] ? 'Có bản nháp đang dở' : ''}>
+            {tenNgan(d.ten).replace('Đội ', '')}
+          </button>
+        ))}
+      </div>
+
+      {/* ===== Đầu bàn: đội + tham số + lưu ===== */}
+      <div className="ch-dau card">
+        <div className="ch-dau-ten">
+          <h3>{kq?.ten || tenNgan(doiInfo?.ten) || doi}</h3>
+          <span>{doiInfo ? <>bán {fmtN(doiInfo.ban_ngay)}/ngày · có {fmtN(doiInfo.co)} · đủ {doiInfo.ngay_du == null ? '—' : doiInfo.ngay_du > 365 ? '>1 năm' : doiInfo.ngay_du + ' ngày'}</> : ''}</span>
+          {kq?.ban_dau && new Date(kq.ban_dau) > new Date(Date.now() - cuaSo * 864e5) && <span className="ch-chu-y">đội bán từ {kq.ban_dau.slice(8, 10)}/{kq.ban_dau.slice(5, 7)} — số bán chưa đủ {cuaSo} ngày</span>}
+        </div>
+        <div className="ch-ts">
+          <label>Sức bán <input type="number" value={cuaSo} min={3} max={180} onChange={(e) => setCuaSo(Math.max(3, Math.min(180, so(e.target.value) || 28)))} /> ngày</label>
+          <label>Chia đủ dùng <input type="number" value={mucTieu} min={1} max={180} onChange={(e) => setMucTieu(Math.max(1, so(e.target.value) || 21))} /> ngày</label>
+          <label title="Tỷ lệ bổ sung so với nhu cầu: 100% = đúng nhu cầu, 120% = chia dư 20%">Tỷ lệ <input type="number" value={heSo} min={10} max={300} step={10} onChange={(e) => setHeSo(Math.max(10, so(e.target.value) || 100))} /> %</label>
+          <TrangThaiLuu tt={ttLuu} />
+        </div>
+      </div>
+
+      {/* ===== Thùng đóng sẵn ===== */}
+      <div className="ch-thung card">
+        <div className="ch-thung-in">
+          <IcBox />
+          <div className="ch-thung-o">
+            <input placeholder="Nhập số thùng đóng sẵn rồi Enter (vd TG-5020)…" value={tq}
+              onChange={(e) => setTq(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); themThung(goiYThung.find((g) => g.uu === 0)?.ma_thung || goiYThung[0]?.ma_thung || tq); } }} />
+            {goiYThung.length > 0 && (
+              <div className="ch-thung-gy">
+                {goiYThung.map((g) => (
+                  <button key={g.ma_thung} onMouseDown={(e) => { e.preventDefault(); if (!g.da_giao) themThung(g.ma_thung); }} disabled={!!g.da_giao}>
+                    <b>{g.ma_thung}</b><span>{g.tong_sl} cái · {g.so_ma} mã · {g.nhom}</span>
+                    {g.da_giao && <em>đã giao {tenNgan(g.da_giao.ma_ch)}</em>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <span className="ch-thung-tong">{thung.length ? <>{thung.length} thùng · <b>{fmtN(tong.th)}</b> cái</> : 'Chưa chọn thùng'}</span>
+        </div>
+        {thung.length > 0 && (
+          <div className="ch-thung-ds">
+            {thung.map((t) => {
+              const x = thungCt[t];
+              const loi = x?.khong_co ? 'không có trong danh sách' : x?.da_giao ? `đã giao ${tenNgan(x.da_giao.ma_ch)} (${x.da_giao.ma_phieu})` : '';
+              return (
+                <span key={t} className={'ch-thung-chip' + (loi ? ' loi' : '')} title={x?.ct?.map((c) => `${c.m}: ${c.s}`).join('\n')}>
+                  <b>{t}</b>{x && !loi ? ` · ${x.tong_sl} cái · ${x.ct.length} mã` : loi ? ` · ${loi}` : ' · …'}
+                  <button onClick={() => boThung(t)} title="Bỏ thùng">×</button>
+                </span>
+              );
+            })}
+            {trongThung.khongMa.length > 0 && <span className="ch-thung-chip loi">Mã trong thùng không có trong danh mục: {[...new Set(trongThung.khongMa)].slice(0, 5).join(', ')}</span>}
+          </div>
+        )}
+      </div>
+
+      {/* ===== Lọc + sắp + thao tác ===== */}
+      <div className="ch-loc">
+        {LOC.map(([k, t, g]) => (
+          <button key={k} title={g} className={loc.includes(k) ? 'on' : ''}
+            onClick={() => setLoc((l) => (l.includes(k) ? l.filter((x) => x !== k) : [...l, k]))}>{t}</button>
+        ))}
+        {loc.length > 0 && <button className="bo" onClick={() => setLoc([])}>Bỏ lọc</button>}
+      </div>
+      <div className="ch-tool">
+        <input className="flt-in" placeholder="Tìm mã, tên, nhóm, màu (vd XM156, đen, 3/4)…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select className="ch-sel" value={sap} onChange={(e) => setSap(e.target.value)}>
+          {SAP.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+        </select>
+        <button className="btn btn-ai" onClick={() => tuDong(false)} title="Điền gợi ý vào các mã CHƯA nhập — số đã nhập giữ nguyên"><IcSpark /> Tự động chia</button>
+        <button className="btn" onClick={() => tuDong(true)} title="Ghi đè toàn bộ bằng gợi ý">Điền lại tất cả</button>
+        <button className="btn" onClick={xoaSo}>Xoá số</button>
+        <span className="ch-dem">{fmtN(hien.length)} / {fmtN(dong.length)} mã</span>
+      </div>
+
+      {/* ===== Bảng ===== */}
+      <div className="card ch-bang" ref={khung} onScroll={(e) => setCuon(e.currentTarget.scrollTop)}>
+        {dang && !kq ? <div className="dsl-trong">Đang tải số liệu đội…</div> : (
+        <table className="ch-tbl">
+          <colgroup>
+            <col style={{ width: 40 }} /><col style={{ width: 52 }} /><col style={{ width: 230 }} />
+            <col style={{ width: 70 }} /><col style={{ width: 62 }} /><col style={{ width: 64 }} /><col style={{ width: 64 }} /><col style={{ width: 64 }} />
+            <col style={{ width: 64 }} /><col style={{ width: 92 }} /><col style={{ width: 62 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} /><col style={{ width: 74 }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>#</th><th></th><th className="l">Sản phẩm</th>
+              <th title={`Bán trong ${cuaSo} ngày`}>Bán {cuaSo}n</th><th>/ngày</th>
+              <th>Tồn</th><th title="Đang về + đã giữ cho đội chưa xuất">Đang về</th><th title="Số ngày đủ bán với hàng đang có">Đủ (ngày)</th>
+              <th className="c-thung">Thùng</th><th className="c-them">Chia thêm</th><th title="Gợi ý tự động">Gợi ý</th>
+              <th>Tổng nhận</th><th title="Số ngày đủ bán sau khi nhận">Sau nhận</th><th title="Kho SA còn khả dụng sau khi chia cho đội này">Kho còn</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dau > 0 && <tr style={{ height: dau * ROW_H }}><td colSpan={14} /></tr>}
+            {hien.slice(dau, cuoi).map((x, j) => {
+              const i = dau + j;
+              return (
+                <tr key={x.bc} className={(x.canh.length ? 'canh ' : '') + (x.them > 0 ? 'co-so' : '')} style={{ height: ROW_H }}>
+                  <td className="stt">{i + 1}</td>
+                  <td><AnhSP url={x.img} ten={x.mtc} /></td>
+                  <td className="l sp">
+                    <b>{x.mtc}{x.chay && <i className="ch-chay" title="Bán chạy (top 15%)">●</i>}{x.moi && <i className="ch-moi">mới</i>}</b>
+                    <small>{x.n3 || x.n1}</small>
+                  </td>
+                  <td className={x.ban ? 'dam' : 'mo'}>{x.ban || '·'}</td>
+                  <td className={x.v ? 'phu' : 'mo'}>{x.v ? x.v.toFixed(1) : '·'}</td>
+                  <td className={x.ton ? '' : 'mo'}>{x.ton || '·'}</td>
+                  <td className={x.ve ? 've' : 'mo'}>{x.ve ? (x.ve > 0 ? '+' + x.ve : x.ve) : '·'}</td>
+                  <td><Ngay n={x.nd} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></td>
+                  <td className="c-thung">{x.th || <span className="mo">·</span>}</td>
+                  <td className="c-them">
+                    <input type="number" inputMode="numeric" min={0} data-r={i} value={x.them || ''} placeholder="·"
+                      onChange={(e) => datSo(x.bc, e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); diDen(i + (e.shiftKey && e.key === 'Enter' ? -1 : 1)); }
+                        else if (e.key === 'ArrowUp') { e.preventDefault(); diDen(i - 1); }
+                        else if (e.key === ' ' || e.key === '+') { e.preventDefault(); datSo(x.bc, x.goiY); }
+                      }} />
+                  </td>
+                  <td className={x.goiY ? 'gy' : 'mo'} onClick={() => x.goiY && datSo(x.bc, x.goiY)} title={x.goiY ? `Bấm để lấy ${x.goiY} (hoặc phím Space trong ô)` : ''}>{x.goiY || '·'}</td>
+                  <td className={x.nhan ? 'dam' : 'mo'}>{x.nhan || '·'}</td>
+                  <td><Ngay n={x.nhan ? x.ndSau : null} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></td>
+                  <td className={x.khoCon < 0 ? 'vuot' : x.kd ? '' : 'mo'} title={x.canh.join('\n')}>
+                    {x.canh.length > 0 && <IcAlert className="ch-i-canh" />}{fmtN(x.khoCon)}
+                  </td>
+                </tr>
+              );
+            })}
+            {cuoi < hien.length && <tr style={{ height: (hien.length - cuoi) * ROW_H }}><td colSpan={14} /></tr>}
+            {hien.length === 0 && kq && <tr><td colSpan={14} className="dsl-trong">Không có mã nào khớp bộ lọc.</td></tr>}
+          </tbody>
+        </table>)}
+      </div>
+
+      {/* ===== Chân: tổng + xác nhận ===== */}
+      <div className="ch-chan">
+        <div className="ch-chan-so">
+          <span><b>{fmtN(tong.ma)}</b> mã</span>
+          <span>Thùng <b>{fmtN(tong.th)}</b></span>
+          <span>Chia thêm <b>{fmtN(tong.them)}</b></span>
+          <span className="tong">Tổng giao <b>{fmtN(tong.nhan)}</b> cái</span>
+          {tong.vuot > 0 && <button className="ch-canh-nut do" onClick={() => setLoc(['canh'])}><IcAlert /> {tong.vuot} mã vượt kho</button>}
+          {tong.canh > 0 && <button className="ch-canh-nut" onClick={() => setLoc(['canh'])}><IcAlert /> {tong.canh} dòng cần xem — bấm để lọc</button>}
+        </div>
+        {phieuMoi && phieuMoi.doi === doi ? (
+          <div className="ch-xong">
+            <IcCheck /> {phieuMoi.ma_phieu} · {fmtN(phieuMoi.sl)} cái đã giữ tồn & xuất file
+            <button className="btn btn-ai" onClick={doiTiep}>Đội tiếp theo →</button>
+          </div>
+        ) : (
+          <button className="btn btn-ai ch-xn" disabled={gui || !tong.nhan} onClick={xacNhan}>
+            <IcDown /> {gui ? 'Đang giữ tồn…' : `Xác nhận & xuất file (${fmtN(tong.nhan)})`}
+          </button>
+        )}
+      </div>
+      <div className="tq-ghi ch-ghi">
+        Gợi ý = bán/ngày × {mucTieu} ngày × {heSo}% − (tồn + đang về) − hàng trong thùng, không vượt kho khả dụng. Mã không bán trong {cuaSo} ngày không gợi ý.
+        Phím: Enter/↓ xuống · ↑ lên · Space điền gợi ý. Kho khả dụng = tồn dự tính SA05001 + SA05002 − phần đang giữ cho các phiếu chưa xuất.
+      </div>
+    </div>
+  );
+}
+
+function Ngay({ n, sapHet, mucTieu, tonLau }) {
+  if (n == null) return <span className="mo">·</span>;
+  const cls = n < sapHet ? 'nd do' : n < mucTieu ? 'nd vang' : n > tonLau ? 'nd xam' : 'nd xanh';
+  return <span className={cls}>{n > 999 ? '999+' : n < 10 ? n.toFixed(1) : Math.round(n)}</span>;
+}
+
+// ============================================================================
+// 2. CHIA ĐỒNG LOẠT (mẫu mới / đợt bổ sung): mã × đội
+// ============================================================================
+function ChiaLoat({ dsDoi, ts }) {
+  const { user, baoToast } = useApp();
+  const nguoi = user?.ma_dang_nhap || '';
+  const [nhap, datNhap, ttLuu, xoaNhap] = useNhap(nguoi, 'loat', { doi: [], ma: [], sua: {} });
+  const chonDoi = nhap.doi || [], dsMa = nhap.ma || [], sua = nhap.sua || {};
+  const [sp, setSp] = useState([]);           // số liệu các mã đã chọn
+  const [tim, setTim] = useState('');
+  const [chiMoi, setChiMoi] = useState(false);
+  const [kqTim, setKqTim] = useState([]);
+  const [hienSo, setHienSo] = useState(false);
+  const [gui, setGui] = useState(false);
+  const doiSx = useMemo(() => [...dsDoi].sort((a, b) => a.ma_ch.localeCompare(b.ma_ch)), [dsDoi]);
+  const tenDoi = (m) => tenNgan(dsDoi.find((d) => d.ma_ch === m)?.ten || m);
+
+  useEffect(() => {
+    const t = setTimeout(() => sb.rpc('fn_ds_sp_tim', { p_q: tim, p_moi: chiMoi, p_gioi_han: 40 }).then(({ data }) => setKqTim(data || [])), 220);
+    return () => clearTimeout(t);
+  }, [tim, chiMoi]);
+  const taiSp = () => {
+    if (!dsMa.length) { setSp([]); return; }
+    sb.rpc('fn_ds_chia_loat', { p_doi: chonDoi.length ? chonDoi : ['-'], p_barcodes: dsMa, p_cua_so: ts.cua_so || 28 })
+      .then(({ data, error }) => { if (error) baoToast('Lỗi: ' + error.message); else setSp(data || []); });
+  };
+  useEffect(() => { taiSp(); }, [dsMa.join(','), chonDoi.join(',')]);   // eslint-disable-line
+
+  const themMa = (bc) => { if (!dsMa.includes(bc)) datNhap((d) => ({ ...d, ma: [...(d.ma || []), bc] })); };
+  const boMa = (bc) => datNhap((d) => ({ ...d, ma: (d.ma || []).filter((x) => x !== bc) }));
+  const togDoi = (m) => datNhap((d) => ({ ...d, doi: (d.doi || []).includes(m) ? d.doi.filter((x) => x !== m) : [...(d.doi || []), m].sort() }));
+  const k = (bc, m) => bc + '|' + m;
+  const gt = (bc, m) => sua[k(bc, m)] || 0;
+  const datO = (bc, m, v) => datNhap((d) => ({ ...d, sua: { ...(d.sua || {}), [k(bc, m)]: so(v) } }));
+  const dienDong = (bc, v) => datNhap((d) => { const s = { ...(d.sua || {}) }; chonDoi.forEach((m) => { s[k(bc, m)] = so(v); }); return { ...d, sua: s }; });
+  const chiaDeu = (bc, tongSo) => {
+    const n = chonDoi.length; if (!n) return;
+    const t = so(tongSo), moi = Math.floor(t / n), du = t % n;
+    datNhap((d) => { const s = { ...(d.sua || {}) }; chonDoi.forEach((m, i) => { s[k(bc, m)] = moi + (i < du ? 1 : 0); }); return { ...d, sua: s }; });
+  };
+  const chiaTheoBan = (bc, tongSo) => {
+    const r = sp.find((x) => x.barcode === bc); const t = so(tongSo);
+    const w = chonDoi.map((m) => (r?.o?.[m]?.[1] || 0) + 1), W = w.reduce((a, b) => a + b, 0);
+    let con = t;
+    const v = w.map((x, i) => { const a = i === w.length - 1 ? con : Math.floor((t * x) / W); con -= a; return a; });
+    datNhap((d) => { const s = { ...(d.sua || {}) }; chonDoi.forEach((m, i) => { s[k(bc, m)] = v[i]; }); return { ...d, sua: s }; });
+  };
+
+  const dong = sp.map((r) => {
+    const tongR = chonDoi.reduce((a, m) => a + gt(r.barcode, m), 0);
+    return { ...r, tongR, con: r.kd1 + r.kd2 - tongR };
+  });
+  const tongCot = Object.fromEntries(chonDoi.map((m) => [m, dong.reduce((a, r) => a + gt(r.barcode, m), 0)]));
+  const tongAll = dong.reduce((a, r) => a + r.tongR, 0);
+  const vuot = dong.filter((r) => r.con < 0).length;
+
+  const diDen = (r, c) => { const o = document.querySelector(`.cl-tbl input[data-r="${r}"][data-c="${c}"]`); if (o) { o.focus(); o.select(); } };
+  const phim = (e, r, c) => {
+    const m = { Enter: [e.shiftKey ? -1 : 1, 0], ArrowDown: [1, 0], ArrowUp: [-1, 0], ArrowRight: [0, 1], ArrowLeft: [0, -1] }[e.key];
+    if (!m) return;
+    e.preventDefault(); diDen(r + m[0], c + m[1]);
+  };
+
+  const xacNhan = async () => {
+    const dongGui = [];
+    dong.forEach((r) => chonDoi.forEach((m) => { const v = gt(r.barcode, m); if (v > 0) dongGui.push({ ma_ch: m, barcode: r.barcode, sl: v, sl_thung: 0 }); }));
+    if (!dongGui.length) { baoToast('Chưa có số nào'); return; }
+    if (vuot) { baoToast(`${vuot} mã chia vượt kho khả dụng — sửa trước khi xác nhận`); return; }
+    setGui(true);
+    const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'loat', nguoi, khoa_nhap: 'loat', dong: dongGui, thung: [] } });
+    setGui(false);
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    if (!data?.ok) { baoLoiXacNhan(data, baoToast); taiSp(); return; }
+    try { await xuatPhieu(data.id, data.ma_phieu); } catch { baoToast('Đã giữ tồn, xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
+    await xoaNhap();
+    baoToast(`Đã xác nhận ${data.ma_phieu}: ${fmtN(tongAll)} cái cho ${chonDoi.length} đội`);
+  };
+
+  return (
+    <div className="cl">
+      <div className="card cl-buoc">
+        <div className="cl-dau"><b>1 · Đội nhận</b><span className="tq-ghi">{chonDoi.length} đội</span>
+          <div className="bc-nhanh">
+            <button onClick={() => datNhap((d) => ({ ...d, doi: doiSx.map((x) => x.ma_ch) }))}>Tất cả</button>
+            <button onClick={() => datNhap((d) => ({ ...d, doi: doiSx.filter((x) => !x.moi).map((x) => x.ma_ch) }))}>Trừ đội mới</button>
+            <button onClick={() => datNhap((d) => ({ ...d, doi: [] }))}>Bỏ chọn</button>
+          </div>
+          <TrangThaiLuu tt={ttLuu} />
+        </div>
+        <div className="bc-chips">
+          {doiSx.map((d) => (
+            <button key={d.ma_ch} className={'bc-chip' + (chonDoi.includes(d.ma_ch) ? ' on' : '')} onClick={() => togDoi(d.ma_ch)}>
+              {chonDoi.includes(d.ma_ch) && <IcCheck />}<span>{tenNgan(d.ten)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="card cl-buoc">
+        <div className="cl-dau"><b>2 · Mã cần chia</b><span className="tq-ghi">{dsMa.length} mã</span>
+          <label className="bc-tick"><input type="checkbox" checked={chiMoi} onChange={(e) => setChiMoi(e.target.checked)} /> Chỉ mã mới (45 ngày)</label>
+        </div>
+        <div className="cl-tim">
+          <input className="flt-in" placeholder="Tìm mã / tên rồi Enter để thêm mã đầu tiên…" value={tim} onChange={(e) => setTim(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && kqTim[0]) { e.preventDefault(); themMa(kqTim[0].barcode); setTim(''); } }} />
+          <div className="cl-kq">
+            {kqTim.filter((x) => !dsMa.includes(x.barcode)).slice(0, 14).map((x) => (
+              <button key={x.barcode} onClick={() => themMa(x.barcode)} title={x.nganh_3}>
+                <b>{x.ma_tham_chieu}</b><span>kho {fmtN(x.kd1 + x.kd2)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {dsMa.length > 0 && chonDoi.length > 0 && (<>
+        <div className="ch-tool">
+          <b>3 · Nhập số</b>
+          <label className="bc-tick"><input type="checkbox" checked={hienSo} onChange={(e) => setHienSo(e.target.checked)} /> Hiện tồn/bán của đội</label>
+          <span className="tq-ghi">Enter / mũi tên để di chuyển · ô “Điền đều” điền 1 số cho mọi đội · “Chia tổng” chia đều hoặc theo sức bán</span>
+        </div>
+        <div className="card cl-bang">
+          <table className="cl-tbl">
+            <thead>
+              <tr>
+                <th className="cl-sp">Sản phẩm</th>
+                <th className="n">Kho</th>
+                <th className="n">Điền đều</th>
+                <th className="n">Chia tổng</th>
+                {chonDoi.map((m) => <th key={m} className="n">{tenDoi(m)}</th>)}
+                <th className="n">Tổng</th><th className="n">Kho còn</th><th />
+              </tr>
+            </thead>
+            <tbody>
+              {dong.map((r, ri) => (
+                <tr key={r.barcode} className={r.con < 0 ? 'canh' : ''}>
+                  <td className="cl-sp"><div className="cl-sp-in"><AnhSP url={r.hinh_url} ten={r.ma_tham_chieu} /><div><b>{r.ma_tham_chieu}</b><small>{r.nganh_3}</small></div></div></td>
+                  <td className="n">{fmtN(r.kd1 + r.kd2)}</td>
+                  <td className="n"><input className="cl-cong" placeholder="·" onKeyDown={(e) => { if (e.key === 'Enter') { dienDong(r.barcode, e.currentTarget.value); e.currentTarget.value = ''; } }} title="Gõ số rồi Enter: điền cho mọi đội" /></td>
+                  <td className="n"><input className="cl-cong" placeholder="·" title="Gõ tổng rồi Enter: chia đều · Shift+Enter: chia theo sức bán"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { (e.shiftKey ? chiaTheoBan : chiaDeu)(r.barcode, e.currentTarget.value); e.currentTarget.value = ''; } }} /></td>
+                  {chonDoi.map((m, ci) => {
+                    const o = r.o?.[m];
+                    return (
+                      <td key={m} className="n cl-o">
+                        <input type="number" min={0} data-r={ri} data-c={ci} value={gt(r.barcode, m) || ''} placeholder="·"
+                          onChange={(e) => datO(r.barcode, m, e.target.value)} onFocus={(e) => e.target.select()} onKeyDown={(e) => phim(e, ri, ci)} />
+                        {hienSo && <small>{o ? `có ${o[0]} · bán ${o[1]}` : '—'}</small>}
+                      </td>
+                    );
+                  })}
+                  <td className="n dam">{fmtN(r.tongR)}</td>
+                  <td className={'n ' + (r.con < 0 ? 'vuot' : '')}>{fmtN(r.con)}</td>
+                  <td><button className="cl-bo" onClick={() => boMa(r.barcode)} title="Bỏ mã">×</button></td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td className="cl-sp"><b>Tổng</b></td><td /><td /><td />
+                {chonDoi.map((m) => <td key={m} className="n dam">{fmtN(tongCot[m])}</td>)}
+                <td className="n dam">{fmtN(tongAll)}</td><td /><td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div className="ch-chan">
+          <div className="ch-chan-so">
+            <span><b>{dsMa.length}</b> mã × <b>{chonDoi.length}</b> đội</span>
+            <span className="tong">Tổng giao <b>{fmtN(tongAll)}</b> cái</span>
+            {vuot > 0 && <span className="ch-canh-nut do"><IcAlert /> {vuot} mã vượt kho</span>}
+          </div>
+          <button className="btn btn-ai ch-xn" disabled={gui || !tongAll} onClick={xacNhan}>
+            <IcDown /> {gui ? 'Đang giữ tồn…' : `Xác nhận & xuất file (${fmtN(tongAll)})`}
+          </button>
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+// ============================================================================
+// 3. PHIẾU ĐÃ CHIA
+// ============================================================================
+function DsPhieu() {
+  const { user, baoToast } = useApp();
+  const [ds, setDs] = useState(null);
+  const tai = () => sb.rpc('fn_ds_phieu_ds', { p_ngay: 30 }).then(({ data, error }) => { if (error) baoToast('Lỗi: ' + error.message); setDs(data || []); });
+  useEffect(() => { tai(); }, []);   // eslint-disable-line
+  const doiTt = async (p, tt) => {
+    const hoi = tt === 'huy' ? `Huỷ ${p.ma_phieu}? Tồn đang giữ (${p.con_giu}) và thùng sẽ được trả lại.` : `Đánh dấu ${p.ma_phieu} đã xuất kho? Phần còn giữ (${p.con_giu}) sẽ được nhả.`;
+    if (!window.confirm(hoi)) return;
+    const { data, error } = await sb.rpc('fn_ds_phieu_doi_tt', { p_id: p.id, p_tt: tt, p_nguoi: user?.ma_dang_nhap || '' });
+    if (error || !data?.ok) baoToast('Không đổi được: ' + (error?.message || data?.loi)); else { baoToast('Đã cập nhật ' + p.ma_phieu); tai(); }
+  };
+  const TT = { xac_nhan: ['Đang giữ tồn', 'giu'], da_xuat: ['Đã xuất', 'xong'], huy: ['Đã huỷ', 'huy'] };
+  return (
+    <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+      <table className="tbl ch-phieu">
+        <thead><tr><th>Phiếu</th><th>Trạng thái</th><th>Đội</th><th className="num">Mã</th><th className="num">Tổng</th><th className="num">Còn giữ</th><th>Thùng</th><th>Người · lúc</th><th /></tr></thead>
+        <tbody>
+          {ds == null ? <tr><td colSpan={9} className="dsl-trong">Đang tải…</td></tr>
+            : ds.length === 0 ? <tr><td colSpan={9} className="dsl-trong">Chưa có phiếu nào trong 30 ngày.</td></tr>
+            : ds.map((p) => (
+              <tr key={p.id}>
+                <td><b>{p.ma_phieu}</b><div className="tq-ghi">{p.loai === 'loat' ? 'Đồng loạt' : 'Từng đội'}</div></td>
+                <td><span className={'ch-tt ' + TT[p.trang_thai][1]}>{TT[p.trang_thai][0]}</span></td>
+                <td>{(p.doi || []).map(tenNgan).join(', ')}</td>
+                <td className="num">{fmtN(p.so_ma)}</td>
+                <td className="num"><b>{fmtN(p.tong)}</b></td>
+                <td className="num">{p.trang_thai === 'xac_nhan' ? fmtN(p.con_giu) : '—'}</td>
+                <td className="tq-ghi">{(p.thung || []).join(', ') || '—'}</td>
+                <td className="tq-ghi">{p.nguoi || '—'} · {ngayGio(p.tao_luc)}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <button className="btn" onClick={() => xuatPhieu(p.id, p.ma_phieu).catch((e) => baoToast('Lỗi: ' + e.message))}><IcDown /> File</button>
+                  {p.trang_thai === 'xac_nhan' && <>
+                    <button className="btn" onClick={() => doiTt(p, 'da_xuat')}><IcCheck /> Đã xuất</button>
+                    <button className="btn" onClick={() => doiTt(p, 'huy')}>Huỷ</button>
+                  </>}
+                </td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+      <div className="tq-ghi" style={{ padding: '8px 12px' }}>
+        <IcClock /> Tồn đang giữ tự nhả khi kho SA giảm (Odoo đã tạo phiếu/xuất) — đủ thì phiếu tự chuyển “Đã xuất”. Bấm tay khi cần.
+      </div>
+    </div>
+  );
+}

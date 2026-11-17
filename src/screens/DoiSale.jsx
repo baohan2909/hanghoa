@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { IcRefresh, IcDown, IcAlert, IcTruck, IcBox, IcClock, IcGrid, IcSpark } from '../lib/icons.jsx';
-import DsBanChia from './DsBanChia.jsx';
+import DsChiaHang from './DsChiaHang.jsx';
 
 // ============================================================================
 // ĐỘI SALE — màn RIÊNG cho 20 đội sale (hoạt động độc lập với CH/ĐB)
@@ -218,7 +218,7 @@ export default function DoiSale() {
         <button className={'hh-tab' + (manHinh === 'ban' ? ' on' : '')} onClick={() => setManHinh('ban')}><IcSpark /> Chia hàng đội sale</button>
       </div>
 
-      <div className="toolbar">
+      {manHinh === 'tq' && <div className="toolbar">
         <NgayIn nhan="Sức bán" sau="ngày" value={ts.cua_so} min={3} max={180} onChange={(v) => setTs({ ...ts, cua_so: v })}
           goiY="Lấy số bán bao nhiêu ngày gần nhất để tính bán/ngày" />
         <NgayIn nhan="Chia đủ dùng" sau="ngày" value={ts.muc_tieu} min={1} max={180} onChange={(v) => setTs({ ...ts, muc_tieu: v })}
@@ -230,10 +230,10 @@ export default function DoiSale() {
         {manHinh === 'tq' && <input className="flt-in" placeholder="Tìm mã / sản phẩm…" value={q}
           onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 160, flex: 1 }} />}
         {kq && <span className="sla-chip"><IcClock /> Tồn {gioVN(kq.tham_so?.ton_luc)} · Bán tới {ngayVN(kq.tham_so?.ban_moi_nhat)}</span>}
-      </div>
+      </div>}
 
       {manHinh === 'ban' ? (
-        <DsBanChia dsDoi={kq?.doi || []} ts={ts} initChon={chonBan} />
+        <DsChiaHang dsDoi={kq?.doi || []} ts={ts} />
       ) : (<>
       {(thieuLichSu || chuaCoBan) && (
         <div className="dsl-canh">

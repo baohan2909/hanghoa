@@ -71,7 +71,7 @@ function ghepDong(sp, cot, giaTri) {
 }
 
 // Ảnh sản phẩm: rê chuột / chạm để phóng to (vẽ nổi trên cùng trang, không bị bảng che)
-function AnhSP({ url, ten }) {
+export function AnhSP({ url, ten }) {
   const [loi, setLoi] = useState(false);
   const [to, setTo] = useState(null);
   if (!url || loi) return <div className="bc-anh bc-anh-trong">{(ten || '?').slice(0, 2)}</div>;
