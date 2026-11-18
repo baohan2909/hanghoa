@@ -34,3 +34,6 @@ export const IcChat2   = (p) => <I d="M21 12a8 8 0 0 1-8 8H4l2.5-2.5A8 8 0 1 1 2
 export const IcGrid    = (p) => <I d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z" {...p} />;
 export const IcTool    = (p) => <I d="M14.5 6.5a4 4 0 0 0-5.6 4.9L3 17.3V21h3.7l5.9-5.9a4 4 0 0 0 4.9-5.6l-2.8 2.8-2.5-.7-.7-2.5 2.9-2.6z" {...p} />;
 export const IcTeam    = (p) => <I d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z M2.5 20a6.5 6.5 0 0 1 13 0 M16 4.3a3.5 3.5 0 0 1 0 6.4 M18 14.2A6.5 6.5 0 0 1 21.5 20" {...p} />;
+export const IcMoRong  = (p) => <I d="M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5" {...p} />;
+export const IcThuNho  = (p) => <I d="M9 4v5H4 M15 4v5h5 M9 20v-5H4 M15 20v-5h5" {...p} />;
+export const IcLoc     = (p) => <I d="M3 5h18l-7 8v6l-4-2v-4L3 5z" {...p} />;
