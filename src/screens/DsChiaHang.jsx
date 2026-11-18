@@ -14,7 +14,7 @@ import DsBanChia from './DsBanChia.jsx';
 //   3. Phiếu đã chia   : phiếu đang giữ tồn / đã xuất / huỷ, tải lại file.
 //   4. Cân đối giữa đội: bàn chuyển hàng đội dư → đội thiếu (bản cũ, giữ nguyên).
 // Mọi số đang nhập TỰ LƯU (máy + máy chủ), lọc/tìm/đổi chế độ không mất số.
-// SQL: 194_chia_hang_doi_sale.sql (fn_ds_chia_doi, fn_ds_xac_nhan, fn_ds_giu_cap_nhat ...)
+// SQL: 194_chia_hang_doi_sale.sql + 195_kho_tk05005_thung.sql (2 nguồn: SA và thùng TK05005 — 2 phiếu, 2 file)
 // ============================================================================
 
 const fmtN = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
@@ -90,6 +90,7 @@ async function xuatPhieu(id, maPhieu) {
   const { data, error } = await sb.rpc('fn_ds_phieu_ct', { p_id: id });
   if (error) throw error;
   const XLSX = await import('xlsx');
+  if (data?.[0]?.nguon === 'TK') return xuatPhieuThung(XLSX, data, maPhieu);
   const dong = (data || []).map((r) => ({
     'Kho chuyển': r.tu_kho, 'Tên kho chuyển': KHO_TEN[r.tu_kho] || r.tu_kho,
     'Cửa hàng nhận': r.ma_ch, 'Tên cửa hàng nhận': r.ten_ch,
@@ -108,11 +109,40 @@ async function xuatPhieu(id, maPhieu) {
   return dong.length;
 }
 
+// File 2 — HÀNG ĐÓNG THÙNG: kho chuyển trên phiếu = SA, hàng thực lấy ở TK05005 (kho tự chuyển TK -> SA trước khi xuất)
+function xuatPhieuThung(XLSX, data, maPhieu) {
+  const dong = data.map((r) => ({
+    'Kho chuyển': r.tu_kho, 'Tên kho chuyển': KHO_TEN[r.tu_kho] || r.tu_kho,
+    'Cửa hàng nhận': r.ma_ch, 'Tên cửa hàng nhận': r.ten_ch,
+    Barcode: r.barcode, 'Mã tham chiếu': r.ma_tham_chieu || '', 'Sản phẩm': r.nganh_3 || '',
+    'Số lượng': r.sl, 'Mã thùng': r.thung || '', 'Kho lấy hàng thực tế': 'TK05005',
+    'Ghi chú': `${maPhieu} · thùng ${r.thung || ''} · chuyển TK05005 → ${r.tu_kho} trước khi xuất`,
+  }));
+  const th = {};
+  data.forEach((r) => {
+    const x = (th[r.thung] = th[r.thung] || { 'Mã thùng': r.thung, 'Đội nhận': r.ma_ch, 'Tên đội': r.ten_ch, 'Số mã': 0, 'Số lượng': 0 });
+    x['Số mã'] += 1; x['Số lượng'] += r.sl;
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dong), 'DieuChuyen');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(Object.values(th)), 'DanhSachThung');
+  XLSX.writeFile(wb, `${maPhieu}.xlsx`);
+  return dong.length;
+}
+// Xuất đủ file của 1 lần xác nhận: SA trước, thùng sau (mỗi loại 1 file riêng)
+async function xuatHaiFile(kq) {
+  if (kq.id) await xuatPhieu(kq.id, kq.ma_phieu);
+  if (kq.id_thung) { if (kq.id) await new Promise((r) => setTimeout(r, 600)); await xuatPhieu(kq.id_thung, kq.ma_phieu_thung); }
+}
+const tenPhieu = (kq) => [kq.ma_phieu, kq.ma_phieu_thung].filter(Boolean).join(' + ');
+
 function baoLoiXacNhan(kq, baoToast) {
   if (kq?.loi === 'vuot_ton') {
     baoToast(`Vượt tồn kho khả dụng ${kq.chi_tiet.length} mã: ` + kq.chi_tiet.slice(0, 4).map((x) => `${x.ma_tham_chieu} cần ${x.can}/còn ${x.con}`).join(' · '));
   } else if (kq?.loi === 'thung_trung') {
     baoToast('Thùng đã giao cho phiếu khác: ' + kq.chi_tiet.map((x) => `${x.ma_thung} → ${tenNgan(x.ma_ch)} (${x.ma_phieu})`).join(' · '));
+  } else if (kq?.loi === 'thung_khong_co') {
+    baoToast('Thùng không còn trong danh sách thùng đóng sẵn: ' + kq.chi_tiet.join(', '));
   } else if (kq?.loi === 'trong') baoToast('Chưa có số nào để xác nhận');
   else baoToast('Không xác nhận được: ' + (kq?.loi || 'lỗi lạ'));
 }
@@ -145,7 +175,7 @@ const LOC = [
   ['chay', 'Bán chạy', 'Top 15% mã bán nhiều nhất của đội'],
   ['thap', 'Bán tốt tồn thấp', 'Đang bán nhưng còn dưới ngưỡng sắp hết'],
   ['het', 'Đã hết', 'Có bán mà đội đang 0 hàng'],
-  ['kho', 'Kho có hàng', 'Kho SA còn khả dụng'],
+  ['kho', 'Kho có hàng', 'Kho SA còn khả dụng (không tính kho thùng TK05005)'],
   ['thung', 'Có trong thùng', 'Mã nằm trong các thùng đã chọn'],
   ['nhap', 'Đã nhập', 'Đã nhập số chia thêm'],
   ['chua', 'Cần mà chưa chia', 'Gợi ý > 0 nhưng chưa nhập số'],
@@ -225,12 +255,13 @@ function ChiaDoi({ dsDoi, ts }) {
       const ban = r[5], v = ban / cuaSo, co = r[8] + r[9], kd = r[10] + r[11];
       const th = trongThung.m[r[0]] || 0;
       const muc = Math.ceil(v * mucTieu * heSo / 100);
-      const goiY = ban > 0 ? Math.max(0, Math.min(muc - co - th, kd - th)) : 0;
+      // Hàng thùng lấy từ TK05005 -> KHÔNG trừ kho SA. Gợi ý chia thêm chỉ giới hạn bởi kho SA.
+      const goiY = ban > 0 ? Math.max(0, Math.min(muc - co - th, kd)) : 0;
       const them = sua[r[0]] ?? 0;
       const nhan = th + them;
       const nd = v > 0 ? co / v : null;
       const ndSau = v > 0 ? (co + nhan) / v : null;
-      const khoCon = kd - nhan;
+      const khoCon = kd - them;   // chỉ phần chia thêm (nguồn SA) dùng kho SA
       return { bc: r[0], mtc: r[1], n1: r[2], n3: r[3], img: r[4], ban, ban7: r[6], banCuoi: r[7], ton: r[8], ve: r[9], kd, v, co, nd, th, muc, goiY, them, nhan, ndSau, khoCon, moi: r[12] };
     });
     const sorted = [...rows].sort((a, b) => b.ban - a.ban);
@@ -238,7 +269,7 @@ function ChiaDoi({ dsDoi, ts }) {
     rows.forEach((x) => {
       x.chay = x.ban > 0 && x.ban >= nguongChay;
       const c = [];
-      if (x.khoCon < 0) c.push(`Vượt kho khả dụng ${-x.khoCon} cái (kho còn ${x.kd})`);
+      if (x.khoCon < 0) c.push(`Chia thêm vượt kho SA khả dụng ${-x.khoCon} cái (kho SA còn ${x.kd})`);
       if (x.v > 0 && (x.ndSau ?? 0) < sapHet && x.chay) c.push(`Bán chạy mà sau chia chỉ đủ ${(x.ndSau ?? 0).toFixed(1)} ngày`);
       if (x.th > 0 && x.them > 0 && x.co + x.nhan > x.muc + Math.max(2, Math.ceil(x.v * 3))) c.push(`Đã có ${x.th} trong thùng mà còn chia thêm ${x.them} — vượt mục tiêu ${x.muc}`);
       if (x.nhan > 0 && x.nd != null && x.nd > tonLau) c.push(`Đội đang dư (đủ ${Math.round(x.nd)} ngày) mà vẫn nhận thêm`);
@@ -312,20 +343,21 @@ function ChiaDoi({ dsDoi, ts }) {
 
   // ---------- xác nhận ----------
   const xacNhan = async () => {
-    const dongGui = dong.filter((x) => x.nhan > 0).map((x) => ({ ma_ch: doi, barcode: x.bc, sl: x.nhan, sl_thung: x.th }));
-    if (!dongGui.length) { baoToast('Chưa có số nào'); return; }
-    if (tong.vuot) { baoToast(`Còn ${tong.vuot} mã vượt kho khả dụng — sửa trước khi xác nhận (lọc theo dòng hồng)`); return; }
+    // Nguồn 1: chia thêm từ kho SA (kiểm tồn SA). Nguồn 2: thùng (TK05005, không kiểm SA) -> server tách 2 phiếu
+    const dongGui = dong.filter((x) => x.them > 0).map((x) => ({ ma_ch: doi, barcode: x.bc, sl_sa: x.them }));
     const thungHopLe = thung.filter((t) => thungCt[t] && !thungCt[t].khong_co && !thungCt[t].da_giao);
+    if (!dongGui.length && !thungHopLe.length) { baoToast('Chưa có số nào'); return; }
+    if (tong.vuot) { baoToast(`Còn ${tong.vuot} mã chia thêm vượt kho SA — sửa trước khi xác nhận (lọc theo dòng hồng)`); return; }
     setGui(true);
     const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'doi', nguoi, khoa_nhap: khoa, dong: dongGui, thung: thungHopLe.map((t) => ({ ma_thung: t, ma_ch: doi })) } });
     setGui(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     if (!data?.ok) { baoLoiXacNhan(data, baoToast); tai(); return; }
-    try { await xuatPhieu(data.id, data.ma_phieu); } catch (e) { baoToast('Đã giữ tồn nhưng xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
+    try { await xuatHaiFile(data); } catch (e) { baoToast('Đã xác nhận nhưng xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
     lsDel(khoa); await xoaNhap();
     setThungCt({});
-    setPhieuMoi({ ...data, doi, sl: tong.nhan, ma: tong.ma });
-    baoToast(`Đã xác nhận ${data.ma_phieu}: ${fmtN(tong.nhan)} cái — tồn kho đã giữ cho đội`);
+    setPhieuMoi({ ...data, doi, sl: tong.nhan, ma: tong.ma, sa: tong.them, th: tong.th });
+    baoToast(`Đã xác nhận ${tenPhieu(data)}: ${fmtN(tong.nhan)} cái` + (data.id && data.id_thung ? ' — 2 file (Sale SA + Thùng)' : ''));
     tai(); taiNhapDs();
   };
 
@@ -414,7 +446,7 @@ function ChiaDoi({ dsDoi, ts }) {
               <div className="ch-thung-gy">
                 {goiYThung.map((g) => (
                   <button key={g.ma_thung} onMouseDown={(e) => { e.preventDefault(); if (!g.da_giao) themThung(g.ma_thung); }} disabled={!!g.da_giao}>
-                    <b>{g.ma_thung}</b><span>{g.tong_sl} cái · {g.so_ma} mã · {g.nhom}</span>
+                    <b>{g.ma_thung}</b><span>{g.tong_sl} cái · {g.so_ma} mã · {g.nhom}{g.tong_ghi != null && g.tong_ghi !== g.tong_sl ? ` · ghi ${g.tong_ghi} ≠ thực ${g.tong_sl}` : ''}</span>
                     {g.da_giao && <em>đã giao {tenNgan(g.da_giao.ma_ch)}</em>}
                   </button>
                 ))}
@@ -428,9 +460,15 @@ function ChiaDoi({ dsDoi, ts }) {
             {thung.map((t) => {
               const x = thungCt[t];
               const loi = x?.khong_co ? 'không có trong danh sách' : x?.da_giao ? `đã giao ${tenNgan(x.da_giao.ma_ch)} (${x.da_giao.ma_phieu})` : '';
+              const lech = x && !loi && x.tong_ghi != null && x.tong_ghi !== x.tong_sl;
+              const thieuTk = x && !loi ? x.ct.filter((c) => c.b && (c.tk ?? 0) < c.s) : [];
+              const goi = x?.ct?.map((c) => `${c.m}: ${c.s}` + (c.b && (c.tk ?? 0) < c.s ? `  (TK05005 còn ${c.tk ?? 0})` : '')).join('\n');
               return (
-                <span key={t} className={'ch-thung-chip' + (loi ? ' loi' : '')} title={x?.ct?.map((c) => `${c.m}: ${c.s}`).join('\n')}>
+                <span key={t} className={'ch-thung-chip' + (loi ? ' loi' : lech || thieuTk.length ? ' lech' : '')}
+                  title={(lech ? `Dòng thùng ghi ${x.tong_ghi}, cộng ruột thùng = ${x.tong_sl} → lấy ${x.tong_sl}\n` : '') + (goi || '')}>
                   <b>{t}</b>{x && !loi ? ` · ${x.tong_sl} cái · ${x.ct.length} mã` : loi ? ` · ${loi}` : ' · …'}
+                  {lech && <em> · ghi {x.tong_ghi} ≠ thực {x.tong_sl}</em>}
+                  {thieuTk.length > 0 && <em> · {thieuTk.length} mã TK05005 chưa đủ</em>}
                   <button onClick={() => boThung(t)} title="Bỏ thùng">×</button>
                 </span>
               );
@@ -524,26 +562,27 @@ function ChiaDoi({ dsDoi, ts }) {
       <div className="ch-chan">
         <div className="ch-chan-so">
           <span><b>{fmtN(tong.ma)}</b> mã</span>
-          <span>Thùng <b>{fmtN(tong.th)}</b></span>
-          <span>Chia thêm <b>{fmtN(tong.them)}</b></span>
+          <span title="Phiếu riêng — hàng lấy ở TK05005, kho trên phiếu là SA">Thùng (TK05005) <b>{fmtN(tong.th)}</b></span>
+          <span title="Phiếu Sale — xuất từ kho SA">Chia thêm (SA) <b>{fmtN(tong.them)}</b></span>
           <span className="tong">Tổng giao <b>{fmtN(tong.nhan)}</b> cái</span>
           {tong.vuot > 0 && <button className="ch-canh-nut do" onClick={() => setLoc(['canh'])}><IcAlert /> {tong.vuot} mã vượt kho</button>}
           {tong.canh > 0 && <button className="ch-canh-nut" onClick={() => setLoc(['canh'])}><IcAlert /> {tong.canh} dòng cần xem — bấm để lọc</button>}
         </div>
         {phieuMoi && phieuMoi.doi === doi ? (
           <div className="ch-xong">
-            <IcCheck /> {phieuMoi.ma_phieu} · {fmtN(phieuMoi.sl)} cái đã giữ tồn & xuất file
+            <IcCheck /> {tenPhieu(phieuMoi)} · {fmtN(phieuMoi.sl)} cái · đã xuất {phieuMoi.id && phieuMoi.id_thung ? '2 file' : 'file'}
             <button className="btn btn-ai" onClick={doiTiep}>Đội tiếp theo →</button>
           </div>
         ) : (
           <button className="btn btn-ai ch-xn" disabled={gui || !tong.nhan} onClick={xacNhan}>
-            <IcDown /> {gui ? 'Đang giữ tồn…' : `Xác nhận & xuất file (${fmtN(tong.nhan)})`}
+            <IcDown /> {gui ? 'Đang xác nhận…' : `Xác nhận & xuất ${tong.them > 0 && tong.th > 0 ? '2 file' : 'file'} (${fmtN(tong.nhan)})`}
           </button>
         )}
       </div>
       <div className="tq-ghi ch-ghi">
-        Gợi ý = bán/ngày × {mucTieu} ngày × {heSo}% − (tồn + đang về) − hàng trong thùng, không vượt kho khả dụng. Mã không bán trong {cuaSo} ngày không gợi ý.
-        Phím: Enter/↓ xuống · ↑ lên · Space điền gợi ý. Kho khả dụng = tồn dự tính SA05001 + SA05002 − phần đang giữ cho các phiếu chưa xuất.
+        Gợi ý = bán/ngày × {mucTieu} ngày × {heSo}% − (tồn + đang về) − hàng trong thùng, không vượt kho SA khả dụng. Mã không bán trong {cuaSo} ngày không gợi ý.
+        Phím: Enter/↓ xuống · ↑ lên · Space điền gợi ý. Kho còn = tồn dự tính SA05001 + SA05002 − phần đang giữ − chia thêm (thùng KHÔNG trừ kho SA).
+        Hàng thùng: số = cộng các dòng ruột thùng (không lấy số ghi ở dòng thùng), lấy hàng ở TK05005, phiếu riêng ghi kho SA, không cần SA đủ tồn.
       </div>
     </div>
   );
@@ -628,7 +667,7 @@ function ChiaLoat({ dsDoi, ts }) {
     setGui(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     if (!data?.ok) { baoLoiXacNhan(data, baoToast); taiSp(); return; }
-    try { await xuatPhieu(data.id, data.ma_phieu); } catch { baoToast('Đã giữ tồn, xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
+    try { await xuatHaiFile(data); } catch { baoToast('Đã giữ tồn, xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
     await xoaNhap();
     baoToast(`Đã xác nhận ${data.ma_phieu}: ${fmtN(tongAll)} cái cho ${chonDoi.length} đội`);
   };
@@ -745,12 +784,15 @@ function DsPhieu() {
   const tai = () => sb.rpc('fn_ds_phieu_ds', { p_ngay: 30 }).then(({ data, error }) => { if (error) baoToast('Lỗi: ' + error.message); setDs(data || []); });
   useEffect(() => { tai(); }, []);   // eslint-disable-line
   const doiTt = async (p, tt) => {
-    const hoi = tt === 'huy' ? `Huỷ ${p.ma_phieu}? Tồn đang giữ (${p.con_giu}) và thùng sẽ được trả lại.` : `Đánh dấu ${p.ma_phieu} đã xuất kho? Phần còn giữ (${p.con_giu}) sẽ được nhả.`;
+    const hoi = p.nguon === 'TK'
+      ? (tt === 'huy' ? `Huỷ phiếu thùng ${p.ma_phieu}? Các thùng (${(p.thung || []).join(', ')}) sẽ được trả lại để giao đội khác.` : `Đánh dấu phiếu thùng ${p.ma_phieu} đã xuất kho?`)
+      : tt === 'huy' ? `Huỷ ${p.ma_phieu}? Tồn SA đang giữ (${p.con_giu}) sẽ được trả lại.` : `Đánh dấu ${p.ma_phieu} đã xuất kho? Phần còn giữ (${p.con_giu}) sẽ được nhả.`;
     if (!window.confirm(hoi)) return;
     const { data, error } = await sb.rpc('fn_ds_phieu_doi_tt', { p_id: p.id, p_tt: tt, p_nguoi: user?.ma_dang_nhap || '' });
     if (error || !data?.ok) baoToast('Không đổi được: ' + (error?.message || data?.loi)); else { baoToast('Đã cập nhật ' + p.ma_phieu); tai(); }
   };
   const TT = { xac_nhan: ['Đang giữ tồn', 'giu'], da_xuat: ['Đã xuất', 'xong'], huy: ['Đã huỷ', 'huy'] };
+  const ttTen = (p) => (p.nguon === 'TK' && p.trang_thai === 'xac_nhan' ? 'Chờ xuất thùng' : TT[p.trang_thai][0]);
   return (
     <div className="card" style={{ padding: 0, overflow: 'auto' }}>
       <table className="tbl ch-phieu">
@@ -760,12 +802,13 @@ function DsPhieu() {
             : ds.length === 0 ? <tr><td colSpan={9} className="dsl-trong">Chưa có phiếu nào trong 30 ngày.</td></tr>
             : ds.map((p) => (
               <tr key={p.id}>
-                <td><b>{p.ma_phieu}</b><div className="tq-ghi">{p.loai === 'loat' ? 'Đồng loạt' : 'Từng đội'}</div></td>
-                <td><span className={'ch-tt ' + TT[p.trang_thai][1]}>{TT[p.trang_thai][0]}</span></td>
+                <td><b>{p.ma_phieu}</b> <span className={'ch-nguon ' + (p.nguon === 'TK' ? 'tk' : 'sa')}>{p.nguon === 'TK' ? 'Thùng · TK05005' : 'Sale · SA'}</span>
+                  <div className="tq-ghi">{p.loai === 'loat' ? 'Đồng loạt' : 'Từng đội'}{p.ma_lien_quan ? ` · đi cùng ${p.ma_lien_quan}` : ''}</div></td>
+                <td><span className={'ch-tt ' + TT[p.trang_thai][1]}>{ttTen(p)}</span></td>
                 <td>{(p.doi || []).map(tenNgan).join(', ')}</td>
                 <td className="num">{fmtN(p.so_ma)}</td>
                 <td className="num"><b>{fmtN(p.tong)}</b></td>
-                <td className="num">{p.trang_thai === 'xac_nhan' ? fmtN(p.con_giu) : '—'}</td>
+                <td className="num">{p.trang_thai === 'xac_nhan' && p.nguon !== 'TK' ? fmtN(p.con_giu) : '—'}</td>
                 <td className="tq-ghi">{(p.thung || []).join(', ') || '—'}</td>
                 <td className="tq-ghi">{p.nguoi || '—'} · {ngayGio(p.tao_luc)}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
@@ -780,7 +823,7 @@ function DsPhieu() {
         </tbody>
       </table>
       <div className="tq-ghi" style={{ padding: '8px 12px' }}>
-        <IcClock /> Tồn đang giữ tự nhả khi kho SA giảm (Odoo đã tạo phiếu/xuất) — đủ thì phiếu tự chuyển “Đã xuất”. Bấm tay khi cần.
+        <IcClock /> Phiếu Sale (SA): tồn đang giữ tự nhả khi kho SA giảm — đủ thì tự “Đã xuất”. Phiếu Thùng (TK05005): không giữ tồn SA; tự “Đã xuất” khi các thùng đã rời file thùng đóng sẵn. Bấm tay khi cần.
       </div>
     </div>
   );

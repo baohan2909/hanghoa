@@ -3517,6 +3517,11 @@ input.nd2-in{min-width:230px}
   background: rgba(63,182,168,.12); color: var(--teal-deep); font-weight: 600; }
 .ch-thung-chip b { color: var(--ink); }
 .ch-thung-chip.loi { background: rgba(214,0,108,.08); color: var(--magenta); }
+.ch-thung-chip.lech { background: rgba(203,164,90,.16); }
+.ch-thung-chip em { font-style: normal; color: #8a6a1f; font-size: 11.5px; }
+.ch-nguon { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 10px; margin-left: 4px; vertical-align: 1px; }
+.ch-nguon.sa { background: rgba(63,182,168,.14); color: var(--teal-deep); }
+.ch-nguon.tk { background: rgba(203,164,90,.18); color: #8a6a1f; }
 .ch-thung-chip button { border: 0; background: rgba(20,33,58,.08); width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-size: 14px; line-height: 1; color: var(--ink); }
 
 .ch-loc { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
