@@ -63,6 +63,7 @@ const SAP = [
 ];
 const NGUON_XEM = [['tat', 'Tất cả'], ['sa', 'Hàng Sale'], ['pk', 'Phụ kiện']];
 const ROW_H = 46;
+const ROW_H_GON = 38;
 
 // Lọc nhanh (chip) — dùng chung cho lọc và đếm số dòng mỗi chip
 function khopLoc(l, x, sapHet, tonLau) {
@@ -127,6 +128,10 @@ function ChiaDoi({ dsDoi, ts }) {
   const [suaBoLoc, setSuaBoLoc] = useState(null);   // null | 'moi' | {bộ lọc}
   const [dsBoLoc, taiBoLoc] = useBoLoc(nguoi);
   const [moDsThung, setMoDsThung] = useState(false);
+  // THU GỌN đầu bàn: gộp đội + số liệu + tham số + thùng vào 1 hàng, dòng bảng thấp hơn -> thêm chỗ chia
+  const [gon, setGon] = useState(() => lsGet('gon') ?? true);
+  useEffect(() => { lsSet('gon', gon); }, [gon]);
+  const rowH = gon ? ROW_H_GON : ROW_H;
   useEffect(() => { lsSet('nguon_xem', nguonXem); lsSet('bo_loc_dung', boLocDung); }, [nguonXem, boLocDung]);
   const sapHet = ts.sap_het || 7, tonLau = ts.ton_lau || 60;
 
@@ -357,12 +362,12 @@ function ChiaDoi({ dsDoi, ts }) {
     const ro = new ResizeObserver(() => setCao(el.clientHeight));
     ro.observe(el); return () => ro.disconnect();
   }, [kq]);
-  const dau = Math.max(0, Math.floor(cuon / ROW_H) - 8);
-  const cuoi = Math.min(hien.length, Math.ceil((cuon + cao) / ROW_H) + 8);
+  const dau = Math.max(0, Math.floor(cuon / rowH) - 8);
+  const cuoi = Math.min(hien.length, Math.ceil((cuon + cao) / rowH) + 8);
   const diDen = (i) => {
     if (i < 0 || i >= hien.length) return;
     const el = khung.current;
-    const top = i * ROW_H, vung = el.clientHeight - ROW_H * 2 - 30;   // trừ 2 hàng tiêu đề + ô lọc dính trên
+    const top = i * rowH, vung = el.clientHeight - rowH * 2 - 30;   // trừ 2 hàng tiêu đề + ô lọc dính trên
     if (top < el.scrollTop) el.scrollTop = top;
     else if (top > el.scrollTop + vung) el.scrollTop = top - vung;
     setTimeout(() => { const o = el.querySelector(`input[data-r="${i}"]`); if (o) { o.focus(); o.select(); } }, 40);
@@ -388,9 +393,66 @@ function ChiaDoi({ dsDoi, ts }) {
   const tenDoi = kq?.ten || tenNgan(doiInfo?.ten) || doi;
   const banChuaDu = kq?.ban_dau && new Date(kq.ban_dau) > new Date(Date.now() - cuaSo * 864e5);
 
+  // ---- mảnh dùng chung cho 2 kiểu đầu bàn (đầy đủ / thu gọn) ----
+  const thamSo = (
+    <div className="ch-ts2">
+      <label title="Số ngày lấy sức bán">Sức bán<span><input type="number" value={cuaSo} min={3} max={180} onChange={(e) => setCuaSo(Math.max(3, Math.min(180, so(e.target.value) || 28)))} />ngày</span></label>
+      <label title="Chia cho đội đủ bán bao nhiêu ngày">Chia đủ<span><input type="number" value={mucTieu} min={1} max={180} onChange={(e) => setMucTieu(Math.max(1, so(e.target.value) || 21))} />ngày</span></label>
+      <label title="Tỷ lệ bổ sung so với nhu cầu: 100% = đúng nhu cầu, 120% = chia dư 20%">Tỷ lệ<span><input type="number" value={heSo} min={10} max={300} step={10} onChange={(e) => setHeSo(Math.max(10, so(e.target.value) || 100))} />%</span></label>
+    </div>
+  );
+  const oThung = (
+    <div className="ch-th-tim">
+      <input placeholder={gon ? 'Mã thùng + Enter…' : 'Gõ mã thùng rồi Enter (vd TG-5020)…'} value={tq}
+        onChange={(e) => setTq(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); themThung(goiYThung.find((g) => g.uu === 0)?.ma_thung || goiYThung[0]?.ma_thung || tq); } }} />
+      {goiYThung.length > 0 && (
+        <div className="ch-thung-gy">
+          {goiYThung.map((g) => (
+            <button key={g.ma_thung} onMouseDown={(e) => { e.preventDefault(); if (!g.da_giao && !g.kiem) themThung(g.ma_thung); }} disabled={!!g.da_giao || !!g.kiem}>
+              <b>{g.ma_thung}</b><span>{g.tong_sl} cái · {g.so_ma} mã · {g.nhom}{g.tong_ghi != null && g.tong_ghi !== g.tong_sl ? ` · ghi ${g.tong_ghi} ≠ thực ${g.tong_sl}` : ''}</span>
+              {g.da_giao ? <em>đã giao {tenNgan(g.da_giao.ma_ch)}</em> : g.kiem ? <em>cần kiểm tra</em> : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+  const nutKho = <button className="ch-th-kho" onClick={() => setMoKho(true)} title="Mở kho thùng dạng thẻ để chọn"><IcGrid /><span className="ch-an-hep"> Kho thùng</span></button>;
+  const theThung = (
+    <div className="ch-th-ds">
+      {thung.length === 0 && <span className="ch-th-trong">{gon ? 'Chưa chọn thùng' : 'Chưa chọn thùng — gõ mã hoặc mở Kho thùng'}</span>}
+      {thung.map((t) => {
+        const x = thungCt[t];
+        const loi = x?.khong_co ? 'không có trong file' : x?.da_giao ? `đã giao ${tenNgan(x.da_giao.ma_ch)}`
+          : x?.kiem ? 'cần kiểm tra' : '';
+        const lech = x && !loi && x.tong_ghi != null && x.tong_ghi !== x.tong_sl;
+        const thieuTk = x && !loi ? x.ct.filter((c) => c.b && (c.tk ?? 0) < c.s) : [];
+        const chuaCo = x && !loi ? x.ct.filter((c) => !c.b).length : 0;
+        const goi = x?.ct?.map((c) => `${c.m}: ${c.s}` + (!c.b ? '  (chưa nhận diện)' : (c.tk ?? 0) < c.s ? `  (TK05005 còn ${c.tk ?? 0})` : '')).join('\n');
+        return (
+          <div key={t} className={'ch-tt' + (loi ? ' loi' : '') + (!loi && (lech || thieuTk.length || chuaCo) ? ' co-canh' : '')}
+            title={(loi ? 'Thùng này sẽ KHÔNG vào phiếu: ' + loi + '\n' : '') + (lech ? `Dòng thùng ghi ${x.tong_ghi}, cộng ruột = ${x.tong_sl} → lấy ${x.tong_sl}\n` : '')
+              + (chuaCo ? `${chuaCo} mã chưa nhận diện\n` : '') + (thieuTk.length ? `${thieuTk.length} mã TK05005 chưa đủ\n` : '') + (goi || '')}>
+            <div className="ch-tt-ma">{t}</div>
+            <div className="ch-tt-so">{x ? (loi ? <em className="do">{loi}</em> : <><b>{x.tong_sl}</b> cái · {x.ct.length} mã</>) : '…'}</div>
+            {!loi && (lech || thieuTk.length > 0 || chuaCo > 0) && (
+              <div className="ch-tt-canh">
+                {lech && <i className="lech">ghi {x.tong_ghi}</i>}
+                {chuaCo > 0 && <i className="do">{chuaCo} mã ?</i>}
+                {thieuTk.length > 0 && <i className="lech">TK thiếu {thieuTk.length}</i>}
+              </div>
+            )}
+            <button className="ch-tt-x" onClick={() => boThung(t)} title="Bỏ thùng">×</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className={'ch-ban' + (toan ? ' toan' : '')}>
-      {/* ===== Dải đội + nút bàn toàn màn hình ===== */}
+    <div className={'ch-ban' + (toan ? ' toan' : '') + (gon ? ' gon' : '')}>
+      {/* ===== Dải đội + nút thu gọn / toàn màn hình ===== */}
       <div className="ch-top">
         <div className="ch-dai">
           {doiSx.map((d) => (
@@ -400,89 +462,72 @@ function ChiaDoi({ dsDoi, ts }) {
             </button>
           ))}
         </div>
+        <button className="ch-gon-nut" onClick={() => setGon(!gon)} title={gon ? 'Mở rộng đầu bàn (thẻ thùng, số liệu đầy đủ)' : 'Thu gọn đầu bàn để bảng chia rộng hơn'}>
+          {gon ? '⌄ Mở rộng' : '⌃ Thu gọn'}
+        </button>
         <button className="ch-toan-nut" onClick={() => batToan(!toan)} title={toan ? 'Thu về (Esc)' : 'Mở bàn chia toàn màn hình'}>
-          {toan ? <><IcThuNho /> Thu nhỏ</> : <><IcMoRong /> Bàn chia toàn màn hình</>}
+          {toan ? <><IcThuNho /> Thu nhỏ</> : <><IcMoRong /> Toàn màn hình</>}
         </button>
       </div>
 
-      {/* ===== Đầu bàn: đội · số liệu đội · tham số ===== */}
-      <div className="ch-dau2">
-        <div className="ch-dau2-doi">
-          <button className="ch-mui" onClick={() => doiTiep(-1)} title="Đội trước">‹</button>
-          <div>
-            <h3>{tenDoi}</h3>
-            {banChuaDu ? <small className="ch-chu-y">bán từ {kq.ban_dau.slice(8, 10)}/{kq.ban_dau.slice(5, 7)} — chưa đủ {cuaSo} ngày</small>
-              : <small>{fmtN(dong.length)} mã · {fmtN(tong.maBan)} mã có bán</small>}
+      {gon ? (
+        /* ===== Đầu bàn THU GỌN: 1 hàng ===== */
+        <div className="ch-gon">
+          <div className="ch-gon-doi">
+            <button className="ch-mui" onClick={() => doiTiep(-1)} title="Đội trước">‹</button>
+            <b title={`${fmtN(dong.length)} mã · ${fmtN(tong.maBan)} mã có bán`}>{tenNgan(tenDoi)}</b>
+            <button className="ch-mui" onClick={() => doiTiep(1)} title="Đội sau">›</button>
           </div>
-          <button className="ch-mui" onClick={() => doiTiep(1)} title="Đội sau">›</button>
+          <div className="ch-gon-so">
+            <span><b>{tong.banNgay ? tong.banNgay.toFixed(1) : '—'}</b> /ngày</span>
+            <span><b>{fmtN(tong.co)}</b> đang có</span>
+            <span>đủ <b><Ngay n={tong.ndTruoc} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></b> ngày</span>
+            {banChuaDu && <i className="ch-chu-y" title={`Đội bán từ ${kq.ban_dau.slice(8, 10)}/${kq.ban_dau.slice(5, 7)}`}>bán chưa đủ {cuaSo} ngày</i>}
+          </div>
+          {thamSo}
+          <div className="ch-gon-th">
+            <span className="ch-th-ic" title="Thùng đóng sẵn — hàng ở TK05005, phiếu riêng ghi kho SA"><IcBox /></span>
+            {oThung}
+            {nutKho}
+            {theThung}
+            <span className="ch-gon-th-tong" title={`${trongThung.soMa} mã trong thùng`}><b>{fmtN(tong.th)}</b> cái · {trongThung.soThung} thùng</span>
+          </div>
+          <TrangThaiLuu tt={ttLuu} />
         </div>
-        <div className="ch-dau2-so">
-          <div><b>{tong.banNgay ? tong.banNgay.toFixed(1) : '—'}</b><span>bán / ngày</span></div>
-          <div><b>{fmtN(tong.co)}</b><span>đang có (tồn + về)</span></div>
-          <div><b><Ngay n={tong.ndTruoc} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></b><span>đủ ngày hiện tại</span></div>
-        </div>
-        <div className="ch-ts2">
-          <label title="Số ngày lấy sức bán">Sức bán<span><input type="number" value={cuaSo} min={3} max={180} onChange={(e) => setCuaSo(Math.max(3, Math.min(180, so(e.target.value) || 28)))} />ngày</span></label>
-          <label title="Chia cho đội đủ bán bao nhiêu ngày">Chia đủ<span><input type="number" value={mucTieu} min={1} max={180} onChange={(e) => setMucTieu(Math.max(1, so(e.target.value) || 21))} />ngày</span></label>
-          <label title="Tỷ lệ bổ sung so với nhu cầu: 100% = đúng nhu cầu, 120% = chia dư 20%">Tỷ lệ<span><input type="number" value={heSo} min={10} max={300} step={10} onChange={(e) => setHeSo(Math.max(10, so(e.target.value) || 100))} />%</span></label>
-        </div>
-        <TrangThaiLuu tt={ttLuu} />
-      </div>
-
-      {/* ===== Thùng đóng sẵn ===== */}
-      <div className="ch-th">
-        <div className="ch-th-nhan">
-          <span className="ch-th-ic"><IcBox /></span>
-          <div><b>Thùng đóng sẵn</b><small>Hàng ở TK05005 · phiếu riêng ghi kho SA</small></div>
-        </div>
-        <div className="ch-th-tim">
-          <input placeholder="Gõ mã thùng rồi Enter (vd TG-5020)…" value={tq}
-            onChange={(e) => setTq(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); themThung(goiYThung.find((g) => g.uu === 0)?.ma_thung || goiYThung[0]?.ma_thung || tq); } }} />
-          {goiYThung.length > 0 && (
-            <div className="ch-thung-gy">
-              {goiYThung.map((g) => (
-                <button key={g.ma_thung} onMouseDown={(e) => { e.preventDefault(); if (!g.da_giao && !g.kiem) themThung(g.ma_thung); }} disabled={!!g.da_giao || !!g.kiem}>
-                  <b>{g.ma_thung}</b><span>{g.tong_sl} cái · {g.so_ma} mã · {g.nhom}{g.tong_ghi != null && g.tong_ghi !== g.tong_sl ? ` · ghi ${g.tong_ghi} ≠ thực ${g.tong_sl}` : ''}</span>
-                  {g.da_giao ? <em>đã giao {tenNgan(g.da_giao.ma_ch)}</em> : g.kiem ? <em>cần kiểm tra</em> : null}
-                </button>
-              ))}
+      ) : (<>
+        {/* ===== Đầu bàn đầy đủ ===== */}
+        <div className="ch-dau2">
+          <div className="ch-dau2-doi">
+            <button className="ch-mui" onClick={() => doiTiep(-1)} title="Đội trước">‹</button>
+            <div>
+              <h3>{tenDoi}</h3>
+              {banChuaDu ? <small className="ch-chu-y">bán từ {kq.ban_dau.slice(8, 10)}/{kq.ban_dau.slice(5, 7)} — chưa đủ {cuaSo} ngày</small>
+                : <small>{fmtN(dong.length)} mã · {fmtN(tong.maBan)} mã có bán</small>}
             </div>
-          )}
+            <button className="ch-mui" onClick={() => doiTiep(1)} title="Đội sau">›</button>
+          </div>
+          <div className="ch-dau2-so">
+            <div><b>{tong.banNgay ? tong.banNgay.toFixed(1) : '—'}</b><span>bán / ngày</span></div>
+            <div><b>{fmtN(tong.co)}</b><span>đang có (tồn + về)</span></div>
+            <div><b><Ngay n={tong.ndTruoc} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></b><span>đủ ngày hiện tại</span></div>
+          </div>
+          {thamSo}
+          <TrangThaiLuu tt={ttLuu} />
         </div>
-        <button className="ch-th-kho" onClick={() => setMoKho(true)} title="Mở kho thùng dạng thẻ để chọn"><IcGrid /> Kho thùng</button>
-        <div className="ch-th-ds">
-          {thung.length === 0 && <span className="ch-th-trong">Chưa chọn thùng — gõ mã hoặc mở Kho thùng</span>}
-          {thung.map((t) => {
-            const x = thungCt[t];
-            const loi = x?.khong_co ? 'không có trong file' : x?.da_giao ? `đã giao ${tenNgan(x.da_giao.ma_ch)}`
-              : x?.kiem ? 'cần kiểm tra' : '';
-            const lech = x && !loi && x.tong_ghi != null && x.tong_ghi !== x.tong_sl;
-            const thieuTk = x && !loi ? x.ct.filter((c) => c.b && (c.tk ?? 0) < c.s) : [];
-            const chuaCo = x && !loi ? x.ct.filter((c) => !c.b).length : 0;
-            const goi = x?.ct?.map((c) => `${c.m}: ${c.s}` + (!c.b ? '  (chưa nhận diện)' : (c.tk ?? 0) < c.s ? `  (TK05005 còn ${c.tk ?? 0})` : '')).join('\n');
-            return (
-              <div key={t} className={'ch-tt' + (loi ? ' loi' : '')}
-                title={(loi ? 'Thùng này sẽ KHÔNG vào phiếu: ' + loi + '\n' : '') + (lech ? `Dòng thùng ghi ${x.tong_ghi}, cộng ruột = ${x.tong_sl} → lấy ${x.tong_sl}\n` : '') + (goi || '')}>
-                <div className="ch-tt-ma">{t}</div>
-                <div className="ch-tt-so">{x ? (loi ? <em className="do">{loi}</em> : <><b>{x.tong_sl}</b> cái · {x.ct.length} mã</>) : '…'}</div>
-                {!loi && (lech || thieuTk.length > 0 || chuaCo > 0) && (
-                  <div className="ch-tt-canh">
-                    {lech && <i className="lech">ghi {x.tong_ghi}</i>}
-                    {chuaCo > 0 && <i className="do">{chuaCo} mã ?</i>}
-                    {thieuTk.length > 0 && <i className="lech">TK thiếu {thieuTk.length}</i>}
-                  </div>
-                )}
-                <button className="ch-tt-x" onClick={() => boThung(t)} title="Bỏ thùng">×</button>
-              </div>
-            );
-          })}
+        <div className="ch-th">
+          <div className="ch-th-nhan">
+            <span className="ch-th-ic"><IcBox /></span>
+            <div><b>Thùng đóng sẵn</b><small>Hàng ở TK05005 · phiếu riêng ghi kho SA</small></div>
+          </div>
+          {oThung}
+          {nutKho}
+          {theThung}
+          <div className="ch-th-tong">
+            <b>{fmtN(tong.th)}</b>
+            <span>cái · {trongThung.soThung} thùng · {trongThung.soMa} mã</span>
+          </div>
         </div>
-        <div className="ch-th-tong">
-          <b>{fmtN(tong.th)}</b>
-          <span>cái · {trongThung.soThung} thùng · {trongThung.soMa} mã</span>
-        </div>
-      </div>
+      </>)}
 
       {moKho && (
         <div className="kt-modal" onClick={(e) => { if (e.target === e.currentTarget) setMoKho(false); }}>
@@ -528,7 +573,7 @@ function ChiaDoi({ dsDoi, ts }) {
             {SAP.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
           </select>
           <button className="btn btn-ai" onClick={() => tuDong(false)} title="Điền gợi ý vào các mã CHƯA nhập — số đã nhập giữ nguyên"><IcSpark /> Tự động chia</button>
-          <button className="btn btn-ghost" onClick={() => tuDong(true)} title="Ghi đè toàn bộ bằng gợi ý">Điền lại tất cả</button>
+          <button className="btn btn-ghost" onClick={() => tuDong(true)} title="Ghi đè toàn bộ bằng gợi ý">{gon ? 'Điền lại' : 'Điền lại tất cả'}</button>
           <button className="btn btn-ghost" onClick={xoaSo}>Xoá số</button>
         </div>
       </div>
@@ -570,12 +615,12 @@ function ChiaDoi({ dsDoi, ts }) {
             </tr>
           </thead>
           <tbody>
-            {dau > 0 && <tr style={{ height: dau * ROW_H }}><td colSpan={14} /></tr>}
+            {dau > 0 && <tr style={{ height: dau * rowH }}><td colSpan={14} /></tr>}
             {hien.slice(dau, cuoi).map((x, j) => {
               const i = dau + j;
               const dauNhom = sap === 'ma_nhom' && (i === 0 || hien[i - 1].nhomMa !== x.nhomMa);
               return (
-                <tr key={x.bc} className={(x.canh.length ? 'canh ' : '') + (x.them > 0 ? 'co-so ' : '') + (dauNhom ? 'dau-nhom ' : '') + (sap === 'ma_nhom' && !dauNhom ? 'trong-nhom' : '')} style={{ height: ROW_H }}>
+                <tr key={x.bc} className={(x.canh.length ? 'canh ' : '') + (x.them > 0 ? 'co-so ' : '') + (dauNhom ? 'dau-nhom ' : '') + (sap === 'ma_nhom' && !dauNhom ? 'trong-nhom' : '')} style={{ height: rowH }}>
                   <td className="stt">{i + 1}</td>
                   <td><AnhSP url={x.img} ten={x.mtc} /></td>
                   <td className="l sp">
@@ -608,19 +653,37 @@ function ChiaDoi({ dsDoi, ts }) {
                 </tr>
               );
             })}
-            {cuoi < hien.length && <tr style={{ height: (hien.length - cuoi) * ROW_H }}><td colSpan={14} /></tr>}
+            {cuoi < hien.length && <tr style={{ height: (hien.length - cuoi) * rowH }}><td colSpan={14} /></tr>}
             {hien.length === 0 && kq && <tr><td colSpan={14} className="dsl-trong">Không có mã nào khớp bộ lọc.</td></tr>}
           </tbody>
         </table>)}
       </div>
 
-      {/* ===== Bảng tổng: giao gì · từ nguồn nào · đội đủ bao lâu · xác nhận ===== */}
-      <div className="ch-tong">
-        <div className="ch-tong-chinh">
-          <small>Tổng giao {tenNgan(tenDoi)}</small>
-          <div><b>{fmtN(tong.nhan)}</b><span>cái · {fmtN(tong.ma + new Set(trongThung.khongMa).size)} mã</span></div>
+      {/* ===== Bảng tổng (1 hàng mỏng): tổng · 3 nguồn · đủ ngày · cảnh báo · xác nhận ===== */}
+      <div className="ch-tong3">
+        <div className="ch-t3-tong" title={`Tổng giao ${tenNgan(tenDoi)}`}>
+          <b>{fmtN(tong.nhan)}</b><span>cái giao<br />{fmtN(tong.ma + new Set(trongThung.khongMa).size)} mã</span>
         </div>
-        <div className="ch-tong-nguon">
+        <div className="ch-t3-nguon">
+          <div className="ch-t3-o" title="Hàng Sale — xuất từ SA05001 / SA05002, phiếu Sale">
+            <i className="sa" /><span>Sale</span><b>{fmtN(tong.sa)}</b><em>{tong.maSa ? `${tong.maSa} mã` : ''}</em>
+          </div>
+          <div className="ch-t3-o" title="Phụ kiện — xuất từ PK05001, phiếu riêng">
+            <i className="pk" /><span>Phụ kiện</span><b>{fmtN(tong.pk)}</b><em>{tong.maPk ? `${tong.maPk} mã` : ''}</em>
+          </div>
+          <div className="ch-t3-o ch-ds-thung-o" title="Hàng đóng thùng — hàng ở TK05005, phiếu riêng ghi kho SA">
+            <i className="th" /><span>Thùng</span><b>{fmtN(tong.th)}</b>
+            {trongThung.soThung ? <button onClick={() => setMoDsThung((v) => !v)}>{trongThung.soThung} thùng ▾</button> : <em />}
+            {moDsThung && trongThung.soThung > 0 && (
+              <div className="ch-ds-thung" onMouseLeave={() => setMoDsThung(false)}>
+                <b>{trongThung.soThung} thùng · {fmtN(tong.th)} cái</b>
+                {thung.filter((t) => thungCt[t] && !thungCt[t].khong_co && !thungCt[t].da_giao && !thungCt[t].kiem).map((t, i) => (
+                  <div key={t}><span>{i + 1}.</span><b>{t}</b><em>{thungCt[t].tong_sl} cái · {thungCt[t].ct.length} mã</em>
+                    <button onClick={() => boThung(t)} title="Bỏ thùng">×</button></div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="ch-tong-thanh">
             {tong.nhan > 0 ? <>
               <i className="sa" style={{ width: (tong.sa / tong.nhan) * 100 + '%' }} />
@@ -628,61 +691,31 @@ function ChiaDoi({ dsDoi, ts }) {
               <i className="th" style={{ width: (tong.th / tong.nhan) * 100 + '%' }} />
             </> : <i className="rong" />}
           </div>
-          <div className="ch-tong-dong">
-            <i className="sa" /><span>Hàng Sale · kho SA</span><b>{fmtN(tong.sa)}</b>
-            <em>{tong.maSa ? `${tong.maSa} mã → phiếu Sale` : '—'}</em>
-          </div>
-          <div className="ch-tong-dong">
-            <i className="pk" /><span>Phụ kiện · PK05001</span><b>{fmtN(tong.pk)}</b>
-            <em>{tong.maPk ? `${tong.maPk} mã → phiếu phụ kiện` : '—'}</em>
-          </div>
-          <div className="ch-tong-dong">
-            <i className="th" /><span>Hàng đóng thùng</span><b>{fmtN(tong.th)}</b>
-            {trongThung.soThung ? (
-              <em className="ch-ds-thung-o">
-                <button onClick={() => setMoDsThung((v) => !v)}>{trongThung.soThung} thùng ▾</button> → phiếu thùng (kho SA, hàng ở TK05005)
-                {moDsThung && (
-                  <div className="ch-ds-thung" onMouseLeave={() => setMoDsThung(false)}>
-                    <b>{trongThung.soThung} thùng · {fmtN(tong.th)} cái</b>
-                    {thung.filter((t) => thungCt[t] && !thungCt[t].khong_co && !thungCt[t].da_giao && !thungCt[t].kiem).map((t, i) => (
-                      <div key={t}><span>{i + 1}.</span><b>{t}</b><em>{thungCt[t].tong_sl} cái · {thungCt[t].ct.length} mã</em>
-                        <button onClick={() => boThung(t)} title="Bỏ thùng">×</button></div>
-                    ))}
-                  </div>
-                )}
-              </em>
-            ) : <em>—</em>}
-          </div>
         </div>
-        <div className="ch-tong-nd">
-          <small>Đội đủ bán</small>
-          <div>
-            <Ngay n={tong.ndTruoc} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} />
-            <span className="mui">→</span>
-            <Ngay n={tong.nhan ? tong.ndSau : tong.ndTruoc} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} />
-            <span>ngày</span>
-          </div>
-          <em>mục tiêu {mucTieu} ngày</em>
+        <div className="ch-t3-nd" title={`Đội đủ bán (chỉ tính hàng bán) — mục tiêu ${mucTieu} ngày`}>
+          <span>Đủ bán</span>
+          <Ngay n={tong.ndTruoc} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /><i>→</i>
+          <Ngay n={tong.nhan ? tong.ndSau : tong.ndTruoc} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /><span>ngày</span>
         </div>
-        <div className="ch-tong-canh">
-          {tong.vuot > 0 && <button className="do" onClick={() => setLoc(['canh'])}><IcAlert /> {tong.vuot} mã vượt kho{tong.vuotPk ? ` (${tong.vuotPk} phụ kiện)` : ''}</button>}
-          {tong.canh > 0 && <button onClick={() => setLoc(['canh'])}><IcAlert /> {tong.canh} dòng cần xem</button>}
-          {!tong.vuot && !tong.canh && <span className="ok"><IcCheck /> Không có dòng cần xem</span>}
-          <button className="ch-tong-ghi" onClick={() => setMoGhi((v) => !v)}>{moGhi ? 'Ẩn cách tính' : 'Cách tính gợi ý?'}</button>
+        <div className="ch-t3-canh">
+          {tong.vuot > 0 && <button className="do" onClick={() => setLoc(['canh'])}><IcAlert /> {tong.vuot} vượt kho{tong.vuotPk ? ` (${tong.vuotPk} PK)` : ''}</button>}
+          {tong.canh > 0 && <button onClick={() => setLoc(['canh'])}><IcAlert /> {tong.canh} cần xem</button>}
+          {!tong.vuot && !tong.canh && <span className="ok"><IcCheck /> Ổn</span>}
+          <button className="ch-t3-hoi" onClick={() => setMoGhi((v) => !v)} title="Cách tính gợi ý, phím tắt, cách gõ ô lọc">?</button>
         </div>
-        <div className="ch-tong-nut">
+        <div className="ch-t3-nut">
           {phieuMoi && phieuMoi.doi === doi ? (
-            <div className="ch-xong2">
-              <span><IcCheck /> {tenPhieu(phieuMoi)}</span>
-              <small>{fmtN(phieuMoi.sl)} cái · đã xuất {soFile(phieuMoi)} file</small>
-              <button className="btn btn-ai" onClick={() => doiTiep(1)}>Đội tiếp theo →</button>
+            <div className="ch-xong3">
+              <span title={tenPhieu(phieuMoi)}><IcCheck /> Đã xuất {soFile(phieuMoi)} file · {fmtN(phieuMoi.sl)} cái</span>
+              <button className="btn btn-ai" onClick={() => doiTiep(1)}>Đội tiếp →</button>
             </div>
           ) : (
-            <button className="ch-xn2" disabled={gui || !tong.nhan} onClick={xacNhan}>
+            <button className="ch-xn3" disabled={gui || !tong.nhan} onClick={xacNhan}
+              title={tong.nhan ? [tong.sa > 0 && 'Phiếu Sale (SA)', tong.pk > 0 && 'Phiếu phụ kiện (PK05001)', tong.th > 0 && `Phiếu thùng (${trongThung.soThung} thùng)`].filter(Boolean).join(' + ') : ''}>
               <IcDown />
               <span>
-                <b>{gui ? 'Đang xác nhận…' : tong.nhan ? `Xác nhận & xuất ${tong.soPhieu} file` : 'Chưa có số để xác nhận'}</b>
-                <small>{tong.nhan ? [tong.sa > 0 && 'Sale (SA)', tong.pk > 0 && 'Phụ kiện (PK05001)', tong.th > 0 && `Thùng ×${trongThung.soThung}`].filter(Boolean).join(' + ') : 'Nhập số hoặc chọn thùng'}</small>
+                <b>{gui ? 'Đang xác nhận…' : tong.nhan ? `Xác nhận & xuất ${tong.soPhieu} file` : 'Chưa có số'}</b>
+                <small>{tong.nhan ? [tong.sa > 0 && 'Sale', tong.pk > 0 && 'Phụ kiện', tong.th > 0 && `Thùng ×${trongThung.soThung}`].filter(Boolean).join(' + ') : 'nhập số hoặc chọn thùng'}</small>
               </span>
             </button>
           )}
