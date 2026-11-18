@@ -27,8 +27,14 @@ export const CANH = {
   roi_nguon: ['Đã rời file nguồn', 'Thùng đã giao nhưng không còn trong file thùng đóng sẵn. Kiểm tra kho đã xuất chưa, rồi bấm “Đã xuất” ở Phiếu đã chia.', 'do'],
   doi_nd: ['File nguồn đổi ruột', 'Ruột thùng trong file đã đổi SAU khi giao. Phiếu vẫn giữ số lúc giao — kiểm tra lại; cần thì huỷ phiếu rồi chia lại.', 'do'],
 };
-const SAP = [['tt', 'Thứ tự trong file'], ['n_g', 'Nhiều cái nhất'], ['sm_g', 'Nhiều mã nhất'], ['ma', 'Mã thùng A → Z']];
-const chuan = (s) => (s || '').toUpperCase().replace(/\s+/g, '');
+const SAP = [['tt', 'Thứ tự trong file'], ['khop', 'Nhiều số khớp tìm nhất'], ['n_g', 'Nhiều cái nhất'], ['sm_g', 'Nhiều mã nhất'], ['ma', 'Mã thùng A → Z']];
+// so khớp: chữ hoa, bỏ dấu, Đ = D, bỏ khoảng trắng — gõ "dn052", "ĐN052", "156" đều ra
+const chuan = (s) => (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Đ/g, 'D').replace(/\s+/g, '');
+// 'mã:sl|mã:sl' (SQL 197) -> [{m, s}]; bản cũ chỉ có 'mã|mã' vẫn đọc được (s = 0)
+const tachMa = (chuoi) => (chuoi ? chuoi.split('|').filter(Boolean).map((p) => {
+  const i = p.lastIndexOf(':'); const so = i > 0 ? +p.slice(i + 1) : NaN;
+  return Number.isFinite(so) ? { m: p.slice(0, i), s: so } : { m: p, s: 0 };
+}) : []);
 const doiTen = (m) => (m || '').replace(/^DOISALE/, 'Đội ');
 const oSheet = (vt) => (vt ? 'ô ' + vt.split('!').pop() : '');
 const tien = (n) => (n ? Math.round(n / 1000).toLocaleString('vi') + 'k' : '—');
@@ -71,7 +77,10 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
   };
   useEffect(() => { tai(); }, []);   // eslint-disable-line
 
-  const ds = bang?.ds || [];
+  const ds = useMemo(() => (bang?.ds || []).map((b) => {
+    const items = tachMa(b.ma);
+    return { ...b, items, itemsC: items.map((x) => chuan(x.m)), tC: chuan(b.t) };
+  }), [bang]);
   const theoMa = useMemo(() => Object.fromEntries(ds.map((b) => [b.t, b])), [ds]);
 
   // nạp chi tiết thùng đang mở + thùng trong giỏ (khi xem trước)
@@ -90,7 +99,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
     ds.forEach((b) => {
       if (b.st !== 'xuat') { k.tong++; k.cai += b.n; }
       k[b.st]++;
-      if (b.st === 'san') { k.sanCai += b.n; b.ma.split('|').forEach((m) => m && k.sanMa.add(m)); }
+      if (b.st === 'san') { k.sanCai += b.n; b.items.forEach((x) => k.sanMa.add(x.m)); }
       if (b.st === 'giao') k.giaoCai += b.n;
       if (b.canh.includes('doi_nd') || b.canh.includes('roi_nguon')) k.canhDo++;
       if (b.st !== 'xuat' && b.canh.includes('lech_tong')) k.lech++;
@@ -109,13 +118,31 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
     ds.forEach((b) => { if (hopLoc(b)) m[b.g || '—'] = (m[b.g || '—'] || 0) + 1; });
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [ds, loc]);   // eslint-disable-line
+  // Tìm: theo mã thùng HOẶC 1 phần mã sản phẩm trong ruột (XM156, 156, XM156-M, mã đầy đủ).
+  // Mỗi thùng tính SỐ KHỚP = cộng số lượng các mã khớp (khớp mã thùng -> cả thùng).
+  const khopTim = useMemo(() => {
+    if (!qq) return null;
+    const m = {};
+    ds.forEach((b) => {
+      if (b.tC.includes(qq)) { m[b.t] = { sl: b.n, ma: b.items.length, theoThung: true, ds: [] }; return; }
+      const ds2 = b.items.filter((x, i) => b.itemsC[i].includes(qq));
+      if (ds2.length) m[b.t] = { sl: ds2.reduce((a, x) => a + x.s, 0), ma: ds2.length, theoThung: false, ds: ds2 };
+    });
+    return m;
+  }, [ds, qq]);
   const hien = useMemo(() => {
-    const v = ds.filter((b) => hopLoc(b) && (!nhom || (b.g || '—') === nhom)
-      && (!qq || chuan(b.t).includes(qq) || chuan(b.ma).includes(qq)));
+    const v = ds.filter((b) => hopLoc(b) && (!nhom || (b.g || '—') === nhom) && (!khopTim || khopTim[b.t]));
     const f = { tt: (a, b) => a.tt - b.tt, n_g: (a, b) => b.n - a.n || a.tt - b.tt, sm_g: (a, b) => b.sm - a.sm || a.tt - b.tt,
-      ma: (a, b) => a.t.localeCompare(b.t) }[sap];
+      ma: (a, b) => a.t.localeCompare(b.t), khop: (a, b) => (khopTim?.[b.t]?.sl || 0) - (khopTim?.[a.t]?.sl || 0) || a.tt - b.tt }[sap];
     return v.sort(f);
-  }, [ds, loc, nhom, qq, sap]);   // eslint-disable-line
+  }, [ds, loc, nhom, khopTim, sap]);   // eslint-disable-line
+  const tongKhop = useMemo(() => (khopTim ? hien.reduce((a, b) => a + (khopTim[b.t]?.sl || 0), 0) : 0), [hien, khopTim]);
+  // đang tìm mà vẫn xếp "thứ tự file" -> tự chuyển sang "nhiều số khớp nhất"; xoá tìm -> trả lại
+  const [sapTruocTim, setSapTruocTim] = useState(null);
+  useEffect(() => {
+    if (qq && sapTruocTim == null) { setSapTruocTim(sap); if (sap === 'tt') setSap('khop'); }
+    if (!qq && sapTruocTim != null) { if (sap === 'khop') setSap(sapTruocTim === 'khop' ? 'tt' : sapTruocTim); setSapTruocTim(null); }
+  }, [qq]);   // eslint-disable-line
   useEffect(() => { setSoHien(240); }, [loc, nhom, qq, sap]);
 
   // ---------- giỏ ----------
@@ -123,7 +150,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
   const gioLoi = gio.filter((t) => !theoMa[t] || theoMa[t].st !== 'san');
   const tongGio = useMemo(() => {
     const ma = new Set(); let cai = 0, cc = 0;
-    gioHopLe.forEach((t) => { const b = theoMa[t]; cai += b.n; cc += b.cc; b.ma.split('|').forEach((m) => m && ma.add(m)); });
+    gioHopLe.forEach((t) => { const b = theoMa[t]; cai += b.n; cc += b.cc; b.items.forEach((x) => ma.add(x.m)); });
     return { cai, ma: ma.size, cc };
   }, [gioHopLe.join('|'), theoMa]);   // eslint-disable-line
   const doiSx = useMemo(() => [...dsDoi].sort((a, b) => a.ma_ch.localeCompare(b.ma_ch)), [dsDoi]);
@@ -205,7 +232,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
           {SAP.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
         </select>
         <button className="btn btn-ghost" onClick={tai} disabled={dang}><IcRefresh /> {dang ? 'Đang tải…' : 'Tải lại'}</button>
-        <span className="ch-dem">{fmtN(hien.length)} thùng</span>
+        <span className="ch-dem">{khopTim ? <><b className="kt-tim-tong">{fmtN(tongKhop)}</b> cái khớp “{q.trim()}” trong </> : null}{fmtN(hien.length)} thùng</span>
       </div>
       {nhomDs.length > 1 && (
         <div className="kt-nhom">
@@ -221,7 +248,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
             : hien.length === 0 ? <div className="card dsl-trong">Không có thùng nào khớp.</div> : (
             <div className="kt-luoi">
               {hien.slice(0, soHien).map((b) => (
-                <TheThung key={b.t} b={b} qq={qq} chon={gio.includes(b.t)} dangMo={mo === b.t}
+                <TheThung key={b.t} b={b} khop={khopTim?.[b.t]} chon={gio.includes(b.t)} dangMo={mo === b.t}
                   onMo={() => setMo(mo === b.t ? null : b.t)} onChon={() => batChon(b)} coDoi={!!doi} />
               ))}
             </div>
@@ -231,7 +258,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
 
         {/* ===== Chi tiết thùng ===== */}
         {bMo && (
-          <ChiTiet b={bMo} ct={ctMap[bMo.t]} trongGio={gio.includes(bMo.t)} coDoi={!!doi} tenDoi={tenDoi}
+          <ChiTiet b={bMo} ct={ctMap[bMo.t]} qq={qq} q={q} khop={khopTim?.[bMo.t]} trongGio={gio.includes(bMo.t)} coDoi={!!doi} tenDoi={tenDoi}
             onDong={() => setMo(null)} onChon={() => batChon(bMo)} onDuyet={(bo) => duyet(bMo, bo)} />
         )}
       </div>
@@ -294,9 +321,9 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
 // ---------------------------------------------------------------------------
 // Thẻ thùng
 // ---------------------------------------------------------------------------
-function TheThung({ b, qq, chon, dangMo, onMo, onChon, coDoi }) {
+function TheThung({ b, khop, chon, dangMo, onMo, onChon, coDoi }) {
   const ok = b.sm - b.cc - b.dm;
-  const khop = qq && !chuan(b.t).includes(qq) ? b.ma.split('|').filter((m) => chuan(m).includes(qq)).slice(0, 2) : [];
+  const theoMa = khop && !khop.theoThung;
   const canhDo = b.canh.filter((c) => c === 'doi_nd' || c === 'roi_nguon');
   return (
     <div className={`kt-the st-${b.st}${chon ? ' chon' : ''}${dangMo ? ' mo' : ''}`} onClick={onMo} role="button" tabIndex={0}
@@ -306,11 +333,16 @@ function TheThung({ b, qq, chon, dangMo, onMo, onChon, coDoi }) {
           title={coDoi ? (chon ? 'Bỏ khỏi đợt chia' : 'Chọn thùng này') : 'Chọn đội nhận trước'}>{chon && <IcCheck />}</button>
       )}
       <div className="kt-ma">{b.t}</div>
-      <div className="kt-so"><b>{fmtN(b.n)}</b><span>cái · {b.sm} mã</span></div>
+      {theoMa ? (
+        <div className="kt-so khop"><b>{fmtN(khop.sl)}</b><span>cái khớp · {khop.ma} mã<small>/ {fmtN(b.n)} cả thùng</small></span></div>
+      ) : (
+        <div className="kt-so"><b>{fmtN(b.n)}</b><span>cái · {b.sm} mã</span></div>
+      )}
       <div className="kt-thanh" title={`${ok} mã có trong tồn kho · ${b.dm} mã chỉ có trong DATA SẢN PHẨM · ${b.cc} mã chưa nhận diện`}>
         <i className="i-tk" style={{ flex: ok }} />{b.dm > 0 && <i className="i-dm" style={{ flex: b.dm }} />}{b.cc > 0 && <i className="i-cc" style={{ flex: b.cc }} />}
       </div>
-      {khop.length > 0 && <div className="kt-khop">có {khop.join(', ')}</div>}
+      {theoMa && <div className="kt-khop" title={khop.ds.map((x) => `${x.m}: ${x.s}`).join('\n')}>
+        {khop.ds.slice(0, 3).map((x) => `${x.m.replace(/^NS\d{3}/, '')} ×${x.s}`).join(' · ')}{khop.ds.length > 3 ? ` +${khop.ds.length - 3}` : ''}</div>}
       <div className="kt-chan">
         <span className="kt-g">{b.g || '—'}</span>
         {(b.st === 'giao' || b.st === 'xuat') && <span className="kt-tag doi">{doiTen(b.doi)}</span>}
@@ -327,10 +359,14 @@ function TheThung({ b, qq, chon, dangMo, onMo, onChon, coDoi }) {
 // ---------------------------------------------------------------------------
 // Bảng chi tiết 1 thùng
 // ---------------------------------------------------------------------------
-function ChiTiet({ b, ct, trongGio, coDoi, tenDoi, onDong, onChon, onDuyet }) {
+function ChiTiet({ b, ct, qq, q, khop, trongGio, coDoi, tenDoi, onDong, onChon, onDuyet }) {
   const { baoToast } = useApp();
   const daGiao = b.st === 'giao' || b.st === 'xuat';
-  const dong = (daGiao ? ct?.ct_giao || ct?.ct : ct?.ct) || [];
+  const dongGoc = (daGiao ? ct?.ct_giao || ct?.ct : ct?.ct) || [];
+  // đang tìm theo mã sản phẩm: dòng khớp nổi lên đầu + tô sáng
+  const timMa = !!(qq && khop && !khop.theoThung);
+  const laKhop = (x) => timMa && chuan(x.m).includes(qq);
+  const dong = timMa ? [...dongGoc].sort((a, c) => laKhop(c) - laKhop(a)) : dongGoc;
   const theoNguon = useMemo(() => Object.fromEntries((ct?.ct_nguon || []).map((x) => [x.m, x.s])), [ct]);
   const soSanh = daGiao && b.canh.includes('doi_nd');
   const moiTrongNguon = soSanh ? (ct?.ct_nguon || []).filter((x) => !dong.some((d) => d.m === x.m)) : [];
@@ -350,6 +386,9 @@ function ChiTiet({ b, ct, trongGio, coDoi, tenDoi, onDong, onChon, onDuyet }) {
         <div><b>{b.ghi ?? '—'}</b><span>số ghi ở dòng thùng</span></div>
         <div><b>{b.sm}</b><span>mã khác nhau</span></div>
       </div>
+      {timMa && (
+        <div className="kt-ct-khop"><b>{fmtN(khop.sl)}</b> cái khớp “{q.trim()}” · {khop.ma} mã <span>/ {fmtN(b.n)} cả thùng — dòng khớp tô sáng, xếp lên đầu</span></div>
+      )}
       {daGiao && (
         <div className="kt-ct-giao">
           <IcBox /> Đã giao <b>{doiTen(b.doi)}</b> · {b.mp} · {ngayGio(b.luc)} · {b.ng || '—'}
@@ -374,7 +413,7 @@ function ChiTiet({ b, ct, trongGio, coDoi, tenDoi, onDong, onChon, onDuyet }) {
               {dong.map((x) => {
                 const nay = soSanh ? theoNguon[x.m] ?? 0 : null;
                 return (
-                  <tr key={x.m} className={'nd-' + x.nd + (soSanh && nay !== x.s ? ' doi' : '')}>
+                  <tr key={x.m} className={'nd-' + x.nd + (soSanh && nay !== x.s ? ' doi' : '') + (laKhop(x) ? ' khop' : '')}>
                     <td className="l">
                       <b>{x.m}</b>
                       {x.nd !== 'ton_kho' && <i className={'kt-nd ' + x.nd} title={NHAN_DIEN[x.nd]}>{x.nd === 'chua_co' ? 'chưa nhận diện' : 'danh mục'}</i>}
