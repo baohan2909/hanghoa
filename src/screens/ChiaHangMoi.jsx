@@ -197,7 +197,8 @@ export default function ChiaHangMoi() {
         if (error) { baoToast('Lỗi tìm kiếm: ' + error.message); return; }
         capNhat(id, { goiYTC: data || [] });
       } else {
-        const { data, error } = await sb.rpc('fn_tim_sp', { p_q: v.trim() });
+        // v3.110.0: tìm cả DATA SẢN PHẨM (SQL 199) -> mã chưa về kho tổng vẫn chia trước được
+        const { data, error } = await sb.rpc('fn_tim_sp_dm', { p_q: v.trim() });
         if (error) { baoToast('Lỗi tìm kiếm: ' + error.message); return; }
         capNhat(id, { goiY: data || [] });
       }
@@ -224,7 +225,12 @@ export default function ChiaHangMoi() {
     return 'Tất cả cửa hàng';
   };
 
-  const chonSP = (id, g) => capNhat(id, { sp: g, q: g.ma_tham_chieu || g.sku || g.barcode, goiY: [], nganh3: g.nganh_3 || '' });
+  // Ngành cấp 3 của mã chưa từng có trong hệ thống bán (vd "MBH hợp đồng 500") -> để trống cho người chia chọn
+  const chonSP = (id, g) => {
+    const coNganh = !g.nganh_3 || !dsNganh3.length || dsNganh3.includes(g.nganh_3);
+    capNhat(id, { sp: g, q: g.ma_tham_chieu || g.sku || g.barcode, goiY: [], nganh3: coNganh ? (g.nganh_3 || '') : '' });
+    if (!coNganh) baoToast(`Ngành “${g.nganh_3}” chưa có số bán — chọn ngành cấp 3 tương tự hoặc mã tham chiếu để chia`);
+  };
   const chonTC = (id, g) => capNhat(id, { thamChieu: { ma_tham_chieu: g.ma, la_dong: g.la_dong, barcode: null }, qTC: g.ma, goiYTC: [] });
 
   const chiaDong = async (d) => {
@@ -328,8 +334,16 @@ export default function ChiaHangMoi() {
     const thieu = Object.values(gom).filter((x) => Number.isFinite(x.ton) && x.tong > x.ton);
 
     if (thieu.length) {
-      const ds = thieu.map((x) => `• ${x.ma}: chia ${fmtN(x.tong)} nhưng kho ${x.kho || 'tổng'} chỉ còn ${fmtN(x.ton)} (thiếu ${fmtN(x.tong - x.ton)})`).join('\n');
-      const ok = window.confirm(`⚠ CẢNH BÁO KHO TỔNG KHÔNG ĐỦ cho ${thieu.length} mã:\n\n${ds}\n\nVẫn xuất file? (Bấm Hủy để chỉnh số lượng trước)`);
+      // tách: CHƯA VỀ KHO (tồn 0 — chia trước) và THIẾU (có tồn nhưng không đủ)
+      const chuaVe = thieu.filter((x) => x.ton <= 0);
+      const khongDu = thieu.filter((x) => x.ton > 0);
+      const ds = [
+        chuaVe.length ? `CHƯA VỀ KHO — chia trước (${chuaVe.length} mã):\n` +
+          chuaVe.map((x) => `• ${x.ma}: chia ${fmtN(x.tong)} — kho ${x.kho || 'tổng'} chưa có hàng`).join('\n') : '',
+        khongDu.length ? `KHO KHÔNG ĐỦ (${khongDu.length} mã):\n` +
+          khongDu.map((x) => `• ${x.ma}: chia ${fmtN(x.tong)} nhưng kho ${x.kho || 'tổng'} chỉ còn ${fmtN(x.ton)} (thiếu ${fmtN(x.tong - x.ton)})`).join('\n') : '',
+      ].filter(Boolean).join('\n\n');
+      const ok = window.confirm(`⚠ KHO NGUỒN CHƯA ĐỦ HÀNG cho ${thieu.length} mã:\n\n${ds}\n\nVẫn xuất file? (Bấm Hủy để chỉnh số lượng trước)`);
       if (!ok) return;
     }
 
@@ -550,7 +564,7 @@ export default function ChiaHangMoi() {
         <div key={d.id} className="card" style={{ marginTop: 12, padding: 14 }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ position: 'relative', flex: '1 1 240px' }}>
-              <div className="lbl">Mã hàng mới #{i + 1}{d.laKhuon && <span style={{ marginLeft: 6, color: 'var(--gold)', fontWeight: 700, fontSize: 11 }}>⧉ dùng khuôn — nhập mã là xong, khỏi chia</span>}</div>
+              <div className="lbl">Mã hàng mới #{i + 1}{d.sp && !(Number(d.sp.kho_tong) > 0) && <span className="chm-chua-ve chm-tag" title="Kho tổng chưa có hàng mã này — vẫn chia & xuất phiếu trước được">chưa về kho · chia trước</span>}{d.laKhuon &&<span style={{ marginLeft: 6, color: 'var(--gold)', fontWeight: 700, fontSize: 11 }}>⧉ dùng khuôn — nhập mã là xong, khỏi chia</span>}</div>
               <div style={{ position: 'relative' }}>
                 <IcSearch style={{ position: 'absolute', left: 11, top: 12, width: 16, height: 16, color: 'var(--ink-2)', pointerEvents: 'none' }} />
                 <input className="inp" style={{ paddingLeft: 32, width: '100%' }}
@@ -563,7 +577,9 @@ export default function ChiaHangMoi() {
                       <AnhMini url={g.hinh_url} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="mono" style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--teal-deep)' }}>{g.ma_tham_chieu || g.sku}</div>
-                        <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3} · kho {g.kho_tong}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-2)' }}>{g.nganh_3} · {Number(g.kho_tong) > 0
+                          ? <>kho {fmtN(g.kho_tong)}</>
+                          : <span className="chm-chua-ve">{g.chi_dm ? 'DATA SẢN PHẨM · ' : ''}chưa về kho — chia trước</span>}</div>
                       </div>
                     </div>
                   ))}

@@ -4216,3 +4216,8 @@ body.ch-khoa-cuon { overflow: hidden; }
 .ds-ma.pk .ds-ma-nhan { color: #14213A; }
 .ds-ma.pk .ds-ma-nhan::after { content: 'PK'; margin-left: 4px; padding: 0 4px; border-radius: 4px; font-size: 9px; font-weight: 800;
   color: #fff; background: linear-gradient(135deg, #14213A, #5B6B88); vertical-align: 1px; }
+
+/* v3.110.0 — Chia hàng mới: mã chưa về kho tổng (lấy từ DATA SẢN PHẨM), vẫn chia trước */
+.chm-chua-ve { color: #9A7A35; font-weight: 700; }
+.chm-tag { margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; letter-spacing: .2px;
+  background: rgba(203, 164, 90, .14); border: 1px solid rgba(203, 164, 90, .45); }
