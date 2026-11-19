@@ -4211,3 +4211,8 @@ body.ch-khoa-cuon { overflow: hidden; }
   padding: 3px 10px; border-radius: 14px; border: 1px dashed transparent; }
 .kt-ghi-nho button:hover { border-color: var(--line); background: #fff; }
 .kt-ghi-nho button.on { background: var(--ink); color: #fff; border-style: solid; border-color: var(--ink); }
+
+/* v3.109.0 — cột mã PHỤ KIỆN trong bảng đối soát Chia hàng mới (xuất từ PK05001) */
+.ds-ma.pk .ds-ma-nhan { color: #14213A; }
+.ds-ma.pk .ds-ma-nhan::after { content: 'PK'; margin-left: 4px; padding: 0 4px; border-radius: 4px; font-size: 9px; font-weight: 800;
+  color: #fff; background: linear-gradient(135deg, #14213A, #5B6B88); vertical-align: 1px; }

@@ -12,6 +12,15 @@ function AnhMini({ url }) {
 }
 let seq = 1;
 const fmtN = (n) => (n == null ? '0' : Number(n).toLocaleString('vi'));
+// Ngành của mã — sao y fn_nganh trên máy chủ: 'PK' | 'BH' | 'NV'
+export const nganhCua = (sp) => {
+  const n = (sp?.nganh_1 || '').normalize('NFC').toLowerCase();
+  if (n.includes('phụ kiện') || n.includes('phu kien')) return 'PK';
+  if (n.includes('bảo hiểm') || n.includes('bao hiem') || n.includes('mũ') || n.includes('mu ')) return 'BH';
+  if (n.includes('vải') || n.includes('vai') || n.includes('nón') || n.includes('non')) return 'NV';
+  const ma = String(sp?.sku || sp?.barcode || '');
+  return ma[0] === '2' ? 'BH' : 'NV';
+};
 const dongMoi = () => ({ id: seq++, q: '', goiY: [], sp: null, nganh3: '',
   qTC: '', goiYTC: [], thamChieu: null, tong: '', ct: null, batchId: null, moRong: true,
   phamVi: null, chiaMin: '', chiaMax: '' });   // phamVi riêng; null = dùng phamViChung
@@ -285,25 +294,41 @@ export default function ChiaHangMoi() {
   const suaChot = (id, idRow, v) => setDong((ds) => ds.map((d) => d.id !== id ? d : {
     ...d, ct: d.ct.map((r) => r.id === idRow ? { ...r, sl_chot: Math.max(0, parseInt(v) || 0) } : r) }));
 
-  const khoNguon = (sp) => {
-    const bh = (sp?.nganh_1 || '').includes('bảo hiểm') || (sp?.nganh_1 || '').includes('Mũ');
-    return bh ? (khoMap.BH_CHINH || '') : (khoMap.NV_CHINH || '');
-  };
+  // KHO NGUỒN theo ngành — đúng quy tắc máy chủ (fn_nganh + fn_kho_cua, như Đề nghị hàng):
+  //   Phụ kiện -> PK_CHINH (PK05001) · Mũ bảo hiểm -> BH_CHINH · còn lại -> NV_CHINH
+  //   (v3.109.0: trước đây Phụ kiện rơi vào NV_CHINH = kho nón vải — sai)
+  const khoNguon = (sp) => khoMap[{ PK: 'PK_CHINH', BH: 'BH_CHINH', NV: 'NV_CHINH' }[nganhCua(sp)]] || '';
 
   const xuatTatCa = async () => {
     // Gồm cả dòng đã chia (có batchId) LẪN dòng khuôn (ct sẵn, có sp, chưa batchId)
     const daChia = dong.filter((d) => d.ct && d.ct.length && d.sp);
     if (!daChia.length) { baoToast('Chưa có dòng nào có bảng chia + mã hàng'); return; }
 
-    // CẢNH BÁO THIẾU: tổng số lượng chia của từng mã so với kho tổng của mã đó
-    const thieu = daChia.map((d) => {
-      const tong = d.ct.reduce((s, r) => s + (r.sl_chot || 0), 0);
-      const kho = Number(d.sp.kho_tong ?? d.sp.kho ?? NaN);
-      return { ma: d.sp.ma_tham_chieu || d.sp.sku || d.sp.barcode, tong, kho, thieu: Number.isFinite(kho) ? tong - kho : null };
-    }).filter((x) => x.thieu != null && x.thieu > 0);
+    // CẢNH BÁO THIẾU: tổng chia của từng mã so với tồn của CHÍNH KHO NGUỒN ghi trên phiếu
+    // (phụ kiện so PK05001, nón vải so kho nón vải…). Đọc tồn lỗi -> dùng kho tổng như cũ.
+    const tonNguon = {};
+    {
+      const dsBc = [...new Set(daChia.map((d) => d.sp.barcode))];
+      const dsKho = [...new Set(daChia.map((d) => khoNguon(d.sp)).filter(Boolean))];
+      const { data: tk, error: eTk } = dsKho.length
+        ? await sb.from('ton_kho').select('barcode, ma_ch, ton_hien_tai').in('barcode', dsBc).in('ma_ch', dsKho)
+        : { data: [], error: true };
+      if (!eTk) {
+        daChia.forEach((d) => { tonNguon[d.sp.barcode + '|' + khoNguon(d.sp)] = 0; });
+        (tk || []).forEach((t) => { tonNguon[t.barcode + '|' + t.ma_ch] = t.ton_hien_tai || 0; });
+      }
+    }
+    const gom = {};   // cùng 1 mã có thể nằm nhiều dòng -> cộng chung
+    daChia.forEach((d) => {
+      const kho = khoNguon(d.sp); const k = d.sp.barcode + '|' + kho;
+      const g = gom[k] || (gom[k] = { ma: d.sp.ma_tham_chieu || d.sp.sku || d.sp.barcode, kho, tong: 0,
+        ton: k in tonNguon ? tonNguon[k] : Number(d.sp.kho_tong ?? d.sp.kho ?? NaN) });
+      g.tong += d.ct.reduce((s, r) => s + (r.sl_chot || 0), 0);
+    });
+    const thieu = Object.values(gom).filter((x) => Number.isFinite(x.ton) && x.tong > x.ton);
 
     if (thieu.length) {
-      const ds = thieu.map((x) => `• ${x.ma}: chia ${x.tong} nhưng kho tổng chỉ ${x.kho} (thiếu ${x.thieu})`).join('\n');
+      const ds = thieu.map((x) => `• ${x.ma}: chia ${fmtN(x.tong)} nhưng kho ${x.kho || 'tổng'} chỉ còn ${fmtN(x.ton)} (thiếu ${fmtN(x.tong - x.ton)})`).join('\n');
       const ok = window.confirm(`⚠ CẢNH BÁO KHO TỔNG KHÔNG ĐỦ cho ${thieu.length} mã:\n\n${ds}\n\nVẫn xuất file? (Bấm Hủy để chỉnh số lượng trước)`);
       if (!ok) return;
     }
@@ -350,20 +375,22 @@ export default function ChiaHangMoi() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Trang tính1');
     XLSX.writeFile(wb, `CHIAMOI_${isoVN()}.xlsx`);
-    baoToast(`Đã chốt & xuất ${rowsX.length} dòng điều chuyển`);
+    const theoKho = {};
+    rowsX.forEach((r) => { theoKho[r['Kho nguồn']] = (theoKho[r['Kho nguồn']] || 0) + 1; });
+    baoToast(`Đã chốt & xuất ${rowsX.length} dòng điều chuyển — ` +
+      Object.entries(theoKho).map(([k, n]) => `${k}: ${n} dòng`).join(' · '));
   };
 
   const tongTatCa = dong.reduce((s, d) => s + (d.ct || []).reduce((x, r) => x + (r.sl_chot || 0), 0), 0);
 
-  const laBH = (sp) => (sp?.nganh_1 || '').includes('bảo hiểm') || (sp?.nganh_1 || '').includes('Mũ');
-
   // Bảng đối soát: mỗi cửa hàng một dòng, mỗi mã một cột, cộng dồn toàn bộ.
-  // Cột mã xếp mũ bảo hiểm trước, nón vải sau.
+  // Cột mã xếp mũ bảo hiểm trước, nón vải sau, phụ kiện cuối.
+  const THU_NGANH = { BH: 0, NV: 1, PK: 2 };
   const banDS = useMemo(() => {
     const ma = dong.filter((d) => d.sp && d.ct && d.ct.length)
-      .map((d) => ({ id: d.id, sp: d.sp, bh: laBH(d.sp),
-        nhan: d.sp.ma_tham_chieu || d.sp.sku || d.sp.barcode, ct: d.ct }))
-      .sort((a, b) => (a.bh === b.bh ? a.nhan.localeCompare(b.nhan, 'vi') : (a.bh ? -1 : 1)));
+      .map((d) => { const ng = nganhCua(d.sp); return { id: d.id, sp: d.sp, ng, bh: ng === 'BH',
+        nhan: d.sp.ma_tham_chieu || d.sp.sku || d.sp.barcode, ct: d.ct }; })
+      .sort((a, b) => (THU_NGANH[a.ng] - THU_NGANH[b.ng]) || a.nhan.localeCompare(b.nhan, 'vi'));
     if (!ma.length) return null;
 
     const oCH = {};   // ma_ch -> { ten, khu_vuc, o: { colId: sl } }
@@ -741,8 +768,8 @@ export default function ChiaHangMoi() {
                       Bán/tháng{muiTen('tc')}
                       {tc.chon && <span className="ds-tc-col-phu">{tc.chon.nhan}</span>}</th>
                     {banDS.ma.map((m) => (
-                      <th key={m.id} className={'ds-ma ds-sort ' + (m.bh ? 'bh' : 'nv')}
-                        title={m.sp.nganh_1 || ''} onClick={() => sortCot(m.id)}>
+                      <th key={m.id} className={'ds-ma ds-sort ' + m.ng.toLowerCase()}
+                        title={`${m.sp.nganh_1 || ''} — xuất từ kho ${khoNguon(m.sp) || '?'}`} onClick={() => sortCot(m.id)}>
                         <span className="ds-ma-nhan">{m.nhan}{muiTen(m.id)}</span>
                       </th>
                     ))}
