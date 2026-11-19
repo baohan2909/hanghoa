@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { IcRefresh, IcDown, IcAlert, IcTruck, IcBox, IcClock, IcGrid, IcSpark } from '../lib/icons.jsx';
@@ -7,7 +7,7 @@ import DsChiaHang from './DsChiaHang.jsx';
 // ============================================================================
 // ĐỘI SALE — màn RIÊNG cho 20 đội sale (hoạt động độc lập với CH/ĐB)
 // Nhìn 1 lần biết: đội nào sắp hết, đội nào ôm hàng, mã nào nên chuyển đội nào.
-// Số liệu: chiahang.fn_ds_tong_quan (SQL 191). Lệnh điều chuyển lưu bằng fn_dp_luu
+// Số liệu: chiahang.fn_ds_tong_quan_nhanh (SQL 198, đọc bản tính sẵn của fn_ds_tong_quan — SQL 191). Lệnh điều chuyển lưu bằng fn_dp_luu
 // (cùng bảng dieu_phoi_ngang với Yêu cầu ĐP) + xuất file Excel cùng khuôn cho kho.
 // ============================================================================
 
@@ -112,13 +112,37 @@ export default function DoiSale() {
   const [manHinh, setManHinh] = useState('tq');   // tq = tổng quan | ban = bàn chia hàng
   const [chonBan, setChonBan] = useState(null);
 
-  const tai = async () => {
-    setKq(null);
-    const { data, error } = await sb.rpc('fn_ds_tong_quan', {
-      p_cua_so: ts.cua_so, p_muc_tieu: ts.muc_tieu, p_sap_het: ts.sap_het, p_ton_lau: ts.ton_lau,
-    });
-    if (error) { baoToast('Lỗi: ' + error.message); setKq({ doi: [], dieu_chuyen: [], xuat_kho: [], ton_lau: [], tham_so: ts }); return; }
-    setKq(data); setSl({}); setBo({});
+  // v3.108.0: đọc bản ĐÃ TÍNH SẴN (fn_ds_tong_quan_nhanh, SQL 198) -> mở trang ngay, không vướng giới hạn 3 giây;
+  // bản cũ hơn 5 phút thì tính lại ở nền. Tính lại quá giờ -> giữ bản cũ, KHÔNG báo nhầm "chưa có số bán".
+  const [loiTai, setLoiTai] = useState(null);
+  const [dangMoi, setDangMoi] = useState(false);
+  const lanGoi = useRef(0);
+  const goi = (moi) => sb.rpc('fn_ds_tong_quan_nhanh', {
+    p_cua_so: ts.cua_so, p_muc_tieu: ts.muc_tieu, p_sap_het: ts.sap_het, p_ton_lau: ts.ton_lau, p_moi: moi,
+  });
+  const tai = async (ep = false) => {
+    const lan = ++lanGoi.current;
+    setLoiTai(null);
+    if (ep === true) setDangMoi(true); else setKq(null);
+    let { data, error } = await goi(ep === true);
+    if (error) ({ data, error } = await goi(false));          // thử lại 1 lần (lấy bản đã tính nếu có)
+    if (lan !== lanGoi.current) return;
+    setDangMoi(false);
+    if (error) {
+      setLoiTai(error.message);
+      setKq((k) => k || { doi: [], dieu_chuyen: [], xuat_kho: [], ton_lau: [], tham_so: ts, loi: true });
+      return;
+    }
+    setKq(data);
+    if (ep !== true) { setSl({}); setBo({}); }
+    // bản đã tính cũ hơn 5 phút -> tính lại ở nền, giữ số đang xem
+    if (ep !== true && data?.cache_luc && Date.now() - new Date(data.cache_luc).getTime() > 5 * 60e3) {
+      setDangMoi(true);
+      const r = await goi(true);
+      if (lan !== lanGoi.current) return;
+      setDangMoi(false);
+      if (!r.error && r.data) setKq(r.data); else setLoiTai(r.error?.message || 'không tính lại được');
+    }
   };
   useEffect(() => { tai(); }, [ts]);   // eslint-disable-line
 
@@ -167,7 +191,7 @@ export default function DoiSale() {
   }, [kq]);
 
   const thieuLichSu = kq?.tham_so?.ban_cu_nhat && kq.tham_so.ban_cu_nhat > kq.tham_so.ban_tu;
-  const chuaCoBan = kq && !kq.tham_so?.ban_moi_nhat;
+  const chuaCoBan = kq && !kq.loi && !kq.tham_so?.ban_moi_nhat;
 
   // Xuất file Excel cùng khuôn Yêu cầu ĐP + lưu lệnh để đối chiếu phiếu sau này
   const xuat = async (loai) => {
@@ -209,7 +233,7 @@ export default function DoiSale() {
           <p>Đội nào sắp hết · đội nào ôm hàng · mã nào nên chuyển — điều phối chốt, hệ thống gợi ý kèm lý do</p>
         </div>
         <div className="cmd-row">
-          <button className="btn-hd" onClick={tai}><IcRefresh /> Làm mới</button>
+          <button className="btn-hd" onClick={() => tai(true)} disabled={dangMoi}><IcRefresh /> {dangMoi ? 'Đang tính lại…' : 'Làm mới'}</button>
         </div>
       </div>
 
@@ -229,12 +253,19 @@ export default function DoiSale() {
           goiY="Đội còn nhiều hơn số ngày này (hoặc không bán) là dư, có thể cho" />
         {manHinh === 'tq' && <input className="flt-in" placeholder="Tìm mã / sản phẩm…" value={q}
           onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 160, flex: 1 }} />}
-        {kq && <span className="sla-chip"><IcClock /> Tồn {gioVN(kq.tham_so?.ton_luc)} · Bán tới {ngayVN(kq.tham_so?.ban_moi_nhat)}</span>}
+        {kq && !kq.loi && <span className="sla-chip" title={kq.cache_luc ? 'Số liệu tính lúc ' + gioVN(kq.cache_luc) : ''}><IcClock /> Tồn {gioVN(kq.tham_so?.ton_luc)} · Bán tới {ngayVN(kq.tham_so?.ban_moi_nhat)}{kq.cache_luc ? ` · tính lúc ${gioVN(kq.cache_luc).slice(0, 5)}` : ''}{dangMoi ? ' · đang cập nhật…' : ''}</span>}
       </div>}
 
       {manHinh === 'ban' ? (
         <DsChiaHang dsDoi={kq?.doi || []} ts={ts} />
       ) : (<>
+      {loiTai && (
+        <div className="dsl-canh">
+          <IcAlert /> {kq?.loi
+            ? 'Máy chủ đang bận nên chưa tải được số liệu đội sale (quá 3 giây) — số bán vẫn đầy đủ, bấm “Làm mới” để thử lại.'
+            : `Đang xem số liệu tính lúc ${gioVN(kq?.cache_luc)} — tính lại lần này không kịp (máy chủ bận), bấm “Làm mới” để thử lại.`}
+        </div>
+      )}
       {(thieuLichSu || chuaCoBan) && (
         <div className="dsl-canh">
           <IcAlert /> {chuaCoBan

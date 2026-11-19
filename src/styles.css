@@ -4206,3 +4206,8 @@ body.ch-khoa-cuon { overflow: hidden; }
   .ch-gon-th .ch-th-tim { width: 120px; }
   .ch-gon-so span:nth-child(2) { display: none; }
 }
+/* v3.108.0 — ghi chú kho thùng bấm được để lọc */
+.kt-ghi-nho button { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12px; font-weight: 700; color: var(--ink-2);
+  padding: 3px 10px; border-radius: 14px; border: 1px dashed transparent; }
+.kt-ghi-nho button:hover { border-color: var(--line); background: #fff; }
+.kt-ghi-nho button.on { background: var(--ink); color: #fff; border-style: solid; border-color: var(--ink); }

@@ -95,7 +95,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
 
   // ---------- tổng quan ----------
   const kpi = useMemo(() => {
-    const k = { tong: 0, cai: 0, san: 0, sanCai: 0, sanMa: new Set(), giao: 0, giaoCai: 0, xuat: 0, kiem: 0, canhDo: 0, lech: 0, cc: 0 };
+    const k = { tong: 0, cai: 0, san: 0, sanCai: 0, sanMa: new Set(), giao: 0, giaoCai: 0, xuat: 0, kiem: 0, canhDo: 0, lech: 0, cc: 0, dm: 0, dmMa: 0 };
     ds.forEach((b) => {
       if (b.st !== 'xuat') { k.tong++; k.cai += b.n; }
       k[b.st]++;
@@ -103,7 +103,8 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
       if (b.st === 'giao') k.giaoCai += b.n;
       if (b.canh.includes('doi_nd') || b.canh.includes('roi_nguon')) k.canhDo++;
       if (b.st !== 'xuat' && b.canh.includes('lech_tong')) k.lech++;
-      if (b.st === 'san' && b.cc) k.cc++;
+      if (b.st !== 'xuat' && b.cc) k.cc++;
+      if (b.st !== 'xuat' && b.dm) { k.dm++; k.dmMa += b.dm; }
     });
     return k;
   }, [ds]);
@@ -112,6 +113,9 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
   const qq = chuan(q);
   const hopLoc = (b) => loc === 'tat' ? true
     : loc === 'canh' ? (b.canh.includes('doi_nd') || b.canh.includes('roi_nguon'))
+    : loc === 'lech' ? (b.st !== 'xuat' && b.canh.includes('lech_tong'))
+    : loc === 'dm' ? (b.st !== 'xuat' && b.dm > 0)
+    : loc === 'cc' ? (b.st !== 'xuat' && b.cc > 0)
     : b.st === loc;
   const nhomDs = useMemo(() => {
     const m = {};
@@ -218,10 +222,15 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
           <small>Thùng đã giao bị đổi</small><b>{fmtN(kpi.canhDo)}</b><span>file nguồn đổi ruột / mất thùng</span>
         </button>
       </div>
-      {(kpi.lech > 0 || kpi.cc > 0) && (
+      {(kpi.lech > 0 || kpi.cc > 0 || kpi.dm > 0) && (
         <div className="kt-ghi-nho">
-          {kpi.lech > 0 && <span><i className="d-lech" />{kpi.lech} thùng số ghi ≠ cộng ruột — đã lấy theo ruột</span>}
-          {kpi.cc > 0 && <span><i className="d-cc" />{kpi.cc} thùng chưa phân bổ có mã chưa nhận diện — vẫn giữ mã, vẫn chia được</span>}
+          {kpi.lech > 0 && <button className={loc === 'lech' ? 'on' : ''} onClick={() => setLoc(loc === 'lech' ? 'san' : 'lech')}>
+            <i className="d-lech" />{kpi.lech} thùng số ghi ≠ cộng ruột — đã lấy theo ruột</button>}
+          {kpi.dm > 0 && <button className={loc === 'dm' ? 'on' : ''} onClick={() => setLoc(loc === 'dm' ? 'san' : 'dm')}
+            title="Mã có trong DATA SẢN PHẨM nhưng không có trong dữ liệu tồn kho (không kho nào có) — kho kiểm khi xuất">
+            <i className="d-dm" />{kpi.dm} thùng có {kpi.dmMa} mã chỉ có trong DATA SẢN PHẨM — bấm để xem</button>}
+          {kpi.cc > 0 && <button className={loc === 'cc' ? 'on' : ''} onClick={() => setLoc(loc === 'cc' ? 'san' : 'cc')}>
+            <i className="d-cc" />{kpi.cc} thùng có mã chưa nhận diện — vẫn giữ mã, vẫn chia được</button>}
         </div>
       )}
 
@@ -349,6 +358,7 @@ function TheThung({ b, khop, chon, dangMo, onMo, onChon, coDoi }) {
         {b.st === 'kiem' && <span className="kt-tag lech"><IcAlert /> kiểm tra</span>}
         {b.canh.includes('da_duyet') && <span className="kt-tag ok">đã kiểm</span>}
         {b.canh.includes('lech_tong') && <span className="kt-tag lech" title={`Dòng thùng ghi ${b.ghi}, cộng ruột ${b.n} → lấy ${b.n}`}>ghi {b.ghi}</span>}
+        {b.dm > 0 && <span className="kt-tag lech" title="Mã chỉ có trong DATA SẢN PHẨM (không có trong tồn kho)">{b.dm} mã DM</span>}
         {b.cc > 0 && <span className="kt-tag do">{b.cc} mã ?</span>}
         {canhDo.length > 0 && <span className="kt-tag do"><IcAlert /> {CANH[canhDo[0]][0]}</span>}
       </div>
