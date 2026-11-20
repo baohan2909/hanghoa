@@ -3,22 +3,29 @@ import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { IcSpark, IcDown, IcAlert, IcCheck, IcBox, IcClock, IcGrid, IcMoRong, IcThuNho, IcLoc } from '../lib/icons.jsx';
 import { AnhSP } from './DsBanChia.jsx';
-import { KHO_TEN, TrangThaiLuu, baoLoiXacNhan, fmtN, gio, lsDel, lsGet, lsSet, ngayGio, so, tenNgan, tenPhieu, soFile, useNhap, xuatHaiFile, xuatPhieu, xuatPhieuThung } from './dsChung.jsx';
+import { KHO_TEN, TrangThaiLuu, baoLoiXacNhan, fmtN, gio, lsDel, lsGet, lsSet, ngayGio, so, tenNgan, tenPhieu, soFile, useNhap, xuatHaiFile, xuatPhieu, xuatPhieuThung,
+  useHoiGhiChu, ghiChuMacDinh, nhoGhiChu } from './dsChung.jsx';
+import { useLamTron, quyTac, lenMuc, xuongMuc, hoMau, kGia } from './dsLamTron.js';
+import { useTuyChinh, sapTheo, HopTuyChinh } from './DsTuyChinh.jsx';
+import DsDoiMoi from './DsDoiMoi.jsx';
+import DsChiaMoi from './DsChiaMoi.jsx';
 import KhoThung from './DsKhoThung.jsx';
 import { tachSize, thuTuSize, useBoLoc, MenuBoLoc, HopBoLoc } from './DsBoLoc.jsx';
 import DsBanChia from './DsBanChia.jsx';
 import GoiYThung, { useGoiYThung, NutGoiY, mucDiem } from './DsGoiYThung.jsx';
 
 // ============================================================================
-// CHIA HÀNG ĐỘI SALE (bản làm lại v3.102.0; v3.104.0 thêm Kho thùng — DsKhoThung.jsx) — 5 chế độ:
-//   1. Chia từng đội   : việc hằng ngày. 1 đội / lần, bảng 1 dòng 1 mã, số thẳng cột,
-//                         xếp theo bán chạy, lọc kết hợp, nhập thùng đóng sẵn, tự động
-//                         hoặc tay, Xác nhận = GIỮ TỒN kho SA ngay + xuất file.
-//   2. Chia đồng loạt  : mẫu mới / đợt bổ sung: mã × đội, nhập nhanh bằng bàn phím.
-//   3. Phiếu đã chia   : phiếu đang giữ tồn / đã xuất / huỷ, tải lại file.
-//   4. Cân đối giữa đội: bàn chuyển hàng đội dư → đội thiếu (bản cũ, giữ nguyên).
+// CHIA HÀNG ĐỘI SALE (bản làm lại v3.102.0; v3.104.0 Kho thùng; v3.112.0 nâng cấp) — 6 chế độ:
+//   1. Chia từng đội    : việc hằng ngày. AI đề nghị làm tròn theo giá sale (dsLamTron.js), chỉ cho tab đang chọn,
+//                          không vượt kho (thiếu -> ⇄ mã thay thế), cột "Tồn kho sale" trước "Chia thêm",
+//                          Tùy chỉnh Bàn làm việc theo tài khoản (DsTuyChinh.jsx), ghi chú khi xuất file.
+//   2. Kho thùng        : DsKhoThung.jsx
+//   3. Chia hàng mới    : DsChiaMoi.jsx (giao diện như "Hàng mới" cửa hàng: đề nghị / thực chia, bảng đối soát)
+//   4. Đội mới · chia trước : DsDoiMoi.jsx (cơ cấu giá, đội tham chiếu, điểm phù hợp, nháp)
+//   5. Phiếu đã chia    : phiếu đang giữ tồn / đã xuất / huỷ, tải lại file (kèm ghi chú dòng 1).
+//   6. Cân đối giữa đội : DsBanChia.jsx (bản cũ, giữ nguyên).
 // Mọi số đang nhập TỰ LƯU (máy + máy chủ), lọc/tìm/đổi chế độ không mất số.
-// SQL: 194_chia_hang_doi_sale.sql + 195_kho_tk05005_thung.sql (2 nguồn: SA và thùng TK05005 — 2 phiếu, 2 file)
+// SQL: 194_chia_hang_doi_sale.sql + 195_kho_tk05005_thung.sql (2 nguồn: SA và thùng TK05005 — 2 phiếu, 2 file) + 202_nang_cap_doi_sale.sql
 // ============================================================================
 
 // ============================================================================
@@ -27,7 +34,7 @@ import GoiYThung, { useGoiYThung, NutGoiY, mucDiem } from './DsGoiYThung.jsx';
 export default function DsChiaHang({ dsDoi, ts }) {
   const [che, setChe] = useState(() => lsGet('che') || 'doi');
   useEffect(() => { lsSet('che', che); }, [che]);
-  const CHE = [['doi', 'Chia từng đội'], ['thung', 'Kho thùng'], ['loat', 'Chia đồng loạt'], ['phieu', 'Phiếu đã chia'], ['can', 'Cân đối giữa đội']];
+  const CHE = [['doi', 'Chia từng đội'], ['thung', 'Kho thùng'], ['loat', 'Chia hàng mới'], ['doimoi', 'Đội mới · chia trước'], ['phieu', 'Phiếu đã chia'], ['can', 'Cân đối giữa đội']];
   return (
     <div className="ch">
       <div className="ch-che">
@@ -35,7 +42,8 @@ export default function DsChiaHang({ dsDoi, ts }) {
       </div>
       {che === 'doi' && <ChiaDoi dsDoi={dsDoi} ts={ts} />}
       {che === 'thung' && <KhoThung dsDoi={dsDoi} />}
-      {che === 'loat' && <ChiaLoat dsDoi={dsDoi} ts={ts} />}
+      {che === 'loat' && <DsChiaMoi dsDoi={dsDoi} ts={ts} />}
+      {che === 'doimoi' && <DsDoiMoi dsDoi={dsDoi} ts={ts} />}
       {che === 'phieu' && <DsPhieu />}
       {che === 'can' && <DsBanChia dsDoi={dsDoi} ts={ts} />}
     </div>
@@ -54,6 +62,7 @@ const LOC = [
   ['thung', 'Có trong thùng', 'Mã nằm trong các thùng đã chọn'],
   ['nhap', 'Đã nhập', 'Đã nhập số chia thêm'],
   ['chua', 'Cần mà chưa chia', 'Gợi ý > 0 nhưng chưa nhập số'],
+  ['thieu', 'Thiếu kho', 'Đề nghị bị giới hạn vì kho không đủ — bấm ⇄ ở cột Gợi ý để chọn mã thay thế'],
   ['lau', 'Tồn lâu', 'Không bán trong cửa sổ hoặc còn quá ngưỡng tồn lâu'],
   ['moi', 'Mã mới', 'Mã tạo trong 45 ngày'],
 ];
@@ -77,6 +86,7 @@ function khopLoc(l, x, sapHet, tonLau) {
     case 'thung': return x.th > 0;
     case 'nhap': return x.them > 0;
     case 'chua': return x.goiY > 0 && !x.them;
+    case 'thieu': return x.thieu > 0;
     case 'lau': return x.ton > 0 && (x.ban === 0 || (x.nd ?? 0) > tonLau);
     case 'moi': return !!x.moi;
     default: return true;
@@ -87,9 +97,24 @@ const r1 = (n) => Math.round(n * 10) / 10;
 const COT_SO = {
   ban: (x) => x.ban, v: (x) => (x.v ? r1(x.v) : 0), ton: (x) => x.ton, ve: (x) => x.ve,
   nd: (x) => (x.nd == null ? null : r1(x.nd)), th: (x) => x.th, them: (x) => x.them, goiY: (x) => x.goiY,
-  nhan: (x) => x.nhan, ndSau: (x) => (x.nhan && x.ndSau != null ? r1(x.ndSau) : null), khoCon: (x) => x.khoCon,
+  nhan: (x) => x.nhan, ndSau: (x) => (x.nhan && x.ndSau != null ? r1(x.ndSau) : null), khoCon: (x) => x.khoCon, kd: (x) => x.kd,
 };
-const COT_LOC = ['ban', 'v', 'ton', 've', 'nd', 'th', 'them', 'goiY', 'nhan', 'ndSau', 'khoCon'];
+// Cột bảng (v3.112.0): "Tồn kho sale" đứng ngay trước "Chia thêm"; /ngày, Đủ ngày, Tổng nhận ẩn mặc định —
+// bật lại ở Tùy chỉnh Bàn làm việc (chỉ ẩn khỏi màn hình, số liệu và cách tính giữ nguyên)
+const COT_MAC_DINH = [
+  { k: 'ban', ten: 'Bán (cửa sổ)', mo: 'Số bán trong cửa sổ sức bán', w: 70 },
+  { k: 'v', ten: '/ngày', mo: 'Bán trung bình mỗi ngày', w: 62, an: true },
+  { k: 'ton', ten: 'Tồn', mo: 'Tồn hiện tại của đội', w: 64 },
+  { k: 've', ten: 'Đang về', mo: 'Đang về + đã giữ cho đội, chưa xuất', w: 70 },
+  { k: 'nd', ten: 'Đủ (ngày)', mo: 'Số ngày đủ bán với hàng đang có', w: 70, an: true },
+  { k: 'th', ten: 'Thùng', mo: 'Số trong các thùng đã chọn', w: 66 },
+  { k: 'kd', ten: 'Tồn kho sale', mo: 'Kho SA (phụ kiện: PK05001) còn khả dụng; dòng nhỏ = còn lại sau khi chia', w: 96 },
+  { k: 'them', ten: 'Chia thêm', mo: 'Số chia thêm từ kho — luôn hiện', w: 92, khoa: true },
+  { k: 'goiY', ten: 'Gợi ý', mo: 'AI đề nghị: làm tròn theo giá sale, không vượt kho', w: 76 },
+  { k: 'nhan', ten: 'Tổng nhận', mo: 'Thùng + chia thêm', w: 74, an: true },
+  { k: 'ndSau', ten: 'Sau nhận', mo: 'Số ngày đủ bán sau khi nhận', w: 74 },
+];
+const LOC_MAC_DINH = LOC.map(([k, t, g]) => ({ k, ten: t, mo: g }));
 // "5" = bằng 5 · ">5" ">=5" "<3" "<=3" "!=0" · "5-10" khoảng · trả 'sai' nếu gõ không hiểu
 function boLocSo(chuoi) {
   const t = String(chuoi || '').replace(/\s+/g, '').replace(',', '.');
@@ -131,6 +156,16 @@ function ChiaDoi({ dsDoi, ts }) {
   const [moDsThung, setMoDsThung] = useState(false);
   const [moGy, setMoGy] = useState(() => !!lsGet('mo_gy'));   // trung tâm gợi ý thùng (ngăn kéo phải)
   useEffect(() => { lsSet('mo_gy', moGy); }, [moGy]);
+  // v3.112.0: tùy chỉnh theo tài khoản · làm tròn theo giá · ghi chú khi xuất · mã thay thế khi thiếu kho
+  const laAdmin = user?.vai_tro === 'ADMIN';
+  const [tc, datTc, mayChu] = useTuyChinh(nguoi, 'ban_lam_viec');
+  const [moTc, setMoTc] = useState(false);
+  const cotDs = useMemo(() => sapTheo(COT_MAC_DINH, tc.cot), [tc.cot]);
+  const cotHien = useMemo(() => cotDs.filter((c) => c.hien), [cotDs]);
+  const locDs = useMemo(() => sapTheo(LOC_MAC_DINH, tc.loc), [tc.loc]);
+  const cfgLT = useLamTron();
+  const [hoiGhiChu, hopGhiChu] = useHoiGhiChu();
+  const [thayThe, setThayThe] = useState(null);   // barcode đang xem mã thay thế
   // THU GỌN đầu bàn: gộp đội + số liệu + tham số + thùng vào 1 hàng, dòng bảng thấp hơn -> thêm chỗ chia
   const [gon, setGon] = useState(() => lsGet('gon') ?? true);
   useEffect(() => { lsSet('gon', gon); }, [gon]);
@@ -203,7 +238,7 @@ function ChiaDoi({ dsDoi, ts }) {
     return { m, khongMa, tong, soThung, soMa: ma.size };
   }, [thung, thungCt]);
 
-  // dòng: [barcode, mtc, n1, n3, img, ban, ban7, banCuoi, ton, ve, kd1, kd2, moi, kd_phu_kien, la_phu_kien]
+  // dòng: [barcode, mtc, n1, n3, img, ban, ban7, banCuoi, ton, ve, kd1, kd2, moi, kd_phu_kien, la_phu_kien, gia_sale, nguon_gia, ban_mang]
   // Phụ kiện: chia từ kho PK05001 (tồn khả dụng riêng), hàng Sale: SA05001 + SA05002
   const dong = useMemo(() => {
     const rows = (kq?.rows || []).map((r) => {
@@ -212,7 +247,18 @@ function ChiaDoi({ dsDoi, ts }) {
       const th = trongThung.m[r[0]] || 0;
       const muc = Math.ceil(v * mucTieu * heSo / 100);
       // Hàng thùng lấy từ TK05005 -> KHÔNG trừ kho SA. Gợi ý chia thêm chỉ giới hạn bởi kho SA.
-      const goiY = ban > 0 ? Math.max(0, Math.min(muc - co - th, kd)) : 0;
+      // v3.112.0: nhu cầu -> làm tròn LÊN mức hợp lệ theo giá sale (lưỡi bội 5, túi ráp S/M bước 200) -> không vượt kho
+      const gia = r[15] ?? null;
+      const qt = quyTac({ pk, n3: r[3], mtc: r[1], gia }, cfgLT);
+      let can = ban > 0 ? Math.max(0, muc - co - th) : 0;
+      let tuiMacDinh = false;
+      if (qt.loai === 'tui') {
+        if (!qt.cho) can = 0;
+        else if (ban <= 0 && co < qt.macDinh) { can = qt.macDinh; tuiMacDinh = true; }
+      }
+      const len = lenMuc(can, qt);
+      const goiY = Math.min(len, xuongMuc(kd, qt));
+      const thieu = len - goiY;
       const them = sua[r[0]] ?? 0;
       const nhan = th + them;
       const nd = v > 0 ? co / v : null;
@@ -220,7 +266,8 @@ function ChiaDoi({ dsDoi, ts }) {
       const khoCon = kd - them;   // chỉ phần chia thêm dùng kho (SA hoặc PK05001) — thùng không trừ
       const [nhomMa, size] = tachSize(r[1]);
       return { bc: r[0], mtc: r[1], n1: r[2], n3: r[3], img: r[4], ban, ban7: r[6], banCuoi: r[7], ton: r[8], ve: r[9], kd, v, co, nd, th, muc, goiY, them, nhan, ndSau, khoCon, moi: r[12],
-        pk, nhomMa, size };
+        pk, nhomMa, size, gia, nguonGia: r[16] || null, banMang: r[17] || 0, qt, can, len, thieu, tuiMacDinh, hm: pk ? '' : hoMau(r[1]),
+        lechMuc: them > 0 && qt.buoc > 1 && lenMuc(them, qt) !== them };
     });
     // tổng bán theo nhóm mã (mẫu + màu, bỏ size) — cho chế độ "Theo mã sản phẩm"
     const banNhom = {}, soNhom = {};
@@ -235,17 +282,19 @@ function ChiaDoi({ dsDoi, ts }) {
       if (x.v > 0 && (x.ndSau ?? 0) < sapHet && x.chay) c.push(`Bán chạy mà sau chia chỉ đủ ${(x.ndSau ?? 0).toFixed(1)} ngày`);
       if (x.th > 0 && x.them > 0 && x.co + x.nhan > x.muc + Math.max(2, Math.ceil(x.v * 3))) c.push(`Đã có ${x.th} trong thùng mà còn chia thêm ${x.them} — vượt mục tiêu ${x.muc}`);
       if (x.nhan > 0 && x.nd != null && x.nd > tonLau) c.push(`Đội đang dư (đủ ${Math.round(x.nd)} ngày) mà vẫn nhận thêm`);
-      if (x.nhan > 0 && x.ban === 0 && x.ton > 0) c.push(`Đội không bán mã này ${cuaSo} ngày, vẫn còn ${x.ton}`);
+      if (x.nhan > 0 && x.ban === 0 && x.ton > 0 && !x.pk) c.push(`Đội không bán mã này ${cuaSo} ngày, vẫn còn ${x.ton}`);
+      if (x.them > 0 && x.qt.loai === 'tui' && !x.qt.cho) c.push(x.qt.nhan);
       x.canh = c;
     });
     return rows;
-  }, [kq, sua, trongThung, cuaSo, mucTieu, heSo, sapHet, tonLau]);
+  }, [kq, sua, trongThung, cuaSo, mucTieu, heSo, sapHet, tonLau, cfgLT]);
 
   // ô lọc theo cột (hàng trống dưới tiêu đề)
   const locCotFn = useMemo(() => {
     const fs = [], sai = {};
+    const dangHien = new Set(['sp', ...cotHien.map((c) => c.k)]);
     Object.entries(locCot).forEach(([k, chuoi]) => {
-      if (!chuoi || !String(chuoi).trim()) return;
+      if (!chuoi || !String(chuoi).trim() || !dangHien.has(k)) return;   // cột đang ẩn: không lọc ngầm
       if (k === 'sp') {
         const tu = String(chuoi).toLowerCase().split(/\s+/).filter(Boolean);
         fs.push((x) => { const h = `${x.mtc} ${x.n3 || ''} ${x.n1 || ''} ${x.bc}`.toLowerCase(); return tu.every((w) => h.includes(w)); });
@@ -256,7 +305,7 @@ function ChiaDoi({ dsDoi, ts }) {
       if (fn && COT_SO[k]) fs.push((x) => fn(COT_SO[k](x)));
     });
     return { fs, sai, co: fs.length > 0 || Object.keys(sai).length > 0 };
-  }, [locCot]);
+  }, [locCot, cotHien]);
   const demLoc = useMemo(() => {
     const d = {};
     LOC.forEach(([k]) => { d[k] = 0; });
@@ -301,15 +350,43 @@ function ChiaDoi({ dsDoi, ts }) {
   }, [dong, trongThung]);
 
   const datSo = (bc, v) => datNhap((d) => ({ ...d, sua: { ...(d.sua || {}), [bc]: so(v) } }));
+  // AI đề nghị CHỈ cho tab đang chọn (Tất cả / Hàng Sale / Phụ kiện) — tab khác giữ nguyên số
+  const trongTab = (x) => nguonXem === 'tat' || (nguonXem === 'pk') === x.pk;
+  const tenTab = (NGUON_XEM.find(([k]) => k === nguonXem) || [])[1] || 'Tất cả';
   const tuDong = (deCaSoTay) => {
+    const ds = dong.filter(trongTab);
+    const dien = ds.filter((x) => (deCaSoTay ? true : !(x.bc in sua) && x.goiY > 0));
+    const thieu = ds.filter((x) => x.thieu > 0).length;
     datNhap((d) => {
       const s = { ...(d.sua || {}) };
-      dong.forEach((x) => { if (deCaSoTay || !(x.bc in s)) s[x.bc] = x.goiY; });
+      ds.forEach((x) => {
+        if (deCaSoTay) { if (x.goiY > 0) s[x.bc] = x.goiY; else delete s[x.bc]; }
+        else if (!(x.bc in s) && x.goiY > 0) s[x.bc] = x.goiY;
+      });
       return { ...d, sua: s };
     });
-    baoToast(deCaSoTay ? 'Đã điền lại toàn bộ theo gợi ý' : 'Đã điền gợi ý vào các mã chưa nhập — số anh đã nhập giữ nguyên');
+    baoToast(`${deCaSoTay ? 'Đã điền lại' : 'Đã điền đề nghị'} tab ${tenTab}: ${fmtN(dien.filter((x) => x.goiY > 0).length)} mã`
+      + `${deCaSoTay ? '' : ' chưa nhập'} — ${nguonXem === 'tat' ? 'mọi tab' : 'tab khác giữ nguyên'}`
+      + (thieu ? ` · ${thieu} mã thiếu kho (lọc “Thiếu kho” → ⇄ chọn mã thay thế)` : ''));
   };
-  const xoaSo = () => { datNhap((d) => ({ ...d, sua: {} })); baoToast('Đã xoá số chia thêm (giữ thùng)'); };
+  const xoaSo = () => {
+    datNhap((d) => {
+      if (nguonXem === 'tat') return { ...d, sua: {} };
+      const s = { ...(d.sua || {}) };
+      dong.forEach((x) => { if (trongTab(x)) delete s[x.bc]; });
+      return { ...d, sua: s };
+    });
+    baoToast(nguonXem === 'tat' ? 'Đã xoá số chia thêm (giữ thùng)' : `Đã xoá số chia thêm tab ${tenTab} — tab khác giữ nguyên`);
+  };
+  // Bộ lọc của tôi (★): tổ hợp lọc đã lưu ở Tùy chỉnh
+  const locHienTai = { loc, locCot: Object.fromEntries(Object.entries(locCot).filter(([, v]) => String(v || '').trim())), nguonXem, sap };
+  const khoaMau = (m) => JSON.stringify([[...(m.loc || [])].sort(), Object.entries(m.locCot || {}).filter(([, v]) => String(v || '').trim()).sort(), m.nguonXem || 'tat']);
+  const mauDang = (tc.mau || []).find((m) => khoaMau(m) === khoaMau(locHienTai));
+  const dungMau = (m) => {
+    if (mauDang?.id === m.id) { setLoc([]); setLocCot({}); return; }
+    setLoc(m.loc || []); setLocCot(m.locCot || {}); if (m.nguonXem) setNguonXem(m.nguonXem); if (m.sap) setSap(m.sap);
+  };
+  const moTaLoc = [...loc.map((k) => LOC_MAC_DINH.find((d) => d.k === k)?.ten || k), nguonXem !== 'tat' ? tenTab : null].filter(Boolean).join(' + ');
 
   // ---------- thùng ----------
   const [tq, setTq] = useState('');
@@ -339,12 +416,16 @@ function ChiaDoi({ dsDoi, ts }) {
     const thungHopLe = thung.filter((t) => thungCt[t] && !thungCt[t].khong_co && !thungCt[t].da_giao && !thungCt[t].kiem);
     if (!dongGui.length && !thungHopLe.length) { baoToast('Chưa có số nào'); return; }
     if (tong.vuot) { baoToast(`Còn ${tong.vuot} mã chia thêm vượt kho (SA / phụ kiện) — sửa trước khi xác nhận (lọc theo dòng hồng)`); return; }
+    const ghiChu = await hoiGhiChu({ macDinh: ghiChuMacDinh(doi, tenDoi), tieuDe: `Ghi chú file xuất — ${tenNgan(tenDoi)}`,
+      nutXong: `Xác nhận & xuất ${tong.soPhieu} file`, phu: `${fmtN(tong.nhan)} cái · ${[tong.sa > 0 && 'Sale', tong.pk > 0 && 'Phụ kiện', tong.th > 0 && 'Thùng'].filter(Boolean).join(' + ')}` });
+    if (ghiChu === null) return;
+    nhoGhiChu(doi, ghiChu);
     setGui(true);
-    const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'doi', nguoi, khoa_nhap: khoa, dong: dongGui, thung: thungHopLe.map((t) => ({ ma_thung: t, ma_ch: doi })) } });
+    const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'doi', nguoi, khoa_nhap: khoa, ghi_chu: ghiChu || null, dong: dongGui, thung: thungHopLe.map((t) => ({ ma_thung: t, ma_ch: doi })) } });
     setGui(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     if (!data?.ok) { baoLoiXacNhan(data, baoToast); tai(); return; }
-    try { await xuatHaiFile(data); } catch (e) { baoToast('Đã xác nhận nhưng xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
+    try { await xuatHaiFile(data, ghiChu); } catch (e) { baoToast('Đã xác nhận nhưng xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
     lsDel(khoa); await xoaNhap();
     setThungCt({});
     setPhieuMoi({ ...data, doi, sl: tong.nhan, ma: tong.ma, sa: tong.sa, pk: tong.pk, th: tong.th });
@@ -379,6 +460,56 @@ function ChiaDoi({ dsDoi, ts }) {
     if (top < el.scrollTop) el.scrollTop = top;
     else if (top > el.scrollTop + vung) el.scrollTop = top - vung;
     setTimeout(() => { const o = el.querySelector(`input[data-r="${i}"]`); if (o) { o.focus(); o.select(); } }, 40);
+  };
+
+  // ---------- ô theo cột (thứ tự / ẩn hiện theo Tùy chỉnh) ----------
+  const giaiThich = (x) => {
+    if (x.qt.loai === 'tui' && !x.qt.cho) return x.qt.nhan;
+    const l = [];
+    if (x.ban > 0) l.push(`Nhu cầu ${x.v.toFixed(1)}/ngày × ${mucTieu} ngày × ${heSo}% = ${x.muc}`, `− đang có ${x.co}${x.th ? ` − thùng ${x.th}` : ''} → cần ${x.can}`);
+    else if (x.tuiMacDinh) l.push(`Chưa có số bán túi — dùng mặc định ${x.can} (đội đang có ${x.co})`);
+    else l.push(`Không bán trong ${cuaSo} ngày — không đề nghị`);
+    if (x.can > 0) l.push(`Làm tròn lên (${x.qt.nhan}) → ${x.len}`);
+    if (x.thieu > 0) l.push(`Kho chỉ còn ${fmtN(x.kd)} → đề nghị ${x.goiY}, thiếu ${x.thieu}${x.pk ? '' : ' — bấm ⇄ chọn mã thay thế'}`);
+    else if (x.goiY) l.push(`Bấm để lấy ${x.goiY} (hoặc phím Space trong ô Chia thêm)`);
+    return l.join('\n');
+  };
+  const oCot = (k, x, i) => {
+    switch (k) {
+      case 'ban': return <td key={k} className={x.ban ? 'dam' : 'mo'}>{x.ban || '·'}</td>;
+      case 'v': return <td key={k} className={x.v ? 'phu' : 'mo'}>{x.v ? x.v.toFixed(1) : '·'}</td>;
+      case 'ton': return <td key={k} className={x.ton ? '' : 'mo'}>{x.ton || '·'}</td>;
+      case 've': return <td key={k} className={x.ve ? 've' : 'mo'}>{x.ve ? (x.ve > 0 ? '+' + x.ve : x.ve) : '·'}</td>;
+      case 'nd': return <td key={k}><Ngay n={x.nd} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></td>;
+      case 'th': return <td key={k} className="c-thung">{x.th || <span className="mo">·</span>}</td>;
+      case 'kd': return (
+        <td key={k} className={'c-kd ' + (x.khoCon < 0 ? 'vuot' : x.kd ? '' : 'mo')}
+          title={(x.canh.length ? x.canh.join('\n') + '\n' : '') + `${x.pk ? 'Kho phụ kiện PK05001' : 'Kho SA'} khả dụng ${fmtN(x.kd)}${x.them ? ` − chia ${x.them} = còn ${fmtN(x.khoCon)}` : ''}`}>
+          {x.canh.length > 0 && <IcAlert className="ch-i-canh" />}
+          <span className="kd-so"><b>{x.kd ? fmtN(x.kd) : '·'}</b>{x.them > 0 && <small>còn {fmtN(x.khoCon)}</small>}</span>
+        </td>);
+      case 'them': return (
+        <td key={k} className="c-them">
+          <input type="number" inputMode="numeric" min={0} data-r={i} value={x.them || ''} placeholder="·"
+            className={x.lechMuc ? 'lech-muc' : ''} title={x.lechMuc ? `${x.them} chưa đúng mức làm tròn (${x.qt.nhan}) — vẫn xuất được nếu anh muốn` : ''}
+            onChange={(e) => datSo(x.bc, e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); diDen(i + (e.shiftKey && e.key === 'Enter' ? -1 : 1)); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); diDen(i - 1); }
+              else if (e.key === ' ' || e.key === '+') { e.preventDefault(); datSo(x.bc, x.goiY); }
+            }} />
+        </td>);
+      case 'goiY': return (
+        <td key={k} className={(x.goiY ? 'gy' : 'mo') + (x.thieu > 0 ? ' thieu' : '')} onClick={() => x.goiY && datSo(x.bc, x.goiY)} title={giaiThich(x)}>
+          {x.goiY || '·'}
+          {x.thieu > 0 && !x.pk && <button className="ch-tt-nut" onClick={(e) => { e.stopPropagation(); setThayThe(x.bc); }} title={`Thiếu ${x.thieu} — xem mã thay thế`}>⇄</button>}
+          {x.thieu > 0 && x.pk && <i className="ch-thieu-pk" title={giaiThich(x)}>−{x.thieu}</i>}
+        </td>);
+      case 'nhan': return <td key={k} className={x.nhan ? 'dam' : 'mo'}>{x.nhan || '·'}</td>;
+      case 'ndSau': return <td key={k}><Ngay n={x.nhan ? x.ndSau : null} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></td>;
+      default: return <td key={k} />;
+    }
   };
 
   if (!doi) {
@@ -564,6 +695,18 @@ function ChiaDoi({ dsDoi, ts }) {
           onXong={(id, daXoa) => { setSuaBoLoc(null); taiBoLoc(); if (daXoa) { if (boLocDung === suaBoLoc.id) setBoLocDung(null); } else if (id) setBoLocDung(id); }} />
       )}
 
+      {moTc && (
+        <HopTuyChinh tc={tc} datTc={datTc} mayChu={mayChu} locDs={locDs} cotDs={cotDs} locMacDinh={LOC_MAC_DINH} cotMacDinh={COT_MAC_DINH}
+          dsBoLoc={dsBoLoc} laAdmin={laAdmin} token={user?.token} taiBoLoc={taiBoLoc} hienTai={locHienTai} moTaHienTai={moTaLoc}
+          onSuaBoLoc={(b) => setSuaBoLoc(b)} onDong={() => setMoTc(false)} baoToast={baoToast} />
+      )}
+
+      {thayThe && dong.find((x) => x.bc === thayThe) && (
+        <HopThayThe x={dong.find((x) => x.bc === thayThe)} dong={dong} cuaSo={cuaSo} tenDoi={tenNgan(tenDoi)}
+          onThem={(bc, sl) => datSo(bc, sl)} onDong={() => setThayThe(null)} baoToast={baoToast} />
+      )}
+      {hopGhiChu}
+
       {/* ===== Lọc nhanh + thao tác ===== */}
       <div className="ch-cong">
         <div className="ch-xem" title="Xem theo nguồn hàng: Hàng Sale (kho SA05001/SA05002) hoặc Phụ kiện (kho PK05001)">
@@ -577,8 +720,13 @@ function ChiaDoi({ dsDoi, ts }) {
               <IcLoc /> {boLoc.ten}<i>{fmtN(hien.length)}</i><span className="x">×</span>
             </button>
           )}
-          {LOC.map(([k, t, g]) => (
-            <button key={k} title={g} className={(loc.includes(k) ? 'on ' : '') + (k === 'canh' && demLoc.canh ? 'nong' : '')}
+          {(tc.mau || []).map((m) => (
+            <button key={m.id} className={'ch-mau' + (mauDang?.id === m.id ? ' on' : '')} onClick={() => dungMau(m)} title="Bộ lọc của tôi — bấm để dùng / bỏ">
+              ★ {m.ten}
+            </button>
+          ))}
+          {locDs.filter((c) => c.hien || loc.includes(c.k)).map(({ k, ten: t, mo: g }) => (
+            <button key={k} title={g} className={(loc.includes(k) ? 'on ' : '') + (k === 'canh' && demLoc.canh ? 'nong ' : '') + (k === 'thieu' && demLoc.thieu ? 'am' : '')}
               onClick={() => setLoc((l) => (l.includes(k) ? l.filter((x) => x !== k) : [...l, k]))}>
               {t}<i>{fmtN(demLoc[k])}</i>
             </button>
@@ -586,13 +734,16 @@ function ChiaDoi({ dsDoi, ts }) {
           {(loc.length > 0 || locCotFn.co || boLoc) && <button className="bo" onClick={() => { setLoc([]); setLocCot({}); setBoLocDung(null); }}>Bỏ mọi lọc</button>}
         </div>
         <div className="ch-cong-nut">
-          <MenuBoLoc ds={dsBoLoc} dangDung={boLocDung} onDung={setBoLocDung} onTao={() => setSuaBoLoc('moi')} onSua={(b) => setSuaBoLoc(b)} />
+          <MenuBoLoc ds={dsBoLoc} dangDung={boLocDung} onDung={setBoLocDung} onTao={() => setSuaBoLoc('moi')} onSua={(b) => setSuaBoLoc(b)}
+            an={tc.bo_loc_an || []} laAdmin={laAdmin} onTuyChinh={() => setMoTc(true)} />
           <select className={'ch-sel' + (sap === 'ma_nhom' ? ' on' : '')} value={sap} onChange={(e) => setSap(e.target.value)} title="Sắp xếp">
             {SAP.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
           </select>
-          <button className="btn btn-ai" onClick={() => tuDong(false)} title="Điền gợi ý vào các mã CHƯA nhập — số đã nhập giữ nguyên"><IcSpark /> Tự động chia</button>
-          <button className="btn btn-ghost" onClick={() => tuDong(true)} title="Ghi đè toàn bộ bằng gợi ý">{gon ? 'Điền lại' : 'Điền lại tất cả'}</button>
-          <button className="btn btn-ghost" onClick={xoaSo}>Xoá số</button>
+          <button className="ch-tc-nut" onClick={() => setMoTc(true)} title="Tùy chỉnh Bàn làm việc: ẩn / hiện, sắp lại bộ lọc và cột, lưu bộ lọc của tôi (theo tài khoản)">⚙<span className="ch-an-hep"> Tùy chỉnh</span></button>
+          <button className="btn btn-ai" onClick={() => tuDong(false)} title={`AI đề nghị cho tab ${tenTab}: điền vào mã CHƯA nhập — số đã nhập giữ nguyên${nguonXem === 'tat' ? '' : ', tab khác không đổi'}. Làm tròn theo giá sale, không vượt kho.`}>
+            <IcSpark /> Tự động chia{nguonXem !== 'tat' ? <em className="ch-tab-nho">{tenTab}</em> : null}</button>
+          <button className="btn btn-ghost" onClick={() => tuDong(true)} title={`Ghi đè tab ${tenTab} bằng đề nghị AI`}>{gon ? 'Điền lại' : `Điền lại ${nguonXem === 'tat' ? 'tất cả' : 'tab'}`}</button>
+          <button className="btn btn-ghost" onClick={xoaSo} title={`Xoá số chia thêm tab ${tenTab}`}>Xoá số</button>
         </div>
       </div>
 
@@ -602,16 +753,16 @@ function ChiaDoi({ dsDoi, ts }) {
         <table className="ch-tbl">
           <colgroup>
             <col style={{ width: 40 }} /><col style={{ width: 52 }} /><col style={{ width: 240 }} />
-            <col style={{ width: 70 }} /><col style={{ width: 62 }} /><col style={{ width: 64 }} /><col style={{ width: 70 }} /><col style={{ width: 70 }} />
-            <col style={{ width: 66 }} /><col style={{ width: 92 }} /><col style={{ width: 64 }} /><col style={{ width: 74 }} /><col style={{ width: 74 }} /><col style={{ width: 80 }} />
+            {cotHien.map((c) => <col key={c.k} style={{ width: c.w }} />)}
           </colgroup>
           <thead>
             <tr className="ten">
               <th>#</th><th></th><th className="l">Sản phẩm <span className="ch-dem2">{fmtN(hien.length)}/{fmtN(dong.length)}</span></th>
-              <th title={`Bán trong ${cuaSo} ngày`}>Bán {cuaSo}n</th><th>/ngày</th>
-              <th>Tồn</th><th title="Đang về + đã giữ cho đội chưa xuất">Đang về</th><th title="Số ngày đủ bán với hàng đang có">Đủ (ngày)</th>
-              <th className="c-thung">Thùng</th><th className="c-them">Chia thêm</th><th title="Gợi ý tự động">Gợi ý</th>
-              <th>Tổng nhận</th><th title="Số ngày đủ bán sau khi nhận">Sau nhận</th><th title="Kho SA còn khả dụng sau khi chia cho đội này">Kho còn</th>
+              {cotHien.map((c) => (
+                <th key={c.k} className={{ th: 'c-thung', them: 'c-them', kd: 'c-kd' }[c.k] || ''} title={c.k === 'ban' ? `Bán trong ${cuaSo} ngày` : c.mo}>
+                  {c.k === 'ban' ? `Bán ${cuaSo}n` : c.ten}
+                </th>
+              ))}
             </tr>
             <tr className="loc">
               <th colSpan={2}>
@@ -622,8 +773,8 @@ function ChiaDoi({ dsDoi, ts }) {
                 <input value={locCot.sp || ''} placeholder="Lọc mã, tên, màu…" onChange={(e) => setLocCot((c) => ({ ...c, sp: e.target.value }))}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); diDen(0); } }} />
               </th>
-              {COT_LOC.map((k) => (
-                <th key={k} className={k === 'th' ? 'c-thung' : k === 'them' ? 'c-them' : ''}>
+              {cotHien.map(({ k }) => (
+                <th key={k} className={{ th: 'c-thung', them: 'c-them', kd: 'c-kd' }[k] || ''}>
                   <input className={locCotFn.sai[k] ? 'sai' : locCot[k] ? 'co' : ''} value={locCot[k] || ''} inputMode="text"
                     title={'Lọc cột: gõ 5 (bằng), >5, >=5, <3, <=3, !=0, hoặc khoảng 5-10' + (locCotFn.sai[k] ? '\nChưa hiểu cách gõ này — đang bỏ qua' : '')}
                     onChange={(e) => setLocCot((c) => ({ ...c, [k]: e.target.value }))}
@@ -633,7 +784,7 @@ function ChiaDoi({ dsDoi, ts }) {
             </tr>
           </thead>
           <tbody>
-            {dau > 0 && <tr style={{ height: dau * rowH }}><td colSpan={14} /></tr>}
+            {dau > 0 && <tr style={{ height: dau * rowH }}><td colSpan={3 + cotHien.length} /></tr>}
             {hien.slice(dau, cuoi).map((x, j) => {
               const i = dau + j;
               const dauNhom = sap === 'ma_nhom' && (i === 0 || hien[i - 1].nhomMa !== x.nhomMa);
@@ -643,36 +794,18 @@ function ChiaDoi({ dsDoi, ts }) {
                   <td><AnhSP url={x.img} ten={x.mtc} /></td>
                   <td className="l sp">
                     <b>{x.mtc}{x.chay && <i className="ch-chay" title="Bán chạy (top 15%)">●</i>}{x.moi && <i className="ch-moi">mới</i>}
-                      {x.pk && <i className="ch-pk" title="Phụ kiện — chia từ kho PK05001, phiếu riêng">PK</i>}</b>
+                      {x.pk && <i className="ch-pk" title="Phụ kiện — chia từ kho PK05001, phiếu riêng">PK</i>}
+                      {!x.pk && x.gia ? <i className={'ch-gia' + (x.nguonGia && x.nguonGia !== 'sp' ? ' uoc' : '')}
+                        title={x.nguonGia === 'sp' ? `Giá sale ${kGia(x.gia)} (DATA SẢN PHẨM)` : `Giá sale ${kGia(x.gia)} — lấy theo ${x.nguonGia === 'ban' ? 'giá bán nhiều nhất 90 ngày' : 'giá chung của mẫu'} (DATA SẢN PHẨM chưa có)`}>{kGia(x.gia)}</i> : null}
+                      {x.canh.length > 0 && !cotHien.some((c) => c.k === 'kd') && <IcAlert className="ch-i-canh" />}</b>
                     <small>{dauNhom && x.soNhom > 1 ? <span className="ch-nhom-tong" title={`Nhóm ${x.nhomMa}: cộng bán ${x.soNhom} size`}>Σ {x.nhomMa} bán {fmtN(x.banNhom)} · {x.soNhom} size · </span> : null}{x.n3 || x.n1}</small>
                   </td>
-                  <td className={x.ban ? 'dam' : 'mo'}>{x.ban || '·'}</td>
-                  <td className={x.v ? 'phu' : 'mo'}>{x.v ? x.v.toFixed(1) : '·'}</td>
-                  <td className={x.ton ? '' : 'mo'}>{x.ton || '·'}</td>
-                  <td className={x.ve ? 've' : 'mo'}>{x.ve ? (x.ve > 0 ? '+' + x.ve : x.ve) : '·'}</td>
-                  <td><Ngay n={x.nd} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></td>
-                  <td className="c-thung">{x.th || <span className="mo">·</span>}</td>
-                  <td className="c-them">
-                    <input type="number" inputMode="numeric" min={0} data-r={i} value={x.them || ''} placeholder="·"
-                      onChange={(e) => datSo(x.bc, e.target.value)}
-                      onFocus={(e) => e.target.select()}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); diDen(i + (e.shiftKey && e.key === 'Enter' ? -1 : 1)); }
-                        else if (e.key === 'ArrowUp') { e.preventDefault(); diDen(i - 1); }
-                        else if (e.key === ' ' || e.key === '+') { e.preventDefault(); datSo(x.bc, x.goiY); }
-                      }} />
-                  </td>
-                  <td className={x.goiY ? 'gy' : 'mo'} onClick={() => x.goiY && datSo(x.bc, x.goiY)} title={x.goiY ? `Bấm để lấy ${x.goiY} (hoặc phím Space trong ô)` : ''}>{x.goiY || '·'}</td>
-                  <td className={x.nhan ? 'dam' : 'mo'}>{x.nhan || '·'}</td>
-                  <td><Ngay n={x.nhan ? x.ndSau : null} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></td>
-                  <td className={x.khoCon < 0 ? 'vuot' : x.kd ? '' : 'mo'} title={x.canh.join('\n')}>
-                    {x.canh.length > 0 && <IcAlert className="ch-i-canh" />}{fmtN(x.khoCon)}
-                  </td>
+                  {cotHien.map(({ k }) => oCot(k, x, i))}
                 </tr>
               );
             })}
-            {cuoi < hien.length && <tr style={{ height: (hien.length - cuoi) * rowH }}><td colSpan={14} /></tr>}
-            {hien.length === 0 && kq && <tr><td colSpan={14} className="dsl-trong">Không có mã nào khớp bộ lọc.</td></tr>}
+            {cuoi < hien.length && <tr style={{ height: (hien.length - cuoi) * rowH }}><td colSpan={3 + cotHien.length} /></tr>}
+            {hien.length === 0 && kq && <tr><td colSpan={3 + cotHien.length} className="dsl-trong">Không có mã nào khớp bộ lọc.</td></tr>}
           </tbody>
         </table>)}
       </div>
@@ -741,7 +874,7 @@ function ChiaDoi({ dsDoi, ts }) {
       </div>
       {moGhi && (
         <div className="tq-ghi ch-ghi2">
-          Gợi ý = bán/ngày × {mucTieu} ngày × {heSo}% − (tồn + đang về) − hàng trong thùng, không vượt kho khả dụng (hàng Sale: SA; phụ kiện: PK05001). Mã không bán trong {cuaSo} ngày không gợi ý.
+          Gợi ý = bán/ngày × {mucTieu} ngày × {heSo}% − (tồn + đang về) − hàng trong thùng, rồi LÀM TRÒN LÊN theo giá sale: 250k → 5, 10, 15… · 350k → 3, 5, 10… · từ 400k → 5, 10…; lưỡi bội 5; túi ráp chỉ S, M bước 200 (chưa có số bán: mặc định 400). Không bao giờ vượt kho khả dụng (hàng Sale: SA; phụ kiện: PK05001) — thiếu thì cảnh báo, bấm ⇄ để chọn mã thay thế (cùng giá, cùng màu, cùng size; khác màu phải xác nhận). Mã không bán trong {cuaSo} ngày không gợi ý. “Tự động chia” chỉ điền cho tab đang chọn.
           “Đội đủ bán” chỉ tính hàng bán, không tính phụ kiện. Sắp “Theo mã sản phẩm”: gộp các size cùng mẫu-màu, nhóm bán nhiều (cộng mọi size) đứng trước, size xếp S → M → L → XL.
           Phím: Enter/↓ xuống · ↑ lên · Space điền gợi ý. Kho còn = tồn dự tính SA05001 + SA05002 − phần đang giữ − chia thêm (thùng KHÔNG trừ kho SA).
           Hàng thùng: số = cộng các dòng ruột thùng (không lấy số ghi ở dòng thùng), lấy hàng ở TK05005, phiếu riêng ghi kho SA, không cần SA đủ tồn.
@@ -759,182 +892,64 @@ function Ngay({ n, sapHet, mucTieu, tonLau }) {
 }
 
 // ============================================================================
-// 2. CHIA ĐỒNG LOẠT (mẫu mới / đợt bổ sung): mã × đội
+// MÃ THAY THẾ khi thiếu kho (v3.112.0) — không tự lấy: anh bấm mới thêm
+//   1. Cùng mẫu-màu, size khác còn kho
+//   2. Cùng giá + cùng họ màu + cùng size, mẫu khác (xếp theo đội bán, rồi toàn mạng)
+//   3. Cùng giá + cùng size nhưng KHÁC MÀU — phải xác nhận
 // ============================================================================
-function ChiaLoat({ dsDoi, ts }) {
-  const { user, baoToast } = useApp();
-  const nguoi = user?.ma_dang_nhap || '';
-  const [nhap, datNhap, ttLuu, xoaNhap] = useNhap(nguoi, 'loat', { doi: [], ma: [], sua: {} });
-  const chonDoi = nhap.doi || [], dsMa = nhap.ma || [], sua = nhap.sua || {};
-  const [sp, setSp] = useState([]);           // số liệu các mã đã chọn
-  const [tim, setTim] = useState('');
-  const [chiMoi, setChiMoi] = useState(false);
-  const [kqTim, setKqTim] = useState([]);
-  const [hienSo, setHienSo] = useState(false);
-  const [gui, setGui] = useState(false);
-  const doiSx = useMemo(() => [...dsDoi].sort((a, b) => a.ma_ch.localeCompare(b.ma_ch)), [dsDoi]);
-  const tenDoi = (m) => tenNgan(dsDoi.find((d) => d.ma_ch === m)?.ten || m);
-
-  useEffect(() => {
-    const t = setTimeout(() => sb.rpc('fn_ds_sp_tim', { p_q: tim, p_moi: chiMoi, p_gioi_han: 40 }).then(({ data }) => setKqTim(data || [])), 220);
-    return () => clearTimeout(t);
-  }, [tim, chiMoi]);
-  const taiSp = () => {
-    if (!dsMa.length) { setSp([]); return; }
-    sb.rpc('fn_ds_chia_loat', { p_doi: chonDoi.length ? chonDoi : ['-'], p_barcodes: dsMa, p_cua_so: ts.cua_so || 28 })
-      .then(({ data, error }) => { if (error) baoToast('Lỗi: ' + error.message); else setSp(data || []); });
+function HopThayThe({ x, dong, cuaSo, tenDoi, onThem, onDong, baoToast }) {
+  const coGia = x.gia != null;
+  const sx = (a, b) => b.ban - a.ban || b.banMang - a.banMang || b.khoCon - a.khoCon;
+  const conKho = (y) => !y.pk && y.bc !== x.bc && y.khoCon > 0;
+  const nhom = [
+    { k: 'size', ten: `Cùng mẫu-màu ${x.nhomMa}, size khác`, ds: dong.filter((y) => conKho(y) && y.nhomMa === x.nhomMa).sort(sx).slice(0, 6) },
+    { k: 'mau', ten: coGia ? `Cùng giá ${kGia(x.gia)} · cùng màu ${x.hm || '?'} · size ${x.size || '—'}` : 'Cùng giá · cùng màu (mã này chưa có giá sale)',
+      ds: coGia ? dong.filter((y) => conKho(y) && y.gia === x.gia && y.hm === x.hm && y.size === x.size && y.nhomMa !== x.nhomMa).sort(sx).slice(0, 6) : [] },
+    { k: 'khac', ten: coGia ? `Cùng giá ${kGia(x.gia)} · size ${x.size || '—'} · KHÁC MÀU — cần xác nhận` : 'Khác màu', khac: true,
+      ds: coGia ? dong.filter((y) => conKho(y) && y.gia === x.gia && y.hm !== x.hm && y.size === x.size).sort(sx).slice(0, 6) : [] },
+  ];
+  const them = (y, khac) => {
+    const q = Math.min(lenMuc(x.thieu, y.qt), xuongMuc(y.khoCon, y.qt));
+    if (q <= 0) { baoToast(`${y.mtc}: kho còn ${y.khoCon} — chưa đủ 1 mức làm tròn (${y.qt.nhan})`); return; }
+    if (khac && !window.confirm(`Thay bằng mã KHÁC MÀU?\n\n${x.mtc} (màu ${x.hm || '?'}) thiếu ${x.thieu}\n→ thêm ${q} cái ${y.mtc} (màu ${y.hm || '?'})\n\nĐội ${tenDoi} sẽ nhận màu khác với đề nghị.`)) return;
+    onThem(y.bc, (y.them || 0) + q);
+    baoToast(`Đã thêm ${q} cái ${y.mtc} thay cho ${x.mtc}${khac ? ' (khác màu — đã xác nhận)' : ''}`);
   };
-  useEffect(() => { taiSp(); }, [dsMa.join(','), chonDoi.join(',')]);   // eslint-disable-line
-
-  const themMa = (bc) => { if (!dsMa.includes(bc)) datNhap((d) => ({ ...d, ma: [...(d.ma || []), bc] })); };
-  const boMa = (bc) => datNhap((d) => ({ ...d, ma: (d.ma || []).filter((x) => x !== bc) }));
-  const togDoi = (m) => datNhap((d) => ({ ...d, doi: (d.doi || []).includes(m) ? d.doi.filter((x) => x !== m) : [...(d.doi || []), m].sort() }));
-  const k = (bc, m) => bc + '|' + m;
-  const gt = (bc, m) => sua[k(bc, m)] || 0;
-  const datO = (bc, m, v) => datNhap((d) => ({ ...d, sua: { ...(d.sua || {}), [k(bc, m)]: so(v) } }));
-  const dienDong = (bc, v) => datNhap((d) => { const s = { ...(d.sua || {}) }; chonDoi.forEach((m) => { s[k(bc, m)] = so(v); }); return { ...d, sua: s }; });
-  const chiaDeu = (bc, tongSo) => {
-    const n = chonDoi.length; if (!n) return;
-    const t = so(tongSo), moi = Math.floor(t / n), du = t % n;
-    datNhap((d) => { const s = { ...(d.sua || {}) }; chonDoi.forEach((m, i) => { s[k(bc, m)] = moi + (i < du ? 1 : 0); }); return { ...d, sua: s }; });
-  };
-  const chiaTheoBan = (bc, tongSo) => {
-    const r = sp.find((x) => x.barcode === bc); const t = so(tongSo);
-    const w = chonDoi.map((m) => (r?.o?.[m]?.[1] || 0) + 1), W = w.reduce((a, b) => a + b, 0);
-    let con = t;
-    const v = w.map((x, i) => { const a = i === w.length - 1 ? con : Math.floor((t * x) / W); con -= a; return a; });
-    datNhap((d) => { const s = { ...(d.sua || {}) }; chonDoi.forEach((m, i) => { s[k(bc, m)] = v[i]; }); return { ...d, sua: s }; });
-  };
-
-  const dong = sp.map((r) => {
-    const tongR = chonDoi.reduce((a, m) => a + gt(r.barcode, m), 0);
-    return { ...r, tongR, con: r.kd1 + r.kd2 - tongR };
-  });
-  const tongCot = Object.fromEntries(chonDoi.map((m) => [m, dong.reduce((a, r) => a + gt(r.barcode, m), 0)]));
-  const tongAll = dong.reduce((a, r) => a + r.tongR, 0);
-  const vuot = dong.filter((r) => r.con < 0).length;
-
-  const diDen = (r, c) => { const o = document.querySelector(`.cl-tbl input[data-r="${r}"][data-c="${c}"]`); if (o) { o.focus(); o.select(); } };
-  const phim = (e, r, c) => {
-    const m = { Enter: [e.shiftKey ? -1 : 1, 0], ArrowDown: [1, 0], ArrowUp: [-1, 0], ArrowRight: [0, 1], ArrowLeft: [0, -1] }[e.key];
-    if (!m) return;
-    e.preventDefault(); diDen(r + m[0], c + m[1]);
-  };
-
-  const xacNhan = async () => {
-    const dongGui = [];
-    dong.forEach((r) => chonDoi.forEach((m) => { const v = gt(r.barcode, m); if (v > 0) dongGui.push({ ma_ch: m, barcode: r.barcode, sl: v, sl_thung: 0 }); }));
-    if (!dongGui.length) { baoToast('Chưa có số nào'); return; }
-    if (vuot) { baoToast(`${vuot} mã chia vượt kho khả dụng — sửa trước khi xác nhận`); return; }
-    setGui(true);
-    const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'loat', nguoi, khoa_nhap: 'loat', dong: dongGui, thung: [] } });
-    setGui(false);
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    if (!data?.ok) { baoLoiXacNhan(data, baoToast); taiSp(); return; }
-    try { await xuatHaiFile(data); } catch { baoToast('Đã giữ tồn, xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
-    await xoaNhap();
-    baoToast(`Đã xác nhận ${data.ma_phieu}: ${fmtN(tongAll)} cái cho ${chonDoi.length} đội`);
-  };
-
   return (
-    <div className="cl">
-      <div className="card cl-buoc">
-        <div className="cl-dau"><b>1 · Đội nhận</b><span className="tq-ghi">{chonDoi.length} đội</span>
-          <div className="bc-nhanh">
-            <button onClick={() => datNhap((d) => ({ ...d, doi: doiSx.map((x) => x.ma_ch) }))}>Tất cả</button>
-            <button onClick={() => datNhap((d) => ({ ...d, doi: doiSx.filter((x) => !x.moi).map((x) => x.ma_ch) }))}>Trừ đội mới</button>
-            <button onClick={() => datNhap((d) => ({ ...d, doi: [] }))}>Bỏ chọn</button>
+    <div className="kt-modal" onMouseDown={(e) => { if (e.target === e.currentTarget) onDong(); }}>
+      <div className="thay-hop">
+        <div className="thay-dau">
+          <div>
+            <small>Thiếu kho — chọn mã thay thế cho {tenDoi}</small>
+            <b>{x.mtc}</b>
+            <span>Đề nghị {x.len} ({x.qt.nhan}) · kho còn {fmtN(x.kd)} → chỉ chia được {x.goiY} · <em>thiếu {x.thieu}</em></span>
           </div>
-          <TrangThaiLuu tt={ttLuu} />
+          <button className="kt-dong" onClick={onDong}>×</button>
         </div>
-        <div className="bc-chips">
-          {doiSx.map((d) => (
-            <button key={d.ma_ch} className={'bc-chip' + (chonDoi.includes(d.ma_ch) ? ' on' : '')} onClick={() => togDoi(d.ma_ch)}>
-              {chonDoi.includes(d.ma_ch) && <IcCheck />}<span>{tenNgan(d.ten)}</span>
-            </button>
+        <div className="thay-than">
+          {nhom.map((g) => (
+            <div key={g.k} className={'thay-nhom' + (g.khac ? ' khac' : '')}>
+              <div className="thay-nhom-dau">{g.khac ? <IcAlert /> : <IcCheck />}<b>{g.ten}</b><span>{g.ds.length ? `${g.ds.length} mã` : 'không có'}</span></div>
+              {g.ds.map((y) => {
+                const q = Math.min(lenMuc(x.thieu, y.qt), xuongMuc(y.khoCon, y.qt));
+                return (
+                  <div key={y.bc} className="thay-dong">
+                    <AnhSP url={y.img} ten={y.mtc} />
+                    <div className="thay-ma"><b>{y.mtc}</b><small>{y.n3 || ''}{y.gia ? ` · ${kGia(y.gia)}` : ''}</small></div>
+                    <div className="thay-so"><span>Đội bán <b>{fmtN(y.ban)}</b></span><span>Mạng <b>{fmtN(y.banMang)}</b>/{cuaSo}n</span><span>Kho <b>{fmtN(y.khoCon)}</b></span>
+                      {y.them > 0 && <span className="dang">đang chia {y.them}</span>}</div>
+                    <button className={'thay-nut' + (g.khac ? ' khac' : '')} disabled={q <= 0} onClick={() => them(y, g.khac)}
+                      title={q > 0 ? `Thêm ${q} vào Chia thêm của ${y.mtc}` : 'Kho chưa đủ 1 mức làm tròn'}>
+                      {q > 0 ? `+${q}` : '—'}{g.khac ? ' · xác nhận' : ''}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           ))}
         </div>
+        <div className="thay-chan">Không tự lấy hàng thay thế: chỉ thêm khi anh bấm. Số thêm = phần thiếu, làm tròn lên theo giá của mã thay thế, không vượt kho của mã đó.</div>
       </div>
-
-      <div className="card cl-buoc">
-        <div className="cl-dau"><b>2 · Mã cần chia</b><span className="tq-ghi">{dsMa.length} mã</span>
-          <label className="bc-tick"><input type="checkbox" checked={chiMoi} onChange={(e) => setChiMoi(e.target.checked)} /> Chỉ mã mới (45 ngày)</label>
-        </div>
-        <div className="cl-tim">
-          <input className="flt-in" placeholder="Tìm mã / tên rồi Enter để thêm mã đầu tiên…" value={tim} onChange={(e) => setTim(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && kqTim[0]) { e.preventDefault(); themMa(kqTim[0].barcode); setTim(''); } }} />
-          <div className="cl-kq">
-            {kqTim.filter((x) => !dsMa.includes(x.barcode)).slice(0, 14).map((x) => (
-              <button key={x.barcode} onClick={() => themMa(x.barcode)} title={x.nganh_3}>
-                <b>{x.ma_tham_chieu}</b><span>kho {fmtN(x.kd1 + x.kd2)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {dsMa.length > 0 && chonDoi.length > 0 && (<>
-        <div className="ch-tool">
-          <b>3 · Nhập số</b>
-          <label className="bc-tick"><input type="checkbox" checked={hienSo} onChange={(e) => setHienSo(e.target.checked)} /> Hiện tồn/bán của đội</label>
-          <span className="tq-ghi">Enter / mũi tên để di chuyển · ô “Điền đều” điền 1 số cho mọi đội · “Chia tổng” chia đều hoặc theo sức bán</span>
-        </div>
-        <div className="card cl-bang">
-          <table className="cl-tbl">
-            <thead>
-              <tr>
-                <th className="cl-sp">Sản phẩm</th>
-                <th className="n">Kho</th>
-                <th className="n">Điền đều</th>
-                <th className="n">Chia tổng</th>
-                {chonDoi.map((m) => <th key={m} className="n">{tenDoi(m)}</th>)}
-                <th className="n">Tổng</th><th className="n">Kho còn</th><th />
-              </tr>
-            </thead>
-            <tbody>
-              {dong.map((r, ri) => (
-                <tr key={r.barcode} className={r.con < 0 ? 'canh' : ''}>
-                  <td className="cl-sp"><div className="cl-sp-in"><AnhSP url={r.hinh_url} ten={r.ma_tham_chieu} /><div><b>{r.ma_tham_chieu}</b><small>{r.nganh_3}</small></div></div></td>
-                  <td className="n">{fmtN(r.kd1 + r.kd2)}</td>
-                  <td className="n"><input className="cl-cong" placeholder="·" onKeyDown={(e) => { if (e.key === 'Enter') { dienDong(r.barcode, e.currentTarget.value); e.currentTarget.value = ''; } }} title="Gõ số rồi Enter: điền cho mọi đội" /></td>
-                  <td className="n"><input className="cl-cong" placeholder="·" title="Gõ tổng rồi Enter: chia đều · Shift+Enter: chia theo sức bán"
-                    onKeyDown={(e) => { if (e.key === 'Enter') { (e.shiftKey ? chiaTheoBan : chiaDeu)(r.barcode, e.currentTarget.value); e.currentTarget.value = ''; } }} /></td>
-                  {chonDoi.map((m, ci) => {
-                    const o = r.o?.[m];
-                    return (
-                      <td key={m} className="n cl-o">
-                        <input type="number" min={0} data-r={ri} data-c={ci} value={gt(r.barcode, m) || ''} placeholder="·"
-                          onChange={(e) => datO(r.barcode, m, e.target.value)} onFocus={(e) => e.target.select()} onKeyDown={(e) => phim(e, ri, ci)} />
-                        {hienSo && <small>{o ? `có ${o[0]} · bán ${o[1]}` : '—'}</small>}
-                      </td>
-                    );
-                  })}
-                  <td className="n dam">{fmtN(r.tongR)}</td>
-                  <td className={'n ' + (r.con < 0 ? 'vuot' : '')}>{fmtN(r.con)}</td>
-                  <td><button className="cl-bo" onClick={() => boMa(r.barcode)} title="Bỏ mã">×</button></td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td className="cl-sp"><b>Tổng</b></td><td /><td /><td />
-                {chonDoi.map((m) => <td key={m} className="n dam">{fmtN(tongCot[m])}</td>)}
-                <td className="n dam">{fmtN(tongAll)}</td><td /><td />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        <div className="ch-chan">
-          <div className="ch-chan-so">
-            <span><b>{dsMa.length}</b> mã × <b>{chonDoi.length}</b> đội</span>
-            <span className="tong">Tổng giao <b>{fmtN(tongAll)}</b> cái</span>
-            {vuot > 0 && <span className="ch-canh-nut do"><IcAlert /> {vuot} mã vượt kho</span>}
-          </div>
-          <button className="btn btn-ai ch-xn" disabled={gui || !tongAll} onClick={xacNhan}>
-            <IcDown /> {gui ? 'Đang giữ tồn…' : `Xác nhận & xuất file (${fmtN(tongAll)})`}
-          </button>
-        </div>
-      </>)}
     </div>
   );
 }
@@ -967,7 +982,8 @@ function DsPhieu() {
             : ds.map((p) => (
               <tr key={p.id}>
                 <td><b>{p.ma_phieu}</b> <span className={'ch-nguon ' + ({ TK: 'tk', PK: 'pk' }[p.nguon] || 'sa')}>{{ TK: 'Thùng · TK05005', PK: 'Phụ kiện · PK05001' }[p.nguon] || 'Sale · SA'}</span>
-                  <div className="tq-ghi">{p.loai === 'loat' ? 'Đồng loạt' : 'Từng đội'}{p.ma_lien_quan ? ` · đi cùng ${p.ma_lien_quan}` : ''}</div></td>
+                  <div className="tq-ghi">{p.loai === 'loat' ? 'Chia hàng mới' : 'Từng đội'}{p.ma_lien_quan ? ` · đi cùng ${p.ma_lien_quan}` : ''}</div>
+                  {p.ghi_chu && <div className="ch-phieu-gc" title="Ghi chú — ghi ở dòng 1 của file">✎ {p.ghi_chu}</div>}</td>
                 <td><span className={'ch-tt ' + TT[p.trang_thai][1]}>{ttTen(p)}</span></td>
                 <td>{(p.doi || []).map(tenNgan).join(', ')}</td>
                 <td className="num">{fmtN(p.so_ma)}</td>
@@ -976,7 +992,7 @@ function DsPhieu() {
                 <td className="tq-ghi">{(p.thung || []).join(', ') || '—'}</td>
                 <td className="tq-ghi">{p.nguoi || '—'} · {ngayGio(p.tao_luc)}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
-                  <button className="btn" onClick={() => xuatPhieu(p.id, p.ma_phieu).catch((e) => baoToast('Lỗi: ' + e.message))}><IcDown /> File</button>
+                  <button className="btn" onClick={() => xuatPhieu(p.id, p.ma_phieu, p.ghi_chu).catch((e) => baoToast('Lỗi: ' + e.message))}><IcDown /> File</button>
                   {p.trang_thai === 'xac_nhan' && <>
                     <button className="btn" onClick={() => doiTt(p, 'da_xuat')}><IcCheck /> Đã xuất</button>
                     <button className="btn" onClick={() => doiTt(p, 'huy')}>Huỷ</button>

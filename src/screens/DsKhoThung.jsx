@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { IcBox, IcCheck, IcAlert, IcDown, IcRefresh } from '../lib/icons.jsx';
-import { fmtN, tenNgan, ngayGio, lsGet, lsSet, useNhap, TrangThaiLuu, xuatHaiFile, xuatPhieu, tenPhieu, baoLoiXacNhan, NHAN_DIEN } from './dsChung.jsx';
+import { fmtN, tenNgan, ngayGio, lsGet, lsSet, useNhap, TrangThaiLuu, xuatHaiFile, xuatPhieu, tenPhieu, baoLoiXacNhan, NHAN_DIEN,
+  useHoiGhiChu, ghiChuMacDinh, nhoGhiChu } from './dsChung.jsx';
 import { mucDiem } from './DsGoiYThung.jsx';
 
 // ============================================================================
@@ -54,6 +55,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
   const [doi, setDoi] = useState(() => chon?.doi || lsGet('kt_doi') || '');
   const [xemTruoc, setXemTruoc] = useState(false);
   const [gui, setGui] = useState(false);
+  const [hoiGhiChu, hopGhiChu] = useHoiGhiChu();
   const [xong, setXong] = useState(null);
   const [soHien, setSoHien] = useState(240);
 
@@ -204,14 +206,18 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
     if (chon) { chon.onXong(gioHopLe); chon.onDong(); return; }
     if (!doi) { baoToast('Chọn đội nhận'); return; }
     if (!gioHopLe.length) { baoToast('Chưa chọn thùng nào còn chia được'); return; }
-    if (!window.confirm(`Cấp ${gioHopLe.length} thùng · ${fmtN(tongGio.cai)} cái cho ${tenDoi}?\nPhiếu ghi kho SA, hàng lấy ở TK05005. Tạo phiếu thùng + xuất file.`)) return;
+    // v3.112.0: hộp ghi chú thay cho hộp hỏi lại — Huỷ = không cấp
+    const ghiChu = await hoiGhiChu({ macDinh: ghiChuMacDinh(doi, doiSx.find((d) => d.ma_ch === doi)?.ten || tenDoi), tieuDe: `Cấp ${gioHopLe.length} thùng · ${fmtN(tongGio.cai)} cái cho ${tenDoi}`,
+      nutXong: 'Cấp thùng & xuất file', phu: 'Phiếu ghi kho SA, hàng lấy ở TK05005. Tạo phiếu thùng + xuất file.' });
+    if (ghiChu === null) return;
+    nhoGhiChu(doi, ghiChu);
     setGui(true);
-    const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'doi', nguoi, khoa_nhap: 'thung:' + doi, dong: [],
+    const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'doi', nguoi, khoa_nhap: 'thung:' + doi, dong: [], ghi_chu: ghiChu || null,
       thung: gioHopLe.map((t) => ({ ma_thung: t, ma_ch: doi })) } });
     setGui(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     if (!data?.ok) { baoLoiXacNhan(data, baoToast); tai(); return; }
-    try { await xuatHaiFile(data); } catch { baoToast('Đã xác nhận nhưng xuất file lỗi — tải lại ở Phiếu đã chia'); }
+    try { await xuatHaiFile(data, ghiChu); } catch { baoToast('Đã xác nhận nhưng xuất file lỗi — tải lại ở Phiếu đã chia'); }
     await xoaNhap();
     setXong({ ...data, doi, so: gioHopLe.length, cai: tongGio.cai });
     setXemTruoc(false);
@@ -223,6 +229,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
 
   return (
     <div className={'kt' + (chon ? ' kt-chon' : '')}>
+      {hopGhiChu}
       {/* ===== Tổng quan ===== */}
       <div className="kt-kpi">
         <button className={'kt-o o-tong' + (loc === 'tat' ? ' on' : '')} onClick={() => setLoc('tat')}>
@@ -324,7 +331,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
         <div className="kt-gio-nut">
           {xong && !chon && xong.doi === doi && !gioHopLe.length ? (
             <span className="kt-xong"><IcCheck /> {xong.ma_phieu_thung} · {xong.so} thùng · {fmtN(xong.cai)} cái · đã xuất file
-              <button className="btn btn-ghost" onClick={() => xuatPhieu(xong.id_thung, xong.ma_phieu_thung).catch((e) => baoToast('Lỗi: ' + e.message))}><IcDown /> Tải lại</button></span>
+              <button className="btn btn-ghost" onClick={() => xuatPhieu(xong.id_thung, xong.ma_phieu_thung, lsGet('ghi_chu.' + xong.doi)).catch((e) => baoToast('Lỗi: ' + e.message))}><IcDown /> Tải lại</button></span>
           ) : <>
             <button className="btn btn-ghost" disabled={!gioHopLe.length} onClick={() => setXemTruoc((v) => !v)}>{xemTruoc ? 'Ẩn xem trước' : 'Xem trước ruột'}</button>
             {gio.length > 0 && <button className="btn btn-ghost" onClick={() => datGio(() => [])}>Bỏ hết</button>}

@@ -31,8 +31,8 @@ export function useBoLoc(nguoi) {
   return [ds, tai];
 }
 
-// Nút + bảng thả danh sách bộ lọc
-export function MenuBoLoc({ ds, dangDung, onDung, onTao, onSua }) {
+// Nút + bảng thả danh sách bộ lọc — bộ lọc CHUNG (Admin quản) + bộ lọc RIÊNG; ẩn theo Tùy chỉnh (v3.112.0)
+export function MenuBoLoc({ ds, dangDung, onDung, onTao, onSua, an = [], laAdmin = false, onTuyChinh }) {
   const [mo, setMo] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -41,24 +41,31 @@ export function MenuBoLoc({ ds, dangDung, onDung, onTao, onSua }) {
     document.addEventListener('mousedown', f);
     return () => document.removeEventListener('mousedown', f);
   }, [mo]);
+  const hien = ds.filter((b) => !an.includes(b.id));
+  const chung = hien.filter((b) => b.chung), rieng = hien.filter((b) => !b.chung);
+  const dongBL = (b) => (
+    <div key={b.id} className={'bl-dong' + (dangDung === b.id ? ' on' : '')}>
+      <button className="bl-ten" onClick={() => { onDung(dangDung === b.id ? null : b.id); setMo(false); }}>
+        {dangDung === b.id && <IcCheck />}<b>{b.ten}</b><span>{fmtN(b.ma.length)} SKU</span>
+      </button>
+      {(b.cua_toi !== false && !b.chung) || laAdmin
+        ? <button className="bl-sua" onClick={() => { onSua(b); setMo(false); }} title={b.chung ? 'Sửa / xoá bộ lọc chung (Admin)' : 'Sửa / xoá'}>Sửa</button> : null}
+    </div>
+  );
   return (
     <div className="bl-menu" ref={ref}>
       <button className={'bl-nut' + (dangDung ? ' on' : '')} onClick={() => setMo((v) => !v)}>
-        <IcLoc /> Bộ lọc riêng{ds.length > 0 && <i>{ds.length}</i>}
+        <IcLoc /> Bộ lọc mã{hien.length > 0 && <i>{hien.length}</i>}
       </button>
       {mo && (
         <div className="bl-tha">
+          {chung.length > 0 && <><div className="bl-tha-dau">Bộ lọc chung <em className="bl-chung">do Admin quản lý</em></div>{chung.map(dongBL)}</>}
           <div className="bl-tha-dau">Bộ lọc của tôi</div>
-          {ds.length === 0 && <div className="bl-tha-trong">Chưa có bộ lọc nào. Tạo bộ lọc để gom các mã hay chia (theo màu, theo mẫu…).</div>}
-          {ds.map((b) => (
-            <div key={b.id} className={'bl-dong' + (dangDung === b.id ? ' on' : '')}>
-              <button className="bl-ten" onClick={() => { onDung(dangDung === b.id ? null : b.id); setMo(false); }}>
-                {dangDung === b.id && <IcCheck />}<b>{b.ten}</b><span>{fmtN(b.ma.length)} SKU</span>
-              </button>
-              <button className="bl-sua" onClick={() => { onSua(b); setMo(false); }} title="Sửa / xoá">Sửa</button>
-            </div>
-          ))}
+          {rieng.length === 0 && <div className="bl-tha-trong">Chưa có bộ lọc riêng. Tạo bộ lọc để gom các mã hay chia (theo màu, theo mẫu…).</div>}
+          {rieng.map(dongBL)}
           <button className="bl-tao" onClick={() => { onTao(); setMo(false); }}>+ Tạo bộ lọc</button>
+          {onTuyChinh && <button className="bl-tao phu" onClick={() => { onTuyChinh(); setMo(false); }}>Ẩn / hiện bộ lọc…</button>}
+          {an.length > 0 && <div className="bl-tha-trong">Đang ẩn {an.length} bộ lọc — mở Tùy chỉnh để hiện lại.</div>}
         </div>
       )}
     </div>
@@ -69,6 +76,8 @@ export function MenuBoLoc({ ds, dangDung, onDung, onTao, onSua }) {
 export function HopBoLoc({ ban, onDong, onXong }) {
   const { user, baoToast } = useApp();
   const nguoi = user?.ma_dang_nhap || '';
+  const laAdmin = user?.vai_tro === 'ADMIN';
+  const [chung, setChung] = useState(!!ban?.chung);
   const [ten, setTen] = useState(ban?.ten || '');
   const [q, setQ] = useState(ban?.tu_khoa || '');
   const [kq, setKq] = useState(null);
@@ -119,16 +128,22 @@ export function HopBoLoc({ ban, onDong, onXong }) {
     if (!ten.trim()) { baoToast('Đặt tên cho bộ lọc'); return; }
     if (!daChon.length) { baoToast('Chưa chọn SKU nào'); return; }
     setGui(true);
-    const { data, error } = await sb.rpc('fn_ds_bo_loc_luu', { p_nguoi: nguoi, p_id: ban?.id || null, p_ten: ten.trim(),
-      p_ma: daChon.sort((a, b) => a.m.localeCompare(b.m)), p_tu_khoa: q.trim() || null });
+    const ma = daChon.sort((a, b) => a.m.localeCompare(b.m));
+    // Admin: bộ lọc chung (hoặc đang sửa bộ lọc chung) đi qua hàm kiểm quyền Admin trên máy chủ
+    const quaAdmin = laAdmin && (chung || ban?.chung);
+    const { data, error } = quaAdmin
+      ? await sb.rpc('fn_ds_bo_loc_chung', { p_token: user?.token, p_id: ban?.id || null, p_ten: ten.trim(), p_ma: ma, p_tu_khoa: q.trim() || null, p_chung: chung })
+      : await sb.rpc('fn_ds_bo_loc_luu', { p_nguoi: nguoi, p_id: ban?.id || null, p_ten: ten.trim(), p_ma: ma, p_tu_khoa: q.trim() || null });
     setGui(false);
     if (error) { baoToast('Không lưu được: ' + error.message); return; }
-    baoToast(`Đã lưu bộ lọc “${ten.trim()}” — ${daChon.length} SKU`);
+    baoToast(`Đã lưu bộ lọc ${chung ? 'CHUNG ' : ''}“${ten.trim()}” — ${daChon.length} SKU`);
     onXong(data);
   };
   const xoa = async () => {
-    if (!window.confirm(`Xoá bộ lọc “${ban.ten}”?`)) return;
-    const { error } = await sb.rpc('fn_ds_bo_loc_xoa', { p_nguoi: nguoi, p_id: ban.id });
+    if (!window.confirm(ban.chung ? `Xoá bộ lọc CHUNG “${ban.ten}”? Mọi người sẽ không còn thấy bộ lọc này.` : `Xoá bộ lọc “${ban.ten}”?`)) return;
+    const { error } = ban.chung
+      ? await sb.rpc('fn_ds_bo_loc_chung_xoa', { p_token: user?.token, p_id: ban.id })
+      : await sb.rpc('fn_ds_bo_loc_xoa', { p_nguoi: nguoi, p_id: ban.id });
     if (error) { baoToast('Không xoá được: ' + error.message); return; }
     baoToast('Đã xoá bộ lọc'); onXong(null, true);
   };
@@ -139,7 +154,7 @@ export function HopBoLoc({ ban, onDong, onXong }) {
     <div className="kt-modal" onMouseDown={(e) => { if (e.target === e.currentTarget) onDong(); }}>
       <div className="bl-hop">
         <div className="bl-hop-dau">
-          <div><small>{ban ? 'Sửa bộ lọc' : 'Tạo bộ lọc mới'}</small>
+          <div><small>{ban ? (ban.chung ? 'Sửa bộ lọc CHUNG (Admin)' : 'Sửa bộ lọc') : 'Tạo bộ lọc mới'}</small>
             <input className="bl-ten-o" value={ten} onChange={(e) => setTen(e.target.value)} placeholder="Tên bộ lọc (vd Màu xám 156)" /></div>
           <button className="kt-dong" onClick={onDong}>×</button>
         </div>
@@ -194,7 +209,12 @@ export function HopBoLoc({ ban, onDong, onXong }) {
           </div>
         </div>
         <div className="bl-hop-chan">
-          {ban && <button className="btn btn-ghost bl-xoa" onClick={xoa}>Xoá bộ lọc</button>}
+          {ban && (!ban.chung || laAdmin) && <button className="btn btn-ghost bl-xoa" onClick={xoa}>Xoá bộ lọc</button>}
+          {laAdmin && (
+            <label className="bl-chung-tick" title="Bộ lọc chung: mọi tài khoản đều thấy, chỉ Admin sửa / xoá; người dùng chỉ ẩn được">
+              <input type="checkbox" checked={chung} onChange={(e) => setChung(e.target.checked)} /> Bộ lọc chung (mọi người thấy)
+            </label>
+          )}
           <span />
           <button className="btn btn-ghost" onClick={onDong}>Huỷ</button>
           <button className="btn btn-ai" disabled={gui} onClick={luu}><IcCheck /> {gui ? 'Đang lưu…' : ban ? 'Lưu thay đổi' : 'Lưu bộ lọc'}</button>

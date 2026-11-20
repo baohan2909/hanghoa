@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
+import { IcDown } from '../lib/icons.jsx';
 
 // Dùng chung cho Chia hàng đội sale + Kho thùng (tách từ DsChiaHang v3.103.0)
 export const fmtN = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
@@ -70,12 +71,27 @@ export function TrangThaiLuu({ tt }) {
   return <span className="ch-luu">Tự lưu khi nhập</span>;
 }
 
+// Ghi chú file xuất (v3.112.0): ghi vào Ô TRỐNG ĐẦU TIÊN của dòng 1, ngay sau cột tiêu đề cuối —
+// không ghi đè ô nào, không dời cột, không thêm dòng -> khuôn nhập Odoo giữ nguyên (cột thừa bỏ qua khi nhập)
+export function ghiDong1(XLSX, ws, ghiChu) {
+  const t = String(ghiChu || '').trim();
+  if (!ws || !t) return null;
+  const r = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+  const c = r.e.c + 1;   // cột đầu tiên còn trống hoàn toàn (sau mọi cột có dữ liệu — không chen vào giữa bảng)
+  const o = XLSX.utils.encode_cell({ r: 0, c });
+  ws[o] = { t: 's', v: t };
+  r.e.c = c; ws['!ref'] = XLSX.utils.encode_range(r);
+  ws['!cols'] = ws['!cols'] || [];
+  ws['!cols'][c] = { wch: Math.min(60, Math.max(18, t.length + 2)) };
+  return o;
+}
+
 // Xuất Excel từ phiếu đã xác nhận (khuôn nhập Odoo như Yêu cầu ĐP)
-export async function xuatPhieu(id, maPhieu) {
+export async function xuatPhieu(id, maPhieu, ghiChu) {
   const { data, error } = await sb.rpc('fn_ds_phieu_ct', { p_id: id });
   if (error) throw error;
   const XLSX = await import('xlsx');
-  if (data?.[0]?.nguon === 'TK') return xuatPhieuThung(XLSX, data, maPhieu);
+  if (data?.[0]?.nguon === 'TK') return xuatPhieuThung(XLSX, data, maPhieu, ghiChu);
   const dong = (data || []).map((r) => ({
     'Kho chuyển': r.tu_kho, 'Tên kho chuyển': KHO_TEN[r.tu_kho] || r.tu_kho,
     'Cửa hàng nhận': r.ma_ch, 'Tên cửa hàng nhận': r.ten_ch,
@@ -88,7 +104,9 @@ export async function xuatPhieu(id, maPhieu) {
     x['Số mã'] += 1; x['Trong thùng'] += r.sl_thung; x['Chia thêm'] += r.sl - r.sl_thung; x['Tổng'] += r.sl;
   });
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dong), 'DieuChuyen');
+  const ws = XLSX.utils.json_to_sheet(dong);
+  ghiDong1(XLSX, ws, ghiChu);
+  XLSX.utils.book_append_sheet(wb, ws, 'DieuChuyen');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(Object.values(doi)), 'TongHopDoi');
   XLSX.writeFile(wb, `${maPhieu}.xlsx`);
   return dong.length;
@@ -98,7 +116,7 @@ export async function xuatPhieu(id, maPhieu) {
 //   Sheet 1 "DieuChuyen" : bảng phẳng (giữ khuôn nhập Odoo), cột Mã thùng đứng đầu
 //   Sheet 2 "PhieuThung" : bản cho kho đọc — đầu phiếu (đội, tổng thùng, tổng SL, danh sách thùng) + từng thùng có dòng cộng
 export const NHAN_DIEN = { ton_kho: 'Có trong dữ liệu tồn kho', danh_muc: 'Chỉ có trong DATA SẢN PHẨM', chua_co: 'Chưa nhận diện' };
-export function xuatPhieuThung(XLSX, data, maPhieu) {
+export function xuatPhieuThung(XLSX, data, maPhieu, ghiChu) {
   const theoThung = [];
   const idx = {};
   data.forEach((r) => {
@@ -150,6 +168,8 @@ export function xuatPhieuThung(XLSX, data, maPhieu) {
   ws2['!cols'] = [{ wch: 6 }, { wch: 18 }, { wch: 24 }, { wch: 16 }, { wch: 34 }, { wch: 10 }, { wch: 28 }];
   const ws1 = XLSX.utils.json_to_sheet(dong);
   ws1['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 26 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 22 }, { wch: 30 }, { wch: 9 }, { wch: 12 }, { wch: 22 }, { wch: 50 }];
+  ghiDong1(XLSX, ws1, ghiChu);
+  ghiDong1(XLSX, ws2, ghiChu);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws1, 'DieuChuyen');
@@ -158,11 +178,11 @@ export function xuatPhieuThung(XLSX, data, maPhieu) {
   return dong.length;
 }
 // Xuất đủ file của 1 lần xác nhận — mỗi nguồn 1 file riêng: Sale (SA) → Phụ kiện (PK05001) → Thùng (TK05005)
-export async function xuatCacFile(kq) {
+export async function xuatCacFile(kq, ghiChu) {
   const ds = [[kq.id, kq.ma_phieu], [kq.id_pk, kq.ma_phieu_pk], [kq.id_thung, kq.ma_phieu_thung]].filter(([id]) => id);
   for (let i = 0; i < ds.length; i++) {
     if (i) await new Promise((r) => setTimeout(r, 600));
-    await xuatPhieu(ds[i][0], ds[i][1]);
+    await xuatPhieu(ds[i][0], ds[i][1], ghiChu);
   }
   return ds.length;
 }
@@ -183,3 +203,43 @@ export function baoLoiXacNhan(kq, baoToast) {
   else baoToast('Không xác nhận được: ' + (kq?.loi || 'lỗi lạ'));
 }
 
+
+// ---------------------------------------------------------------------------
+// Hỏi ghi chú trước khi xuất file (v3.112.0) — const [hoiGhiChu, hopGhiChu] = useHoiGhiChu();
+//   const g = await hoiGhiChu({ macDinh: 'Đội Sale 01 – ' }); if (g === null) return;   // null = huỷ, '' = không ghi chú
+// ---------------------------------------------------------------------------
+export function useHoiGhiChu() {
+  const [hoi, setHoi] = useState(null);
+  const ask = useCallback((o = {}) => new Promise((resolve) => setHoi({ ...o, resolve })), []);
+  const el = hoi ? <HopGhiChu key="gc" {...hoi} onXong={(v) => { hoi.resolve(v); setHoi(null); }} /> : null;
+  return [ask, el];
+}
+// Ghi chú mặc định theo đội: nhớ ghi chú lần trước của đội, chưa có thì "Đội Sale 01 – "
+export const ghiChuMacDinh = (maDoi, tenDoi) => lsGet('ghi_chu.' + (maDoi || '-'))
+  ?? `${String(tenDoi || maDoi || '').replace(/^Đội SALE/i, 'Đội Sale')} – `;
+export const nhoGhiChu = (maDoi, v) => { if (maDoi) lsSet('ghi_chu.' + maDoi, v || ''); };
+
+function HopGhiChu({ tieuDe, macDinh, phu, nutXong, onXong }) {
+  const [v, setV] = useState(macDinh || '');
+  const o = useRef(null);
+  useEffect(() => { setTimeout(() => { const e = o.current; if (e) { e.focus(); const n = e.value.length; e.setSelectionRange(n, n); } }, 40); }, []);
+  return (
+    <div className="kt-modal gc-nen" onMouseDown={(e) => { if (e.target === e.currentTarget) onXong(null); }}>
+      <div className="gc-hop" role="dialog" aria-label="Ghi chú file xuất">
+        <div className="gc-dau">
+          <div><b>{tieuDe || 'Ghi chú cho file xuất'}</b><small>Ghi vào ô trống đầu tiên của dòng 1 (sau cột tiêu đề cuối) — không đổi cột, không thêm dòng, file vẫn nhập Odoo được</small></div>
+          <button className="kt-dong" onClick={() => onXong(null)}>×</button>
+        </div>
+        <input ref={o} className="gc-o" value={v} maxLength={200} placeholder="Vd: Đội Sale 01 – Lạc Long Quân (có thể để trống)"
+          onChange={(e) => setV(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onXong(v.trim()); } else if (e.key === 'Escape') onXong(null); }} />
+        {phu && <div className="gc-phu">{phu}</div>}
+        <div className="gc-chan">
+          <button className="btn btn-ghost" onClick={() => onXong(null)}>Huỷ</button>
+          <button className="btn btn-ghost" onClick={() => onXong('')} title="Xuất file không có ghi chú">Không ghi chú</button>
+          <button className="btn btn-ai gc-xong" onClick={() => onXong(v.trim())}><IcDown /> {nutXong || 'Xác nhận & xuất'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
