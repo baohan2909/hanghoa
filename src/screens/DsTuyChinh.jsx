@@ -88,8 +88,8 @@ function DsKeo({ ds, onDoi }) {
 //   locDs / cotDs: danh sách đã ghép (sapTheo) — mỗi mục {k, ten, mo, hien, khoa}
 //   hienTai: tổ hợp lọc đang dùng {loc, locCot, nguonXem, sap} -> lưu thành "Bộ lọc của tôi"
 export function HopTuyChinh({ tc, datTc, locDs, cotDs, locMacDinh, cotMacDinh, dsBoLoc, laAdmin, token, taiBoLoc, hienTai, moTaHienTai,
-  mayChu, onSuaBoLoc, onDong, baoToast }) {
-  const [tab, setTab] = useState('loc');
+  mayChu, onSuaBoLoc, onDong, baoToast, tabDau }) {
+  const [tab, setTab] = useState(tabDau || 'loc');
   const [tenMau, setTenMau] = useState('');
   const an = tc.bo_loc_an || [];
   const mau = tc.mau || [];
@@ -119,7 +119,7 @@ export function HopTuyChinh({ tc, datTc, locDs, cotDs, locMacDinh, cotMacDinh, d
         </div>
         <div className="tc-than">
           {tab === 'loc' && (<>
-            <p className="tc-ghi">Bật / tắt nút lọc nhanh, kéo ⋮⋮ (hoặc ↑ ↓) để đổi thứ tự trên thanh lọc.</p>
+            <p className="tc-ghi">Tắt nút lọc nhanh không dùng — <b>chỉ ẩn trên tài khoản của anh</b>, người khác không đổi. Kéo ⋮⋮ (hoặc ↑ ↓) để đổi thứ tự.</p>
             <DsKeo ds={locDs} onDoi={(n) => datTc((t) => ({ ...t, loc: gon(n) }))} />
             <button className="tc-mac-dinh" onClick={() => datTc((t) => ({ ...t, loc: gon(locMacDinh.map((d) => ({ ...d, hien: !d.an }))) }))}>Khôi phục mặc định</button>
           </>)}

@@ -116,6 +116,8 @@ const COT_MAC_DINH = [
   { k: 'ndSau', ten: 'Sau nhận', mo: 'Số ngày đủ bán sau khi nhận', w: 74 },
 ];
 const LOC_MAC_DINH = LOC.map(([k, t, g]) => ({ k, ten: t, mo: g }));
+const IcMat = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></svg>);
 // "5" = bằng 5 · ">5" ">=5" "<3" "<=3" "!=0" · "5-10" khoảng · trả 'sai' nếu gõ không hiểu
 function boLocSo(chuoi) {
   const t = String(chuoi || '').replace(/\s+/g, '').replace(',', '.');
@@ -723,7 +725,7 @@ function ChiaDoi({ dsDoi, ts }) {
       {moTc && (
         <HopTuyChinh tc={tc} datTc={datTc} mayChu={mayChu} locDs={locDs} cotDs={cotDs} locMacDinh={LOC_MAC_DINH} cotMacDinh={COT_MAC_DINH}
           dsBoLoc={dsBoLoc} laAdmin={laAdmin} token={user?.token} taiBoLoc={taiBoLoc} hienTai={locHienTai} moTaHienTai={moTaLoc}
-          onSuaBoLoc={(b) => setSuaBoLoc(b)} onDong={() => setMoTc(false)} baoToast={baoToast} />
+          onSuaBoLoc={(b) => setSuaBoLoc(b)} onDong={() => setMoTc(false)} baoToast={baoToast} tabDau={typeof moTc === 'string' ? moTc : 'loc'} />
       )}
 
       {thayThe && dong.find((x) => x.bc === thayThe) && (
@@ -758,9 +760,12 @@ function ChiaDoi({ dsDoi, ts }) {
           ))}
           {(loc.length > 0 || locCotFn.co || boLoc) && <button className="bo" onClick={() => { setLoc([]); setLocCot({}); setBoLocDung(null); }}>Bỏ mọi lọc</button>}
         </div>
+        <button className="ch-loc-an" onClick={() => setMoTc('loc')} title="Ẩn / hiện, sắp lại các nút lọc nhanh — chỉ áp cho tài khoản của anh, người khác không đổi">
+          <IcMat /><span className="ch-an-hep"> Ẩn / hiện</span>{locDs.some((c) => !c.hien) ? <i>{locDs.filter((c) => !c.hien).length}</i> : null}</button>
         <div className="ch-cong-nut">
           <MenuBoLoc ds={dsBoLoc} dangDung={boLocDung} onDung={setBoLocDung} onTao={() => setSuaBoLoc('moi')} onSua={(b) => setSuaBoLoc(b)}
-            an={tc.bo_loc_an || []} laAdmin={laAdmin} onTuyChinh={() => setMoTc(true)} />
+            an={tc.bo_loc_an || []} laAdmin={laAdmin} onTuyChinh={(t) => setMoTc(t || 'loc')}
+            onAn={(id) => { datTc((t) => ({ ...t, bo_loc_an: [...new Set([...(t.bo_loc_an || []), id])] })); baoToast('Đã ẩn bộ lọc khỏi menu của anh — hiện lại ở “Ẩn / hiện bộ lọc…”'); }} />
           <select className={'ch-sel' + (sap === 'ma_nhom' ? ' on' : '')} value={sap} onChange={(e) => setSap(e.target.value)} title="Sắp xếp">
             {SAP.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
           </select>

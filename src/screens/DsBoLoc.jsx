@@ -23,6 +23,9 @@ export function tachSize(ma) {
 }
 export const thuTuSize = (z) => { const i = SIZE_THU_TU.indexOf(z); return i < 0 ? 99 : i; };
 
+const IcNguoi = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></svg>);
+const IcNhom = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3" /><path d="M3 19.5c.6-3 2.9-4.7 6-4.7s5.4 1.7 6 4.7" /><path d="M15.5 5.6a3 3 0 0 1 0 5.8 M17.5 14.9c1.9.6 3.1 2.2 3.5 4.6" /></svg>);
+
 // Hook: danh sách bộ lọc của người dùng
 export function useBoLoc(nguoi) {
   const [ds, setDs] = useState([]);
@@ -32,7 +35,8 @@ export function useBoLoc(nguoi) {
 }
 
 // Nút + bảng thả danh sách bộ lọc — bộ lọc CHUNG (Admin quản) + bộ lọc RIÊNG; ẩn theo Tùy chỉnh (v3.112.0)
-export function MenuBoLoc({ ds, dangDung, onDung, onTao, onSua, an = [], laAdmin = false, onTuyChinh }) {
+//   v3.115.0: mỗi dòng có nút Ẩn (chỉ ẩn với tài khoản mình) · tiêu đề nhóm ghi rõ ai thấy
+export function MenuBoLoc({ ds, dangDung, onDung, onTao, onSua, an = [], laAdmin = false, onTuyChinh, onAn }) {
   const [mo, setMo] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -49,7 +53,9 @@ export function MenuBoLoc({ ds, dangDung, onDung, onTao, onSua, an = [], laAdmin
         {dangDung === b.id && <IcCheck />}<b>{b.ten}</b><span>{fmtN(b.ma.length)} SKU</span>
       </button>
       {(b.cua_toi !== false && !b.chung) || laAdmin
-        ? <button className="bl-sua" onClick={() => { onSua(b); setMo(false); }} title={b.chung ? 'Sửa / xoá bộ lọc chung (Admin)' : 'Sửa / xoá'}>Sửa</button> : null}
+        ? <button className="bl-sua" onClick={() => { onSua(b); setMo(false); }} title={b.chung ? 'Sửa / xoá / thôi chia sẻ bộ lọc chung (Admin)' : 'Sửa / xoá / chia sẻ'}>Sửa</button> : null}
+      {onAn && <button className="bl-an" onClick={() => { if (dangDung === b.id) onDung(null); onAn(b.id); }}
+        title="Ẩn bộ lọc này khỏi menu CỦA ANH (người khác không đổi) — hiện lại ở “Ẩn / hiện bộ lọc…”">Ẩn</button>}
     </div>
   );
   return (
@@ -59,12 +65,12 @@ export function MenuBoLoc({ ds, dangDung, onDung, onTao, onSua, an = [], laAdmin
       </button>
       {mo && (
         <div className="bl-tha">
-          {chung.length > 0 && <><div className="bl-tha-dau">Bộ lọc chung <em className="bl-chung">do Admin quản lý</em></div>{chung.map(dongBL)}</>}
-          <div className="bl-tha-dau">Bộ lọc của tôi</div>
+          {chung.length > 0 && <><div className="bl-tha-dau">Bộ lọc chung <em className="bl-chung">· mọi người đều thấy</em></div>{chung.map(dongBL)}</>}
+          <div className="bl-tha-dau">Bộ lọc của tôi <em className="bl-chung">· chỉ mình tôi thấy</em></div>
           {rieng.length === 0 && <div className="bl-tha-trong">Chưa có bộ lọc riêng. Tạo bộ lọc để gom các mã hay chia (theo màu, theo mẫu…).</div>}
           {rieng.map(dongBL)}
           <button className="bl-tao" onClick={() => { onTao(); setMo(false); }}>+ Tạo bộ lọc</button>
-          {onTuyChinh && <button className="bl-tao phu" onClick={() => { onTuyChinh(); setMo(false); }}>Ẩn / hiện bộ lọc…</button>}
+          {onTuyChinh && <button className="bl-tao phu" onClick={() => { onTuyChinh('bl'); setMo(false); }}>Ẩn / hiện bộ lọc…</button>}
           {an.length > 0 && <div className="bl-tha-trong">Đang ẩn {an.length} bộ lọc — mở Tùy chỉnh để hiện lại.</div>}
         </div>
       )}
@@ -136,7 +142,7 @@ export function HopBoLoc({ ban, onDong, onXong }) {
       : await sb.rpc('fn_ds_bo_loc_luu', { p_nguoi: nguoi, p_id: ban?.id || null, p_ten: ten.trim(), p_ma: ma, p_tu_khoa: q.trim() || null });
     setGui(false);
     if (error) { baoToast('Không lưu được: ' + error.message); return; }
-    baoToast(`Đã lưu bộ lọc ${chung ? 'CHUNG ' : ''}“${ten.trim()}” — ${daChon.length} SKU`);
+    baoToast(`Đã lưu “${ten.trim()}” — ${daChon.length} SKU · ${chung ? 'MỌI NGƯỜI đều thấy' : 'chỉ mình anh thấy'}`);
     onXong(data);
   };
   const xoa = async () => {
@@ -157,6 +163,19 @@ export function HopBoLoc({ ban, onDong, onXong }) {
           <div><small>{ban ? (ban.chung ? 'Sửa bộ lọc CHUNG (Admin)' : 'Sửa bộ lọc') : 'Tạo bộ lọc mới'}</small>
             <input className="bl-ten-o" value={ten} onChange={(e) => setTen(e.target.value)} placeholder="Tên bộ lọc (vd Màu xám 156)" /></div>
           <button className="kt-dong" onClick={onDong}>×</button>
+        </div>
+        {/* v3.115.0: Ai thấy bộ lọc này — chọn rõ ràng thay cho ô tick dưới chân hộp */}
+        <div className="bl-ai-thay">
+          <b>Ai thấy bộ lọc này?</b>
+          <div className="bl-ai-chon" role="radiogroup" aria-label="Ai thấy bộ lọc này">
+            <button role="radio" aria-checked={!chung} className={!chung ? 'on' : ''} onClick={() => setChung(false)}>
+              <IcNguoi /> Chỉ mình tôi</button>
+            <button role="radio" aria-checked={chung} className={chung ? 'on' : ''} disabled={!laAdmin} onClick={() => laAdmin && setChung(true)}
+              title={laAdmin ? 'Mọi tài khoản đều thấy trong menu Bộ lọc mã; ai không cần thì tự Ẩn' : 'Chỉ tài khoản Quản trị (Admin) được chia sẻ bộ lọc cho mọi người'}>
+              <IcNhom /> Mọi người thấy</button>
+          </div>
+          <small>{chung ? 'Hiện trong mục “Bộ lọc chung” của mọi tài khoản · chỉ Admin sửa / xoá · ai không dùng thì tự ẩn'
+            : laAdmin ? 'Chỉ hiện trong menu của anh' : 'Chỉ hiện trong menu của anh · muốn chia sẻ cho mọi người: nhờ Admin'}</small>
         </div>
         <div className="bl-hop-than">
           {/* ---- Tìm & chọn ---- */}
@@ -210,11 +229,6 @@ export function HopBoLoc({ ban, onDong, onXong }) {
         </div>
         <div className="bl-hop-chan">
           {ban && (!ban.chung || laAdmin) && <button className="btn btn-ghost bl-xoa" onClick={xoa}>Xoá bộ lọc</button>}
-          {laAdmin && (
-            <label className="bl-chung-tick" title="Bộ lọc chung: mọi tài khoản đều thấy, chỉ Admin sửa / xoá; người dùng chỉ ẩn được">
-              <input type="checkbox" checked={chung} onChange={(e) => setChung(e.target.checked)} /> Bộ lọc chung (mọi người thấy)
-            </label>
-          )}
           <span />
           <button className="btn btn-ghost" onClick={onDong}>Huỷ</button>
           <button className="btn btn-ai" disabled={gui} onClick={luu}><IcCheck /> {gui ? 'Đang lưu…' : ban ? 'Lưu thay đổi' : 'Lưu bộ lọc'}</button>
