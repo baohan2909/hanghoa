@@ -116,6 +116,13 @@ export function lapKeHoach(data, dl, cfg) {
       if (!giu.length || giu.length === cand.length) break;
       cand = giu;
     }
+    // mẫu bán chạy nhất nhóm (theo số bán thật) + số mẫu còn kho — cho ô gợi ý "Trần mỗi mẫu"
+    const pMau = {};
+    cand.forEach((x) => { pMau[x.mau] = (pMau[x.mau] || 0) + x.p; });
+    const tongPM = Object.values(pMau).reduce((t, v) => t + v, 0);
+    const [topMau, topP] = Object.entries(pMau).sort((u, v) => v[1] - u[1])[0] || ['', 0];
+    const topPt = !theoKho && tongPM ? topP / tongPM : 0;
+    const soMauKho = new Set(rowsDung.filter((x) => x.kd > 0).map((x) => x.mau)).size;
     // trần mỗi mẫu (đa dạng) — chỉ áp khi nhóm đủ lớn
     const P0 = cand.reduce((a, x) => a + x.p, 0) || 1;
     const raw = Object.fromEntries(cand.map((x) => [x.bc, (Q * x.p) / P0]));
@@ -240,6 +247,7 @@ export function lapKeHoach(data, dl, cfg) {
     // tỷ trọng màu (cho thanh màu)
     const thanhMau = Object.entries(theoMauSacDn).filter(([, v]) => v > 0).sort((u, v) => v[1] - u[1]).map(([hm, v]) => ({ hm, v, pt: thuc ? v / thuc : 0 }));
     return { gia: g.gia, Q, qt, dong, thuc, ai, lech, choKhac, theoKho, canh: canhN, soMa: dong.filter((d) => d.thuc > 0).length,
+      topMau, topPt, soMauKho, apTran: Number.isFinite(capMau),
       soMau: Object.keys(theoMauDn).filter((m) => theoMauDn[m] > 0).length, thanhMau,
       conLai: rowsDung.filter((x) => !daChon.includes(x) && x.kd > 0).sort(sxP) };
   });
@@ -254,6 +262,44 @@ export function lapKeHoach(data, dl, cfg) {
     refs.forEach((t) => { const d = data.doi.find((x) => ngan(x.ma) === t); if (d && d.ngay < 14) canh.push(`Đội ${t} chỉ có ${d.ngay} ngày bán — số liệu tham chiếu còn mỏng`); });
   } else canh.unshift('Chưa chọn đội tham chiếu — đang đề nghị theo bán toàn mạng đội sale');
   return { nhom, canh, refs, w };
+}
+
+// Ô thông số: có SỐ GỢI Ý (bấm để dùng) + TỰ NHẬP + chọn nhanh
+function OSoGoiY({ nhan, gt, donVi, min, max, goiY, nhanh, onDat, ten }) {
+  const [o, setO] = useState(String(gt));
+  useEffect(() => { setO(String(gt)); }, [gt]);
+  const chot = (v) => {
+    let n = Math.round(Number(String(v).replace(',', '.')));
+    if (!Number.isFinite(n) || n <= 0) { setO(String(gt)); return; }
+    n = Math.min(max, Math.max(min, n));
+    setO(String(n));
+    if (n !== gt) onDat(n);
+  };
+  const dung = goiY && goiY.v === gt;
+  return (
+    <div className="dmo-ts">
+      <div className="dmo-ts-dau">
+        <span>{nhan}</span>
+        {goiY && (
+          <button className={'dmo-ts-gy' + (dung ? ' dung' : '')} onClick={() => !dung && chot(goiY.v)} title={goiY.ly}>
+            {dung ? '✓ Đang dùng gợi ý' : <>✦ Gợi ý: {ten(goiY.v)}</>}
+          </button>
+        )}
+      </div>
+      <div className="dmo-ts-hang">
+        <label className="dmo-ts-o" title={`Tự nhập (${min}–${max})`}>
+          <input type="number" inputMode="numeric" min={min} max={max} value={o} onChange={(e) => setO(e.target.value)}
+            onBlur={() => chot(o)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { setO(String(gt)); e.currentTarget.blur(); } }}
+            onFocus={(e) => e.target.select()} />
+          <em>{gt >= max && donVi === '%' ? '= không giới hạn' : donVi}</em>
+        </label>
+        <div className="dmo-ts-nhanh">
+          {nhanh.map(([v, t]) => <button key={v} className={gt === v ? 'on' : ''} onClick={() => chot(v)}>{t}</button>)}
+        </div>
+      </div>
+      {goiY && <small className="dmo-ts-ly">{goiY.ly}</small>}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -296,6 +342,39 @@ export default function DsDoiMoi({ dsDoi }) {
 
   const kh = useMemo(() => (data ? lapKeHoach(data, d2, cfg) : null), [data, JSON.stringify(d2), cfg]);   // eslint-disable-line
   const goiY = useMemo(() => (data ? goiYDoi(data, coCau, d2.kv) : []), [data, JSON.stringify(coCau), d2.kv]);   // eslint-disable-line
+  // Gợi ý "Số bán trong": mặc định 28 ngày; đội tham chiếu bán ít (chưa đủ ~3.000 cái mẫu) hoặc ít ngày có bán -> lấy dài hơn
+  const goiYNgay = useMemo(() => {
+    if (!data) return null;
+    const refs = [d2.chinh, ...(d2.phu || [])].filter(Boolean);
+    const ds = refs.map((k) => data.doi.find((d) => ngan(d.ma) === k)).filter(Boolean);
+    if (!ds.length) return { v: 28, ly: 'Chưa chọn đội tham chiếu — 28 ngày (4 tuần): đủ dài để xếp hạng mẫu ổn định, đủ ngắn để bám mẫu đang chạy.' };
+    const banNgay = ds.reduce((t, d) => t + d.ban / Math.max(1, d.ngay || data.cua_so), 0);
+    const it = ds.reduce((m, d) => (d.ngay < m.ngay ? d : m), ds[0]);
+    let v = 28;
+    const can = Math.ceil(3000 / Math.max(1, banNgay));
+    const ly = [`Đội tham chiếu bán ~${fmtN(Math.round(banNgay))} cái/ngày`];
+    if (can > 28) { v = Math.min(60, Math.ceil(can / 7) * 7); ly.push(`28 ngày chỉ ~${fmtN(Math.round(banNgay * 28))} cái — cần ~${v} ngày cho đủ ~3.000 cái để xếp hạng mẫu`); }
+    if (it.ngay < data.cua_so * 0.5) { v = Math.max(v, 45); ly.push(`${tenNgan(it.ten)} chỉ có ${it.ngay}/${data.cua_so} ngày có bán — lấy dài hơn cho đủ dữ liệu`); }
+    if (v === 28) ly.push(`28 ngày ≈ ${fmtN(Math.round(banNgay * 28))} cái — đủ để xếp hạng mẫu, vẫn bám mẫu đang chạy`);
+    return { v, ly: ly.join(' · ') };
+  }, [data, d2.chinh, JSON.stringify(d2.phu)]);   // eslint-disable-line
+  // Gợi ý "Trần mỗi mẫu": theo tỷ trọng mẫu bán chạy nhất của đội tham chiếu từng nhóm giá (khách mua thật),
+  // không dưới 20% và đủ chỗ cho các mẫu còn kho (≥ 100/số mẫu + 5), không quá 40% — bình quân theo số lượng nhóm
+  const goiYTran = useMemo(() => {
+    if (!kh) return null;
+    const ds = kh.nhom.filter((n) => n.Q >= 50 && n.soMauKho >= 4 && n.topPt > 0);
+    if (!ds.length) return { v: 100, ly: 'Các nhóm giá ít mẫu còn kho — không cần trần, chia đúng theo số bán.' };
+    const lam5 = (x) => Math.ceil(x / 5 - 1e-9) * 5;
+    let tong = 0, s = 0;
+    const ct = ds.map((n) => {
+      const c = Math.min(40, Math.max(20, lam5(100 / n.soMauKho + 5), lam5(n.topPt * 100)));
+      tong += n.Q; s += c * n.Q;
+      return `${kGia(n.gia)}: mẫu chạy nhất ${n.topMau} ${Math.round(n.topPt * 100)}%`;
+    });
+    const v = Math.round(s / tong / 5) * 5;
+    return { v, ly: `${ct.join(' · ')} → trần ${v}%: giữ đúng mẫu khách mua nhiều, không dồn quá ${v}% nhóm vào 1 mẫu.` };
+  }, [kh]);
+  const dangCat = kh ? kh.nhom.filter((n) => n.apTran && n.topPt * 100 > d2.tranMau + 0.5) : [];
 
   // ---------- sửa ----------
   const dat = (o) => datDl((d) => ({ ...macDinh, ...d, ...(typeof o === 'function' ? o({ ...macDinh, ...d }) : o) }));
@@ -433,13 +512,17 @@ export default function DsDoiMoi({ dsDoi }) {
               <small>thường 1.000 – 1.100</small>
             </label>
           </div>
-          <div className="dmo-form-chan">
-            <label title="Số ngày lấy số bán của đội tham chiếu">Số bán trong
-              <select value={cuaSo} onChange={(e) => setCuaSo(+e.target.value)}>{[14, 28, 45, 60].map((n) => <option key={n} value={n}>{n} ngày</option>)}</select></label>
-            <label title="Không mẫu nào vượt quá tỷ lệ này trong 1 nhóm giá (đa dạng mẫu)">Trần mỗi mẫu
-              <select value={d2.tranMau} onChange={(e) => dat({ tranMau: +e.target.value })}>{[15, 20, 25, 30, 40, 100].map((n) => <option key={n} value={n}>{n === 100 ? 'không giới hạn' : n + '% nhóm'}</option>)}</select></label>
-            {dsNhap.some((n) => n.id === id) && <button className="dmo-xoa-nhap" onClick={xoaBanNhap}>Xoá bản nháp này</button>}
+          <div className="dmo-ts-luoi">
+            <OSoGoiY nhan="Lấy số bán trong" gt={cuaSo} donVi="ngày" min={7} max={120} goiY={goiYNgay}
+              nhanh={[[14, '14'], [28, '28'], [45, '45'], [60, '60']]} ten={(v) => `${v} ngày`} onDat={setCuaSo} />
+            <OSoGoiY nhan="Trần mỗi mẫu trong 1 nhóm giá" gt={d2.tranMau} donVi="%" min={10} max={100} goiY={goiYTran}
+              nhanh={[[20, '20%'], [25, '25%'], [30, '30%'], [40, '40%'], [100, 'Không giới hạn']]} ten={(v) => (v >= 100 ? 'không giới hạn' : `${v}%`)}
+              onDat={(v) => dat({ tranMau: v })} />
           </div>
+          {dangCat.length > 0 && (
+            <div className="dmo-ts-cat">Đang cắt: {dangCat.map((n) => `${n.topMau} (${kGia(n.gia)}) ${Math.round(n.topPt * 100)}% → ${d2.tranMau}%`).join(' · ')} — phần dư chia sang mẫu bán chạy kế tiếp</div>
+          )}
+          {dsNhap.some((n) => n.id === id) && <div className="dmo-form-chan"><button className="dmo-xoa-nhap" onClick={xoaBanNhap}>Xoá bản nháp này</button></div>}
         </div>
 
         {/* 2 · Đội tham chiếu */}
