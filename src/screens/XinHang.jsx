@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb, fmtVND } from '../lib/supabase.js';
-import { IcSpark, IcSearch, IcBox, IcAlert, IcDown, IcRefresh } from '../lib/icons.jsx';
+import { IcSpark, IcSearch, IcBox, IcAlert, IcDown, IcRefresh, IcGuiLen } from '../lib/icons.jsx';
+import { useOdooCfg, moOdoo } from '../lib/odoo.js';
 import { Sel, DateBox, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
 
@@ -165,6 +166,7 @@ function ThanhDinhMuc({ ten, d }) {
 
 export default function XinHang() {
   const { user, baoToast, datBan } = useApp();
+  const odoo = useOdooCfg(user);   // v3.114.0: tạo đơn Odoo qua API — chỉ tài khoản đang thử nghiệm
   const [dsCH, setDsCH] = useState([]);
   const [maCH, setMaCH] = useState(user.ma_ch || '');
   const [rows, setRows] = useState(null);
@@ -573,6 +575,41 @@ export default function XinHang() {
     } else baoToast(`Đã xuất ${dsAll.length} dòng (1 file tổng)`);
     huyKdnNeuCo();
   };
+  // TẠO ĐƠN ODOO (v3.114.0): mỗi kho nguồn = 1 đơn, tên đơn cấp CHUNG dãy số với file Excel
+  //   ({DK|KC}{yyyymmdd}-{kho nguồn}-{CH}-{NN}) -> không trùng đơn dù xuất Excel hay gửi Odoo.
+  //   Đơn tạo xong mới GIỮ HÀNG (như sau khi xuất file).
+  const taoOdoo = async () => {
+    const dsAll = rows.filter((r) => r.sl_xin > 0);
+    if (!dsAll.length) { baoToast('Chưa có số lượng nào để tạo đơn'); return; }
+    const khoCua = (r) => r.kho_ma || nhomCua(r);
+    const khoCan = [...new Set(dsAll.map(khoCua))];
+    const { data: soBD, error: eSo } = await sb.rpc('fn_cap_so_phieu', { p_ma_ch: maCH, p_so_luong: khoCan.length });
+    if (eSo) { baoToast('Không cấp được số phiếu: ' + eSo.message); return; }
+    const thieuKho = khoCan.filter((k) => !dsAll.find((r) => khoCua(r) === k)?.kho_ma);
+    const don = khoCan.map((k, i) => ({
+      name: taoMaKho(k, (soBD || 1) + i), kho_cung_ung: k, kho_yeu_cau: maCH,
+      chi_tiet: dsAll.filter((r) => khoCua(r) === k)
+        .map((r) => ({ sku: r.sku || '', barcode: r.barcode, nhu_cau: r.sl_xin, ma: r.ma_tham_chieu || r.barcode })),
+    }));
+    moOdoo({
+      tieuDe: `${loai === 'KHAN_CAP' ? 'Đề nghị KHẨN CẤP' : 'Đề nghị hàng hoá'} — ${maCH}`, man: 'de_nghi',
+      lyDo: loai === 'KHAN_CAP' ? 'khan_cap' : 'de_nghi', don,
+      canh: thieuKho.length ? [`Chưa xác định kho nguồn cho nhóm: ${thieuKho.join(', ')} — bỏ tick đơn đó nếu không chắc`] : [],
+      onExcel: xuatTatCa,
+      onThanhCong: async (ok) => {
+        let hetHan = null, phut = 0;
+        for (const d of ok) {
+          try {
+            const { data: kq } = await sb.rpc('fn_giu_hang', { p_token: user.token, p_ma_ch: maCH, p_kho_ma: d.kho_cung_ung,
+              p_lines: d.chi_tiet.map((c) => ({ barcode: c.barcode, so_luong: c.nhu_cau })) });
+            if (kq?.het_han) { hetHan = kq.het_han; phut = kq.phut; }
+          } catch { /* đã tạo đơn, giữ hàng lỗi thì bỏ qua */ }
+        }
+        if (hetHan) setGiuInfo({ het_han: hetHan, phut });
+        huyKdnNeuCo();
+      },
+    });
+  };
   const giaiPhong = async () => {
     const { data, error } = await sb.rpc('fn_giai_phong', { p_token: user.token, p_ma_ch: maCH });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
@@ -733,6 +770,8 @@ export default function XinHang() {
               {nhomXem !== 'ALL' &&
                 <button className="btn btn-ghost btn-h" onClick={() => xuatNhom(nhomXem)}><IcDown /> Xuất nhóm này</button>}
               <button className="btn btn-gold btn-h" onClick={xuatTatCa}><IcDown /> Xuất tất cả (1 file)</button>
+              {odoo && <button className="btn btn-ai btn-h od-nut" onClick={taoOdoo} title="Tạo đơn điều chuyển thẳng trên Odoo (thử nghiệm)">
+                <IcGuiLen /> Tạo đơn Odoo{odoo.thu_nghiem && <sup>THỬ</sup>}</button>}
             </div>
           </div>
 

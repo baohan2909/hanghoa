@@ -3,6 +3,7 @@ import { sb } from './lib/supabase.js';
 import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy, IcRadar, IcChat2, IcTeam } from './lib/icons.jsx';
 import Login from './screens/Login.jsx';
 import XinHang from './screens/XinHang.jsx';
+import { OdooHost } from './lib/OdooHop.jsx';
 
 // Màn ít dùng / nặng: tải khi mở, giữ lần tải đầu nhẹ cho máy cửa hàng
 const Kho = lazy(() => import('./screens/Kho.jsx'));
@@ -292,6 +293,7 @@ export default function App() {
             {!banMoi.bat_buoc && <button className="cn-sau" onClick={() => setBanMoi(null)}>Để sau</button>}
           </div>
         )}
+        <OdooHost user={user} baoToast={baoToast} />
         {toast && <div className="toast" role="status">{toast}</div>}
       </div>
     </Ctx.Provider>

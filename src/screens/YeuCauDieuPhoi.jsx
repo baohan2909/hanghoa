@@ -2,13 +2,15 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { sb, fmtDT } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { DateBox, Sel } from '../lib/ui.jsx';
-import { IcRefresh, IcSpark, IcDown } from '../lib/icons.jsx';
+import { IcRefresh, IcSpark, IcDown, IcGuiLen } from '../lib/icons.jsx';
+import { useOdooCfg, moOdoo, gomDon } from '../lib/odoo.js';
 
 const fmtN = (n) => (n == null ? '—' : Number(n).toLocaleString('vi'));
 
 // ===== YÊU CẦU ĐIỀU PHỐI — bàn ghép nơi cần với nơi cho, xuất một file tổng =====
 export default function YeuCauDieuPhoi() {
   const { user, baoToast } = useApp();
+  const odoo = useOdooCfg(user);
   const [rows, setRows] = useState(null);
   const [tu, setTu] = useState('');
   const [den, setDen] = useState('');
@@ -132,6 +134,31 @@ export default function YeuCauDieuPhoi() {
     else baoToast(`Đã xuất ${maLenh} — ${luu.length} dòng chuyển của ${daChon.length} mã`);
   };
 
+  // TẠO ĐƠN ODOO (v3.114.0): mỗi cặp (nơi chuyển -> nơi nhận) = 1 đơn, tên DP{ngày}-{từ}-{đến}-NN,
+  //   tài liệu nguồn = mã lệnh; đơn tạo xong mới ghi lệnh (fn_dp_luu) như sau khi xuất file
+  const taoOdoo = () => {
+    if (!daChon.length) { baoToast('Chưa chốt mã nào'); return; }
+    const now = new Date();
+    const maLenh = 'DP' + now.toISOString().slice(0, 10).replace(/-/g, '')
+      + '-' + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+    const dong = [];
+    daChon.forEach((bc) => {
+      const sp = (rows || []).find((r) => r.barcode === bc) || {};
+      (ke[bc] || []).filter((r) => r.tu && r.sl > 0).forEach((r) =>
+        dong.push({ tu: r.tu, den: r.den, den_ten: r.den_ten, barcode: bc, sku: sp.sku || '', sl: r.sl, ma: sp.ma_tham_chieu || bc }));
+    });
+    const don = gomDon(dong, { prefix: 'DP', tai_lieu_nguon: maLenh });
+    moOdoo({
+      tieuDe: `Yêu cầu điều phối ${maLenh} — ${daChon.length} mã`, man: 'dieu_phoi', lyDo: 'dieu_phoi', don,
+      onExcel: xuatTong,
+      onThanhCong: async (ok) => {
+        const luu = ok.flatMap((d) => d.chi_tiet.map((c) => ({ barcode: c.barcode, tu: d.kho_cung_ung, den: d.kho_yeu_cau, sl: c.nhu_cau })));
+        const { error } = await sb.rpc('fn_dp_luu', { p_ma_lenh: maLenh, p_rows: luu, p_nguoi: user?.ma_dang_nhap || '' });
+        if (error) throw error;
+      },
+    });
+  };
+
   return (
     <>
       <div className="cmdbar">
@@ -153,6 +180,9 @@ export default function YeuCauDieuPhoi() {
         <button className="btn btn-ai" onClick={xuatTong} disabled={!daChon.length}>
           <IcDown /> Xuất file tổng{daChon.length ? ` (${daChon.length} mã)` : ''}
         </button>
+        {odoo && <button className="btn btn-ai od-nut" onClick={taoOdoo} disabled={!daChon.length} title="Tạo đơn điều chuyển thẳng trên Odoo (thử nghiệm)">
+          <IcGuiLen /> Tạo đơn Odoo{odoo.thu_nghiem && <sup>THỬ</sup>}
+        </button>}
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>

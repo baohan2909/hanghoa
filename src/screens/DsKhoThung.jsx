@@ -3,7 +3,7 @@ import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { IcBox, IcCheck, IcAlert, IcDown, IcRefresh } from '../lib/icons.jsx';
 import { fmtN, tenNgan, ngayGio, lsGet, lsSet, useNhap, TrangThaiLuu, xuatHaiFile, xuatPhieu, tenPhieu, baoLoiXacNhan, NHAN_DIEN,
-  useHoiGhiChu, ghiChuMacDinh, nhoGhiChu } from './dsChung.jsx';
+  useHoiGhiChu, ghiChuMacDinh, nhoGhiChu, odooTuKq } from './dsChung.jsx';
 import { mucDiem } from './DsGoiYThung.jsx';
 
 // ============================================================================
@@ -55,7 +55,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
   const [doi, setDoi] = useState(() => chon?.doi || lsGet('kt_doi') || '');
   const [xemTruoc, setXemTruoc] = useState(false);
   const [gui, setGui] = useState(false);
-  const [hoiGhiChu, hopGhiChu] = useHoiGhiChu();
+  const [hoiGhiChu, hopGhiChu, chonOdoo] = useHoiGhiChu();
   const [xong, setXong] = useState(null);
   const [soHien, setSoHien] = useState(240);
 
@@ -208,7 +208,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
     if (!doi) { baoToast('Chọn đội nhận'); return; }
     if (!gioHopLe.length) { baoToast('Chưa chọn thùng nào còn chia được'); return; }
     // v3.112.0: hộp ghi chú thay cho hộp hỏi lại — Huỷ = không cấp
-    const ghiChu = await hoiGhiChu({ macDinh: ghiChuMacDinh(doi, doiSx.find((d) => d.ma_ch === doi)?.ten || tenDoi), tieuDe: `Cấp ${gioHopLe.length} thùng · ${fmtN(tongGio.cai)} cái cho ${tenDoi}`,
+    const ghiChu = await hoiGhiChu({ odoo: true, macDinh: ghiChuMacDinh(doi, doiSx.find((d) => d.ma_ch === doi)?.ten || tenDoi), tieuDe: `Cấp ${gioHopLe.length} thùng · ${fmtN(tongGio.cai)} cái cho ${tenDoi}`,
       nutXong: 'Cấp thùng & xuất file',
       phu: <>Phiếu ghi kho SA, hàng lấy ở TK05005. Tạo phiếu thùng + xuất file.
         {tongGio.th > 0 && <span className="gc-rut">⚠ {tongGio.thT} thùng có mã thu hồi đội sale — sẽ RÚT {tongGio.th} mã ({fmtN(tongGio.ths)} cái) khỏi phiếu, tự ghi vào ghi chú: {gioHopLe.filter((t) => theoMa[t]?.th).join(', ')}</span>}</> });
@@ -221,6 +221,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     if (!data?.ok) { baoLoiXacNhan(data, baoToast); tai(); return; }
     try { await xuatHaiFile(data, ghiChu); } catch { baoToast('Đã xác nhận nhưng xuất file lỗi — tải lại ở Phiếu đã chia'); }
+    if (chonOdoo.current) odooTuKq(data, ghiChu).catch((e) => baoToast('Đã xác nhận, chưa mở được hộp Odoo: ' + (e?.message || e) + ' — gửi lại ở Phiếu đã chia'));
     await xoaNhap();
     setXong({ ...data, doi, so: gioHopLe.length, cai: tongGio.cai });
     setXemTruoc(false);

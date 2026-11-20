@@ -1,7 +1,8 @@
 import { isoVN, Sel } from '../lib/ui.jsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
-import { IcSplit, IcDown, IcSearch } from '../lib/icons.jsx';
+import { IcSplit, IcDown, IcSearch, IcGuiLen } from '../lib/icons.jsx';
+import { useOdooCfg, moOdoo } from '../lib/odoo.js';
 import { useApp } from '../App.jsx';
 
 // ===== CHIA HÀNG MỚI v2 — nhiều mã một lần · ngành cấp 3 HOẶC mã tham chiếu · xuất tất cả =====
@@ -50,6 +51,7 @@ const xoaNhap = () => { try { localStorage.removeItem(LS_KEY); } catch { /* bỏ
 
 export default function ChiaHangMoi() {
   const { user, baoToast, datBan } = useApp();
+  const odoo = useOdooCfg(user);
   // Đọc bản nháp ĐÚNG MỘT LẦN lúc mở màn (useState lazy), trước mọi state khác dùng tới nó
   const [nhapCu] = useState(docNhap);
   const [bangKhoiPhuc, setBangKhoiPhuc] = useState(!!nhapCu);
@@ -305,7 +307,7 @@ export default function ChiaHangMoi() {
   //   (v3.109.0: trước đây Phụ kiện rơi vào NV_CHINH = kho nón vải — sai)
   const khoNguon = (sp) => khoMap[{ PK: 'PK_CHINH', BH: 'BH_CHINH', NV: 'NV_CHINH' }[nganhCua(sp)]] || '';
 
-  const xuatTatCa = async () => {
+  const xuatTatCa = async (dich = 'excel') => {   // dich: 'excel' | 'odoo' (v3.114.0)
     // Gồm cả dòng đã chia (có batchId) LẪN dòng khuôn (ct sẵn, có sp, chưa batchId)
     const daChia = dong.filter((d) => d.ct && d.ct.length && d.sp);
     if (!daChia.length) { baoToast('Chưa có dòng nào có bảng chia + mã hàng'); return; }
@@ -343,18 +345,21 @@ export default function ChiaHangMoi() {
         khongDu.length ? `KHO KHÔNG ĐỦ (${khongDu.length} mã):\n` +
           khongDu.map((x) => `• ${x.ma}: chia ${fmtN(x.tong)} nhưng kho ${x.kho || 'tổng'} chỉ còn ${fmtN(x.ton)} (thiếu ${fmtN(x.tong - x.ton)})`).join('\n') : '',
       ].filter(Boolean).join('\n\n');
-      const ok = window.confirm(`⚠ KHO NGUỒN CHƯA ĐỦ HÀNG cho ${thieu.length} mã:\n\n${ds}\n\nVẫn xuất file? (Bấm Hủy để chỉnh số lượng trước)`);
+      const ok = window.confirm(`⚠ KHO NGUỒN CHƯA ĐỦ HÀNG cho ${thieu.length} mã:\n\n${ds}\n\n${dich === 'odoo' ? 'Vẫn tạo đơn Odoo?' : 'Vẫn xuất file?'} (Bấm Hủy để chỉnh số lượng trước)`);
       if (!ok) return;
     }
 
-    for (const d of daChia) {
-      // dòng đã chia (có batchId thật) -> chốt DB; dòng khuôn -> xuất thẳng, không lưu DB
-      if (d.batchId && !d.laKhuon) {
-        await Promise.all(d.ct.map((r) => r.id && !String(r.id).startsWith('khuon_') && !String(r.id).startsWith('moi_')
-          ? sb.from('chia_hang_moi_ct').update({ sl_chot: r.sl_chot }).eq('id', r.id) : Promise.resolve()));
-        await sb.from('chia_hang_moi').update({ trang_thai: 'CHOT' }).eq('id', d.batchId);
+    const chotDB = async () => {
+      for (const d of daChia) {
+        // dòng đã chia (có batchId thật) -> chốt DB; dòng khuôn -> xuất thẳng, không lưu DB
+        if (d.batchId && !d.laKhuon) {
+          await Promise.all(d.ct.map((r) => r.id && !String(r.id).startsWith('khuon_') && !String(r.id).startsWith('moi_')
+            ? sb.from('chia_hang_moi_ct').update({ sl_chot: r.sl_chot }).eq('id', r.id) : Promise.resolve()));
+          await sb.from('chia_hang_moi').update({ trang_thai: 'CHOT' }).eq('id', d.batchId);
+        }
       }
-    }
+    };
+    if (dich !== 'odoo') await chotDB();   // Odoo: chốt khi đã tạo được đơn
 
     const ngay = isoVN().replace(/-/g, '');
     // MÃ PHIẾU: HM{ngày}-{kho nguồn}-{CH}-{STT}
@@ -372,6 +377,31 @@ export default function ChiaHangMoi() {
         const { data, error } = await sb.rpc('fn_cap_so_phieu', { p_ma_ch: r.ma_ch, p_so_luong: 1 });
         capSTT[r.ma_ch] = error ? Date.now() % 100000 : data;   // lỗi RPC -> số dự phòng, vẫn không trùng
       }
+    }
+    if (dich === 'odoo') {
+      // mỗi cặp (kho nguồn, cửa hàng) = 1 đơn Odoo, tên đúng như Mã phiếu trong file Excel
+      const gom = new Map();
+      daChia.forEach((d) => {
+        const khoCho = khoNguon(d.sp) || '';
+        d.ct.filter((r) => r.sl_chot > 0).forEach((r) => {
+          const k = khoCho + '>' + r.ma_ch;
+          let o = gom.get(k);
+          if (!o) { o = { name: khoCho ? `HM${ngay}-${khoCho}-${r.ma_ch}-${capSTT[r.ma_ch]}` : '', prefix: 'HM', kho_cung_ung: khoCho, kho_yeu_cau: r.ma_ch,
+            ten_yeu_cau: tenCH[r.ma_ch] || '', chi_tiet: [] }; gom.set(k, o); }
+          const c = o.chi_tiet.find((x) => x.barcode === d.sp.barcode);
+          if (c) c.nhu_cau += r.sl_chot;
+          else o.chi_tiet.push({ sku: d.sp.sku || '', barcode: d.sp.barcode, nhu_cau: r.sl_chot, ma: d.sp.ma_tham_chieu || d.sp.barcode });
+        });
+      });
+      const don = [...gom.values()];
+      const khongKho = don.filter((o) => !o.kho_cung_ung).length;
+      moOdoo({
+        tieuDe: `Chia hàng mới — ${don.length} đơn`, man: 'chia_moi', lyDo: 'chia_moi', don,
+        canh: khongKho ? [`${khongKho} đơn chưa xác định kho nguồn (ngành chưa có kho) — sẽ bị máy chủ từ chối, bỏ tick đơn đó`] : [],
+        onExcel: () => xuatTatCa('excel'),
+        onThanhCong: async () => { await chotDB(); },
+      });
+      return;
     }
     const rowsX = [];
     daChia.forEach((d) => {
@@ -528,6 +558,9 @@ export default function ChiaHangMoi() {
           <button className="btn btn-ai" onClick={xuatTatCa}>
             <IcDown style={{ verticalAlign: -3 }} /> Xuất tất cả{tongTatCa > 0 ? ` (${tongTatCa} sp)` : ''}
           </button>
+          {odoo && <button className="btn btn-ai od-nut" onClick={() => xuatTatCa('odoo')} title="Tạo đơn điều chuyển thẳng trên Odoo (thử nghiệm)">
+            <IcGuiLen style={{ verticalAlign: -3 }} /> Tạo đơn Odoo{odoo.thu_nghiem && <sup>THỬ</sup>}
+          </button>}
           <button className="btn btn-xoahet" onClick={xoaTatCa} title="Làm trắng màn hình — xóa mọi mã và bảng chia đang làm dở">
             Xóa tất cả
           </button>

@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { Sel } from '../lib/ui.jsx';
-import { IcSpark, IcDown, IcCheck, IcAlert } from '../lib/icons.jsx';
+import { IcSpark, IcDown, IcCheck, IcAlert, IcGuiLen } from '../lib/icons.jsx';
+import { useOdooCfg, moOdoo, gomDon } from '../lib/odoo.js';
 
 // ============================================================================
 // BÀN CHIA HÀNG ĐỘI SALE — ma trận SẢN PHẨM (dòng) × ĐỘI (cột)
@@ -139,6 +140,7 @@ function TipO({ tip, sp, d, v, T, lenh }) {
 
 export default function DsBanChia({ dsDoi, ts, initChon }) {
   const { user, baoToast } = useApp();
+  const odoo = useOdooCfg(user);
   const daLuu = useRef(lsGet());
   const [chon, setChon] = useState(() => initChon?.length ? initChon : (daLuu.current?.chon || []));
   const [kq, setKq] = useState(null);
@@ -249,6 +251,30 @@ export default function DsBanChia({ dsDoi, ts, initChon }) {
     if (error) baoToast('Đã xuất file nhưng chưa lưu được lệnh: ' + error.message);
     else baoToast(`Đã xuất ${maLenh} — ${ds.length} dòng, ${fmtN(ds.reduce((a, l) => a + l.sl, 0))} cái`);
     setXemTruoc(false);
+  };
+
+  // TẠO ĐƠN ODOO (v3.114.0): mỗi cặp (từ -> đến) = 1 đơn, tên DSC{ngày}-{từ}-{đến}-NN, nguồn = mã lệnh;
+  //   đơn trả về kho dùng lý do riêng "Hàng Trả Kho"
+  const taoOdoo = () => {
+    const ds = tong.lenh.filter((l) => l.sl > 0);
+    if (!ds.length) { baoToast('Chưa có số nào để tạo đơn'); return; }
+    const d = new Date();
+    const maLenh = 'DSC' + d.toISOString().slice(0, 10).replace(/-/g, '') + '-'
+      + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+    const dong = (l) => ({ tu: l.tu, den: l.den, den_ten: l.den_ten, barcode: l.sp.barcode, sl: l.sl, ma: l.sp.ma_tham_chieu || l.sp.barcode });
+    const mau = { prefix: 'DSC', tai_lieu_nguon: maLenh };
+    const don = [...gomDon(ds.filter((l) => l.loai !== 'tra').map(dong), mau),
+      ...gomDon(ds.filter((l) => l.loai === 'tra').map(dong), { ...mau, ly_do: 'Hàng Trả Kho' })];
+    setXemTruoc(false);
+    moOdoo({
+      tieuDe: `Bàn chia đội sale — ${maLenh}`, man: 'ds_ban_chia', lyDo: 'doi_sale', don,
+      onExcel: xuat,
+      onThanhCong: async (ok) => {
+        const { error } = await sb.rpc('fn_dp_luu', { p_ma_lenh: maLenh, p_nguoi: user?.ma_dang_nhap || '',
+          p_rows: ok.flatMap((x) => x.chi_tiet.map((c) => ({ barcode: c.barcode, tu: x.kho_cung_ung, den: x.kho_yeu_cau, sl: c.nhu_cau }))) });
+        if (error) throw error;
+      },
+    });
   };
 
   const togDoi = (ma) => setChon((c) => (c.includes(ma) ? c.filter((x) => x !== ma) : [...c, ma].sort()));
@@ -436,6 +462,8 @@ export default function DsBanChia({ dsDoi, ts, initChon }) {
             <div className="bc-modal-chan">
               <span className="tq-ghi">File gồm 2 sheet: DieuChuyen (khuôn nhập Odoo như Yêu cầu ĐP) + TongHopDoi. Lệnh được lưu để đối chiếu phiếu.</span>
               <button className="btn btn-ai" onClick={xuat}><IcDown /> Xuất Excel + lưu lệnh</button>
+              {odoo && <button className="btn btn-ai od-nut" onClick={taoOdoo} title="Tạo đơn điều chuyển thẳng trên Odoo (thử nghiệm)">
+                <IcGuiLen /> Tạo đơn Odoo{odoo.thu_nghiem && <sup>THỬ</sup>}</button>}
             </div>
           </div>
         </div>

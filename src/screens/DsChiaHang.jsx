@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
-import { IcSpark, IcDown, IcAlert, IcCheck, IcBox, IcClock, IcGrid, IcMoRong, IcThuNho, IcLoc } from '../lib/icons.jsx';
+import { IcSpark, IcDown, IcAlert, IcCheck, IcBox, IcClock, IcGrid, IcMoRong, IcThuNho, IcLoc, IcGuiLen } from '../lib/icons.jsx';
+import { useOdooCfg, odooTheoNguon } from '../lib/odoo.js';
 import { AnhSP } from './DsBanChia.jsx';
 import { KHO_TEN, TrangThaiLuu, baoLoiXacNhan, fmtN, gio, lsDel, lsGet, lsSet, ngayGio, so, tenNgan, tenPhieu, soFile, useNhap, xuatHaiFile, xuatPhieu, xuatPhieuThung,
-  useHoiGhiChu, ghiChuMacDinh, nhoGhiChu } from './dsChung.jsx';
+  useHoiGhiChu, ghiChuMacDinh, nhoGhiChu, odooTuKq, odooTuPhieu } from './dsChung.jsx';
 import { useLamTron, quyTac, lenMuc, xuongMuc, hoMau, kGia } from './dsLamTron.js';
 import { useTuyChinh, sapTheo, HopTuyChinh } from './DsTuyChinh.jsx';
 import DsDoiMoi from './DsDoiMoi.jsx';
@@ -164,7 +165,7 @@ function ChiaDoi({ dsDoi, ts }) {
   const cotHien = useMemo(() => cotDs.filter((c) => c.hien), [cotDs]);
   const locDs = useMemo(() => sapTheo(LOC_MAC_DINH, tc.loc), [tc.loc]);
   const cfgLT = useLamTron();
-  const [hoiGhiChu, hopGhiChu] = useHoiGhiChu();
+  const [hoiGhiChu, hopGhiChu, chonOdoo] = useHoiGhiChu();
   const [thayThe, setThayThe] = useState(null);   // barcode đang xem mã thay thế
   // THU GỌN đầu bàn: gộp đội + số liệu + tham số + thùng vào 1 hàng, dòng bảng thấp hơn -> thêm chỗ chia
   const [gon, setGon] = useState(() => lsGet('gon') ?? true);
@@ -432,7 +433,7 @@ function ChiaDoi({ dsDoi, ts }) {
     const thungHopLe = thung.filter((t) => thungCt[t] && !thungCt[t].khong_co && !thungCt[t].da_giao && !thungCt[t].kiem);
     if (!dongGui.length && !thungHopLe.length) { baoToast('Chưa có số nào'); return; }
     if (tong.vuot) { baoToast(`Còn ${tong.vuot} mã chia thêm vượt kho (SA / phụ kiện) — sửa trước khi xác nhận (lọc theo dòng hồng)`); return; }
-    const ghiChu = await hoiGhiChu({ macDinh: ghiChuMacDinh(doi, tenDoi), tieuDe: `Ghi chú file xuất — ${tenNgan(tenDoi)}`,
+    const ghiChu = await hoiGhiChu({ odoo: true, macDinh: ghiChuMacDinh(doi, tenDoi), tieuDe: `Ghi chú file xuất — ${tenNgan(tenDoi)}`,
       nutXong: `Xác nhận & xuất ${tong.soPhieu} file`,
       phu: <>{fmtN(tong.nhan)} cái · {[tong.sa > 0 && 'Sale', tong.pk > 0 && 'Phụ kiện', tong.th > 0 && 'Thùng'].filter(Boolean).join(' + ')}
         {trongThung.rut.length > 0 && <span className="gc-rut">⚠ Rút khỏi thùng (thu hồi đội sale) — tự ghi vào ghi chú phiếu thùng: {Object.entries(trongThung.rut.reduce((g, r) => { (g[r.t] = g[r.t] || []).push(`${r.m} ×${r.s}`); return g; }, {})).map(([t, ds]) => `${t}: ${ds.join(', ')}`).join(' ; ')}</span>}</> });
@@ -444,6 +445,7 @@ function ChiaDoi({ dsDoi, ts }) {
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     if (!data?.ok) { baoLoiXacNhan(data, baoToast); tai(); return; }
     try { await xuatHaiFile(data, ghiChu); } catch (e) { baoToast('Đã xác nhận nhưng xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
+    if (chonOdoo.current) odooTuKq(data, ghiChu).catch((e) => baoToast('Đã xác nhận, chưa mở được hộp Odoo: ' + (e?.message || e) + ' — gửi lại ở Phiếu đã chia'));
     lsDel(khoa); await xoaNhap();
     setThungCt({});
     setPhieuMoi({ ...data, doi, sl: tong.nhan, ma: tong.ma, sa: tong.sa, pk: tong.pk, th: tong.th });
@@ -1009,9 +1011,29 @@ function HopThayThe({ x, dong, cuaSo, tenDoi, onThem, onDong, baoToast }) {
 // ============================================================================
 function DsPhieu() {
   const { user, baoToast } = useApp();
+  const odoo = useOdooCfg(user);   // v3.114.0: gửi Odoo từng phiếu + trạng thái đơn Odoo (tài khoản thử nghiệm)
   const [ds, setDs] = useState(null);
+  const [odDon, setOdDon] = useState({});   // ma_phieu -> [đơn odoo]
   const tai = () => sb.rpc('fn_ds_phieu_ds', { p_ngay: 30 }).then(({ data, error }) => { if (error) baoToast('Lỗi: ' + error.message); setDs(data || []); });
   useEffect(() => { tai(); }, []);   // eslint-disable-line
+  const taiOdoo = useCallback(async () => {
+    if (!odoo || !ds?.length) return;
+    const m = {};
+    (await odooTheoNguon(user.token, ds.map((p) => p.ma_phieu))).forEach((d) => { (m[d.tai_lieu_nguon] = m[d.tai_lieu_nguon] || []).push(d); });
+    setOdDon(m);
+  }, [odoo, ds, user.token]);
+  useEffect(() => { taiOdoo(); }, [taiOdoo]);
+  const guiOdoo = (p) => odooTuPhieu([{ id: p.id, ma_phieu: p.ma_phieu, ghi_chu: p.ghi_chu }], 'Phiếu ' + p.ma_phieu, taiOdoo, user.token)
+    .catch((e) => baoToast('Lỗi: ' + (e?.message || e)));
+  const odChip = (p) => {
+    const d = odDon[p.ma_phieu]; if (!d?.length) return null;
+    const ok = d.filter((x) => x.trang_thai === 'thanh_cong').length;
+    const loi = d.filter((x) => x.trang_thai === 'loi').length;
+    const xem = d.filter((x) => x.trang_thai === 'can_xem').length;
+    const cls = loi ? 'loi' : xem ? 'xem' : ok ? 'ok' : 'gui';
+    return <span className={'od-chip nho ' + cls} title={d.map((x) => `${x.name}: ${x.trang_thai}${x.loi ? ' — ' + x.loi : ''}`).join('\n')}>
+      Odoo {ok ? `✓ ${ok}` : ''}{xem ? ` ⚠ ${xem}` : ''}{loi ? ` ✕ ${loi}` : ''}</span>;
+  };
   const doiTt = async (p, tt) => {
     const hoi = p.nguon === 'TK'
       ? (tt === 'huy' ? `Huỷ phiếu thùng ${p.ma_phieu}? Các thùng (${(p.thung || []).join(', ')}) sẽ được trả lại để giao đội khác.` : `Đánh dấu phiếu thùng ${p.ma_phieu} đã xuất kho?`)
@@ -1033,7 +1055,8 @@ function DsPhieu() {
               <tr key={p.id}>
                 <td><b>{p.ma_phieu}</b> <span className={'ch-nguon ' + ({ TK: 'tk', PK: 'pk' }[p.nguon] || 'sa')}>{{ TK: 'Thùng · TK05005', PK: 'Phụ kiện · PK05001' }[p.nguon] || 'Sale · SA'}</span>
                   <div className="tq-ghi">{p.loai === 'loat' ? 'Chia hàng mới' : 'Từng đội'}{p.ma_lien_quan ? ` · đi cùng ${p.ma_lien_quan}` : ''}</div>
-                  {p.ghi_chu && <div className="ch-phieu-gc" title="Ghi chú — ghi ở dòng 1 của file">✎ {p.ghi_chu}</div>}</td>
+                  {p.ghi_chu && <div className="ch-phieu-gc" title="Ghi chú — ghi ở dòng 1 của file">✎ {p.ghi_chu}</div>}
+                  {odoo && odChip(p)}</td>
                 <td><span className={'ch-tt ' + TT[p.trang_thai][1]}>{ttTen(p)}</span></td>
                 <td>{(p.doi || []).map(tenNgan).join(', ')}</td>
                 <td className="num">{fmtN(p.so_ma)}</td>
@@ -1043,6 +1066,7 @@ function DsPhieu() {
                 <td className="tq-ghi">{p.nguoi || '—'} · {ngayGio(p.tao_luc)}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   <button className="btn" onClick={() => xuatPhieu(p.id, p.ma_phieu, p.ghi_chu).catch((e) => baoToast('Lỗi: ' + e.message))}><IcDown /> File</button>
+                  {odoo && p.trang_thai !== 'huy' && <button className="btn od-nut-nho" onClick={() => guiOdoo(p)} title="Tạo đơn điều chuyển Odoo từ phiếu này (thử nghiệm)"><IcGuiLen /> Odoo</button>}
                   {p.trang_thai === 'xac_nhan' && <>
                     <button className="btn" onClick={() => doiTt(p, 'da_xuat')}><IcCheck /> Đã xuất</button>
                     <button className="btn" onClick={() => doiTt(p, 'huy')}>Huỷ</button>

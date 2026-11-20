@@ -3,7 +3,7 @@ import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { IcCheck, IcDown, IcAlert, IcSearch } from '../lib/icons.jsx';
 import { AnhSP } from './DsBanChia.jsx';
-import { TrangThaiLuu, baoLoiXacNhan, fmtN, lsGet, lsSet, so, tenNgan, useNhap, xuatHaiFile, tenPhieu, soFile, useHoiGhiChu } from './dsChung.jsx';
+import { TrangThaiLuu, baoLoiXacNhan, fmtN, lsGet, lsSet, so, tenNgan, useNhap, xuatHaiFile, tenPhieu, soFile, useHoiGhiChu, odooTuKq } from './dsChung.jsx';
 import { useLamTron, quyTac, chiaTyTrong, kGia, moTaMuc } from './dsLamTron.js';
 
 // ============================================================================
@@ -32,7 +32,7 @@ export default function DsChiaMoi({ dsDoi, ts }) {
   const [gui, setGui] = useState(false);
   const [moDS, setMoDS] = useState(false);
   const [xong, setXong] = useState(null);
-  const [hoiGhiChu, hopGhiChu] = useHoiGhiChu();
+  const [hoiGhiChu, hopGhiChu, chonOdoo] = useHoiGhiChu();
   const doiSx = useMemo(() => [...dsDoi].sort((a, b) => a.ma_ch.localeCompare(b.ma_ch)), [dsDoi]);
   const tenDoi = (m) => tenNgan(dsDoi.find((d) => d.ma_ch === m)?.ten || m);
 
@@ -156,7 +156,7 @@ export default function DsChiaMoi({ dsDoi, ts }) {
     if (!dongGui.length) { baoToast('Chưa có số nào'); return; }
     if (vuot.length) { baoToast(`${vuot.length} mã chia vượt kho khả dụng — sửa trước khi xác nhận`); return; }
     const soDoi = new Set(dongGui.map((d) => d.ma_ch)).size;
-    const ghiChu = await hoiGhiChu({ macDinh: lsGet('ghi_chu.loat') ?? `Chia hàng mới – ${soDoi} đội`, tieuDe: 'Ghi chú file xuất — Chia hàng mới đội sale',
+    const ghiChu = await hoiGhiChu({ odoo: true, macDinh: lsGet('ghi_chu.loat') ?? `Chia hàng mới – ${soDoi} đội`, tieuDe: 'Ghi chú file xuất — Chia hàng mới đội sale',
       nutXong: `Xác nhận & xuất (${fmtN(tongAll)})`, phu: `${dsMa.length} mã × ${soDoi} đội · ${fmtN(tongAll)} cái — giữ tồn kho SA ngay khi xác nhận` });
     if (ghiChu === null) return;
     lsSet('ghi_chu.loat', ghiChu);
@@ -166,6 +166,7 @@ export default function DsChiaMoi({ dsDoi, ts }) {
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     if (!data?.ok) { baoLoiXacNhan(data, baoToast); taiSp(); return; }
     try { await xuatHaiFile(data, ghiChu); } catch { baoToast('Đã giữ tồn, xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
+    if (chonOdoo.current) odooTuKq(data, ghiChu).catch((e) => baoToast('Đã xác nhận, chưa mở được hộp Odoo: ' + (e?.message || e) + ' — gửi lại ở Phiếu đã chia'));
     await xoaNhap();
     setXong({ ...data, sl: tongAll, doi: soDoi });
     baoToast(`Đã xác nhận ${tenPhieu(data)}: ${fmtN(tongAll)} cái cho ${soDoi} đội`);

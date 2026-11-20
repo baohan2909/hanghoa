@@ -3,7 +3,7 @@ import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { IcCheck, IcDown, IcAlert, IcSpark, IcTeam, IcTarget } from '../lib/icons.jsx';
 import { AnhSP } from './DsBanChia.jsx';
-import { TrangThaiLuu, baoLoiXacNhan, fmtN, lsGet, lsSet, so, tenNgan, useNhap, xuatHaiFile, tenPhieu, useHoiGhiChu, ghiDong1, KHO_TEN } from './dsChung.jsx';
+import { TrangThaiLuu, baoLoiXacNhan, fmtN, lsGet, lsSet, so, tenNgan, useNhap, xuatHaiFile, tenPhieu, useHoiGhiChu, ghiDong1, KHO_TEN, odooTuKq } from './dsChung.jsx';
 import { useLamTron, quyTac, lenMuc, xuongMuc, mucNho, canBang, chiaTyTrong, kGia, hoMau, mauMa, moTaMuc } from './dsLamTron.js';
 import { tachSize, thuTuSize } from './DsBoLoc.jsx';
 
@@ -316,7 +316,7 @@ export default function DsDoiMoi({ dsDoi }) {
   const [moNhom, setMoNhom] = useState({});
   const [moCanh, setMoCanh] = useState(true);
   const [gui, setGui] = useState(false);
-  const [hoiGhiChu, hopGhiChu] = useHoiGhiChu();
+  const [hoiGhiChu, hopGhiChu, chonOdoo] = useHoiGhiChu();
   useEffect(() => { lsSet('doimoi_id', id); }, [id]);
   useEffect(() => { lsSet('dm_cua_so', cuaSo); }, [cuaSo]);
   const macDinh = useMemo(() => macDinhNhap(cfg), [cfg]);
@@ -453,7 +453,7 @@ export default function DsDoiMoi({ dsDoi }) {
     if (!ds.length) { baoToast('Chưa có số nào'); return; }
     const vuot = kh.nhom.flatMap((n) => n.dong.filter((d) => d.thuc > d.x.kd));
     if (vuot.length) { baoToast(`${vuot.length} mã thực chia vượt kho SA — sửa trước khi xác nhận`); return; }
-    const ghiChu = await hoiGhiChu({ macDinh: `${String(doiCo.ten || '').replace(/^Đội SALE/i, 'Đội Sale')}${d2.kv ? ' – ' + d2.kv : ' – '}`, tieuDe: `Xác nhận chia trước — ${tenNgan(doiCo.ten)}`,
+    const ghiChu = await hoiGhiChu({ odoo: true, macDinh: `${String(doiCo.ten || '').replace(/^Đội SALE/i, 'Đội Sale')}${d2.kv ? ' – ' + d2.kv : ' – '}`, tieuDe: `Xác nhận chia trước — ${tenNgan(doiCo.ten)}`,
       nutXong: `Xác nhận & xuất (${fmtN(tongThuc)})`, phu: `${fmtN(tongThuc)} cái · ${soMa} mã — giữ tồn kho SA ngay khi xác nhận` });
     if (ghiChu === null) return;
     setGui(true);
@@ -462,6 +462,7 @@ export default function DsDoiMoi({ dsDoi }) {
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     if (!kq?.ok) { baoLoiXacNhan(kq, baoToast); tai(true); return; }
     try { await xuatHaiFile(kq, ghiChu); } catch { baoToast('Đã giữ tồn, xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
+    if (chonOdoo.current) odooTuKq(kq, ghiChu).catch((e) => baoToast('Đã xác nhận, chưa mở được hộp Odoo: ' + (e?.message || e) + ' — gửi lại ở Phiếu đã chia'));
     baoToast(`Đã xác nhận ${tenPhieu(kq)}: ${fmtN(tongThuc)} cái cho ${tenNgan(doiCo.ten)}`);
     tai(true);
   };

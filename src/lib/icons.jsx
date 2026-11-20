@@ -37,3 +37,4 @@ export const IcTeam    = (p) => <I d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z
 export const IcMoRong  = (p) => <I d="M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5" {...p} />;
 export const IcThuNho  = (p) => <I d="M9 4v5H4 M15 4v5h5 M9 20v-5H4 M15 20v-5h5" {...p} />;
 export const IcLoc     = (p) => <I d="M3 5h18l-7 8v6l-4-2v-4L3 5z" {...p} />;
+export const IcGuiLen  = (p) => <I d="M12 16V4 M6.5 9.5 12 4l5.5 5.5 M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" {...p} />;
