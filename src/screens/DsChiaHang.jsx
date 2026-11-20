@@ -7,6 +7,7 @@ import { KHO_TEN, TrangThaiLuu, baoLoiXacNhan, fmtN, gio, lsDel, lsGet, lsSet, n
 import KhoThung from './DsKhoThung.jsx';
 import { tachSize, thuTuSize, useBoLoc, MenuBoLoc, HopBoLoc } from './DsBoLoc.jsx';
 import DsBanChia from './DsBanChia.jsx';
+import GoiYThung, { useGoiYThung, NutGoiY, mucDiem } from './DsGoiYThung.jsx';
 
 // ============================================================================
 // CHIA HÀNG ĐỘI SALE (bản làm lại v3.102.0; v3.104.0 thêm Kho thùng — DsKhoThung.jsx) — 5 chế độ:
@@ -128,6 +129,8 @@ function ChiaDoi({ dsDoi, ts }) {
   const [suaBoLoc, setSuaBoLoc] = useState(null);   // null | 'moi' | {bộ lọc}
   const [dsBoLoc, taiBoLoc] = useBoLoc(nguoi);
   const [moDsThung, setMoDsThung] = useState(false);
+  const [moGy, setMoGy] = useState(() => !!lsGet('mo_gy'));   // trung tâm gợi ý thùng (ngăn kéo phải)
+  useEffect(() => { lsSet('mo_gy', moGy); }, [moGy]);
   // THU GỌN đầu bàn: gộp đội + số liệu + tham số + thùng vào 1 hàng, dòng bảng thấp hơn -> thêm chỗ chia
   const [gon, setGon] = useState(() => lsGet('gon') ?? true);
   useEffect(() => { lsSet('gon', gon); }, [gon]);
@@ -160,6 +163,9 @@ function ChiaDoi({ dsDoi, ts }) {
   const [nhap, datNhap, ttLuu, xoaNhap] = useNhap(nguoi, khoa, { thung: [], sua: {} });
   const sua = nhap.sua || {};
   const thung = nhap.thung || [];
+  // gợi ý thùng: tự phân tích khi đổi đội / tham số / nháp (SQL 200)
+  const gy = useGoiYThung({ doi, cuaSo, mucTieu, heSo, sapHet: ts.sap_het || 7, nguoi, thung, sua, mo: moGy });
+  const diemThung = gy.kq?.diem || {};
 
   // danh sách nháp (đánh dấu đội đang dở)
   const taiNhapDs = () => sb.rpc('fn_ds_nhap_lay', { p_nguoi: nguoi }).then(({ data }) => setNhapDs(data || {}));
@@ -320,6 +326,8 @@ function ChiaDoi({ dsDoi, ts }) {
     if (thung.includes(m)) { baoToast('Thùng ' + m + ' đã có trong danh sách'); return; }
     datNhap((d) => ({ ...d, thung: [...(d.thung || []), m] }));
     setTq(''); setGoiYThung([]);
+    const d = diemThung[m];
+    if (d != null && mucDiem(d, gy.kq?.cfg) === 'it') baoToast(`Đã thêm ${m} — lưu ý: thùng ít phù hợp với ${tenNgan(gy.kq?.ten)} (${d} điểm). Mở Gợi ý thùng để xem lý do.`);
   };
   const boThung = (ma) => datNhap((d) => ({ ...d, thung: (d.thung || []).filter((x) => x !== ma) }));
 
@@ -434,7 +442,8 @@ function ChiaDoi({ dsDoi, ts }) {
           <div key={t} className={'ch-tt' + (loi ? ' loi' : '') + (!loi && (lech || thieuTk.length || chuaCo) ? ' co-canh' : '')}
             title={(loi ? 'Thùng này sẽ KHÔNG vào phiếu: ' + loi + '\n' : '') + (lech ? `Dòng thùng ghi ${x.tong_ghi}, cộng ruột = ${x.tong_sl} → lấy ${x.tong_sl}\n` : '')
               + (chuaCo ? `${chuaCo} mã chưa nhận diện\n` : '') + (thieuTk.length ? `${thieuTk.length} mã TK05005 chưa đủ\n` : '') + (goi || '')}>
-            <div className="ch-tt-ma">{t}</div>
+            <div className="ch-tt-ma">{t}{diemThung[t] != null && !loi && (
+              <i className={'gy-chip m-' + mucDiem(diemThung[t], gy.kq?.cfg)} title={`Điểm phù hợp với đội: ${diemThung[t]}/100`}>{diemThung[t]}</i>)}</div>
             <div className="ch-tt-so">{x ? (loi ? <em className="do">{loi}</em> : <><b>{x.tong_sl}</b> cái · {x.ct.length} mã</>) : '…'}</div>
             {!loi && (lech || thieuTk.length > 0 || chuaCo > 0) && (
               <div className="ch-tt-canh">
@@ -488,6 +497,7 @@ function ChiaDoi({ dsDoi, ts }) {
           <div className="ch-gon-th">
             <span className="ch-th-ic" title="Thùng đóng sẵn — hàng ở TK05005, phiếu riêng ghi kho SA"><IcBox /></span>
             {oThung}
+            <NutGoiY gy={gy} onMo={() => setMoGy(true)} gon />
             {nutKho}
             {theThung}
             <span className="ch-gon-th-tong" title={`${trongThung.soMa} mã trong thùng`}><b>{fmtN(tong.th)}</b> cái · {trongThung.soThung} thùng</span>
@@ -520,6 +530,7 @@ function ChiaDoi({ dsDoi, ts }) {
             <div><b>Thùng đóng sẵn</b><small>Hàng ở TK05005 · phiếu riêng ghi kho SA</small></div>
           </div>
           {oThung}
+          <NutGoiY gy={gy} onMo={() => setMoGy(true)} />
           {nutKho}
           {theThung}
           <div className="ch-th-tong">
@@ -534,11 +545,18 @@ function ChiaDoi({ dsDoi, ts }) {
           <div className="kt-modal-in">
             <div className="kt-modal-dau"><b>Kho thùng — chọn thùng cho {tenDoi}</b>
               <button className="kt-dong" onClick={() => setMoKho(false)}>×</button></div>
-            <KhoThung dsDoi={dsDoi} chon={{ doi, daChon: thung,
+            <KhoThung dsDoi={dsDoi} chon={{ doi, daChon: thung, diem: gy.kq?.diem, cfg: gy.kq?.cfg,
               onXong: (ds) => { datNhap((d) => ({ ...d, thung: ds })); baoToast(`Đã đưa ${ds.length} thùng vào bàn chia`); },
               onDong: () => setMoKho(false) }} />
           </div>
         </div>
+      )}
+
+      {moGy && (
+        <GoiYThung gy={gy} doi={doi} tenDoi={tenDoi} cuaSo={cuaSo} onDong={() => setMoGy(false)} onDoiTiep={doiTiep}
+          daChon={thung} onBo={boThung}
+          onThem={(ds) => { datNhap((d) => ({ ...d, thung: [...new Set([...(d.thung || []), ...ds])] }));
+            baoToast(`Đã đưa ${ds.length} thùng vào bàn chia ${tenNgan(tenDoi)} — trạng thái Chờ xác nhận`); }} />
       )}
 
       {suaBoLoc && (

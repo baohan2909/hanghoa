@@ -3,6 +3,7 @@ import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { IcBox, IcCheck, IcAlert, IcDown, IcRefresh } from '../lib/icons.jsx';
 import { fmtN, tenNgan, ngayGio, lsGet, lsSet, useNhap, TrangThaiLuu, xuatHaiFile, xuatPhieu, tenPhieu, baoLoiXacNhan, NHAN_DIEN } from './dsChung.jsx';
+import { mucDiem } from './DsGoiYThung.jsx';
 
 // ============================================================================
 // KHO THÙNG (v3.104.0) — quản lý & phân bổ thùng hàng đóng sẵn (hàng ở TK05005)
@@ -27,7 +28,7 @@ export const CANH = {
   roi_nguon: ['Đã rời file nguồn', 'Thùng đã giao nhưng không còn trong file thùng đóng sẵn. Kiểm tra kho đã xuất chưa, rồi bấm “Đã xuất” ở Phiếu đã chia.', 'do'],
   doi_nd: ['File nguồn đổi ruột', 'Ruột thùng trong file đã đổi SAU khi giao. Phiếu vẫn giữ số lúc giao — kiểm tra lại; cần thì huỷ phiếu rồi chia lại.', 'do'],
 };
-const SAP = [['tt', 'Thứ tự trong file'], ['khop', 'Nhiều số khớp tìm nhất'], ['n_g', 'Nhiều cái nhất'], ['sm_g', 'Nhiều mã nhất'], ['ma', 'Mã thùng A → Z']];
+const SAP = [['tt', 'Thứ tự trong file'], ['hop', 'Hợp với đội nhất (điểm)'], ['khop', 'Nhiều số khớp tìm nhất'], ['n_g', 'Nhiều cái nhất'], ['sm_g', 'Nhiều mã nhất'], ['ma', 'Mã thùng A → Z']];
 // so khớp: chữ hoa, bỏ dấu, Đ = D, bỏ khoảng trắng — gõ "dn052", "ĐN052", "156" đều ra
 const chuan = (s) => (s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/Đ/g, 'D').replace(/\s+/g, '');
 // 'mã:sl|mã:sl' (SQL 197) -> [{m, s}]; bản cũ chỉ có 'mã|mã' vẫn đọc được (s = 0)
@@ -47,7 +48,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
   const [loc, setLoc] = useState(() => (chon ? 'san' : lsGet('kt_loc') || 'san'));
   const [nhom, setNhom] = useState('');
   const [q, setQ] = useState('');
-  const [sap, setSap] = useState(() => lsGet('kt_sap') || 'tt');
+  const [sap, setSap] = useState(() => (chon?.diem ? 'hop' : lsGet('kt_sap') || 'tt'));
   const [mo, setMo] = useState(null);
   const [ctMap, setCtMap] = useState({});
   const [doi, setDoi] = useState(() => chon?.doi || lsGet('kt_doi') || '');
@@ -63,6 +64,19 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
   const [chonTam, setChonTam] = useState(() => chon?.daChon || []);
   const gio = chon ? chonTam : (nhap.thung || []);
   const datGio = (fn) => (chon ? setChonTam(fn) : datNhap((d) => ({ ...d, thung: fn(d.thung || []) })));
+
+  // ĐIỂM PHÙ HỢP với đội đang chọn (SQL 200): bộ chọn trong bàn chia nhận sẵn; bàn Kho thùng tự hỏi máy chủ
+  const [diemTu, setDiemTu] = useState(null);
+  useEffect(() => {
+    if (chon || !doi) { setDiemTu(null); return undefined; }
+    let huy = false;
+    sb.rpc('fn_ds_thung_goi_y', { p_doi: doi, p_cua_so: lsGet('cua_so') || 28, p_muc_tieu: lsGet('muc_tieu') || 21,
+      p_he_so: lsGet('he_so') || 100, p_top: 10 })
+      .then(({ data }) => { if (!huy && data && !data.loi) setDiemTu({ diem: data.diem || {}, cfg: data.cfg || {}, giu: data.giu || [] }); });
+    return () => { huy = true; };
+  }, [doi, chon]);   // eslint-disable-line
+  const diemMap = chon ? chon.diem : diemTu?.diem;
+  const cfgDiem = (chon ? chon.cfg : diemTu?.cfg) || {};
 
   const tai = async () => {
     setDang(true);
@@ -137,9 +151,10 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
   const hien = useMemo(() => {
     const v = ds.filter((b) => hopLoc(b) && (!nhom || (b.g || '—') === nhom) && (!khopTim || khopTim[b.t]));
     const f = { tt: (a, b) => a.tt - b.tt, n_g: (a, b) => b.n - a.n || a.tt - b.tt, sm_g: (a, b) => b.sm - a.sm || a.tt - b.tt,
-      ma: (a, b) => a.t.localeCompare(b.t), khop: (a, b) => (khopTim?.[b.t]?.sl || 0) - (khopTim?.[a.t]?.sl || 0) || a.tt - b.tt }[sap];
+      ma: (a, b) => a.t.localeCompare(b.t), khop: (a, b) => (khopTim?.[b.t]?.sl || 0) - (khopTim?.[a.t]?.sl || 0) || a.tt - b.tt,
+      hop: (a, b) => (diemMap?.[b.t] ?? -1) - (diemMap?.[a.t] ?? -1) || a.tt - b.tt }[sap];
     return v.sort(f);
-  }, [ds, loc, nhom, khopTim, sap]);   // eslint-disable-line
+  }, [ds, loc, nhom, khopTim, sap, diemMap]);   // eslint-disable-line
   const tongKhop = useMemo(() => (khopTim ? hien.reduce((a, b) => a + (khopTim[b.t]?.sl || 0), 0) : 0), [hien, khopTim]);
   // đang tìm mà vẫn xếp "thứ tự file" -> tự chuyển sang "nhiều số khớp nhất"; xoá tìm -> trả lại
   const [sapTruocTim, setSapTruocTim] = useState(null);
@@ -166,7 +181,11 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
       return;
     }
     if (!doi) { baoToast('Chọn đội nhận ở thanh dưới trước'); return; }
+    const dang = gio.includes(b.t);
     datGio((g) => (g.includes(b.t) ? g.filter((x) => x !== b.t) : [...g, b.t]));
+    // cảnh báo nhẹ khi chọn thùng ít hợp đội (vẫn cho chọn)
+    const d = diemMap?.[b.t];
+    if (!dang && d != null && mucDiem(d, cfgDiem) === 'it') baoToast(`Lưu ý: thùng ${b.t} ít phù hợp với ${tenDoi} (${d} điểm) — vẫn đã chọn`);
   };
 
   // ---------- duyệt thùng nghi vấn ----------
@@ -238,7 +257,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
       <div className="kt-tool">
         <input className="flt-in" placeholder="Tìm mã thùng hoặc mã sản phẩm trong thùng (vd TG-5020, XM179)…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="ch-sel" value={sap} onChange={(e) => setSap(e.target.value)}>
-          {SAP.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+          {SAP.filter(([k]) => k !== 'hop' || diemMap).map(([k, t]) => <option key={k} value={k}>{t}</option>)}
         </select>
         <button className="btn btn-ghost" onClick={tai} disabled={dang}><IcRefresh /> {dang ? 'Đang tải…' : 'Tải lại'}</button>
         <span className="ch-dem">{khopTim ? <><b className="kt-tim-tong">{fmtN(tongKhop)}</b> cái khớp “{q.trim()}” trong </> : null}{fmtN(hien.length)} thùng</span>
@@ -257,7 +276,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
             : hien.length === 0 ? <div className="card dsl-trong">Không có thùng nào khớp.</div> : (
             <div className="kt-luoi">
               {hien.slice(0, soHien).map((b) => (
-                <TheThung key={b.t} b={b} khop={khopTim?.[b.t]} chon={gio.includes(b.t)} dangMo={mo === b.t}
+                <TheThung key={b.t} b={b} khop={khopTim?.[b.t]} chon={gio.includes(b.t)} dangMo={mo === b.t} diem={diemMap?.[b.t]} cfgDiem={cfgDiem}
                   onMo={() => setMo(mo === b.t ? null : b.t)} onChon={() => batChon(b)} coDoi={!!doi} />
               ))}
             </div>
@@ -330,7 +349,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
 // ---------------------------------------------------------------------------
 // Thẻ thùng
 // ---------------------------------------------------------------------------
-function TheThung({ b, khop, chon, dangMo, onMo, onChon, coDoi }) {
+function TheThung({ b, khop, chon, dangMo, onMo, onChon, coDoi, diem, cfgDiem }) {
   const ok = b.sm - b.cc - b.dm;
   const theoMa = khop && !khop.theoThung;
   const canhDo = b.canh.filter((c) => c === 'doi_nd' || c === 'roi_nguon');
@@ -342,6 +361,7 @@ function TheThung({ b, khop, chon, dangMo, onMo, onChon, coDoi }) {
           title={coDoi ? (chon ? 'Bỏ khỏi đợt chia' : 'Chọn thùng này') : 'Chọn đội nhận trước'}>{chon && <IcCheck />}</button>
       )}
       <div className="kt-ma">{b.t}</div>
+      {diem != null && b.st === 'san' && <span className={'kt-diem gy-chip m-' + mucDiem(diem, cfgDiem)} title={`Điểm phù hợp với đội đang chọn: ${diem}/100`}>{diem}</span>}
       {theoMa ? (
         <div className="kt-so khop"><b>{fmtN(khop.sl)}</b><span>cái khớp · {khop.ma} mã<small>/ {fmtN(b.n)} cả thùng</small></span></div>
       ) : (
