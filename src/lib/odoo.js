@@ -74,7 +74,9 @@ export function thanhRequest(d, chung) {
   };
   if (d.name) o.name = d.name; else if (d.prefix) o.prefix = d.prefix;
   if (ghi) o.ghi_chu = ghi.slice(0, 500);
-  if (String(chung.nguoiTao || '').trim()) o.nguoi_tao = String(chung.nguoiTao).trim();
+  const nt = String(chung.nguoiTao || d.nguoi_tao || '').trim();
+  if (nt) o.nguoi_tao = nt;
+  if (d.cho_trung) o.cho_trung = true;   // đã xác nhận gửi dù giống hệt đơn đã tạo trong 48 giờ (SQL 206)
   return o;
 }
 

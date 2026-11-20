@@ -41,6 +41,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
   const [loi, setLoi] = useState('');
   const [canhSv, setCanhSv] = useState([]);
   const [json, setJson] = useState(null);
+  const [trung, setTrung] = useState(null);   // SQL 206: đơn giống hệt đơn đã tạo trong 48 giờ -> phải xác nhận
   const [phanHoi, setPhanHoi] = useState(null);
   const [mo, setMo] = useState(() => new Set());
 
@@ -100,6 +101,14 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
     const donMoi = don.map((d) => (ten[d._i] && !d.name ? { ...d, name: ten[d._i] } : d));
     setDon(donMoi);
 
+    if (Array.isArray(r?.trung) && r.trung.length) {
+      // chưa gửi gì — hỏi xác nhận từng đơn trùng nội dung
+      setKq((m) => { const n = { ...m }; ds.forEach((d) => { delete n[d._i]; }); return n; });
+      setTrung(r.trung.map((t) => ({ ...t, _i: ds[t.i - 1]?._i })));
+      setLoi(r.loi);
+      return;
+    }
+    setTrung(null);
     if (!Array.isArray(r?.ket_qua)) {
       setKq((m) => { const n = { ...m }; ds.forEach((d) => { n[d._i] = { trang_thai: 'loi', loi: r?.loi || 'Không gửi được' }; }); return n; });
       setLoi(r?.loi || 'Không gửi được');
@@ -157,6 +166,17 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
           </div>
 
           {loi && <div className="od-bao loi"><IcAlert /> {loi}</div>}
+          {trung && (
+            <div className="od-bao canh od-trung"><IcAlert /><div>
+              <b>Kiểm tra trước khi gửi — có thể là đơn gửi trùng:</b>
+              {trung.map((t) => <div key={t.name}>• {t.name} giống hệt <b>{t.trung_voi}</b> (đã tạo {t.luc})</div>)}
+              <div className="od-trung-nut">
+                <button className="btn btn-ghost" onClick={() => { setChon((s) => { const n = new Set(s); trung.forEach((t) => n.delete(t._i)); return n; }); setTrung(null); setLoi(''); }}>Bỏ các đơn trùng</button>
+                <button className="btn btn-ai od-gui" onClick={() => { const ids = new Set(trung.map((t) => t._i)); setDon((ds) => ds.map((d) => (ids.has(d._i) ? { ...d, cho_trung: true } : d))); setTrung(null); setLoi(''); }}>
+                  <IcCheck /> Đã kiểm tra — vẫn gửi</button>
+              </div>
+            </div></div>
+          )}
           {canh.length > 0 && <div className="od-bao canh"><IcAlert /> <div>{canh.map((c, i) => <div key={i}>{c}</div>)}</div></div>}
 
           <div className="od-ds">
