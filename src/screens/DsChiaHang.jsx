@@ -535,9 +535,9 @@ function ChiaDoi({ dsDoi, ts }) {
   // ---- mảnh dùng chung cho 2 kiểu đầu bàn (đầy đủ / thu gọn) ----
   const thamSo = (
     <div className="ch-ts2">
-      <label title="Số ngày lấy sức bán">Sức bán<span><input type="number" value={cuaSo} min={3} max={180} onChange={(e) => setCuaSo(Math.max(3, Math.min(180, so(e.target.value) || 28)))} />ngày</span></label>
-      <label title="Chia cho đội đủ bán bao nhiêu ngày">Chia đủ<span><input type="number" value={mucTieu} min={1} max={180} onChange={(e) => setMucTieu(Math.max(1, so(e.target.value) || 21))} />ngày</span></label>
-      <label title="Tỷ lệ bổ sung so với nhu cầu: 100% = đúng nhu cầu, 120% = chia dư 20%">Tỷ lệ<span><input type="number" value={heSo} min={10} max={300} step={10} onChange={(e) => setHeSo(Math.max(10, so(e.target.value) || 100))} />%</span></label>
+      <label title={'Số ngày lấy sức bán (1–180) — tính cả hôm nay: 1 = chỉ hôm nay (đang bán dở), 2 = hôm qua + hôm nay'}>Sức bán<span><OSoTs gt={cuaSo} min={1} max={180} onDat={setCuaSo} />ngày</span></label>
+      <label title="Chia cho đội đủ bán bao nhiêu ngày (1–180)">Chia đủ<span><OSoTs gt={mucTieu} min={1} max={180} onDat={setMucTieu} />ngày</span></label>
+      <label title="Tỷ lệ bổ sung so với nhu cầu: 100% = đúng nhu cầu, 120% = chia dư 20% (10–300)">Tỷ lệ<span><OSoTs gt={heSo} min={10} max={300} onDat={setHeSo} />%</span></label>
     </div>
   );
   const oThung = (
@@ -558,9 +558,9 @@ function ChiaDoi({ dsDoi, ts }) {
     </div>
   );
   const nutKho = <button className="ch-th-kho" onClick={() => setMoKho(true)} title="Mở kho thùng dạng thẻ để chọn"><IcGrid /><span className="ch-an-hep"> Kho thùng</span></button>;
-  const theThung = (
+  // Chưa chọn thùng: không hiện gì (ô gõ mã đã ghi sẵn hướng dẫn) — đỡ chiếm chỗ đầu bàn
+  const theThung = thung.length === 0 ? null : (
     <div className="ch-th-ds">
-      {thung.length === 0 && <span className="ch-th-trong">{gon ? 'Chưa chọn thùng' : 'Chưa chọn thùng — gõ mã hoặc mở Kho thùng'}</span>}
       {thung.map((t) => {
         const x = thungCt[t];
         const loi = x?.khong_co ? 'không có trong file' : x?.da_giao ? `đã giao ${tenNgan(x.da_giao.ma_ch)}`
@@ -631,7 +631,7 @@ function ChiaDoi({ dsDoi, ts }) {
             <NutGoiY gy={gy} onMo={() => setMoGy(true)} gon />
             {nutKho}
             {theThung}
-            <span className="ch-gon-th-tong" title={`${trongThung.soMa} mã trong thùng`}><b>{fmtN(tong.th)}</b> cái · {trongThung.soThung} thùng</span>
+            {thung.length > 0 && <span className="ch-gon-th-tong" title={`${trongThung.soMa} mã trong thùng`}><b>{fmtN(tong.th)}</b> cái · {trongThung.soThung} thùng</span>}
           </div>
           <TrangThaiLuu tt={ttLuu} />
         </div>
@@ -882,6 +882,32 @@ function ChiaDoi({ dsDoi, ts }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Ô số tham số đầu bàn (v3.112.2): gõ tự do (xoá trắng, gõ 1, 2… không bị nhảy số),
+// chốt khi Enter / rời ô / ngừng gõ 0,6 giây nếu số nằm trong khoảng cho phép
+function OSoTs({ gt, min, max, onDat }) {
+  const [o, setO] = useState(String(gt));
+  const hen = useRef(null);
+  useEffect(() => { setO(String(gt)); }, [gt]);
+  useEffect(() => () => clearTimeout(hen.current), []);
+  const chot = (v, epVe) => {
+    const n = so(v);
+    if (!n) { if (epVe) setO(String(gt)); return; }
+    const c = Math.max(min, Math.min(max, n));
+    if (epVe) setO(String(c));
+    if (c !== gt) onDat(c);
+  };
+  return (
+    <input type="number" inputMode="numeric" min={min} max={max} value={o}
+      onChange={(e) => {
+        const v = e.target.value; setO(v); clearTimeout(hen.current);
+        const n = so(v); if (n >= min && n <= max) hen.current = setTimeout(() => chot(v, false), 600);
+      }}
+      onBlur={() => { clearTimeout(hen.current); chot(o, true); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { setO(String(gt)); e.currentTarget.blur(); } }}
+      onFocus={(e) => e.target.select()} />
   );
 }
 
