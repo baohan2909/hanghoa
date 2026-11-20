@@ -4806,3 +4806,16 @@ body.ch-khoa-cuon { overflow: hidden; }
 .dmo-ts-ly { font-size: 11px; color: var(--ink-2); line-height: 1.45; font-weight: 600; }
 .dmo-ts-cat { margin-top: 8px; font-size: 11.5px; font-weight: 700; color: #8A6A2A; background: #FBF6EA; border: 1px solid rgba(203,164,90,.4); border-radius: 10px; padding: 6px 10px; }
 .dmo-form-chan:empty { display: none; }
+
+/* v3.113.0 — Thu hồi đội sale */
+.ch-th-hoi { font-style: normal; font-size: 9.5px; font-weight: 800; color: #fff; background: var(--magenta); padding: 0 6px; border-radius: 6px; flex: none; }
+.gc-rut { display: block; margin-top: 6px; padding: 7px 10px; border-radius: 10px; background: #FDEFF6; color: var(--magenta); font-weight: 700; line-height: 1.45; }
+.kt-nd.th { background: var(--magenta); color: #fff; }
+.kt-tbl tr.kt-rut td { background: rgba(214,0,108,.05); }
+.kt-tbl tr.kt-rut td.l b, .kt-tbl tr.kt-rut td.dam { text-decoration: line-through; text-decoration-color: rgba(214,0,108,.6); color: #9AA3B2; }
+.db-ds-tick { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 10px; font-size: 12.5px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.db-ds-tick input { accent-color: #1E5F63; width: 16px; height: 16px; }
+.db-ds-tick b { color: var(--magenta); }
+.db-ds-loc { height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font: inherit; font-size: 12px; font-weight: 800; color: var(--ink-2); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.db-ds-loc i { font-style: normal; padding: 0 6px; border-radius: 8px; background: rgba(214,0,108,.1); color: var(--magenta); }
+.db-ds-loc.on { background: #1E5F63; border-color: #1E5F63; color: #fff; } .db-ds-loc.on i { background: rgba(255,255,255,.2); color: #fff; }

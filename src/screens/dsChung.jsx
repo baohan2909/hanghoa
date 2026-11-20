@@ -116,7 +116,16 @@ export async function xuatPhieu(id, maPhieu, ghiChu) {
 //   Sheet 1 "DieuChuyen" : bảng phẳng (giữ khuôn nhập Odoo), cột Mã thùng đứng đầu
 //   Sheet 2 "PhieuThung" : bản cho kho đọc — đầu phiếu (đội, tổng thùng, tổng SL, danh sách thùng) + từng thùng có dòng cộng
 export const NHAN_DIEN = { ton_kho: 'Có trong dữ liệu tồn kho', danh_muc: 'Chỉ có trong DATA SẢN PHẨM', chua_co: 'Chưa nhận diện' };
+export const NHAN_RUT = 'RÚT KHỎI THÙNG (thu hồi đội sale): ';
+export function tachRut(ghiChu) {
+  const g = String(ghiChu || ''); const i = g.indexOf(NHAN_RUT);
+  if (i < 0) return {};
+  const m = {};
+  g.slice(i + NHAN_RUT.length).split(' ; ').forEach((x) => { const j = x.indexOf(': '); if (j > 0) m[x.slice(0, j).trim()] = x.slice(j + 2).trim(); });
+  return m;
+}
 export function xuatPhieuThung(XLSX, data, maPhieu, ghiChu) {
+  const rut = tachRut(ghiChu);   // v3.113.0: mã thu hồi đội sale đã rút khỏi từng thùng
   const theoThung = [];
   const idx = {};
   data.forEach((r) => {
@@ -148,15 +157,20 @@ export function xuatPhieuThung(XLSX, data, maPhieu, ghiChu) {
     ['Danh sách thùng', theoThung.map((t) => `${t.ma} (${t.sl})`).join(', ')],
     ['Kho trên phiếu', `${khoGiay} · hàng lấy ở TK05005 — chuyển TK05005 → SA trước khi xuất`],
     ['Ngày xuất file', new Date().toLocaleString('vi')],
+    ...(Object.keys(rut).length ? [['⚠ RÚT KHỎI THÙNG', `Thu hồi đội sale — KHÔNG giao: ${Object.entries(rut).map(([t, v]) => `${t}: ${v}`).join(' ; ')}`]] : []),
     [],
     ['STT', 'Mã thùng', 'Mã tham chiếu', 'Barcode', 'Sản phẩm', 'Số lượng', 'Ghi chú'],
   ];
   const gop = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }];
-  for (let i = 1; i <= 5; i++) gop.push({ s: { r: i, c: 1 }, e: { r: i, c: 6 } });
+  for (let i = 1; i <= (Object.keys(rut).length ? 6 : 5); i++) gop.push({ s: { r: i, c: 1 }, e: { r: i, c: 6 } });
   let stt = 0;
   theoThung.forEach((t, i) => {
     gop.push({ s: { r: aoa.length, c: 0 }, e: { r: aoa.length, c: 6 } });
     aoa.push([`THÙNG ${i + 1}/${soThung} — ${t.ma} — ${t.sl} sản phẩm · ${t.dong.length} mã`]);
+    if (rut[t.ma]) {
+      gop.push({ s: { r: aoa.length, c: 0 }, e: { r: aoa.length, c: 6 } });
+      aoa.push([`⚠ RÚT RA KHỎI THÙNG (thu hồi đội sale, không giao): ${rut[t.ma]}`]);
+    }
     t.dong.forEach((r) => aoa.push([++stt, t.ma, r.ma_tham_chieu || '', r.barcode || '', r.ten || r.nganh_3 || '', r.sl,
       r.nhan_dien === 'chua_co' ? 'Mã chưa nhận diện — kho kiểm' : '']));
     aoa.push(['', '', '', '', `Cộng thùng ${t.ma}`, t.sl, '']);
@@ -182,7 +196,8 @@ export async function xuatCacFile(kq, ghiChu) {
   const ds = [[kq.id, kq.ma_phieu], [kq.id_pk, kq.ma_phieu_pk], [kq.id_thung, kq.ma_phieu_thung]].filter(([id]) => id);
   for (let i = 0; i < ds.length; i++) {
     if (i) await new Promise((r) => setTimeout(r, 600));
-    await xuatPhieu(ds[i][0], ds[i][1], ghiChu);
+    // phiếu thùng: dùng ghi chú máy chủ trả về (đã kèm "RÚT KHỎI THÙNG …" nếu có)
+    await xuatPhieu(ds[i][0], ds[i][1], ds[i][0] === kq.id_thung && kq.ghi_chu_thung != null ? kq.ghi_chu_thung : ghiChu);
   }
   return ds.length;
 }

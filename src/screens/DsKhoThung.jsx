@@ -170,9 +170,9 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
   const gioHopLe = gio.filter((t) => theoMa[t]?.st === 'san');
   const gioLoi = gio.filter((t) => !theoMa[t] || theoMa[t].st !== 'san');
   const tongGio = useMemo(() => {
-    const ma = new Set(); let cai = 0, cc = 0;
-    gioHopLe.forEach((t) => { const b = theoMa[t]; cai += b.n; cc += b.cc; b.items.forEach((x) => ma.add(x.m)); });
-    return { cai, ma: ma.size, cc };
+    const ma = new Set(); let cai = 0, cc = 0, th = 0, ths = 0, thT = 0;
+    gioHopLe.forEach((t) => { const b = theoMa[t]; cai += b.n - (b.ths || 0); cc += b.cc; th += b.th || 0; ths += b.ths || 0; if (b.th) thT++; b.items.forEach((x) => ma.add(x.m)); });
+    return { cai, ma: ma.size, cc, th, ths, thT };
   }, [gioHopLe.join('|'), theoMa]);   // eslint-disable-line
   const doiSx = useMemo(() => [...dsDoi].sort((a, b) => a.ma_ch.localeCompare(b.ma_ch)), [dsDoi]);
   const tenDoi = tenNgan(doiSx.find((d) => d.ma_ch === doi)?.ten) || doi;
@@ -187,7 +187,8 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
     datGio((g) => (g.includes(b.t) ? g.filter((x) => x !== b.t) : [...g, b.t]));
     // cảnh báo nhẹ khi chọn thùng ít hợp đội (vẫn cho chọn)
     const d = diemMap?.[b.t];
-    if (!dang && d != null && mucDiem(d, cfgDiem) === 'it') baoToast(`Lưu ý: thùng ${b.t} ít phù hợp với ${tenDoi} (${d} điểm) — vẫn đã chọn`);
+    if (!dang && b.th > 0) baoToast(`⚠ Thùng ${b.t} có ${b.th} mã THU HỒI đội sale (${b.ths} cái) — vẫn chọn cả thùng, khi cấp sẽ RÚT các mã này ra và ghi vào ghi chú phiếu thùng`);
+    else if (!dang && d != null && mucDiem(d, cfgDiem) === 'it') baoToast(`Lưu ý: thùng ${b.t} ít phù hợp với ${tenDoi} (${d} điểm) — vẫn đã chọn`);
   };
 
   // ---------- duyệt thùng nghi vấn ----------
@@ -208,7 +209,9 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
     if (!gioHopLe.length) { baoToast('Chưa chọn thùng nào còn chia được'); return; }
     // v3.112.0: hộp ghi chú thay cho hộp hỏi lại — Huỷ = không cấp
     const ghiChu = await hoiGhiChu({ macDinh: ghiChuMacDinh(doi, doiSx.find((d) => d.ma_ch === doi)?.ten || tenDoi), tieuDe: `Cấp ${gioHopLe.length} thùng · ${fmtN(tongGio.cai)} cái cho ${tenDoi}`,
-      nutXong: 'Cấp thùng & xuất file', phu: 'Phiếu ghi kho SA, hàng lấy ở TK05005. Tạo phiếu thùng + xuất file.' });
+      nutXong: 'Cấp thùng & xuất file',
+      phu: <>Phiếu ghi kho SA, hàng lấy ở TK05005. Tạo phiếu thùng + xuất file.
+        {tongGio.th > 0 && <span className="gc-rut">⚠ {tongGio.thT} thùng có mã thu hồi đội sale — sẽ RÚT {tongGio.th} mã ({fmtN(tongGio.ths)} cái) khỏi phiếu, tự ghi vào ghi chú: {gioHopLe.filter((t) => theoMa[t]?.th).join(', ')}</span>}</> });
     if (ghiChu === null) return;
     nhoGhiChu(doi, ghiChu);
     setGui(true);
@@ -316,6 +319,7 @@ export default function KhoThung({ dsDoi = [], chon = null }) {
         <div className="kt-gio-so">
           {gioHopLe.length ? <><b>{gioHopLe.length}</b> thùng · <b>{fmtN(tongGio.cai)}</b> cái · {fmtN(tongGio.ma)} mã</> : <span className="mo">Bấm ô tròn trên thẻ để chọn thùng</span>}
           {tongGio.cc > 0 && <em className="kt-tag do">{tongGio.cc} mã chưa nhận diện — vẫn vào phiếu</em>}
+          {tongGio.th > 0 && <em className="kt-tag do" title="Mã thu hồi đội sale (Hàng đặc biệt) — rút khỏi thùng, ghi vào ghi chú phiếu thùng">rút {tongGio.th} mã thu hồi ({fmtN(tongGio.ths)} cái) ở {tongGio.thT} thùng</em>}
           {gioLoi.length > 0 && (
             <em className="kt-tag do" title={gioLoi.join(', ')}>{gioLoi.length} thùng không còn chia được — tự bỏ qua
               <button className="kt-x" onClick={() => datGio((g) => g.filter((t) => !gioLoi.includes(t)))}>bỏ</button></em>
@@ -387,6 +391,8 @@ function TheThung({ b, khop, chon, dangMo, onMo, onChon, coDoi, diem, cfgDiem })
         {b.canh.includes('lech_tong') && <span className="kt-tag lech" title={`Dòng thùng ghi ${b.ghi}, cộng ruột ${b.n} → lấy ${b.n}`}>ghi {b.ghi}</span>}
         {b.dm > 0 && <span className="kt-tag lech" title="Mã chỉ có trong DATA SẢN PHẨM (không có trong tồn kho)">{b.dm} mã DM</span>}
         {b.cc > 0 && <span className="kt-tag do">{b.cc} mã ?</span>}
+        {b.th > 0 && <span className="kt-tag do" title={b.st === 'san' ? `Có ${b.th} mã thu hồi đội sale (${b.ths} cái) — vẫn chọn được, khi cấp sẽ rút ra` : `Đã rút ${b.th} mã thu hồi (${b.ths} cái) khi giao`}>
+          <IcAlert /> {b.st === 'san' ? 'thu hồi' : 'đã rút'} {b.th} mã</span>}
         {canhDo.length > 0 && <span className="kt-tag do"><IcAlert /> {CANH[canhDo[0]][0]}</span>}
       </div>
     </div>
@@ -450,9 +456,9 @@ function ChiTiet({ b, ct, qq, q, khop, trongGio, coDoi, tenDoi, onDong, onChon, 
               {dong.map((x) => {
                 const nay = soSanh ? theoNguon[x.m] ?? 0 : null;
                 return (
-                  <tr key={x.m} className={'nd-' + x.nd + (soSanh && nay !== x.s ? ' doi' : '') + (laKhop(x) ? ' khop' : '')}>
+                  <tr key={x.m} className={'nd-' + x.nd + (soSanh && nay !== x.s ? ' doi' : '') + (laKhop(x) ? ' khop' : '') + (x.th && !daGiao ? ' kt-rut' : '')}>
                     <td className="l">
-                      <b>{x.m}</b>
+                      <b>{x.m}</b>{x.th && !daGiao && <i className="kt-nd th" title="Thu hồi đội sale — rút khỏi thùng khi cấp">thu hồi · rút ra</i>}
                       {x.nd !== 'ton_kho' && <i className={'kt-nd ' + x.nd} title={NHAN_DIEN[x.nd]}>{x.nd === 'chua_co' ? 'chưa nhận diện' : 'danh mục'}</i>}
                       <small>{x.ten || x.n3 || (x.nd === 'chua_co' ? 'Không có trong tồn kho lẫn DATA SẢN PHẨM — giữ nguyên mã' : '—')}</small>
                     </td>
@@ -464,6 +470,10 @@ function ChiTiet({ b, ct, qq, q, khop, trongGio, coDoi, tenDoi, onDong, onChon, 
                   </tr>
                 );
               })}
+              {daGiao && (ct?.rut || []).map((x) => (
+                <tr key={'rut' + x.m} className="kt-rut"><td className="l"><b>{x.m}</b><i className="kt-nd th">đã rút — thu hồi</i><small>không nằm trong phiếu</small></td>
+                  <td className="mo">{x.s}</td>{soSanh && <td className="mo">{theoNguon[x.m] ?? 0}</td>}<td /><td /><td /></tr>
+              ))}
               {moiTrongNguon.map((x) => (
                 <tr key={'moi' + x.m} className="doi"><td className="l"><b>{x.m}</b><small>chỉ có trong file nay (lúc giao không có)</small></td>
                   <td className="mo">0</td><td className="vuot">{x.s}</td><td /><td /><td /></tr>

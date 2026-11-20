@@ -162,6 +162,8 @@ function canhBao(b, cfg, ts, marg) {
   if (b.u > 0 && du > 0 && b.u / b.n < 0.6) c.push(`Dư ${du} cái so với nhu cầu ${ts.t} ngày`);
   if (marg != null && marg < b.u) c.push(`Trùng mã với thùng đã chọn — chỉ lấp thêm ${marg}/${b.u} cái`);
   if (b.cc > 0) c.push(`${b.cc} cái mã chưa nhận diện`);
+  // 204: mã thu hồi đội sale — không tính điểm, vẫn chọn được, rút ra khi cấp
+  if (b.th?.length) c.push(`Thu hồi: rút ${b.th.length} mã (${b.th_q} cái) khi cấp — ${b.th.map((x) => `${x.m} ×${x.s}`).join(', ')}`);
   return c;
 }
 
@@ -263,6 +265,7 @@ export default function GoiYThung({ gy, doi, tenDoi, cuaSo, onDong, onDoiTiep, d
     if (b.q_chet / (b.n || 1) >= 0.2) c.push(`${b.q_chet} cái mã đội không bán`);
     const g = tinh.gop[t] ?? 0;
     if (g < 0.5 * b.n) c.push(`chỉ lấp ${g}/${b.n} cái (trùng thùng khác hoặc dư)`);
+    if (b.th?.length) c.push(`rút ${b.th.length} mã thu hồi (${b.th_q} cái)`);
     return c.length ? { t, c } : null;
   }).filter(Boolean), [chon, deXuat, tinh.gop, cfg]);
 

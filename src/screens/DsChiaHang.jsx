@@ -227,15 +227,18 @@ function ChiaDoi({ dsDoi, ts }) {
 
   // số trong thùng theo barcode (chỉ thùng hợp lệ, chưa giao cho phiếu khác)
   const trongThung = useMemo(() => {
-    const m = {}, khongMa = [], ma = new Set();
+    const m = {}, khongMa = [], ma = new Set(), rut = [];
     let tong = 0, soThung = 0;
     thung.forEach((t) => {
       const x = thungCt[t];
       if (!x || x.khong_co || x.da_giao || x.kiem) return;
       soThung++;
-      x.ct.forEach((c) => { tong += c.s; ma.add(c.m); if (c.b) m[c.b] = (m[c.b] || 0) + c.s; else khongMa.push(c.m); });
+      x.ct.forEach((c) => {
+        if (c.th) { rut.push({ t, m: c.m, s: c.s }); return; }   // mã thu hồi đội sale: rút khỏi thùng khi giao
+        tong += c.s; ma.add(c.m); if (c.b) m[c.b] = (m[c.b] || 0) + c.s; else khongMa.push(c.m);
+      });
     });
-    return { m, khongMa, tong, soThung, soMa: ma.size };
+    return { m, khongMa, tong, soThung, soMa: ma.size, rut };
   }, [thung, thungCt]);
 
   // dòng: [barcode, mtc, n1, n3, img, ban, ban7, banCuoi, ton, ve, kd1, kd2, moi, kd_phu_kien, la_phu_kien, gia_sale, nguon_gia, ban_mang]
@@ -250,7 +253,8 @@ function ChiaDoi({ dsDoi, ts }) {
       // v3.112.0: nhu cầu -> làm tròn LÊN mức hợp lệ theo giá sale (lưỡi bội 5, túi ráp S/M bước 200) -> không vượt kho
       const gia = r[15] ?? null;
       const qt = quyTac({ pk, n3: r[3], mtc: r[1], gia }, cfgLT);
-      let can = ban > 0 ? Math.max(0, muc - co - th) : 0;
+      const thuHoi = !!r[18];   // 204: mã thu hồi đội sale — AI không đề nghị
+      let can = ban > 0 && !thuHoi ? Math.max(0, muc - co - th) : 0;
       let tuiMacDinh = false;
       if (qt.loai === 'tui') {
         if (!qt.cho) can = 0;
@@ -266,7 +270,7 @@ function ChiaDoi({ dsDoi, ts }) {
       const khoCon = kd - them;   // chỉ phần chia thêm dùng kho (SA hoặc PK05001) — thùng không trừ
       const [nhomMa, size] = tachSize(r[1]);
       return { bc: r[0], mtc: r[1], n1: r[2], n3: r[3], img: r[4], ban, ban7: r[6], banCuoi: r[7], ton: r[8], ve: r[9], kd, v, co, nd, th, muc, goiY, them, nhan, ndSau, khoCon, moi: r[12],
-        pk, nhomMa, size, gia, nguonGia: r[16] || null, banMang: r[17] || 0, qt, can, len, thieu, tuiMacDinh, hm: pk ? '' : hoMau(r[1]),
+        pk, nhomMa, size, gia, nguonGia: r[16] || null, banMang: r[17] || 0, qt, can, len, thieu, tuiMacDinh, hm: pk ? '' : hoMau(r[1]), thuHoi,
         lechMuc: them > 0 && qt.buoc > 1 && lenMuc(them, qt) !== them };
     });
     // tổng bán theo nhóm mã (mẫu + màu, bỏ size) — cho chế độ "Theo mã sản phẩm"
@@ -284,6 +288,7 @@ function ChiaDoi({ dsDoi, ts }) {
       if (x.nhan > 0 && x.nd != null && x.nd > tonLau) c.push(`Đội đang dư (đủ ${Math.round(x.nd)} ngày) mà vẫn nhận thêm`);
       if (x.nhan > 0 && x.ban === 0 && x.ton > 0 && !x.pk) c.push(`Đội không bán mã này ${cuaSo} ngày, vẫn còn ${x.ton}`);
       if (x.them > 0 && x.qt.loai === 'tui' && !x.qt.cho) c.push(x.qt.nhan);
+      if (x.them > 0 && x.thuHoi) c.push('Mã THU HỒI đội sale (Hàng đặc biệt) — không nên chia');
       x.canh = c;
     });
     return rows;
@@ -406,6 +411,17 @@ function ChiaDoi({ dsDoi, ts }) {
     const d = diemThung[m];
     if (d != null && mucDiem(d, gy.kq?.cfg) === 'it') baoToast(`Đã thêm ${m} — lưu ý: thùng ít phù hợp với ${tenNgan(gy.kq?.ten)} (${d} điểm). Mở Gợi ý thùng để xem lý do.`);
   };
+  // thùng vừa tải ruột có mã thu hồi -> cảnh báo 1 lần / thùng
+  const daBaoRut = useRef(new Set());
+  useEffect(() => {
+    thung.forEach((t) => {
+      const x = thungCt[t];
+      if (!x || x.khong_co || x.da_giao || daBaoRut.current.has(t)) return;
+      const r = (x.ct || []).filter((c) => c.th);
+      daBaoRut.current.add(t);
+      if (r.length) baoToast(`⚠ Thùng ${t} có ${r.length} mã THU HỒI đội sale (${r.reduce((a, c) => a + c.s, 0)} cái): ${r.map((c) => `${c.m} ×${c.s}`).join(', ')} — vẫn cấp cả thùng nhưng RÚT các mã này ra, ghi vào ghi chú phiếu thùng`);
+    });
+  }, [thung, thungCt]);   // eslint-disable-line
   const boThung = (ma) => datNhap((d) => ({ ...d, thung: (d.thung || []).filter((x) => x !== ma) }));
 
   // ---------- xác nhận ----------
@@ -417,7 +433,9 @@ function ChiaDoi({ dsDoi, ts }) {
     if (!dongGui.length && !thungHopLe.length) { baoToast('Chưa có số nào'); return; }
     if (tong.vuot) { baoToast(`Còn ${tong.vuot} mã chia thêm vượt kho (SA / phụ kiện) — sửa trước khi xác nhận (lọc theo dòng hồng)`); return; }
     const ghiChu = await hoiGhiChu({ macDinh: ghiChuMacDinh(doi, tenDoi), tieuDe: `Ghi chú file xuất — ${tenNgan(tenDoi)}`,
-      nutXong: `Xác nhận & xuất ${tong.soPhieu} file`, phu: `${fmtN(tong.nhan)} cái · ${[tong.sa > 0 && 'Sale', tong.pk > 0 && 'Phụ kiện', tong.th > 0 && 'Thùng'].filter(Boolean).join(' + ')}` });
+      nutXong: `Xác nhận & xuất ${tong.soPhieu} file`,
+      phu: <>{fmtN(tong.nhan)} cái · {[tong.sa > 0 && 'Sale', tong.pk > 0 && 'Phụ kiện', tong.th > 0 && 'Thùng'].filter(Boolean).join(' + ')}
+        {trongThung.rut.length > 0 && <span className="gc-rut">⚠ Rút khỏi thùng (thu hồi đội sale) — tự ghi vào ghi chú phiếu thùng: {Object.entries(trongThung.rut.reduce((g, r) => { (g[r.t] = g[r.t] || []).push(`${r.m} ×${r.s}`); return g; }, {})).map(([t, ds]) => `${t}: ${ds.join(', ')}`).join(' ; ')}</span>}</> });
     if (ghiChu === null) return;
     nhoGhiChu(doi, ghiChu);
     setGui(true);
@@ -464,6 +482,7 @@ function ChiaDoi({ dsDoi, ts }) {
 
   // ---------- ô theo cột (thứ tự / ẩn hiện theo Tùy chỉnh) ----------
   const giaiThich = (x) => {
+    if (x.thuHoi) return 'Mã thu hồi đội sale (Hàng đặc biệt) — không đề nghị chia';
     if (x.qt.loai === 'tui' && !x.qt.cho) return x.qt.nhan;
     const l = [];
     if (x.ban > 0) l.push(`Nhu cầu ${x.v.toFixed(1)}/ngày × ${mucTieu} ngày × ${heSo}% = ${x.muc}`, `− đang có ${x.co}${x.th ? ` − thùng ${x.th}` : ''} → cần ${x.can}`);
@@ -568,16 +587,20 @@ function ChiaDoi({ dsDoi, ts }) {
         const lech = x && !loi && x.tong_ghi != null && x.tong_ghi !== x.tong_sl;
         const thieuTk = x && !loi ? x.ct.filter((c) => c.b && (c.tk ?? 0) < c.s) : [];
         const chuaCo = x && !loi ? x.ct.filter((c) => !c.b).length : 0;
-        const goi = x?.ct?.map((c) => `${c.m}: ${c.s}` + (!c.b ? '  (chưa nhận diện)' : (c.tk ?? 0) < c.s ? `  (TK05005 còn ${c.tk ?? 0})` : '')).join('\n');
+        const goi = x?.ct?.map((c) => `${c.m}: ${c.s}` + (c.th ? '  (THU HỒI — rút ra)' : !c.b ? '  (chưa nhận diện)' : (c.tk ?? 0) < c.s ? `  (TK05005 còn ${c.tk ?? 0})` : '')).join('\n');
+        const rutT = x && !loi ? x.ct.filter((c) => c.th) : [];
         return (
-          <div key={t} className={'ch-tt' + (loi ? ' loi' : '') + (!loi && (lech || thieuTk.length || chuaCo) ? ' co-canh' : '')}
-            title={(loi ? 'Thùng này sẽ KHÔNG vào phiếu: ' + loi + '\n' : '') + (lech ? `Dòng thùng ghi ${x.tong_ghi}, cộng ruột = ${x.tong_sl} → lấy ${x.tong_sl}\n` : '')
+          <div key={t} className={'ch-tt' + (loi ? ' loi' : '') + (!loi && (lech || thieuTk.length || chuaCo || rutT.length) ? ' co-canh' : '')}
+            title={(loi ? 'Thùng này sẽ KHÔNG vào phiếu: ' + loi + '\n' : '') + (rutT.length ? `RÚT ${rutT.length} mã thu hồi đội sale (${rutT.reduce((a, c) => a + c.s, 0)} cái) khi giao\n` : '')
+              + (lech ? `Dòng thùng ghi ${x.tong_ghi}, cộng ruột = ${x.tong_sl} → lấy ${x.tong_sl}\n` : '')
               + (chuaCo ? `${chuaCo} mã chưa nhận diện\n` : '') + (thieuTk.length ? `${thieuTk.length} mã TK05005 chưa đủ\n` : '') + (goi || '')}>
             <div className="ch-tt-ma">{t}{diemThung[t] != null && !loi && (
               <i className={'gy-chip m-' + mucDiem(diemThung[t], gy.kq?.cfg)} title={`Điểm phù hợp với đội: ${diemThung[t]}/100`}>{diemThung[t]}</i>)}</div>
-            <div className="ch-tt-so">{x ? (loi ? <em className="do">{loi}</em> : <><b>{x.tong_sl}</b> cái · {x.ct.length} mã</>) : '…'}</div>
-            {!loi && (lech || thieuTk.length > 0 || chuaCo > 0) && (
+            <div className="ch-tt-so">{x ? (loi ? <em className="do">{loi}</em>
+              : <><b>{x.tong_sl - rutT.reduce((a, c) => a + c.s, 0)}</b> cái · {x.ct.length - rutT.length} mã</>) : '…'}</div>
+            {!loi && (lech || thieuTk.length > 0 || chuaCo > 0 || rutT.length > 0) && (
               <div className="ch-tt-canh">
+                {rutT.length > 0 && <i className="do">rút {rutT.length} mã thu hồi</i>}
                 {lech && <i className="lech">ghi {x.tong_ghi}</i>}
                 {chuaCo > 0 && <i className="do">{chuaCo} mã ?</i>}
                 {thieuTk.length > 0 && <i className="lech">TK thiếu {thieuTk.length}</i>}
@@ -795,6 +818,7 @@ function ChiaDoi({ dsDoi, ts }) {
                   <td className="l sp">
                     <b>{x.mtc}{x.chay && <i className="ch-chay" title="Bán chạy (top 15%)">●</i>}{x.moi && <i className="ch-moi">mới</i>}
                       {x.pk && <i className="ch-pk" title="Phụ kiện — chia từ kho PK05001, phiếu riêng">PK</i>}
+                      {x.thuHoi && <i className="ch-th-hoi" title="Mã thu hồi đội sale (Hàng đặc biệt) — AI không đề nghị, thùng có mã này sẽ rút ra khi giao">Thu hồi</i>}
                       {!x.pk && x.gia ? <i className={'ch-gia' + (x.nguonGia && x.nguonGia !== 'sp' ? ' uoc' : '')}
                         title={x.nguonGia === 'sp' ? `Giá sale ${kGia(x.gia)} (DATA SẢN PHẨM)` : `Giá sale ${kGia(x.gia)} — lấy theo ${x.nguonGia === 'ban' ? 'giá bán nhiều nhất 90 ngày' : 'giá chung của mẫu'} (DATA SẢN PHẨM chưa có)`}>{kGia(x.gia)}</i> : null}
                       {x.canh.length > 0 && !cotHien.some((c) => c.k === 'kd') && <IcAlert className="ch-i-canh" />}</b>

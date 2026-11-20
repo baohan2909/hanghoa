@@ -91,6 +91,7 @@ export default function DsChiaMoi({ dsDoi, ts }) {
     return { ...kq, T, tong, kho, W: chiaDeu ? chonDoi.length : W, chiaDeu, w: Object.fromEntries(w.map((x) => [x.k, x.w])) };
   };
   const chiaMa = (bc, im) => {
+    if (spMap[bc]?.thu_hoi) { if (!im) baoToast(`${spMap[bc].ma_tham_chieu}: mã THU HỒI đội sale (Hàng đặc biệt) — không chia tự động`); return false; }
     const kh = keHoach(bc);
     if (!kh) return;
     if (!kh.tong) { if (!im) baoToast('Nhập Tổng SL trước khi chia'); return false; }
@@ -108,7 +109,7 @@ export default function DsChiaMoi({ dsDoi, ts }) {
     return true;
   };
   const chiaTatCa = () => {
-    const ds = dsMa.filter((bc) => so(cfg[bc]?.tong) > 0);
+    const ds = dsMa.filter((bc) => so(cfg[bc]?.tong) > 0 && !spMap[bc]?.thu_hoi);
     if (!ds.length) { baoToast('Chưa mã nào có Tổng SL'); return; }
     ds.forEach((bc) => chiaMa(bc, true));
     baoToast(`Đã chia tự động ${ds.length} mã cho ${chonDoi.length} đội — sửa số ở cột Thực chia nếu cần`);
@@ -351,6 +352,7 @@ function TheMa({ i, bc, r, c, kh, coSo, qt, chonDoi, tenDoi, gt, dx, tcD, cuaSo,
       </div>
 
       <div className="cm-tt">
+        {r?.thu_hoi && <span className="cm-chip do"><IcAlert /> Mã THU HỒI đội sale — không chia tự động</span>}
         <span className="cm-chip">Kho SA <b>{fmtN(kho)}</b></span>
         <span className="cm-chip" title={qt.nhan}>{r?.gia ? `Giá ${kGia(r.gia)}` : 'Chưa có giá sale'} · làm tròn {moTaMuc(qt)}</span>
         <span className="cm-cs">

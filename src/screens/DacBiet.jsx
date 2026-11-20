@@ -74,6 +74,20 @@ export default function DacBiet() {
     const { data, error } = await rpcHet('fn_dacbiet_ds');
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     setDs(data || []);
+    // v3.113.0: phạm vi ĐỘI SALE của hàng thu hồi (SQL 204)
+    const { data: th } = await sb.rpc('fn_dacbiet_doi_sale_ds');
+    setDsDoiSale(new Set(th || []));
+  };
+  const [dsDoiSale, setDsDoiSale] = useState(new Set());
+  const [themDoiSale, setThemDoiSale] = useState(false);
+  const [chiDoiSale, setChiDoiSale] = useState(false);
+  const batDoiSale = async (r, bat) => {
+    if (!bat && !window.confirm(`Bỏ phạm vi Đội sale của ${r.ma_tham_chieu || r.barcode}?\nThùng có mã này sẽ KHÔNG còn bị rút mã khi cấp cho đội sale.`)) return;
+    const { error } = await sb.rpc('fn_dacbiet_doi_sale', { p_barcode: r.barcode, p_bat: bat, p_nguoi: user.ma_dang_nhap });
+    if (error) { baoToast(/fn_dacbiet_doi_sale|schema cache/i.test(error.message) ? 'Cần chạy SQL 204 trên Supabase' : 'Lỗi: ' + error.message); return; }
+    setDsDoiSale((x) => { const n = new Set(x); if (bat) n.add(r.barcode); else n.delete(r.barcode); return n; });
+    baoToast(bat ? `${r.ma_tham_chieu || r.barcode}: áp dụng cả Đội sale — AI không đề nghị, thùng có mã này sẽ rút mã khi cấp`
+      : `${r.ma_tham_chieu || r.barcode}: bỏ phạm vi Đội sale`);
   };
   useEffect(() => { taiDS(); }, []);
 
@@ -106,7 +120,11 @@ export default function DacBiet() {
     const { error } = await sb.rpc('fn_dacbiet_them', {
       p_barcode: bc, p_loai: loai || tab, p_nguoi: user.ma_dang_nhap });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast('Đã thêm vào danh sách'); setQ(''); setGoiY(null); taiDS();
+    if ((loai || tab) === 'THU_HOI' && themDoiSale) {
+      const { error: e2 } = await sb.rpc('fn_dacbiet_doi_sale', { p_barcode: bc, p_bat: true, p_nguoi: user.ma_dang_nhap });
+      if (e2) baoToast('Đã thêm thu hồi, nhưng chưa bật được Đội sale: ' + e2.message);
+    }
+    baoToast('Đã thêm vào danh sách' + ((loai || tab) === 'THU_HOI' && themDoiSale ? ' (áp dụng cả Đội sale)' : '')); setQ(''); setGoiY(null); taiDS();
     if (tab === 'HANG_MOI') taiMaMoi(soNgay, tatCa, tuMM, denMM);
   };
   const importThuHoi = async (file) => {
@@ -118,6 +136,7 @@ export default function DacBiet() {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
       // Cột A = Barcode, Cột B = Áp dụng (CH / DB / CH-DB / CH_DB). Mặc định CH_DB nếu trống.
+      // Cột C = Đội sale (x / 1 / có) -> áp dụng cả đội sale (SQL 204)
       const chuan = (v) => {
         const t = String(v || '').trim().toUpperCase().replace(/[\s\-–]/g, '_');
         if (t === 'CH') return 'CH';
@@ -131,7 +150,8 @@ export default function DacBiet() {
       const laTieuDe = /barcode|mã|ma\b|áp dụng|ap dung|code/.test(o1) || !/\d/.test(o1);
       const batDau = laTieuDe ? 1 : 0;
       const data = rows.slice(batDau)
-        .map((r) => ({ bc: String(r[0] || '').trim(), ap: chuan(r[1]) }))
+        .map((r) => ({ bc: String(r[0] || '').trim(), ap: chuan(r[1]),
+          ds: /^(x|1|có|co|yes|y|ds|đội sale|doi sale|true|đúng)$/i.test(String(r[2] ?? '').trim()) }))
         .filter((x) => x.bc);
       if (!data.length) { baoToast('File không có mã nào ở cột A'); return; }
       // Chia lô ~300 mã/request (thay vì 1 request/mã) — nhanh + có tiến độ %.
@@ -150,8 +170,15 @@ export default function DacBiet() {
         const da = Math.min(i + LO, data.length);
         setTienDo({ phan_tram: Math.round((da / data.length) * 100), da, tong: data.length });
       }
+      // cột C: bật phạm vi Đội sale
+      const coDs = data.filter((x) => x.ds);
+      let okDs = 0;
+      for (let i = 0; i < coDs.length; i += LO) {
+        const { data: kq } = await sb.rpc('fn_dacbiet_doi_sale_loat', { p_items: coDs.slice(i, i + LO).map((x) => ({ bc: x.bc })), p_nguoi: user.ma_dang_nhap });
+        okDs += kq?.ok || 0;
+      }
       setTienDo(null);
-      baoToast(`Import xong: ${ok} mã thu hồi${loi ? `, ${loi} mã lỗi (không có trong sản phẩm)` : ''}`);
+      baoToast(`Import xong: ${ok} mã thu hồi${coDs.length ? ` · ${okDs} mã bật Đội sale` : ''}${loi ? `, ${loi} mã lỗi (không có trong sản phẩm)` : ''}`);
       // Nếu có mã lỗi: xuất file để anh biết mã nào không khớp sản phẩm
       if (loiMa.length) {
         const ws2 = XLSX.utils.aoa_to_sheet([['Barcode không khớp sản phẩm'], ...loiMa.map((b) => [b])]);
@@ -165,12 +192,12 @@ export default function DacBiet() {
   const taiMauThuHoi = async () => {
     const XLSX = await import('xlsx');
     const ws = XLSX.utils.aoa_to_sheet([
-      ['Barcode', 'Áp dụng'],
-      ['8938501234567', 'CH'],
-      ['8938507654321', 'DB'],
-      ['8938509999999', 'CH-DB'],
+      ['Barcode', 'Áp dụng', 'Đội sale'],
+      ['8938501234567', 'CH', ''],
+      ['8938507654321', 'DB', ''],
+      ['8938509999999', 'CH-DB', 'x'],
     ]);
-    ws['!cols'] = [{ wch: 20 }, { wch: 12 }];
+    ws['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Thu hồi');
     XLSX.writeFile(wb, 'MAU_THU_HOI.xlsx');
@@ -259,7 +286,7 @@ export default function DacBiet() {
           {tab === 'THU_HOI' && (
             <>
               <label className="btn-mini" style={{ cursor: 'pointer', margin: 0 }}>
-                ⇪ Import Excel (A=Barcode, B=Áp dụng)
+                ⇪ Import Excel (A=Barcode, B=Áp dụng, C=Đội sale)
                 <input type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
                   onChange={(e) => importThuHoi(e.target.files?.[0])} />
               </label>
@@ -267,6 +294,11 @@ export default function DacBiet() {
             </>
           )}
         </div>
+        {tab === 'THU_HOI' && (
+          <label className="db-ds-tick" title="Mã thu hồi áp dụng cả ĐỘI SALE: AI không đề nghị chia cho đội; thùng đóng sẵn có mã này vẫn cấp cả thùng nhưng RÚT mã ra và ghi vào ghi chú phiếu thùng">
+            <input type="checkbox" checked={themDoiSale} onChange={(e) => setThemDoiSale(e.target.checked)} /> Áp dụng cả <b>Đội sale</b> khi thêm
+          </label>
+        )}
         <div style={{ position: 'relative', maxWidth: 520 }}>
           <IcSearch style={{ position: 'absolute', left: 11, top: 12, width: 16, height: 16, color: 'var(--ink-2)', pointerEvents: 'none' }} />
           <input className="inp" style={{ paddingLeft: 36, width: '100%' }}
@@ -296,8 +328,13 @@ export default function DacBiet() {
 
       {/* Danh sách của tab */}
       <div className="card" style={{ marginTop: 12, padding: 0 }}>
-        <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', fontWeight: 700, fontSize: 13.5 }}>
+        <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', fontWeight: 700, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           Danh sách {tab === 'THU_HOI' ? 'thu hồi' : 'hàng mới thêm tay'} ({dsTab.length})
+          {tab === 'THU_HOI' && (
+            <button className={'db-ds-loc' + (chiDoiSale ? ' on' : '')} onClick={() => setChiDoiSale((v) => !v)} title="Chỉ hiện mã áp dụng cả Đội sale">
+              Đội sale <i>{dsTab.filter((r) => dsDoiSale.has(r.barcode)).length}</i>
+            </button>
+          )}
         </div>
         {!dsTab.length ? (
           <div className="empty" style={{ margin: 14 }}>Chưa có sản phẩm nào trong danh sách.</div>
@@ -307,11 +344,12 @@ export default function DacBiet() {
               <thead><tr>
                 <th className="col-sp">Sản phẩm</th><th className="center">Ngành</th>
                 {tab === 'THU_HOI' && <th className="center">Áp dụng</th>}
+                {tab === 'THU_HOI' && <th className="center" title="Áp dụng cả đội sale: AI không đề nghị, thùng có mã này rút mã khi cấp">Đội sale</th>}
                 <th className="center">Giá</th><th className="center">Kho tổng</th>
                 <th className="center">Người thêm</th><th className="center">Thêm lúc</th><th className="center">Gỡ</th>
               </tr></thead>
               <tbody>
-                {dsTab.map((r) => (
+                {dsTab.filter((r) => !(tab === 'THU_HOI' && chiDoiSale) || dsDoiSale.has(r.barcode)).map((r) => (
                   <tr key={r.barcode}>
                     <td className="col-sp">
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -324,6 +362,13 @@ export default function DacBiet() {
                     </td>
                     <td className="center"><BadgeNganh n1={r.nganh_1} /></td>
                     {tab === 'THU_HOI' && <td className="center"><span className={'apd-badge apd-' + (r.ap_dung || 'CH_DB')}>{{ CH: 'Cửa hàng', DB: 'Điểm bán', CH_DB: 'Cả hai' }[r.ap_dung] || 'Cả hai'}</span></td>}
+                    {tab === 'THU_HOI' && (
+                      <td className="center">
+                        <label className="tc-bat" title={dsDoiSale.has(r.barcode) ? 'Đang áp dụng cả Đội sale — bấm để bỏ' : 'Bấm để áp dụng cả Đội sale'}>
+                          <input type="checkbox" checked={dsDoiSale.has(r.barcode)} onChange={(e) => batDoiSale(r, e.target.checked)} /><i />
+                        </label>
+                      </td>
+                    )}
                     <td className="num">{fmtVND(r.gia_niem_yet)}</td>
                     <td className="num">{r.kho_tong}</td>
                     <td className="center">{r.nguoi_tao || '—'}</td>
