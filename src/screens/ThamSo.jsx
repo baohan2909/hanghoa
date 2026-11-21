@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcGear, IcCheck } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
+import { BanTinCaiDat } from '../lib/BanTin.jsx';
 
 // Nhóm hiển thị để màn hình có trật tự nghiệp vụ, không phải bãi key-value
 const NHOM = [
@@ -105,6 +106,9 @@ export default function ThamSo() {
         <h1>Tham số hệ thống</h1>
         <div className="sub">Mọi hệ số của engine đều nằm ở đây — lưu là có hiệu lực ngay, mọi thay đổi được ghi audit log.</div>
       </div>
+
+      {/* v3.118.0: bản tin hướng dẫn cập nhật — Quản trị tự soạn / bật / tắt */}
+      <BanTinCaiDat user={user} baoToast={baoToast} />
 
       {NHOM.map((n) => {
         const items = theoNhom(n.keys);

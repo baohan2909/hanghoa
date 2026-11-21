@@ -180,8 +180,8 @@ export default function YeuCauDieuPhoi() {
         <button className="btn btn-ai" onClick={xuatTong} disabled={!daChon.length}>
           <IcDown /> Xuất file tổng{daChon.length ? ` (${daChon.length} mã)` : ''}
         </button>
-        {odoo && <button className="btn btn-ai od-nut" onClick={taoOdoo} disabled={!daChon.length} title="Tạo đơn điều chuyển thẳng trên Odoo (thử nghiệm)">
-          <IcGuiLen /> Tạo đơn Odoo{odoo.thu_nghiem && <sup>THỬ</sup>}
+        {odoo && <button className="btn btn-ai od-nut" onClick={taoOdoo} disabled={!daChon.length} title="Tạo đơn điều chuyển thẳng trên Odoo">
+          <IcGuiLen /> Tạo đơn Odoo
         </button>}
       </div>
 

@@ -378,8 +378,8 @@ export default function DoiSale() {
           )}
           {tab !== 'lau' && odoo && (
             <button className="btn btn-ai od-nut" onClick={() => taoOdoo(tab)} disabled={!soChon(tab === 'dc' ? dcS : khoS).length}
-              title="Tạo đơn điều chuyển thẳng trên Odoo (thử nghiệm)">
-              <IcGuiLen /> Tạo đơn Odoo{odoo.thu_nghiem && <sup>THỬ</sup>}
+              title="Tạo đơn điều chuyển thẳng trên Odoo">
+              <IcGuiLen /> Tạo đơn Odoo
             </button>
           )}
         </div>

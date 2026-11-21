@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcPulse, IcSearch } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
+import { BanTinTheoDoi } from '../lib/BanTin.jsx';
 
 // ===== THEO DÕI ONLINE — ai đang xem, tần suất, thời lượng (Admin) =====
 const isoD = (d) => isoVN(d);
@@ -25,7 +26,7 @@ const manTen = { xinhang: 'Đề nghị hàng', giamsat: 'Thiếu hàng', vandon
   kho: 'Kho tổng', baocao: 'Báo cáo', thamso: 'Tham số', duyet: 'Điều phối' };
 
 export default function TheoDoiOnline() {
-  const { baoToast } = useApp();
+  const { user, baoToast } = useApp();
   const [online, setOnline] = useState([]);
   const [tk, setTk] = useState(null);
   const [tu, setTu] = useState(isoD(new Date(Date.now() - 30 * 864e5)));
@@ -71,6 +72,9 @@ export default function TheoDoiOnline() {
           <p>Cửa hàng nào đang mở app, tần suất và thời lượng xem — cập nhật tự động mỗi 30 giây.</p>
         </div>
       </div>
+
+      {/* v3.118.0: cửa hàng đã xác nhận đọc bản tin hướng dẫn chưa */}
+      <BanTinTheoDoi user={user} baoToast={baoToast} />
 
       {/* Thẻ tổng */}
       <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>

@@ -166,7 +166,7 @@ function ThanhDinhMuc({ ten, d }) {
 
 export default function XinHang() {
   const { user, baoToast, datBan } = useApp();
-  const odoo = useOdooCfg(user);   // v3.114.0: tạo đơn Odoo qua API — chỉ tài khoản đang thử nghiệm
+  const odoo = useOdooCfg(user);   // v3.114.0: tạo đơn Odoo qua API (chính thức từ v3.118.0)
   const [dsCH, setDsCH] = useState([]);
   const [maCH, setMaCH] = useState(user.ma_ch || '');
   const [rows, setRows] = useState(null);
@@ -581,6 +581,9 @@ export default function XinHang() {
   const taoOdoo = async () => {
     const dsAll = rows.filter((r) => r.sl_xin > 0);
     if (!dsAll.length) { baoToast('Chưa có số lượng nào để tạo đơn'); return; }
+    // v3.118.0: đề nghị KHẨN CẤP phải ghi lý do — gửi kèm vào ghi chú đơn Odoo
+    const lyKC = loai === 'KHAN_CAP' ? lyDoKhan.trim() : '';
+    if (loai === 'KHAN_CAP' && lyKC.length < 3) { baoToast('Ghi lý do khẩn cấp trước khi tạo đơn'); return; }
     const khoCua = (r) => r.kho_ma || nhomCua(r);
     const khoCan = [...new Set(dsAll.map(khoCua))];
     const { data: soBD, error: eSo } = await sb.rpc('fn_cap_so_phieu', { p_ma_ch: maCH, p_so_luong: khoCan.length });
@@ -588,6 +591,7 @@ export default function XinHang() {
     const thieuKho = khoCan.filter((k) => !dsAll.find((r) => khoCua(r) === k)?.kho_ma);
     const don = khoCan.map((k, i) => ({
       name: taoMaKho(k, (soBD || 1) + i), kho_cung_ung: k, kho_yeu_cau: maCH,
+      ...(lyKC ? { ghi_chu: 'Khẩn cấp: ' + lyKC } : {}),
       chi_tiet: dsAll.filter((r) => khoCua(r) === k)
         .map((r) => ({ sku: r.sku || '', barcode: r.barcode, nhu_cau: r.sl_xin, ma: r.ma_tham_chieu || r.barcode })),
     }));
@@ -761,8 +765,8 @@ export default function XinHang() {
               {nhomXem !== 'ALL' &&
                 <button className="btn btn-ghost btn-h" onClick={() => xuatNhom(nhomXem)}><IcDown /> Xuất nhóm này</button>}
               <button className="btn btn-gold btn-h" onClick={xuatTatCa}><IcDown /> Xuất tất cả (1 file)</button>
-              {odoo && <button className="btn btn-ai btn-h od-nut" onClick={taoOdoo} title="Tạo đơn điều chuyển thẳng trên Odoo (thử nghiệm)">
-                <IcGuiLen /> Tạo đơn Odoo{odoo.thu_nghiem && <sup>THỬ</sup>}</button>}
+              {odoo && <button className="btn btn-ai btn-h od-nut" onClick={taoOdoo} title="Tạo đơn điều chuyển thẳng trên Odoo — không cần xuất Excel">
+                <IcGuiLen /> Tạo đơn trên Odoo</button>}
             </div>
           </div>
 

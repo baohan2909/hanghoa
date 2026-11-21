@@ -462,8 +462,8 @@ export default function DsBanChia({ dsDoi, ts, initChon }) {
             <div className="bc-modal-chan">
               <span className="tq-ghi">File gồm 2 sheet: DieuChuyen (khuôn nhập Odoo như Yêu cầu ĐP) + TongHopDoi. Lệnh được lưu để đối chiếu phiếu.</span>
               <button className="btn btn-ai" onClick={xuat}><IcDown /> Xuất Excel + lưu lệnh</button>
-              {odoo && <button className="btn btn-ai od-nut" onClick={taoOdoo} title="Tạo đơn điều chuyển thẳng trên Odoo (thử nghiệm)">
-                <IcGuiLen /> Tạo đơn Odoo{odoo.thu_nghiem && <sup>THỬ</sup>}</button>}
+              {odoo && <button className="btn btn-ai od-nut" onClick={taoOdoo} title="Tạo đơn điều chuyển thẳng trên Odoo">
+                <IcGuiLen /> Tạo đơn Odoo</button>}
             </div>
           </div>
         </div>

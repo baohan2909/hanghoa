@@ -558,8 +558,8 @@ export default function ChiaHangMoi() {
           <button className="btn btn-ai" onClick={xuatTatCa}>
             <IcDown style={{ verticalAlign: -3 }} /> Xuất tất cả{tongTatCa > 0 ? ` (${tongTatCa} sp)` : ''}
           </button>
-          {odoo && <button className="btn btn-ai od-nut" onClick={() => xuatTatCa('odoo')} title="Tạo đơn điều chuyển thẳng trên Odoo (thử nghiệm)">
-            <IcGuiLen style={{ verticalAlign: -3 }} /> Tạo đơn Odoo{odoo.thu_nghiem && <sup>THỬ</sup>}
+          {odoo && <button className="btn btn-ai od-nut" onClick={() => xuatTatCa('odoo')} title="Tạo đơn điều chuyển thẳng trên Odoo">
+            <IcGuiLen style={{ verticalAlign: -3 }} /> Tạo đơn Odoo
           </button>}
           <button className="btn btn-xoahet" onClick={xoaTatCa} title="Làm trắng màn hình — xóa mọi mã và bảng chia đang làm dở">
             Xóa tất cả

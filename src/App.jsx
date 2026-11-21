@@ -4,6 +4,7 @@ import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcA
 import Login from './screens/Login.jsx';
 import XinHang from './screens/XinHang.jsx';
 import { OdooHost } from './lib/OdooHop.jsx';
+import { BanTinHost } from './lib/BanTin.jsx';
 
 // Màn ít dùng / nặng: tải khi mở, giữ lần tải đầu nhẹ cho máy cửa hàng
 const Kho = lazy(() => import('./screens/Kho.jsx'));
@@ -26,6 +27,7 @@ const PhongDieuHanh = lazy(() => import('./screens/PhongDieuHanh.jsx'));
 const BaoCaoTelegram = lazy(() => import('./screens/BaoCaoTelegram.jsx'));
 const OdooDon = lazy(() => import('./screens/OdooDon.jsx'));
 const TonKho = lazy(() => import('./screens/TonKho.jsx'));
+const HuongDan = lazy(() => import('./screens/HuongDan.jsx'));
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
@@ -41,7 +43,7 @@ const MENU = [
     { id: 'doisale',   ten: 'Đội Sale',       Ic: IcTeam,  roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'kho',       ten: 'Kho tổng',       Ic: IcBox,   roles: ['KHO', 'DIEU_PHOI', 'ADMIN'] },
     { id: 'odoo',      ten: 'Đơn hàng Odoo',  Ic: IcGuiLen, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
-    { id: 'tonkd',     ten: 'Tồn khả dụng',   Ic: IcBox,   roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
+    { id: 'tonkd',     ten: 'Tồn khả dụng',   Ic: IcBox,   roles: ['KHO', 'DIEU_PHOI', 'ADMIN'] },   // v3.118.0: ẩn với cửa hàng
   ]},
   { nhom: 'GIÁM SÁT', items: [
     { id: 'dieuhanh',  ten: 'Phòng điều hành', Ic: IcRadar, roles: ['DIEU_PHOI', 'ADMIN'] },
@@ -51,6 +53,9 @@ const MENU = [
   ]},
   { nhom: 'THI ĐUA', items: [
     { id: 'dautruong', ten: 'Đấu trường',     Ic: IcTrophy, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
+  ]},
+  { nhom: 'HỖ TRỢ', items: [
+    { id: 'huongdan',  ten: 'Hướng dẫn cập nhật', Ic: IcCheck, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
   ]},
   { nhom: 'CẤU HÌNH', items: [
     { id: 'lich',      ten: 'Lịch đề nghị',   Ic: IcClock, roles: ['DIEU_PHOI', 'ADMIN'] },
@@ -206,7 +211,7 @@ export default function App() {
   if (!user) return <Login onOk={(u) => { localStorage.setItem('nsflow_user', JSON.stringify(u)); localStorage.setItem('nsflow_login_at', String(Date.now())); setUser(u); }} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich, dautruong: DauTruong,
-    giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tonkd: TonKho }[tab]
+    giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tonkd: TonKho, huongdan: HuongDan }[tab]
     || (user.vai_tro === 'KHO' ? Kho : XinHang);
   const tabDem = user.vai_tro === 'KHO' ? 'kho' : 'duyet';
   const chonTab = (id) => { setTab(id); setMoMenu(false); };
@@ -298,6 +303,7 @@ export default function App() {
           </div>
         )}
         <OdooHost user={user} baoToast={baoToast} />
+        <BanTinHost user={user} baoToast={baoToast} />
         {toast && <div className="toast" role="status">{toast}</div>}
       </div>
     </Ctx.Provider>

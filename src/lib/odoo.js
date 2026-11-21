@@ -1,4 +1,4 @@
-// Tạo đơn điều chuyển trên Odoo qua API của IT (v3.114.0 — đang THỬ NGHIỆM, chỉ tài khoản trong tham_so odoo_api.nguoi_thu)
+// Tạo đơn điều chuyển trên Odoo qua API của IT (v3.114.0; CHÍNH THỨC từ v3.118.0 — mở theo tham_so odoo_api.tat_ca)
 //   App  -> Edge Function odoo-dieu-chuyen (khoá API nằm ở máy chủ, KHÔNG có trong app) -> https://open.nonson.vn/api/webhook/transfer
 //   Mỗi cặp (kho cung ứng -> kho yêu cầu) = 1 đơn. Tên đơn duy nhất; đơn đã tạo thành công không gửi lại được.
 //   Mở hộp gửi từ bất kỳ màn hình nào: moOdoo({ tieuDe, man, lyDo, don, onThanhCong, onExcel, canh })
@@ -83,7 +83,7 @@ export function thanhRequest(d, chung) {
   return o;
 }
 
-// Huỷ / xoá đơn trên Odoo (SQL 207 — mặc định TẮT tới khi IT xác nhận API: tham số odoo_api.huy_bat / xoa_bat)
+// Huỷ / xoá đơn trên Odoo (SQL 207 — bật/tắt bằng tham số odoo_api.huy_bat / xoa_bat; đã bật 21/11)
 export async function huyOdoo({ token, id, hanhDong, lyDo }) {
   let r;
   try {
@@ -91,6 +91,23 @@ export async function huyOdoo({ token, id, hanhDong, lyDo }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON}`, apikey: SUPABASE_ANON },
       body: JSON.stringify({ token, hanh_dong: hanhDong, id, ly_do: lyDo }),
+    });
+  } catch (e) {
+    return { ok: false, loi: 'Không kết nối được máy chủ: ' + (e?.message || e) };
+  }
+  const t = await r.text();
+  try { return JSON.parse(t); } catch { return { ok: false, loi: `HTTP ${r.status}: ${t.slice(0, 300)}` }; }
+}
+
+// Sửa đơn (v3.118.0 — SQL 209): Odoo chưa có API sửa -> máy chủ huỷ đơn cũ rồi tạo đơn mới đã sửa (mã đơn mới)
+//   chiTiet: [{ barcode, sku, nhu_cau }] — số mới từng dòng (0 = bỏ mã). Trả { ok, name_moi, id_moi, odoo_id, loi, vuot?, chan_vuot?, huy_cu? }
+export async function suaOdoo({ token, id, chiTiet, lyDo, choVuot = false, xemTruoc = false }) {
+  let r;
+  try {
+    r = await fetch(FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON}`, apikey: SUPABASE_ANON },
+      body: JSON.stringify({ token, hanh_dong: 'sua', id, chi_tiet: chiTiet, ly_do: lyDo, cho_vuot: !!choVuot, xem_truoc: !!xemTruoc }),
     });
   } catch (e) {
     return { ok: false, loi: 'Không kết nối được máy chủ: ' + (e?.message || e) };

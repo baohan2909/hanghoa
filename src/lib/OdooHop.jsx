@@ -1,4 +1,4 @@
-// Hộp "Tạo đơn điều chuyển Odoo" — dùng chung mọi màn hình (v3.114.0, thử nghiệm)
+// Hộp "Tạo đơn điều chuyển Odoo" — dùng chung mọi màn hình (v3.114.0; chính thức từ v3.118.0)
 //   App gắn <OdooHost user baoToast /> một lần; màn hình gọi moOdoo({...}) (lib/odoo.js) để mở.
 //   Luồng: xem lại đơn (tick chọn) -> chọn Lý do / Người tạo / Ghi chú -> [Xem JSON] -> [Gửi N đơn lên Odoo]
 //          -> kết quả từng đơn (✓ Đã tạo · ⚠ Cần xem · ✕ Lỗi) -> [Gửi lại đơn lỗi] (giữ nguyên tên đơn, không tạo trùng)
@@ -32,6 +32,9 @@ const laDoiSale = (k) => /^DOISALE/i.test(String(k || ''));
 
 function HopOdoo({ opts, user, baoToast, onDong }) {
   const [cfg, setCfg] = useState(null);
+  // v3.118.0: tài khoản CỬA HÀNG — giao diện gọn: người tạo cố định = mã CH, không có Xem JSON / phản hồi kỹ thuật,
+  //   dòng vượt tồn khả dụng KHÔNG gửi được (máy chủ chặn) -> chỉ có "Bỏ đơn vượt" / "Quay lại sửa số lượng"
+  const laCH = user.vai_tro === 'CH';
   // đội sale: cửa hàng đội đang bán — nhớ theo từng đội (gửi Odoo "sale_tai_cua_hang")
   const [don, setDon] = useState(() => (opts.don || []).map((d, i) => ({
     ...d, _i: i, sale_tai_cua_hang: d.sale_tai_cua_hang || (laDoiSale(d.kho_yeu_cau) ? saleChCuaDoi(d.kho_yeu_cau) : ''),
@@ -50,6 +53,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
   const [json, setJson] = useState(null);
   const [trung, setTrung] = useState(null);   // SQL 206: đơn giống hệt đơn đã tạo trong 48 giờ -> phải xác nhận
   const [vuot, setVuot] = useState(null);     // SQL 207: dòng vượt tồn khả dụng của kho (đã trừ hàng chờ xuất) -> phải xác nhận
+  const [chanVuot, setChanVuot] = useState(false);   // SQL 209: tài khoản cửa hàng — vượt là chặn, không có "vẫn gửi"
   const [dsCh, setDsCh] = useState(null);     // danh sách cửa hàng cho ô "CH đội đang sale"
   const [gcGan] = useState(() => ghiChuGanDay());
   const coDoiSale = don.some((d) => laDoiSale(d.kho_yeu_cau));
@@ -123,6 +127,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
       setKq((m) => { const n = { ...m }; ds.forEach((d) => { delete n[d._i]; }); return n; });
       setTrung(r.trung?.length ? r.trung.map((t) => ({ ...t, _i: ds[t.i - 1]?._i })) : null);
       setVuot(r.vuot?.length ? r.vuot.map((t) => ({ ...t, _i: ds[t.i - 1]?._i })) : null);
+      setChanVuot(!!r.chan_vuot);
       setLoi(r.loi);
       return;
     }
@@ -138,27 +143,31 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
     donMoi.forEach((d) => {
       if (!ds.some((x) => x._i === d._i)) return;
       const x = theoTen[d.name];
-      kqMoi[d._i] = x ? { trang_thai: x.trang_thai, loi: x.loi || '', duyet: x.odoo_duyet || '' } : { trang_thai: 'loi', loi: r.loi || 'Không thấy kết quả của đơn này' };
+      kqMoi[d._i] = x ? { trang_thai: x.trang_thai, loi: x.loi || '', duyet: x.odoo_duyet || '', odoo_id: x.odoo_id || null } : { trang_thai: 'loi', loi: r.loi || 'Không thấy kết quả của đơn này' };
       if (x?.trang_thai === 'thanh_cong') okMoi.push(d);
     });
     setKq((m) => ({ ...m, ...kqMoi }));
     if (r.loi) setLoi(r.loi);
     const nLoi = ds.length - okMoi.length;
     if (okMoi.length) { nhoGhiChu(ghiChu); ds.forEach((d) => { if (laDoiSale(d.kho_yeu_cau) && d.sale_tai_cua_hang) nhoSaleCh(d.kho_yeu_cau, d.sale_tai_cua_hang); }); }
-    baoToast(`Odoo: ${okMoi.length ? `✓ tạo ${okMoi.length} đơn — đã trừ tồn khả dụng kho` : ''}${okMoi.length && nLoi ? ' · ' : ''}${nLoi ? `${nLoi} đơn chưa tạo được — xem từng đơn` : ''}`);
+    baoToast(`Odoo: ${okMoi.length ? `✓ tạo ${okMoi.length} đơn${laCH ? '' : ' — đã trừ tồn khả dụng kho'}` : ''}${okMoi.length && nLoi ? ' · ' : ''}${nLoi ? `${nLoi} đơn chưa tạo được — xem từng đơn` : ''}`);
     if (okMoi.length && opts.onThanhCong) {
       try { await opts.onThanhCong(okMoi); } catch (e) { baoToast('Đã tạo đơn Odoo nhưng bước lưu sau đó lỗi: ' + (e?.message || e)); }
     }
   };
 
   const xongHet = soOk > 0 && conGui.length === 0;   // không còn đơn nào đang chọn mà chưa tạo
+  // Kết quả lần gửi: báo rõ THÀNH CÔNG / THẤT BẠI ngay đầu hộp
+  const daGui = don.filter((d) => kq[d._i] && kq[d._i].trang_thai !== 'dang_gui');
+  const guiLoi = daGui.filter((d) => kq[d._i].trang_thai !== 'thanh_cong');
+  const guiOk = daGui.filter((d) => kq[d._i].trang_thai === 'thanh_cong');
 
   return (
     <div className="kt-modal gc-nen" onMouseDown={(e) => { if (e.target === e.currentTarget && !dangGui) onDong(); }}>
       <div className="od-hop" role="dialog" aria-label="Tạo đơn điều chuyển Odoo">
         <div className="od-dau">
           <div>
-            <small>TẠO ĐƠN ĐIỀU CHUYỂN ODOO {cfg?.thu_nghiem && <em className="od-thu">THỬ NGHIỆM · {cfg.ma}</em>}</small>
+            <small>TẠO ĐƠN ĐIỀU CHUYỂN ODOO</small>
             <b>{opts.tieuDe || 'Đơn điều chuyển'}</b>
             <span>{don.length} đơn · {fmt(don.reduce((s, d) => s + d.chi_tiet.length, 0))} dòng · {fmt(don.reduce((s, d) => s + tongDon(d), 0))} cái
               {soOk > 0 && <> · <i>đã tạo {soOk}</i></>}</span>
@@ -172,10 +181,15 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
               <Sel value={lyDo} onChange={(v) => !dangGui && setLyDo(v)} placeholder="— chọn lý do —"
                 options={(cfg?.ly_do || []).map((x) => ({ value: x, label: x }))} />
             </label>
-            <label>Người tạo trên Odoo
-              <input value={nguoiTao} maxLength={40} disabled={dangGui} placeholder="Để trống = user của kho yêu cầu"
-                onChange={(e) => setNguoiTao(e.target.value)} />
-            </label>
+            {laCH ? (
+              <label>Người tạo trên Odoo
+                <div className="od-co-dinh">{user.ma_ch} <small>cửa hàng của bạn</small></div>
+              </label>
+            ) : (
+              <label>Người tạo trên Odoo
+                <input value={nguoiTao} maxLength={40} disabled={dangGui} placeholder="Để trống = user của kho yêu cầu"
+                  onChange={(e) => setNguoiTao(e.target.value)} />
+              </label>)}
             <label className="rong">Ghi chú chung <small className="od-dem">{ghiChu.length}/300</small>
               <textarea value={ghiChu} maxLength={300} rows={2} disabled={dangGui} placeholder="Vd: Giao gấp trước 15h · Hàng khách đặt · Gom chung chuyến xe chiều"
                 onChange={(e) => setGhiChu(e.target.value)} />
@@ -185,7 +199,12 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
             </label>
           </div>
 
-          {loi && !trung && !vuot && <div className="od-bao loi"><IcAlert /> {loi}</div>}
+          {!dangGui && daGui.length > 0 && (guiLoi.length === 0
+            ? <div className="od-ket ok"><IcCheck /><div><b>Thành công — đã tạo {guiOk.length} đơn trên Odoo</b>
+                {guiOk.map((d) => <span key={d._i}>{d.name}{kq[d._i].odoo_id ? ` · mã Odoo #${kq[d._i].odoo_id}` : ''}</span>)}</div></div>
+            : <div className="od-ket loi"><IcAlert /><div><b>Thất bại — {guiLoi.length} đơn chưa tạo được{guiOk.length ? ` (${guiOk.length} đơn đã tạo)` : ''}</b>
+                <span>Lý do ghi dưới từng đơn. Sửa xong bấm "Gửi lại" — tên đơn giữ nguyên nên không tạo trùng.</span></div></div>)}
+          {loi && !trung && !vuot && !(daGui.length > 0 && guiLoi.length > 0) && <div className="od-bao loi"><IcAlert /> {loi}</div>}
           {trung && (
             <div className="od-bao canh od-trung"><IcAlert /><div>
               <b>Kiểm tra trước khi gửi — có thể là đơn gửi trùng:</b>
@@ -199,14 +218,18 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
           )}
           {vuot && (
             <div className="od-bao canh od-trung od-vuot"><IcAlert /><div>
-              <b>Vượt tồn khả dụng — kho không đủ hàng cho các dòng này (đã trừ hàng của phiếu đang chờ xuất):</b>
+              <b>{chanVuot ? 'Kho không đủ hàng cho các dòng này:' : 'Vượt tồn khả dụng — kho không đủ hàng cho các dòng này (đã trừ hàng của phiếu đang chờ xuất):'}</b>
               {vuot.slice(0, 12).map((t, j) => <div key={j}>• {t.name}: <b>{t.ma}</b> cần {fmt(t.can)} · kho {t.kho} còn khả dụng <b className={t.kha_dung > 0 ? '' : 'het'}>{fmt(Math.max(t.kha_dung, 0))}</b>{t.kha_dung < 0 ? ` (đã hứa vượt ${fmt(-t.kha_dung)})` : ''}</div>)}
               {vuot.length > 12 && <div>… và {vuot.length - 12} dòng khác</div>}
-              <p className="od-vuot-ghi">Vẫn gửi được (vd chia trước khi kho nhận hàng) — Odoo sẽ giữ NHÁP nếu kho thiếu hàng lúc duyệt.</p>
+              {chanVuot
+                ? <p className="od-vuot-ghi">Kho không đủ hàng cho các dòng này. Giảm số lượng ở phiếu rồi tạo lại đơn, hoặc bỏ các đơn vượt để gửi phần còn lại.</p>
+                : <p className="od-vuot-ghi">Vẫn gửi được (vd chia trước khi kho nhận hàng) — Odoo sẽ giữ NHÁP nếu kho thiếu hàng lúc duyệt.</p>}
               <div className="od-trung-nut">
                 <button className="btn btn-ghost" onClick={() => { setChon((s) => { const n = new Set(s); vuot.forEach((t) => n.delete(t._i)); return n; }); setVuot(null); setLoi(''); }}>Bỏ các đơn vượt</button>
-                <button className="btn btn-ai od-gui" onClick={() => { const ids = new Set(vuot.map((t) => t._i)); setDon((ds) => ds.map((d) => (ids.has(d._i) ? { ...d, cho_vuot: true } : d))); setVuot(null); setLoi(''); }}>
-                  <IcCheck /> Đã kiểm tra — vẫn gửi</button>
+                {chanVuot
+                  ? <button className="btn btn-ghost" onClick={onDong}>Quay lại sửa số lượng</button>
+                  : <button className="btn btn-ai od-gui" onClick={() => { const ids = new Set(vuot.map((t) => t._i)); setDon((ds) => ds.map((d) => (ids.has(d._i) ? { ...d, cho_vuot: true } : d))); setVuot(null); setLoi(''); }}>
+                      <IcCheck /> Đã kiểm tra — vẫn gửi</button>}
               </div>
             </div></div>
           )}
@@ -238,7 +261,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
                     </div>
                     <div className="od-so"><b>{fmt(tongDon(d))}</b> cái<small>{d.chi_tiet.length} dòng</small></div>
                     <div className="od-kq">
-                      {tt ? <span className={'od-chip ' + tt[1]}>{k.trang_thai === 'thanh_cong' ? <IcCheck /> : k.trang_thai === 'dang_gui' ? null : <IcAlert />} {tt[0]}</span>
+                      {tt ? <span className={'od-chip ' + tt[1]}>{k.trang_thai === 'thanh_cong' ? <IcCheck /> : k.trang_thai === 'dang_gui' ? null : <IcAlert />} {tt[0]}{k.odoo_id ? ` · #${k.odoo_id}` : ''}</span>
                         : <span className="od-chip cho">Chờ gửi</span>}
                       {k?.duyet === 'da_duyet' && <span className="od-duyet ok">Odoo tự duyệt</span>}
                       {k?.duyet === 'giu_nhap' && <span className="od-duyet nhap" title={k.loi}>Odoo giữ NHÁP</span>}
@@ -269,13 +292,13 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
             })}
           </div>
 
-          {json && (
+          {json && !laCH && (
             <details className="od-raw" open>
               <summary>JSON sẽ gửi ({json.length} đơn) — đơn chưa có tên sẽ được cấp lại lúc gửi thật</summary>
               <pre>{JSON.stringify({ requests: json }, null, 2)}</pre>
             </details>
           )}
-          {phanHoi && (
+          {phanHoi && !laCH && (
             <details className="od-raw">
               <summary>Phản hồi Odoo · HTTP {phanHoi.http || '—'}</summary>
               <pre>{JSON.stringify(phanHoi.body, null, 2)?.slice(0, 20000) || '(trống)'}</pre>
@@ -288,7 +311,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
           {opts.onExcel && !xongHet && (
             <button className="btn btn-ghost" disabled={dangGui} onClick={() => { const f = opts.onExcel; onDong(); f(); }}>
               <IcDown /> Xuất Excel thay thế</button>)}
-          {!xongHet && <button className="btn btn-ghost" disabled={dangGui || !conGui.length} onClick={xemJson}>Xem JSON</button>}
+          {!xongHet && !laCH && <button className="btn btn-ghost" disabled={dangGui || !conGui.length} onClick={xemJson}>Xem JSON</button>}
           {xongHet
             ? <button className="btn btn-ai od-gui" onClick={onDong}><IcCheck /> Xong</button>
             : <button className={'btn btn-ai od-gui' + (dangGui ? ' dang-chay' : '')} disabled={dangGui || !conGui.length || !lyDo} onClick={gui}>

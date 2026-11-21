@@ -264,7 +264,7 @@ export default function TaoDon({ onDong, onXong, khoDau = '', maDau = null }) {
           <button className="odn-nut-phu" disabled={!!thieu} onClick={() => xuatExcel()}><IcDown /> Xuất Excel</button>
           {dm?.odoo_bat
             ? <button className="btn btn-ai odn-nut-chinh" disabled={!!thieu} onClick={gui}><IcGuiLen /> Gửi lên Odoo</button>
-            : <button className="btn btn-ai odn-nut-chinh" disabled title="Tài khoản chưa được mở tạo đơn Odoo (đang thử nghiệm)"><IcGuiLen /> Gửi lên Odoo (chưa mở)</button>}
+            : <button className="btn btn-ai odn-nut-chinh" disabled title="Tài khoản chưa được mở tạo đơn Odoo"><IcGuiLen /> Gửi lên Odoo (chưa mở)</button>}
         </footer>
       </div>
     </div>

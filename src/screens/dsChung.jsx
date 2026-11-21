@@ -301,7 +301,7 @@ function HopGhiChu({ tieuDe, macDinh, phu, nutXong, coOdoo, onXong }) {
             <input type="checkbox" checked={od} onChange={(e) => { setOd(e.target.checked); lsSet('odoo_kem', e.target.checked); }} />
             <IcGuiLen />
             <span><b>Đồng thời tạo đơn trên Odoo</b>
-              <small>Xác nhận + xuất file xong sẽ mở hộp gửi Odoo — mỗi kho chuyển × đội = 1 đơn, xem lại rồi mới gửi (thử nghiệm)</small></span>
+              <small>Xác nhận + xuất file xong sẽ mở hộp gửi Odoo — mỗi kho chuyển × đội = 1 đơn, xem lại rồi mới gửi</small></span>
           </label>
         )}
         <div className="gc-chan">

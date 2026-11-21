@@ -1016,7 +1016,7 @@ function HopThayThe({ x, dong, cuaSo, tenDoi, onThem, onDong, baoToast }) {
 // ============================================================================
 function DsPhieu() {
   const { user, baoToast } = useApp();
-  const odoo = useOdooCfg(user);   // v3.114.0: gửi Odoo từng phiếu + trạng thái đơn Odoo (tài khoản thử nghiệm)
+  const odoo = useOdooCfg(user);   // v3.114.0: gửi Odoo từng phiếu + trạng thái đơn Odoo (mở theo tham số odoo_api)
   const [ds, setDs] = useState(null);
   const [odDon, setOdDon] = useState({});   // ma_phieu -> [đơn odoo]
   const tai = () => sb.rpc('fn_ds_phieu_ds', { p_ngay: 30 }).then(({ data, error }) => { if (error) baoToast('Lỗi: ' + error.message); setDs(data || []); });
@@ -1071,7 +1071,7 @@ function DsPhieu() {
                 <td className="tq-ghi">{p.nguoi || '—'} · {ngayGio(p.tao_luc)}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   <button className="btn" onClick={() => xuatPhieu(p.id, p.ma_phieu, p.ghi_chu).catch((e) => baoToast('Lỗi: ' + e.message))}><IcDown /> File</button>
-                  {odoo && p.trang_thai !== 'huy' && <button className="btn od-nut-nho" onClick={() => guiOdoo(p)} title="Tạo đơn điều chuyển Odoo từ phiếu này (thử nghiệm)"><IcGuiLen /> Odoo</button>}
+                  {odoo && p.trang_thai !== 'huy' && <button className="btn od-nut-nho" onClick={() => guiOdoo(p)} title="Tạo đơn điều chuyển Odoo từ phiếu này"><IcGuiLen /> Odoo</button>}
                   {p.trang_thai === 'xac_nhan' && <>
                     <button className="btn" onClick={() => doiTt(p, 'da_xuat')}><IcCheck /> Đã xuất</button>
                     <button className="btn" onClick={() => doiTt(p, 'huy')}>Huỷ</button>
