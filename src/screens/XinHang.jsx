@@ -589,14 +589,19 @@ export default function XinHang() {
     const { data: soBD, error: eSo } = await sb.rpc('fn_cap_so_phieu', { p_ma_ch: maCH, p_so_luong: khoCan.length });
     if (eSo) { baoToast('Không cấp được số phiếu: ' + eSo.message); return; }
     const thieuKho = khoCan.filter((k) => !dsAll.find((r) => khoCua(r) === k)?.kho_ma);
-    const don = khoCan.map((k, i) => ({
-      name: taoMaKho(k, (soBD || 1) + i), kho_cung_ung: k, kho_yeu_cau: maCH,
-      ...(lyKC ? { ghi_chu: 'Khẩn cấp: ' + lyKC } : {}),
-      chi_tiet: dsAll.filter((r) => khoCua(r) === k)
-        .map((r) => ({ sku: r.sku || '', barcode: r.barcode, nhu_cau: r.sl_xin, ma: r.ma_tham_chieu || r.barcode })),
-    }));
+    const don = khoCan.map((k, i) => {
+      const dsK = dsAll.filter((r) => khoCua(r) === k);
+      return {
+        name: taoMaKho(k, (soBD || 1) + i), kho_cung_ung: k, kho_yeu_cau: maCH,
+        // v3.120.0: nhãn nhóm hàng của đơn (Bảo hiểm / Nón vải / Phụ kiện) để biết đơn nào là hàng gì
+        nhom_ten: [...new Set(dsK.map((r) => NHOM.find((n) => n.id === nhomCua(r))?.ten).filter(Boolean))].join(' + '),
+        ...(lyKC ? { ghi_chu: 'Khẩn cấp: ' + lyKC } : {}),
+        chi_tiet: dsK.map((r) => ({ sku: r.sku || '', barcode: r.barcode, nhu_cau: r.sl_xin, ma: r.ma_tham_chieu || r.barcode })),
+      };
+    });
     moOdoo({
       tieuDe: `${loai === 'KHAN_CAP' ? 'Đề nghị KHẨN CẤP' : 'Đề nghị hàng hoá'} — ${maCH}`, man: 'de_nghi',
+      nguoiTaoCoDinh: maCH,   // đề nghị hàng: người tạo trên Odoo luôn là cửa hàng yêu cầu — không cho sửa
       lyDo: loai === 'KHAN_CAP' ? 'khan_cap' : 'de_nghi', don,
       canh: thieuKho.length ? [`Chưa xác định kho nguồn cho nhóm: ${thieuKho.join(', ')} — bỏ tick đơn đó nếu không chắc`] : [],
       onExcel: xuatTatCa,
@@ -641,7 +646,6 @@ export default function XinHang() {
           <button className={'btn btn-ai' + (busy ? ' dang-chay' : '')} onClick={goiY} disabled={busy || !maCH}>
             <IcSpark /> {busy ? 'Đang phân tích…' : 'AI gợi ý đề nghị'}
           </button>
-          {rows && <span className="sla-chip">{tongXin} sp · {rows.filter((r) => r.sl_xin > 0).length} mã</span>}
         </div>
         {rows && (
           <div className="dm-row">

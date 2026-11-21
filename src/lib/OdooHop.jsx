@@ -35,6 +35,8 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
   // v3.118.0: tài khoản CỬA HÀNG — giao diện gọn: người tạo cố định = mã CH, không có Xem JSON / phản hồi kỹ thuật,
   //   dòng vượt tồn khả dụng KHÔNG gửi được (máy chủ chặn) -> chỉ có "Bỏ đơn vượt" / "Quay lại sửa số lượng"
   const laCH = user.vai_tro === 'CH';
+  // người tạo trên Odoo cố định: tài khoản cửa hàng = mã CH; màn Đề nghị hàng = cửa hàng yêu cầu (opts.nguoiTaoCoDinh)
+  const nguoiCoDinh = laCH ? (user.ma_ch || '') : (opts.nguoiTaoCoDinh || '');
   // đội sale: cửa hàng đội đang bán — nhớ theo từng đội (gửi Odoo "sale_tai_cua_hang")
   const [don, setDon] = useState(() => (opts.don || []).map((d, i) => ({
     ...d, _i: i, sale_tai_cua_hang: d.sale_tai_cua_hang || (laDoiSale(d.kho_yeu_cau) ? saleChCuaDoi(d.kho_yeu_cau) : ''),
@@ -90,20 +92,12 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
     don: conGui.length, dong: conGui.reduce((s, d) => s + d.chi_tiet.length, 0), sl: conGui.reduce((s, d) => s + tongDon(d), 0),
   }), [conGui.length, don, kq, chon]);   // eslint-disable-line
   const canh = [...(opts.canh || []), ...canhSv];
-  const chung = { lyDo, nguoiTao, ghiChu };
+  const chung = { lyDo, nguoiTao: nguoiCoDinh || nguoiTao, ghiChu };
 
   const doiChon = (i) => setChon((s) => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
   const doiMo = (i) => setMo((s) => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
 
-  const xemJson = async () => {
-    if (!conGui.length) return;
-    setLoi(''); setDangGui(true);
-    const r = await goiOdoo({ token: user.token, man: opts.man, requests: conGui.map((d) => thanhRequest(d, chung)), xemTruoc: true });
-    setDangGui(false);
-    if (!r?.ok) { setLoi(r?.loi || 'Không xem trước được'); return; }
-    setCanhSv(r.canh || []);
-    setJson(r.requests || []);
-  };
+  // v3.120.0: bỏ nút "Xem JSON" — JSON đã gửi xem ở Đơn hàng Odoo › Dữ liệu kỹ thuật (Quản trị / Điều phối)
 
   const gui = async () => {
     const ds = conGui;
@@ -181,9 +175,9 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
               <Sel value={lyDo} onChange={(v) => !dangGui && setLyDo(v)} placeholder="— chọn lý do —"
                 options={(cfg?.ly_do || []).map((x) => ({ value: x, label: x }))} />
             </label>
-            {laCH ? (
+            {nguoiCoDinh ? (
               <label>Người tạo trên Odoo
-                <div className="od-co-dinh">{user.ma_ch} <small>cửa hàng của bạn</small></div>
+                <div className="od-co-dinh">{nguoiCoDinh} <small>{laCH ? 'cửa hàng của bạn' : 'mặc định — cửa hàng yêu cầu'}</small></div>
               </label>
             ) : (
               <label>Người tạo trên Odoo
@@ -245,6 +239,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
                     <input type="checkbox" checked={chon.has(d._i)} disabled={dangGui || daTao} onChange={() => doiChon(d._i)}
                       aria-label={'Chọn đơn ' + (d.name || d.kho_yeu_cau)} />
                     <div className="od-ten">
+                      {d.nhom_ten && <span className={'od-nhom ' + (/^Bảo hiểm/.test(d.nhom_ten) ? 'bh' : /^Nón vải/.test(d.nhom_ten) ? 'nv' : 'pk')}>{d.nhom_ten}</span>}
                       <b>{d.name || <span className="od-tu-cap">{(d.prefix || 'DK')}…-{d.kho_cung_ung}-{d.kho_yeu_cau}-NN <small>(tự cấp khi gửi)</small></span>}</b>
                       <small>{d.kho_cung_ung} → {d.kho_yeu_cau}{d.ten_yeu_cau ? ' · ' + d.ten_yeu_cau : ''}
                         {d.ly_do && <span className="od-ly"> · lý do riêng: {d.ly_do}</span>}
@@ -307,11 +302,10 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
         </div>
 
         <div className="od-chan">
-          <span className="od-ghi">{xongHet ? 'Đã tạo xong trên Odoo.' : 'Đơn tạo THẬT trên Odoo — kiểm tra kỹ trước khi gửi.'}</span>
+          <span className="od-ghi">{xongHet ? 'Đã tạo xong trên Odoo.' : 'Đơn tạo trên Odoo — kiểm tra kỹ trước khi gửi.'}</span>
           {opts.onExcel && !xongHet && (
             <button className="btn btn-ghost" disabled={dangGui} onClick={() => { const f = opts.onExcel; onDong(); f(); }}>
               <IcDown /> Xuất Excel thay thế</button>)}
-          {!xongHet && !laCH && <button className="btn btn-ghost" disabled={dangGui || !conGui.length} onClick={xemJson}>Xem JSON</button>}
           {xongHet
             ? <button className="btn btn-ai od-gui" onClick={onDong}><IcCheck /> Xong</button>
             : <button className={'btn btn-ai od-gui' + (dangGui ? ' dang-chay' : '')} disabled={dangGui || !conGui.length || !lyDo} onClick={gui}>

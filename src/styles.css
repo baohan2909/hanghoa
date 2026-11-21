@@ -5193,3 +5193,9 @@ button.pdh-dc:hover { border-color: #3FB6A8; } .pdh-dc.on { border-color: #1E5F6
 .btr-nhan { display: flex; flex-direction: column; gap: 5px; }
 .btr-nhan > span { font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
 .btr-chan { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* v3.120.0 — nhãn nhóm hàng của đơn trong hộp gửi Odoo */
+.od-nhom { display: inline-block; align-self: flex-start; font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; margin-bottom: 3px; white-space: nowrap; }
+.od-nhom.bh { background: #1E5F63; color: #fff; }
+.od-nhom.nv { background: #F6ECD6; color: #7A5410; }
+.od-nhom.pk { background: #EEF0F3; color: #4A5670; }
