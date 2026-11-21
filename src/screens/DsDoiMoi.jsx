@@ -6,7 +6,9 @@ import { AnhSP } from './DsBanChia.jsx';
 import { TrangThaiLuu, baoLoiXacNhan, fmtN, lsGet, lsSet, so, tenNgan, useNhap, xuatHaiFile, tenPhieu, useHoiGhiChu, ghiDong1, KHO_TEN, odooTuKq } from './dsChung.jsx';
 import { useLamTron, quyTac, lenMuc, xuongMuc, mucNho, canBang, chiaTyTrong, kGia, hoMau, mauMa, moTaMuc } from './dsLamTron.js';
 import { tachSize, thuTuSize } from './DsBoLoc.jsx';
-import { ghepThung, ruotThung } from './dsGhepThung.js';
+import { ghepThung, ruotThung, ghepTheoGia, chamBo, tomThung } from './dsGhepThung.js';
+import { useOdooCfg, saleChCuaDoi } from '../lib/odoo.js';
+import { Sel } from '../lib/ui.jsx';
 import { ThCot, useSapLoc, locVaSap } from './DsLocCot.jsx';
 
 // ============================================================================
@@ -23,8 +25,19 @@ import { ThCot, useSapLoc, locVaSap } from './DsLocCot.jsx';
 //   v3.123.0 (SQL 212): nhập SỐ ĐỘI (vd 35 -> DOISALE35 / Đội SALE 35, chưa có thì tự tạo khi xác nhận)
 //     + AI ghép TỔ HỢP 1–4 THÙNG đóng sẵn (dsGhepThung.js) -> phần thiếu lấy bổ sung từ kho SA
 //     + bảng từng nhóm giá: bấm tiêu đề sắp xếp, phễu lọc (DsLocCot.jsx)
+//   v3.125.0: · FULL dòng hàng: mọi mã còn kho SA của nhóm giá đều hiện (gõ số là thêm), thêm được nhóm giá ngoài cơ cấu / chưa có giá
+//             · Xác nhận = giữ tồn + BẮN THẲNG đơn lên Odoo (không xuất file) — có ô "CH đội đang sale"
+//             · Thùng: tự chọn số thùng (5–20) · TỔ HỢP THEO GIÁ SALE (lưu sẵn, vd 250k 200 · 400k 172 · 500k 72) · bảng KHO THÙNG
+//               chọn / bỏ từng thùng · tick bỏ bớt thùng ngay trong tổ hợp trước khi dùng
 // ============================================================================
 const ngan = (ma) => String(ma || '').replace('DOISALE', '');
+const kG = (g) => (g ? kGia(g) : 'Chưa có giá');   // NEW - 3.125: nhóm "chưa có giá" (gia 0)
+// NEW - 3.125: tổ hợp giá sale mặc định (anh đặt) — lưu theo tài khoản, sửa / thêm được
+const TOHOP_MAC_DINH = [
+  { id: 'g1', ten: 'Tổ hợp giá sale 1', muc: [{ gia: 250000, sl: 200 }, { gia: 400000, sl: 172 }, { gia: 500000, sl: 72 }] },
+  { id: 'g2', ten: 'Tổ hợp giá sale 2', muc: [{ gia: 250000, sl: 300 }, { gia: 400000, sl: 172 }, { gia: 500000, sl: 72 }, { gia: 350000, sl: 50 }] },
+];
+const GIOI_HAN_DONG = 30;   // mã chưa chia hiện trước mỗi nhóm (bấm "Hiện thêm" để xem hết)
 const dayDu = (k) => 'DOISALE' + k;
 // NEW - số đội: quy tắc hiện hữu DOISALE01..99 (2 chữ số), từ 100 giữ nguyên
 export const maTuSo = (n) => (n > 0 ? 'DOISALE' + (n < 10 ? '0' + n : String(n)) : '');
@@ -121,7 +134,7 @@ export function lapKeHoach(data, dl, cfg, tg = null) {   // tg: { san: {bc: sl t
     const Q = +g.sl || 0;
     const qt = quyTac({ gia: g.gia }, cfg);
     const minL = mucNho(qt);
-    const rowsG = rows.filter((x) => x.gia === g.gia);
+    const rowsG = rows.filter((x) => (g.gia ? x.gia === g.gia : !x.gia));   // NEW - 3.125: gia 0 = mã chưa có giá
     const thungG = rowsG.reduce((t, x) => t + x.san, 0);   // NEW - 212: phần thùng đã phủ trong nhóm
     const Qsa = Math.max(0, Q - thungG);                   // phần còn lại lấy từ kho SA
     const rowsDung = rowsG.filter((x) => !bo.has(x.bc));
@@ -131,7 +144,7 @@ export function lapKeHoach(data, dl, cfg, tg = null) {   // tg: { san: {bc: sl t
     if (!cand.length && Q > 0) {
       cand = rowsDung.filter((x) => x.kd > 0).sort((a, b) => b.kd - a.kd).map((x) => ({ ...x, p: x.kd }));
       theoKho = true;
-      if (cand.length) canhN.push(`Nhóm ${kGia(g.gia)}: chưa có số bán ở đội tham chiếu lẫn toàn mạng — tạm chia theo tồn kho SA`);
+      if (cand.length) canhN.push(`Nhóm ${kG(g.gia)}: chưa có số bán ở đội tham chiếu lẫn toàn mạng — tạm chia theo tồn kho SA`);
     }
     // bỏ mã quá nhỏ (dưới nửa mức làm tròn nhỏ nhất) rồi chia lại
     for (let v = 0; v < 8 && Q > 0; v++) {
@@ -236,7 +249,9 @@ export function lapKeHoach(data, dl, cfg, tg = null) {   // tg: { san: {bc: sl t
     const tongMS = Object.values(mauSac).reduce((u, v) => u + v, 0) || 1;
     const maxMS = Math.max(1e-12, ...Object.values(mauSac));
     const xepHang = Object.fromEntries([...rowsG].sort(sxP).map((x, i) => [x.bc, i + 1]));
-    const dong = daChon.map((x) => {
+    // NEW - 3.125: FULL dòng hàng — mã còn kho SA chưa được chia cũng hiện, gõ số là thêm vào
+    const setChon = new Set(daChon.map((x) => x.bc));
+    const taoDong = (x) => {
       const dn = a[x.bc] || 0;
       const r = x.refShare / maxRef, n = x.netShare / maxNet, k = Math.min(1, x.kd / Math.max(1, dn || muon[x.bc] || 1)), c = (mauSac[x.hm] || 0) / maxMS;
       const diem = Math.round(100 * (refs.length ? 0.45 * r + 0.25 * n + 0.15 * k + 0.15 * c : 0.7 * n + 0.15 * k + 0.15 * c));
@@ -252,27 +267,32 @@ export function lapKeHoach(data, dl, cfg, tg = null) {   // tg: { san: {bc: sl t
       if (thieuMa) ly.push(`Thiếu kho ${thieuMa} — đã tìm thay thế`);
       if (x.san) ly.unshift(`Thùng có ${x.san}${x.chiThung ? ' (kho SA không có)' : ''}`);
       const thuc = (dl.sua || {})[x.bc] ?? dn;
-      return { x, dn, muon: muon[x.bc] || 0, thuc, th: x.san, diem: Math.max(0, Math.min(100, diem)), ly, thay: thay[x.bc] || null, thieuMa, tuThem: !!(dl.them || {})[x.bc] };
-    }).sort((u, v) => (v.dn + v.th) - (u.dn + u.th) || v.diem - u.diem || u.x.nhomMa.localeCompare(v.x.nhomMa) || thuTuSize(u.x.size) - thuTuSize(v.x.size));
+      return { x, dn, muon: muon[x.bc] || 0, thuc, th: x.san, diem: Math.max(0, Math.min(100, diem)), ly, thay: thay[x.bc] || null, thieuMa, tuThem: !!(dl.them || {})[x.bc],
+        chon: setChon.has(x.bc), bo: bo.has(x.bc) };
+    };
+    const dong = [
+      ...daChon.map(taoDong).sort((u, v) => (v.dn + v.th) - (u.dn + u.th) || v.diem - u.diem || u.x.nhomMa.localeCompare(v.x.nhomMa) || thuTuSize(u.x.size) - thuTuSize(v.x.size)),
+      ...rowsG.filter((x) => !setChon.has(x.bc) && x.kd > 0).sort(sxP).map(taoDong),
+    ];
     const thuc = dong.reduce((s, d) => s + (d.thuc || 0), 0);
     const ai = dong.reduce((s, d) => s + d.dn, 0);
     const tong = thuc + thungG;   // nhận = thùng + kho SA
     // cảnh báo nhóm
     const khoDu = rowsDung.reduce((s, x) => s + xuongMuc(x.kd, qt), 0);
-    if (Qsa > 0 && khoDu < Qsa) canhN.push(`Nhóm ${kGia(g.gia)}: kho SA chỉ đủ ${fmtN(khoDu)}/${fmtN(Qsa)}${thungG ? ' (sau phần thùng)' : ''} — thiếu cơ cấu ${fmtN(Qsa - khoDu)}`);
-    if (thungG > Q) canhN.push(`Nhóm ${kGia(g.gia)}: thùng đã có ${fmtN(thungG)} > kế hoạch ${fmtN(Q)} — dư ${fmtN(thungG - Q)}`);
-    if (lech) canhN.push(`Nhóm ${kGia(g.gia)}: ${lech > 0 ? `còn thiếu ${lech}` : `dư ${-lech}`} so với kế hoạch (bước làm tròn / kho)`);
+    if (Qsa > 0 && khoDu < Qsa) canhN.push(`Nhóm ${kG(g.gia)}: kho SA chỉ đủ ${fmtN(khoDu)}/${fmtN(Qsa)}${thungG ? ' (sau phần thùng)' : ''} — thiếu cơ cấu ${fmtN(Qsa - khoDu)}`);
+    if (thungG > Q) canhN.push(`Nhóm ${kG(g.gia)}: thùng đã có ${fmtN(thungG)} > kế hoạch ${fmtN(Q)} — dư ${fmtN(thungG - Q)}`);
+    if (lech) canhN.push(`Nhóm ${kG(g.gia)}: ${lech > 0 ? `còn thiếu ${lech}` : `dư ${-lech}`} so với kế hoạch (bước làm tròn / kho)`);
     const theoMauDn = {}, theoMauSacDn = {};
     dong.forEach((d) => { const v = d.thuc + d.th; theoMauDn[d.x.mau] = (theoMauDn[d.x.mau] || 0) + v; theoMauSacDn[d.x.hm] = (theoMauSacDn[d.x.hm] || 0) + v; });
     const [mauTop, slMauTop] = Object.entries(theoMauDn).sort((u, v) => v[1] - u[1])[0] || [];
     const [msTop, slMsTop] = Object.entries(theoMauSacDn).sort((u, v) => v[1] - u[1])[0] || [];
-    if (tong >= 50 && slMauTop / tong > tranMau + 0.05) canhN.push(`Nhóm ${kGia(g.gia)}: mẫu ${mauTop} chiếm ${Math.round((slMauTop / tong) * 100)}% — tập trung 1 mẫu`);
-    if (tong >= 50 && msTop && slMsTop / tong > tranMauSac) canhN.push(`Nhóm ${kGia(g.gia)}: màu ${msTop} chiếm ${Math.round((slMsTop / tong) * 100)}% — tập trung 1 màu`);
-    if (tong >= 50 && Object.keys(theoMauDn).length < 3) canhN.push(`Nhóm ${kGia(g.gia)}: chỉ ${Object.keys(theoMauDn).length} mẫu — ít lựa chọn cho khách`);
-    if (choKhac.length) canhN.push(`Nhóm ${kGia(g.gia)}: ${choKhac.length} mã thiếu kho chưa có hàng cùng màu thay — xem đề xuất khác màu`);
+    if (tong >= 50 && slMauTop / tong > tranMau + 0.05) canhN.push(`Nhóm ${kG(g.gia)}: mẫu ${mauTop} chiếm ${Math.round((slMauTop / tong) * 100)}% — tập trung 1 mẫu`);
+    if (tong >= 50 && msTop && slMsTop / tong > tranMauSac) canhN.push(`Nhóm ${kG(g.gia)}: màu ${msTop} chiếm ${Math.round((slMsTop / tong) * 100)}% — tập trung 1 màu`);
+    if (tong >= 50 && Object.keys(theoMauDn).length < 3) canhN.push(`Nhóm ${kG(g.gia)}: chỉ ${Object.keys(theoMauDn).length} mẫu — ít lựa chọn cho khách`);
+    if (choKhac.length) canhN.push(`Nhóm ${kG(g.gia)}: ${choKhac.length} mã thiếu kho chưa có hàng cùng màu thay — xem đề xuất khác màu`);
     if (refs.length && tongMixRef > 0) {
       const sRef = (mixRef[g.gia] || 0) / tongMixRef, sCC = Q / tongCC;
-      if (Math.abs(sRef - sCC) > 0.12) canh.push(`Đội tham chiếu bán nhóm ${kGia(g.gia)} ${Math.round(sRef * 100)}% nhưng cơ cấu đặt ${Math.round(sCC * 100)}%`);
+      if (Math.abs(sRef - sCC) > 0.12) canh.push(`Đội tham chiếu bán nhóm ${kG(g.gia)} ${Math.round(sRef * 100)}% nhưng cơ cấu đặt ${Math.round(sCC * 100)}%`);
     }
     canh.push(...canhN);
     // tỷ trọng màu (cho thanh màu)
@@ -288,7 +308,7 @@ export function lapKeHoach(data, dl, cfg, tg = null) {   // tg: { san: {bc: sl t
     const khongGia = rows.filter((x) => !x.gia && x.banRef > 0);
     if (khongGia.length) canh.push(`${khongGia.length} mã đội tham chiếu đang bán (${fmtN(khongGia.reduce((s, x) => s + x.banRef, 0))} cái) chưa có giá sale — không vào cơ cấu`);
     Object.entries(mixRef).forEach(([gia, v]) => {
-      if (!giaCC.has(+gia) && tongMixRef > 0 && v / tongMixRef >= 0.05) canh.push(`Đội tham chiếu bán nhóm ${kGia(+gia)} ${Math.round((v / tongMixRef) * 100)}% — cơ cấu chưa có nhóm này`);
+      if (!giaCC.has(+gia) && tongMixRef > 0 && v / tongMixRef >= 0.05) canh.push(`Đội tham chiếu bán nhóm ${kG(+gia)} ${Math.round((v / tongMixRef) * 100)}% — cơ cấu chưa có nhóm này`);
     });
     refs.forEach((t) => { const d = data.doi.find((x) => ngan(x.ma) === t); if (d && d.ngay < 14) canh.push(`Đội ${t} chỉ có ${d.ngay} ngày bán — số liệu tham chiếu còn mỏng`); });
   } else canh.unshift('Chưa chọn đội tham chiếu — đang đề nghị theo bán toàn mạng đội sale');
@@ -299,7 +319,7 @@ export function lapKeHoach(data, dl, cfg, tg = null) {   // tg: { san: {bc: sl t
       const s = tg.sp?.[bc] || {};
       if (s.pk) ngoai.push({ bc, mtc: s.mtc || bc, sl, ly: 'phụ kiện' });
       else if (!s.gia) ngoai.push({ bc, mtc: s.mtc || bc, sl, ly: 'chưa có giá sale' });
-      else if (!giaCC.has(s.gia)) ngoai.push({ bc, mtc: s.mtc || bc, sl, ly: `nhóm ${kGia(s.gia)} chưa có trong cơ cấu` });
+      else if (!giaCC.has(s.gia)) ngoai.push({ bc, mtc: s.mtc || bc, sl, ly: `nhóm ${kG(s.gia)} chưa có trong cơ cấu` });
     });
     if (ngoai.length) canh.push(`Thùng có ${fmtN(ngoai.reduce((t, x) => t + x.sl, 0))} cái ngoài cơ cấu giá (${ngoai.length} mã) — vẫn giao theo thùng`);
   }
@@ -352,6 +372,64 @@ const COT_DM = {
   th: { lay: (d) => d.th || 0 }, dn: { lay: (d) => d.dn || 0 }, thuc: { lay: (d) => d.thuc || 0 },
 };
 
+// NEW - 3.125: giá trị "trễ" — đổi sau khi ngừng đổi ms mili-giây (tính nặng không chạy theo từng phím gõ)
+function useTre(v, ms) {
+  const [t, setT] = useState(v);
+  useEffect(() => { const h = setTimeout(() => setT(v), ms); return () => clearTimeout(h); }, [v, ms]);
+  return t;
+}
+
+// NEW - 3.125: thẻ 1 tổ hợp thùng — bấm từng thùng để bỏ tick / lấy lại; số liệu thẻ tính lại theo các thùng còn tick
+function TheToHop({ khoa, tieuDe, c, tot, muc, thungDl, spT, dich, boTick, doiTick, khopThung, onDung, trong }) {
+  const bo = (boTick[khoa] || []).filter((t) => c?.thung.includes(t));
+  const con = c ? c.thung.filter((t) => !bo.includes(t)) : [];
+  const v = useMemo(() => (c && bo.length ? (con.length ? chamBo(thungDl.thung, spT, dich, con, muc) : null) : c),
+    [c, bo.join('|'), thungDl, spT, dich, JSON.stringify(muc)]);   // eslint-disable-line
+  const dang = c && con.length > 0 && khopThung(con);
+  return (
+    <div className={'dmo-tg-the' + (dang ? ' dang' : '') + (tot && !dang ? ' tot' : '')}>
+      <div className="dmo-tg-dau">
+        <b>{tieuDe}</b>{tot && <span className="dmo-tg-ai"><IcSpark /> AI chọn</span>}
+        {v && <span className={'dmo-diem ' + (v.diem >= 70 ? 'cao' : v.diem >= 45 ? 'vua' : 'thap')} title="Độ hợp 0–100: đúng mã cần · đúng cơ cấu giá · đa dạng mẫu">{v.diem}</span>}
+      </div>
+      {!c ? <div className="dmo-tg-trong nho">{trong}</div> : (<>
+        <div className="dmo-tg-so">
+          <span><b>{con.length}</b> thùng</span><span><b>{fmtN(v?.n || 0)}</b> cái</span>
+          {v?.mt ? <span>lệch <b>{fmtN(v.lech)}</b> cái</span> : <span>phủ <b>{Math.round((v?.phu || 0) * 100)}%</b> kế hoạch</span>}
+          <span><b>{v?.soMau || 0}</b> mẫu</span>
+        </div>
+        {v && (
+          <div className="dmo-tg-cc">
+            {(v.mt ? v.mt.map((g) => ({ gia: g.gia, c: g.c, Q: g.T })) : v.nhom.filter((g) => g.Q > 0)).map((g) => (
+              <div key={g.gia} className="dmo-tg-cc-dong" title={v.mt ? `Thùng ${g.c} / tổ hợp ${g.Q}` : `Thùng ${g.c} / định mức nhóm ${g.Q}`}>
+                <span>{kG(g.gia)}</span>
+                <span className="kt-bar"><span className={'kt-fill' + (g.c > g.Q ? ' du' : '')} style={{ width: Math.min(100, g.Q ? (g.c / g.Q) * 100 : 0) + '%' }} /></span>
+                <em className={v.mt && g.c === g.Q ? 'dung' : ''}>{g.c}/{g.Q}</em>
+              </div>
+            ))}
+          </div>
+        )}
+        {v && <ul className="dmo-tg-ly">{v.ly.map((l) => <li key={l}>{l}</li>)}</ul>}
+        <div className="dmo-tg-ds">
+          {c.chiTiet.map((t) => {
+            const tat = bo.includes(t.t);
+            return (
+              <button key={t.t} className={'dmo-tg-chip tick' + (tat ? ' bo' : '')} onClick={() => doiTick(khoa, t.t)}
+                title={(tat ? 'Đã bỏ — bấm để lấy lại' : 'Bấm để bỏ thùng này khỏi tổ hợp') + ([t.nhom, t.vt].filter(Boolean).length ? '\n' + [t.nhom, t.vt].filter(Boolean).join(' · ') : '')}>
+                <span className="dmo-tick" aria-hidden>{tat ? '' : '✓'}</span>{t.t}<i>{t.n}</i>
+              </button>
+            );
+          })}
+        </div>
+        {bo.length > 0 && <div className="dmo-tg-bo">Đã bỏ {bo.length} thùng · <button className="lk" onClick={() => bo.forEach((t) => doiTick(khoa, t))}>Lấy lại hết</button></div>}
+        <button className={'btn ' + (dang || !tot ? 'btn-ghost' : 'btn-ai') + ' dmo-tg-nut'} onClick={() => onDung(con)} disabled={dang || !con.length}>
+          {dang ? <><IcCheck /> Đang dùng</> : bo.length ? `Dùng ${con.length} thùng đã tick` : 'Dùng tổ hợp này'}
+        </button>
+      </>)}
+    </div>
+  );
+}
+
 export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
   const { user, baoToast } = useApp();
   const nguoi = user?.ma_dang_nhap || '';
@@ -366,6 +444,8 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
   const [moCanh, setMoCanh] = useState(true);
   const [gui, setGui] = useState(false);
   const [hoiGhiChu, hopGhiChu, chonOdoo] = useHoiGhiChu();
+  const odooCfg = useOdooCfg(user);   // NEW - 3.125: có quyền Odoo -> xác nhận là bắn thẳng đơn lên Odoo
+  const [moHet, setMoHet] = useState({});   // nhóm giá đang hiện hết mã
   useEffect(() => { lsSet('doimoi_id', id); }, [id]);
   useEffect(() => { lsSet('dm_cua_so', cuaSo); }, [cuaSo]);
   const macDinh = useMemo(() => macDinhNhap(cfg), [cfg]);
@@ -445,7 +525,9 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
     khGoc.nhom.forEach((n) => { Qg[n.gia] = n.Q; n.dong.forEach((d) => { mtc[d.x.bc] = d.x.mtc; if (d.muon > 0) D[d.x.bc] = d.muon; }); });
     return { D, Qg, mtc };
   }, [khGoc]);
-  const ghep = useMemo(() => (thungDl && dich ? ghepThung(thungDl.thung, spT, dich) : null), [thungDl, spT, dich]);
+  // NEW - 3.125: ghép thùng chạy SAU khi anh ngừng gõ ~0,45 giây (738 thùng — không làm giật ô nhập)
+  const dichTre = useTre(dich, 450);
+  const ghep = useMemo(() => (thungDl && dichTre ? ghepThung(thungDl.thung, spT, dichTre) : null), [thungDl, spT, dichTre]);
   const khopThung = (ds) => ds.length === chonThung.length && ds.every((t) => chonThung.includes(t));
   const dungToHop = (ds) => { dat({ thung: [...ds] }); baoToast(`Đã dùng ${ds.length} thùng — phần còn thiếu AI lấy bổ sung từ kho SA`); };
   const boThung = (t) => dat((d) => ({ thung: (d.thung || []).filter((x) => x !== t) }));
@@ -460,6 +542,57 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
   };
   const soCuaThung = (t) => { const x = thungDl?.thung.find((y) => y[0] === t); return x ? x[4].reduce((a, c) => a + (c[2] ? 0 : c[1]), 0) : '?'; };
   const sl = useSapLoc('dm_bang');
+
+  // ---------- NEW - 3.125: thùng — tự chọn số thùng · tổ hợp theo giá sale · kho thùng ----------
+  const [tabThung, setTabThung] = useState(() => lsGet('dm_tab_thung') || 'so');
+  useEffect(() => { lsSet('dm_tab_thung', tabThung); }, [tabThung]);
+  const [soTuChon, setSoTuChon] = useState(() => lsGet('dm_so_thung') || 6);
+  useEffect(() => { lsSet('dm_so_thung', soTuChon); }, [soTuChon]);
+  const [boTick, setBoTick] = useState({});   // khoá thẻ tổ hợp -> [mã thùng anh bỏ tick]
+  const doiTick = (khoa, t) => setBoTick((m) => { const a = m[khoa] || []; return { ...m, [khoa]: a.includes(t) ? a.filter((x) => x !== t) : [...a, t] }; });
+  const soTre = useTre(soTuChon, 350);
+  const ghepN = useMemo(() => (tabThung === 'so' && thungDl && dichTre && soTre > 4 ? ghepThung(thungDl.thung, spT, dichTre, { soThung: [soTre] }) : null),
+    [tabThung, thungDl, spT, dichTre, soTre]);
+  const [thM, datThM] = useNhap(nguoi, 'tohop_gia', { ds: TOHOP_MAC_DINH });
+  const dsTH = thM?.ds?.length ? thM.ds : TOHOP_MAC_DINH;
+  const [thChon, setThChon] = useState(() => lsGet('dm_tohop') || 'g1');
+  useEffect(() => { lsSet('dm_tohop', thChon); }, [thChon]);
+  const thDang = dsTH.find((t) => t.id === thChon) || dsTH[0];
+  const suaTH = (fn) => datThM((d) => ({ ...d, ds: (d?.ds?.length ? d.ds : TOHOP_MAC_DINH).map((t) => (t.id === thDang.id ? { ...t, ...fn(t) } : t)) }));
+  const themTH = () => {
+    const id = 't' + Date.now().toString(36);
+    datThM((d) => { const ds = d?.ds?.length ? d.ds : TOHOP_MAC_DINH; return { ...d, ds: [...ds, { id, ten: `Tổ hợp giá sale ${ds.length + 1}`, muc: (thDang?.muc || []).map((x) => ({ ...x })) }] }; });
+    setThChon(id);
+  };
+  const xoaTH = () => {
+    if (dsTH.length <= 1 || !window.confirm(`Xoá “${thDang.ten}”?`)) return;
+    datThM((d) => ({ ...d, ds: (d?.ds?.length ? d.ds : TOHOP_MAC_DINH).filter((t) => t.id !== thDang.id) }));
+    setThChon(dsTH.find((t) => t.id !== thDang.id)?.id);
+  };
+  const mucTre = useTre(JSON.stringify(thDang?.muc || []), 350);
+  const ghepG = useMemo(() => (tabThung === 'gia' && thungDl ? ghepTheoGia(thungDl.thung, spT, dichTre, JSON.parse(mucTre)) : null),
+    [tabThung, thungDl, spT, dichTre, mucTre]);
+  const dsTom = useMemo(() => (tabThung === 'kho' && thungDl ? tomThung(thungDl.thung, spT, dichTre) : null), [tabThung, thungDl, spT, dichTre]);
+  const slKho = useSapLoc('dm_kho_thung', { k: 'diem', g: -1 });
+  const [moKho, setMoKho] = useState(false);
+  const batThung = (t) => dat((d) => ({ thung: (d.thung || []).includes(t) ? d.thung.filter((x) => x !== t) : [...(d.thung || []), t] }));
+  // giá có hàng: cho ô chọn giá của tổ hợp + nút "Thêm nhóm giá"
+  const giaCoKho = useMemo(() => {
+    const m = {};
+    (data?.sp || []).forEach((r) => { if ((r[6] || 0) + (r[7] || 0) > 0) { const g = r[4] || 0; m[g] = (m[g] || 0) + 1; } });
+    return Object.entries(m).map(([g, c]) => ({ gia: +g, c })).sort((a, b) => (a.gia || 9e9) - (b.gia || 9e9));
+  }, [data]);
+  const giaChon = useMemo(() => {
+    const set = new Set([...giaCoKho.map((x) => x.gia), ...Object.values(spT).map((x) => x.gia), ...coCau.map((g) => g.gia)].filter((g) => g > 0));
+    return [...set].sort((a, b) => a - b);
+  }, [giaCoKho, spT, JSON.stringify(coCau)]);   // eslint-disable-line
+
+  // ---------- NEW - 3.125: CH đội đang sale (gửi kèm đơn Odoo) ----------
+  const [dsChSale, setDsChSale] = useState(null);
+  useEffect(() => {
+    if (!odooCfg || dsChSale || !user?.token) return;
+    sb.rpc('fn_ton_kho_ds', { p_token: user.token }).then(({ data: kq }) => setDsChSale(kq?.cua_hang || []));
+  }, [odooCfg, dsChSale, user?.token]);
 
   const kh = useMemo(() => (data ? lapKeHoach(data, d2, cfg, chonThung.length && thungDl ? { san: ruot.san, sp: spT } : null) : null),
     [data, JSON.stringify(d2), cfg, ruot, spT, thungDl]);   // eslint-disable-line
@@ -491,7 +624,7 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
     const ct = ds.map((n) => {
       const c = Math.min(40, Math.max(20, lam5(100 / n.soMauKho + 5), lam5(n.topPt * 100)));
       tong += n.Q; s += c * n.Q;
-      return `${kGia(n.gia)}: mẫu chạy nhất ${n.topMau} ${Math.round(n.topPt * 100)}%`;
+      return `${kG(n.gia)}: mẫu chạy nhất ${n.topMau} ${Math.round(n.topPt * 100)}%`;
     });
     const v = Math.round(s / tong / 5) * 5;
     return { v, ly: `${ct.join(' · ')} → trần ${v}%: giữ đúng mẫu khách mua nhiều, không dồn quá ${v}% nhóm vào 1 mẫu.` };
@@ -510,11 +643,11 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
   });
   const canVeTong = () => dat((d) => ({ coCau: coGianCoCau(d.coCau?.length ? d.coCau : macDinh.coCau, d.tong, cfg) }));
   const coCauChuan = () => dat((d) => ({ coCau: coGianCoCau((cfg.doi_moi?.co_cau || []).map((g) => ({ ...g })), d.tong || 1050, cfg) }));
-  const themNhomGia = (gia) => { if (!gia || coCau.some((g) => g.gia === +gia)) return; dat((d) => ({ coCau: [...(d.coCau?.length ? d.coCau : macDinh.coCau), { gia: +gia, sl: 0 }].sort((a, b) => a.gia - b.gia) })); };
+  const themNhomGia = (gia) => { if (gia == null || coCau.some((g) => g.gia === +gia)) return; dat((d) => ({ coCau: [...(d.coCau?.length ? d.coCau : macDinh.coCau), { gia: +gia, sl: 0 }].sort((a, b) => a.gia - b.gia) })); };
   const boNhomGia = (gia) => dat((d) => ({ coCau: (d.coCau || []).filter((g) => g.gia !== gia) }));
   const chonChinh = (k) => dat((d) => ({ chinh: k, phu: (d.phu || []).filter((p) => p !== k) }));
   const batPhu = (k) => dat((d) => ({ phu: (d.phu || []).includes(k) ? d.phu.filter((p) => p !== k) : [...(d.phu || []), k].filter((p) => p !== d.chinh) }));
-  const datThuc = (bc, v) => dat((d) => ({ sua: { ...(d.sua || {}), [bc]: so(v) } }));
+  const datThuc = (bc, v) => dat((d) => ({ sua: { ...(d.sua || {}), [bc]: so(v) }, bo: so(v) > 0 ? (d.bo || []).filter((x) => x !== bc) : (d.bo || []) }));
   const boMa = (bc) => dat((d) => { const s = { ...(d.sua || {}) }; delete s[bc]; const t = { ...(d.them || {}) }; delete t[bc]; return { bo: [...new Set([...(d.bo || []), bc])], sua: s, them: t }; });
   const themMa = (bc, sl) => dat((d) => ({ them: { ...(d.them || {}), [bc]: sl }, bo: (d.bo || []).filter((x) => x !== bc) }));
   const dongYKhacMau = (x, o) => {
@@ -554,14 +687,14 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
     const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(ds.map(({ d, kho, sl }) => ({
       'Kho chuyển': kho, 'Tên kho chuyển': KHO_TEN[kho] || kho, 'Cửa hàng nhận': maDoi, 'Tên cửa hàng nhận': d2.ten || tenDoiMoi || 'Đội mới',
-      Barcode: d.x.bc, 'Mã tham chiếu': d.x.mtc, 'Sản phẩm': d.x.n3 || '', 'Số lượng': sl, 'Ghi chú': `Chia trước đội mới (nháp) · ${kGia(d.x.gia)}`,
+      Barcode: d.x.bc, 'Mã tham chiếu': d.x.mtc, 'Sản phẩm': d.x.n3 || '', 'Số lượng': sl, 'Ghi chú': `Chia trước đội mới (nháp) · ${kG(d.x.gia)}`,
     })));
     ghiDong1(XLSX, ws, ghiChu);
     const ws2 = XLSX.utils.json_to_sheet(kh.nhom.flatMap((n) => n.dong.filter((d) => d.thuc > 0 || d.dn > 0).map((d) => ({
-      'Nhóm giá': kGia(n.gia), 'Mã tham chiếu': d.x.mtc, Barcode: d.x.bc, 'Điểm phù hợp': d.diem, 'Trong thùng': d.th || 0, 'AI đề nghị kho SA': d.dn, 'Thực chia kho SA': d.thuc,
+      'Nhóm giá': kG(n.gia), 'Mã tham chiếu': d.x.mtc, Barcode: d.x.bc, 'Điểm phù hợp': d.diem, 'Trong thùng': d.th || 0, 'AI đề nghị kho SA': d.dn, 'Thực chia kho SA': d.thuc,
       'Bán ĐTC': d.x.banRef, 'Bán toàn mạng': d.x.banMang, 'Kho SA': d.x.kd, 'Lý do': d.ly.join(' · '),
     }))));
-    const ws3 = XLSX.utils.json_to_sheet(kh.nhom.map((n) => ({ 'Nhóm giá': kGia(n.gia), 'Kế hoạch': n.Q, 'Tỷ trọng': tongKH ? Math.round((n.Q / tongKH) * 10000) / 100 + '%' : '', 'Thùng': n.thung, 'AI đề nghị kho SA': n.ai, 'Thực chia kho SA': n.thuc, 'Tổng nhận': n.tong, 'Số mã': n.soMa, 'Số mẫu': n.soMau })));
+    const ws3 = XLSX.utils.json_to_sheet(kh.nhom.map((n) => ({ 'Nhóm giá': kG(n.gia), 'Kế hoạch': n.Q, 'Tỷ trọng': tongKH ? Math.round((n.Q / tongKH) * 10000) / 100 + '%' : '', 'Thùng': n.thung, 'AI đề nghị kho SA': n.ai, 'Thực chia kho SA': n.thuc, 'Tổng nhận': n.tong, 'Số mã': n.soMa, 'Số mẫu': n.soMau })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'DieuChuyen');
     if (chonThung.length) {
@@ -576,6 +709,7 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
     XLSX.writeFile(wb, `ChiaTruoc_${ten}_${new Date().toISOString().slice(0, 10)}.xlsx`);
     baoToast(`Đã xuất file nháp ${fmtN(tongThuc)} cái — chưa giữ tồn`);
   };
+  const saleCh = d2.saleCh ?? (maDoi ? saleChCuaDoi(maDoi) : '') ?? '';   // NEW - 3.125
   const xacNhan = async () => {
     if (!soDoi) { baoToast('Nhập số đội trước (vd 35)'); return; }
     const ds = kh.nhom.flatMap((n) => n.dong.filter((d) => d.thuc > 0).map((d) => ({ barcode: d.x.bc, sl_sa: d.thuc })));
@@ -583,9 +717,10 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
     if (thungMat.length) { baoToast(`Thùng ${thungMat.join(', ')} không còn sẵn sàng (đã giao / cần kiểm tra) — bỏ ra rồi xác nhận`); return; }
     const vuot = kh.nhom.flatMap((n) => n.dong.filter((d) => d.thuc > d.x.kd));
     if (vuot.length) { baoToast(`${vuot.length} mã thực chia vượt kho SA — sửa trước khi xác nhận`); return; }
-    const ghiChu = await hoiGhiChu({ odoo: true, macDinh: `${String(tenDoiMoi || '').replace(/^Đội SALE/i, 'Đội Sale')}${d2.kv ? ' – ' + d2.kv : ' – '}`, tieuDe: `Xác nhận chia trước — ${tenNgan(tenDoiMoi)}${doiCo ? '' : ' (đội mới — tự tạo mã ' + maDoi + ')'}`,
-      nutXong: `Xác nhận & xuất (${fmtN(tongNhan)})`,
-      phu: `${fmtN(tongNhan)} cái · ${soMa} mã${chonThung.length ? ` · ${chonThung.length} thùng ${fmtN(tongThung)} + kho SA ${fmtN(tongThuc)}` : ''} — giữ tồn kho SA ngay khi xác nhận` });
+    const thang = !!odooCfg;   // NEW - 3.125: có quyền Odoo -> bắn thẳng đơn, không xuất file
+    const ghiChu = await hoiGhiChu({ odoo: true, odooBatBuoc: thang, macDinh: `${String(tenDoiMoi || '').replace(/^Đội SALE/i, 'Đội Sale')}${d2.kv ? ' – ' + d2.kv : ' – '}`, tieuDe: `Xác nhận chia trước — ${tenNgan(tenDoiMoi)}${doiCo ? '' : ' (đội mới — tự tạo mã ' + maDoi + ')'}`,
+      nutXong: thang ? `Xác nhận & tạo đơn Odoo (${fmtN(tongNhan)})` : `Xác nhận & xuất (${fmtN(tongNhan)})`,
+      phu: `${fmtN(tongNhan)} cái · ${soMa} mã${chonThung.length ? ` · ${chonThung.length} thùng ${fmtN(tongThung)} + kho SA ${fmtN(tongThuc)}` : ''} — giữ tồn kho SA ngay khi xác nhận${thang && saleCh ? ` · CH đội đang sale ${saleCh}` : ''}` });
     if (ghiChu === null) return;
     setGui(true);
     let doi = doiCo;
@@ -598,8 +733,13 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
     setGui(false);
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     if (!kq?.ok) { baoLoiXacNhan(kq, baoToast); tai(true); taiDsThung(true); return; }
-    try { await xuatHaiFile(kq, ghiChu); } catch { baoToast('Đã giữ tồn, xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
-    if (chonOdoo.current) odooTuKq(kq, ghiChu).catch((e) => baoToast('Đã xác nhận, chưa mở được hộp Odoo: ' + (e?.message || e) + ' — gửi lại ở Phiếu đã chia'));
+    if (thang) {
+      // NEW - 3.125: bắn thẳng lên Odoo (hộp Odoo tự gửi, hiện kết quả từng đơn; lỗi thì "Gửi lại" ngay trong hộp hoặc ở Phiếu đã chia)
+      odooTuKq(kq, ghiChu, { tuGui: true, saleCh }).catch((e) => baoToast('Đã giữ tồn, chưa gửi được Odoo: ' + (e?.message || e) + ' — gửi lại ở Phiếu đã chia'));
+    } else {
+      try { await xuatHaiFile(kq, ghiChu); } catch { baoToast('Đã giữ tồn, xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
+      if (chonOdoo.current) odooTuKq(kq, ghiChu).catch((e) => baoToast('Đã xác nhận, chưa mở được hộp Odoo: ' + (e?.message || e) + ' — gửi lại ở Phiếu đã chia'));
+    }
     baoToast(`Đã xác nhận ${tenPhieu(kq)}: ${fmtN(tongNhan)} cái cho ${tenNgan(doi.ten)}${chonThung.length ? ` (${chonThung.length} thùng + kho SA)` : ''}`);
     tai(true); taiDsThung(true);
   };
@@ -645,6 +785,15 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
             </label>
             <label><span>Tên đội</span><input className="inp" value={d2.ten} placeholder="Tự đặt theo số đội" onChange={(e) => dat({ ten: e.target.value })} /></label>
             <label><span>Khu vực dự kiến</span><input className="inp" value={d2.kv} placeholder="Vd Lạc Long Quân" onChange={(e) => dat({ kv: e.target.value })} /></label>
+            {odooCfg && (
+              <div className="dmo-lbl" title="Cửa hàng đội đang bán — gửi kèm đơn Odoo (sale_tai_cua_hang). Để trống = không ghi">
+                <span>CH đội đang sale</span>
+                <Sel value={saleCh || ''} timKiem placeholder="— không ghi —" onChange={(v) => dat({ saleCh: v })}
+                  options={[{ value: '', label: '— không ghi —' },
+                    ...(saleCh && !(dsChSale || []).some((c) => c.ma === saleCh) ? [{ value: saleCh, label: saleCh }] : []),
+                    ...(dsChSale || []).map((c) => ({ value: c.ma, label: c.ma + ' · ' + c.ten }))]} />
+                <small>gửi kèm đơn Odoo</small>
+              </div>)}
             <label title="Tổng số nón chia trước — đổi tổng thì cơ cấu giá tự co giãn theo tỷ trọng">
               <span>Tổng nón</span>
               <input className="inp dmo-tong" type="number" min="100" step="10" value={d2.tong || ''} onChange={(e) => doiTong(e.target.value)} />
@@ -659,7 +808,7 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
               onDat={(v) => dat({ tranMau: v })} />
           </div>
           {dangCat.length > 0 && (
-            <div className="dmo-ts-cat">Đang cắt: {dangCat.map((n) => `${n.topMau} (${kGia(n.gia)}) ${Math.round(n.topPt * 100)}% → ${d2.tranMau}%`).join(' · ')} — phần dư chia sang mẫu bán chạy kế tiếp</div>
+            <div className="dmo-ts-cat">Đang cắt: {dangCat.map((n) => `${n.topMau} (${kG(n.gia)}) ${Math.round(n.topPt * 100)}% → ${d2.tranMau}%`).join(' · ')} — phần dư chia sang mẫu bán chạy kế tiếp</div>
           )}
           {dsNhap.some((n) => n.id === id) && <div className="dmo-form-chan"><button className="dmo-xoa-nhap" onClick={xoaBanNhap}>Xoá bản nháp này</button></div>}
         </div>
@@ -720,7 +869,7 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
               const refPt = kh && kh.refs.length ? (() => { let t = 0, v = 0; data.sp.forEach((r) => { const s = kh.refs.reduce((a, k) => a + (kh.w[k] || 0) * ((r[9] || {})[k] || 0), 0); t += r[4] ? s : 0; if (r[4] === g.gia) v += s; }); return t ? v / t : null; })() : null;
               return (
                 <tr key={g.gia}>
-                  <td><b className="dmo-gia">{kGia(g.gia)}</b></td>
+                  <td><b className="dmo-gia">{kG(g.gia)}</b></td>
                   <td className="ct-giua"><input className="qty-input dmo-pt" value={tongKH ? (Math.round(((+g.sl || 0) / (d2.tong || tongKH)) * 10000) / 100).toString().replace('.', ',') : ''} onChange={(e) => datPtNhom(i, e.target.value)} />%</td>
                   <td className="ct-giua"><input className="qty-input" type="number" min="0" value={g.sl || ''} onChange={(e) => datSlNhom(i, e.target.value)} /></td>
                   <td className="ct-giua dmo-mo">{moTaMuc(quyTac({ gia: g.gia }, cfg))}</td>
@@ -743,57 +892,127 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
           </tfoot>
         </table>
         <div className="dmo-them-nhom">
-          <span className="tq-ghi">Thêm nhóm giá:</span>
-          {[150000, 200000, 300000, 450000, 550000, 600000].filter((p) => !coCau.some((g) => g.gia === p)).map((p) => (
-            <button key={p} className="btn-mini" onClick={() => themNhomGia(p)}>+ {kGia(p)}</button>
+          <span className="tq-ghi" title="Nhóm thêm vào với số lượng 0 = AI không tự chia, anh gõ số từng mã trong bảng của nhóm đó">Thêm nhóm giá (có hàng kho SA):</span>
+          {giaCoKho.filter((x) => !coCau.some((g) => g.gia === x.gia)).map((x) => (
+            <button key={x.gia} className="btn-mini" onClick={() => themNhomGia(x.gia)} title={`${x.c} mã còn kho`}>+ {kG(x.gia)}<small> · {x.c} mã</small></button>
           ))}
         </div>
       </div>
 
-      {/* 4 · Thùng đóng sẵn — AI ghép tổ hợp (NEW - 212) */}
+      {/* 4 · Thùng đóng sẵn — AI ghép tổ hợp (NEW - 212 · mở rộng NEW - 3.125) */}
       <div className="card dmo-the dmo-tg">
         <div className="dmo-the-dau"><span className="dmo-so">4</span><b>Thùng đóng sẵn</b>
-          <small>AI ghép tổ hợp 1–4 thùng sát bộ hàng đầu tiên nhất · phần còn thiếu lấy bổ sung từ kho SA</small>
+          <small>AI ghép tổ hợp thùng — theo số thùng hoặc theo tổ hợp giá sale · tick bỏ bớt thùng trước khi dùng · phần còn thiếu lấy kho SA</small>
           <button className="btn-mini" onClick={() => taiDsThung(true)} disabled={taiThung}>{taiThung ? 'Đang tải…' : 'Tải lại kho thùng'}</button>
         </div>
-        {!thungDl ? <div className="dmo-tai"><span className="dmo-quet" />{taiThung ? 'Đang đọc kho thùng…' : 'Chưa tải được kho thùng'}</div>
-          : !ghep || !Object.keys(ghep.tungSo).length ? <div className="dmo-tg-trong">Chưa có thùng sẵn sàng nào hợp với kế hoạch này.</div> : (<>
-          <div className="dmo-tg-tom">Đã chấm {fmtN(ghep.soThung)} thùng sẵn sàng theo kế hoạch {fmtN(ghep.Qt)} nón — chấm cả tổ hợp: đúng mã cần, đúng cơ cấu giá, đa dạng mẫu, không trùng thừa.</div>
-          <div className="dmo-tg-luoi">
-            {[1, 2, 3, 4].map((k) => {
-              const c = ghep.tungSo[k]?.[0];
-              if (!c) return null;
-              const dang = khopThung(c.thung);
-              const tot = ghep.tot && ghep.tot.thung.join('|') === c.thung.join('|');
-              return (
-                <div key={k} className={'dmo-tg-the' + (dang ? ' dang' : '') + (tot ? ' tot' : '')}>
-                  <div className="dmo-tg-dau">
-                    <b>{k} thùng</b>{tot && <span className="dmo-tg-ai"><IcSpark /> AI chọn</span>}
-                    <span className={'dmo-diem ' + (c.diem >= 70 ? 'cao' : c.diem >= 45 ? 'vua' : 'thap')} title="Độ hợp 0–100: đúng mã cần · đúng cơ cấu giá · đa dạng mẫu">{c.diem}</span>
-                  </div>
-                  <div className="dmo-tg-so">
-                    <span><b>{fmtN(c.n)}</b> cái</span><span>phủ <b>{Math.round(c.phu * 100)}%</b> kế hoạch</span><span><b>{c.soMau}</b> mẫu</span>
-                  </div>
-                  <div className="dmo-tg-cc">
-                    {c.nhom.filter((g) => g.Q > 0).map((g) => (
-                      <div key={g.gia} className="dmo-tg-cc-dong" title={`Thùng ${g.c} / định mức nhóm ${g.Q}`}>
-                        <span>{kGia(g.gia)}</span>
-                        <span className="kt-bar"><span className={'kt-fill' + (g.c > g.Q ? ' du' : '')} style={{ width: Math.min(100, g.Q ? (g.c / g.Q) * 100 : 0) + '%' }} /></span>
-                        <em>{g.c}/{g.Q}</em>
-                      </div>
-                    ))}
-                  </div>
-                  <ul className="dmo-tg-ly">{c.ly.map((l) => <li key={l}>{l}</li>)}</ul>
-                  <div className="dmo-tg-ds">
-                    {c.chiTiet.map((t) => <span key={t.t} className="dmo-tg-chip" title={[t.nhom, t.vt].filter(Boolean).join(' · ')}>{t.t}<i>{t.n}</i></span>)}
-                  </div>
-                  <button className={'btn ' + (dang || !tot ? 'btn-ghost' : 'btn-ai') + ' dmo-tg-nut'} onClick={() => dungToHop(c.thung)} disabled={dang}>
-                    {dang ? <><IcCheck /> Đang dùng</> : 'Dùng tổ hợp này'}
-                  </button>
-                </div>
-              );
-            })}
+        {!thungDl ? <div className="dmo-tai"><span className="dmo-quet" />{taiThung ? 'Đang đọc kho thùng…' : 'Chưa tải được kho thùng'}</div> : (<>
+          <div className="dmo-tg-tab" role="tablist">
+            {[['so', 'Theo số thùng'], ['gia', 'Theo tổ hợp giá sale'], ['kho', `Kho thùng (${fmtN(thungDl.thung.length)})`]].map(([k, t]) => (
+              <button key={k} role="tab" aria-selected={tabThung === k} className={tabThung === k ? 'on' : ''} onClick={() => setTabThung(k)}>{t}</button>
+            ))}
           </div>
+
+          {tabThung === 'so' && (!ghep || !Object.keys(ghep.tungSo).length ? <div className="dmo-tg-trong">Chưa có thùng sẵn sàng nào hợp với kế hoạch này.</div> : (<>
+            <div className="dmo-tg-tom">Đã chấm {fmtN(ghep.soThung)} thùng sẵn sàng theo kế hoạch {fmtN(ghep.Qt)} nón — chấm cả tổ hợp: đúng mã cần, đúng cơ cấu giá, đa dạng mẫu, không trùng thừa.</div>
+            <div className="dmo-tg-luoi">
+              {[1, 2, 3, 4].map((k) => ghep.tungSo[k]?.[0] && (
+                <TheToHop key={k} khoa={'so:' + k} tieuDe={`${k} thùng`} c={ghep.tungSo[k][0]} tot={ghep.tot && ghep.tot.thung.join('|') === ghep.tungSo[k][0].thung.join('|')}
+                  thungDl={thungDl} spT={spT} dich={dichTre} boTick={boTick} doiTick={doiTick} khopThung={khopThung} onDung={dungToHop} />
+              ))}
+              <TheToHop khoa={'n:' + soTre} c={ghepN?.tungSo[soTre]?.[0] || null} thungDl={thungDl} spT={spT} dich={dichTre} boTick={boTick} doiTick={doiTick} khopThung={khopThung} onDung={dungToHop}
+                tieuDe={<span className="dmo-tg-step" title="Tự chọn số thùng (5–20)">
+                  <button onClick={() => setSoTuChon((v) => Math.max(5, v - 1))} aria-label="Bớt 1 thùng">−</button>
+                  <input type="number" min={5} max={20} value={soTuChon} onChange={(e) => setSoTuChon(Math.min(20, Math.max(5, +e.target.value || 5)))} onFocus={(e) => e.target.select()} />
+                  <button onClick={() => setSoTuChon((v) => Math.min(20, v + 1))} aria-label="Thêm 1 thùng">+</button> thùng</span>}
+                trong={soTre !== soTuChon ? 'Đang ghép…' : `Không ghép được ${soTuChon} thùng trong kế hoạch ${fmtN(ghep.Qt)} nón — giảm số thùng hoặc tăng tổng nón`} />
+            </div>
+          </>))}
+
+          {tabThung === 'gia' && (<>
+            <div className="dmo-th-ds">
+              {dsTH.map((t) => (
+                <button key={t.id} className={'dmo-th-chip' + (t.id === thDang?.id ? ' on' : '')} onClick={() => setThChon(t.id)}>
+                  {t.ten}<i>{fmtN(t.muc.reduce((a, x) => a + (+x.sl || 0), 0))}</i>
+                </button>
+              ))}
+              <button className="btn-mini" onClick={themTH}>＋ Tổ hợp mới</button>
+            </div>
+            {thDang && (
+              <div className="dmo-th-sua">
+                <input className="inp dmo-th-ten" value={thDang.ten} maxLength={60} onChange={(e) => suaTH(() => ({ ten: e.target.value }))} aria-label="Tên tổ hợp" />
+                <div className="dmo-th-muc">
+                  {thDang.muc.map((m, i) => (
+                    <div key={i} className="dmo-th-dong">
+                      <Sel value={m.gia} onChange={(v) => suaTH((t) => ({ muc: t.muc.map((x, j) => (j === i ? { ...x, gia: +v } : x)) }))}
+                        options={giaChon.filter((g) => g === m.gia || !thDang.muc.some((x) => x.gia === g)).map((g) => ({ value: g, label: kG(g) }))} />
+                      <input className="qty-input" type="number" min="0" value={m.sl || ''} placeholder="số cái" onFocus={(e) => e.target.select()}
+                        onChange={(e) => suaTH((t) => ({ muc: t.muc.map((x, j) => (j === i ? { ...x, sl: so(e.target.value) } : x)) }))} />
+                      <span className="dmo-th-cai">cái</span>
+                      <button className="cl-bo" onClick={() => suaTH((t) => ({ muc: t.muc.filter((_, j) => j !== i) }))} title="Bỏ giá này">×</button>
+                    </div>
+                  ))}
+                  <div className="dmo-th-chan">
+                    {giaChon.some((g) => !thDang.muc.some((x) => x.gia === g)) && (
+                      <button className="btn-mini" onClick={() => suaTH((t) => ({ muc: [...t.muc, { gia: giaChon.find((g) => !t.muc.some((x) => x.gia === g)), sl: 50 }] }))}>＋ Thêm giá</button>)}
+                    <span>Tổng <b>{fmtN(thDang.muc.reduce((a, x) => a + (+x.sl || 0), 0))}</b> cái từ thùng — tương đối, AI ghép sát nhất theo số cái thật trong thùng</span>
+                    {dsTH.length > 1 && <button className="dmo-xoa-nhap" onClick={xoaTH}>Xoá tổ hợp này</button>}
+                  </div>
+                </div>
+              </div>
+            )}
+            {!ghepG || !ghepG.pa.length ? <div className="dmo-tg-trong">{thDang?.muc.some((x) => x.sl > 0) ? 'Không có thùng sẵn sàng nào thuộc các giá này.' : 'Nhập số cái cho ít nhất 1 giá.'}</div> : (
+              <div className="dmo-tg-luoi">
+                {ghepG.pa.map((c, i) => (
+                  <TheToHop key={c.thung.join('|')} khoa={'g:' + thDang.id + ':' + c.thung.join('|')} tieuDe={`Phương án ${i + 1}`} c={c} tot={i === 0} muc={thDang.muc}
+                    thungDl={thungDl} spT={spT} dich={dichTre} boTick={boTick} doiTick={doiTick} khopThung={khopThung} onDung={dungToHop} />
+                ))}
+              </div>
+            )}
+          </>)}
+
+          {tabThung === 'kho' && dsTom && (() => {
+            const COT_KT = {
+              t: { lay: (x) => x.t, loai: 'chu', tim: (x) => `${x.t} ${x.nhom} ${x.vt}` }, nhom: { lay: (x) => x.nhom, loai: 'chu' },
+              n: { lay: (x) => x.n }, gia: { lay: (x) => kG(x.giaChinh), loai: 'chu', tim: (x) => x.giaTxt }, dung: { lay: (x) => x.dung }, diem: { lay: (x) => x.diem },
+              chon: { lay: (x) => (chonThung.includes(x.t) ? 1 : 0) },
+            };
+            const rows = locVaSap(dsTom, COT_KT, slKho.sap, slKho.loc);
+            const hien = moKho || slKho.coLoc ? rows : rows.slice(0, 60);
+            const th = (k, ten, title, loai) => (
+              <ThCot k={k} ten={ten} title={title} loai={loai} className={loai === 'chu' ? 'lc-trai' : 'ct-giua'} sap={slKho.sap} onSap={slKho.datSap}
+                loc={slKho.loc[k]} onLoc={(v) => slKho.datLoc(k, v)} giaTri={() => dsTom.map(COT_KT[k].lay)} />);
+            return (<>
+              <div className="dmo-tg-tom">Mọi thùng đang sẵn sàng — tick để thêm / bỏ khỏi bộ hàng. Cột “Hợp” = độ hợp với kế hoạch (0–100), “Mã cần” = số cái đúng mã AI đang cần.
+                {slKho.coLoc && <> · <button className="lk" onClick={slKho.xoaLoc}>Bỏ lọc</button></>}</div>
+              <div className="tbl-wrap dmo-kt-bang">
+                <table className="tbl">
+                  <thead><tr>
+                    {th('chon', 'Dùng', 'Thùng đang dùng')}{th('t', 'Mã thùng', 'Mã thùng · nhóm · vị trí', 'chu')}{th('nhom', 'Nhóm', 'Nhóm thùng', 'chu')}
+                    {th('n', 'Số cái')}{th('gia', 'Cơ cấu giá', 'Số cái từng giá trong thùng', 'chu')}{th('dung', 'Mã cần', 'Số cái đúng mã AI đang cần')}{th('diem', 'Hợp', 'Độ hợp với kế hoạch 0–100')}
+                  </tr></thead>
+                  <tbody>
+                    {hien.map((x) => {
+                      const co = chonThung.includes(x.t);
+                      return (
+                        <tr key={x.t} className={co ? 'dmo-kt-on' : ''} onClick={() => batThung(x.t)}>
+                          <td className="ct-giua"><input type="checkbox" checked={co} readOnly aria-label={'Dùng thùng ' + x.t} /></td>
+                          <td><b className="dmo-ma">{x.t}</b>{x.rut ? <i className="dmo-thay-tag">rút {x.rut} thu hồi</i> : null}</td>
+                          <td className="dmo-kt-nhom">{x.nhom}</td>
+                          <td className="ct-giua">{x.n}</td>
+                          <td className="dmo-kt-gia">{x.giaTxt}</td>
+                          <td className="ct-giua">{x.dung || <span className="ct-khong">·</span>}</td>
+                          <td className="ct-giua"><span className={'dmo-diem ' + (x.diem >= 70 ? 'cao' : x.diem >= 45 ? 'vua' : 'thap')}>{x.diem}</span></td>
+                        </tr>
+                      );
+                    })}
+                    {!rows.length && <tr><td colSpan={7} className="dsl-trong">Không có thùng nào khớp bộ lọc.</td></tr>}
+                    {hien.length < rows.length && <tr><td colSpan={7} className="dmo-an"><button className="lk" onClick={() => setMoKho(true)}>＋ Hiện thêm {fmtN(rows.length - hien.length)} thùng</button></td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </>);
+          })()}
+
           <div className="dmo-tg-dung">
             <b>Thùng đang dùng</b>
             {chonThung.length === 0 && <span className="tq-ghi">Chưa dùng thùng — toàn bộ lấy từ kho SA</span>}
@@ -804,7 +1023,7 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
             ))}
             <input className="inp dmo-tg-them" list="dmo-tg-goi" placeholder="+ Thêm mã thùng" value={oThung} onChange={(e) => setOThung(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); themThung(oThung); } }} />
-            <datalist id="dmo-tg-goi">{ghep.xepDon.filter((x) => !chonThung.includes(x.t)).map((x) => <option key={x.t} value={x.t}>{`${x.n} cái · hợp ${x.diem}`}</option>)}</datalist>
+            <datalist id="dmo-tg-goi">{(ghep?.xepDon || []).filter((x) => !chonThung.includes(x.t)).map((x) => <option key={x.t} value={x.t}>{`${x.n} cái · hợp ${x.diem}`}</option>)}</datalist>
             {chonThung.length > 0 && (<>
               <span className="dmo-tg-tong">Thùng <b>{fmtN(ruot.tong)}</b> cái + lấy thêm kho SA <b>{fmtN(tongThuc)}</b> = <b>{fmtN(tongNhan)}</b>{ruot.rut ? ` · rút ${fmtN(ruot.rut)} cái thu hồi` : ''}</span>
               <button className="btn-mini" onClick={() => dat({ thung: [] })}>Bỏ hết thùng</button>
@@ -845,6 +1064,11 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
           const mo = moNhom[n.gia] !== false;
           const coThung = chonThung.length > 0;
           const hienDong = locVaSap(n.dong, COT_DM, sl.sap, sl.loc);
+          // NEW - 3.125: full dòng — hiện mọi mã đã chia + 30 mã còn kho đầu tiên; "Hiện thêm" để xem hết (đang lọc thì hiện hết)
+          const het = moHet[n.gia] || sl.coLoc;
+          let demThem = 0;
+          const hien = het ? hienDong : hienDong.filter((d) => d.chon || d.thuc > 0 || ++demThem <= GIOI_HAN_DONG);
+          const soChua = n.dong.filter((d) => !d.chon).length;
           const thc = (k, ten, title, loai) => (
             <ThCot k={k} ten={ten} title={title} loai={loai} className={loai === 'chu' ? 'lc-trai' : 'ct-giua'} sap={sl.sap} onSap={sl.datSap}
               loc={sl.loc[k]} onLoc={(v) => sl.datLoc(k, v)} giaTri={() => n.dong.map(COT_DM[k].lay)} />
@@ -852,10 +1076,10 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
           return (
             <div key={n.gia} className="card dmo-nhom">
               <button className="dmo-nhom-dau" onClick={() => setMoNhom((m) => ({ ...m, [n.gia]: !mo }))}>
-                <span className="dmo-gia lon">{kGia(n.gia)}</span>
+                <span className="dmo-gia lon">{kG(n.gia)}</span>
                 <div className="dmo-nhom-so">
                   <b>{fmtN(n.tong)}<small> / {fmtN(n.Q)}</small></b>
-                  <span>{n.thung ? `thùng ${fmtN(n.thung)} + kho SA ${fmtN(n.thuc)} · ` : ''}{n.soMa} mã · {n.soMau} mẫu · làm tròn {moTaMuc(n.qt)}{n.theoKho ? ' · tạm theo tồn kho' : ''}</span>
+                  <span>{n.thung ? `thùng ${fmtN(n.thung)} + kho SA ${fmtN(n.thuc)} · ` : ''}{n.soMa} mã · {n.soMau} mẫu · làm tròn {moTaMuc(n.qt)}{n.theoKho ? ' · tạm theo tồn kho' : ''}{soChua ? ` · còn ${fmtN(soChua)} mã có kho chưa chia` : ''}</span>
                 </div>
                 <div className="dmo-thanh-mau" title={n.thanhMau.map((m) => `${m.hm || '?'} ${Math.round(m.pt * 100)}%`).join(' · ')}>
                   {n.thanhMau.slice(0, 8).map((m, i) => <i key={m.hm + i} className={'m' + (i % 8)} style={{ width: m.pt * 100 + '%' }}>{m.pt > 0.09 ? m.hm : ''}</i>)}
@@ -876,26 +1100,35 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
                       <th>Lý do</th><th />
                     </tr></thead>
                     <tbody>
-                      {hienDong.map((d, i) => (
-                        <tr key={d.x.bc} className={(d.thay ? 'dmo-thay ' : '') + (d.thuc !== d.dn ? 'dmo-sua ' : '') + (d.thuc > d.x.kd ? 'dmo-vuot' : '')}>
+                      {hien.map((d, i) => (
+                        <tr key={d.x.bc} className={(d.thay ? 'dmo-thay ' : '') + (d.thuc !== d.dn ? 'dmo-sua ' : '') + (d.thuc > d.x.kd ? 'dmo-vuot ' : '') + (!d.chon && !(d.thuc > 0) ? 'dmo-chua' : '')}>
                           <td className="ct-stt">{i + 1}</td>
                           <td><AnhSP url={d.x.img} ten={d.x.mtc} /></td>
                           <td><b className="dmo-ma">{d.x.mtc}</b>{d.thay && <i className="dmo-thay-tag" title={d.thay.map((t) => `thay ${t.sl} cho ${t.cho}`).join('\n')}>thay thế</i>}
-                            {d.tuThem && <i className="dmo-thay-tag tay">tự thêm</i>}<small className="dmo-n3">{d.x.n3}</small></td>
+                            {d.tuThem && <i className="dmo-thay-tag tay">tự thêm</i>}{d.bo && <i className="dmo-thay-tag bo">đã bỏ</i>}<small className="dmo-n3">{d.x.n3}</small></td>
                           <td className="ct-giua"><span className={'dmo-diem ' + (d.diem >= 70 ? 'cao' : d.diem >= 45 ? 'vua' : 'thap')}>{d.diem}</span></td>
                           <td className="ct-giua">{d.x.banRef || <span className="ct-khong">·</span>}</td>
                           <td className="ct-giua">{fmtN(d.x.banMang)}</td>
                           <td className={'ct-giua' + (d.thieuMa ? ' dmo-do' : '')}>{fmtN(d.x.kd)}</td>
                           {coThung && <td className="ct-giua dmo-th">{d.th || <span className="ct-khong">·</span>}</td>}
                           <td className="ct-giua dmo-dn">{d.dn || <span className="ct-khong">·</span>}</td>
-                          <td className="ct-giua"><input className="qty-input" type="number" min="0" value={d.thuc || ''} placeholder="·" onChange={(e) => datThuc(d.x.bc, e.target.value)} onFocus={(e) => e.target.select()} /></td>
+                          <td className="ct-giua"><input className="qty-input" type="number" min="0" value={d.thuc || ''} placeholder={d.chon ? '·' : '+'} onChange={(e) => datThuc(d.x.bc, e.target.value)} onFocus={(e) => e.target.select()}
+                            title={d.chon ? '' : 'Gõ số để thêm mã này vào bộ hàng'} /></td>
                           <td className="dmo-ly" title={d.ly.join('\n')}>{d.ly.slice(0, 3).join(' · ')}</td>
-                          <td><button className="cl-bo" onClick={() => boMa(d.x.bc)} title="Bỏ mã này khỏi kế hoạch (AI chia lại phần còn lại)">×</button></td>
+                          <td>{(d.chon || d.thuc > 0) && <button className="cl-bo" onClick={() => boMa(d.x.bc)} title="Bỏ mã này khỏi kế hoạch (AI chia lại phần còn lại)">×</button>}</td>
                         </tr>
                       ))}
                       {n.dong.length === 0 && <tr><td colSpan={coThung ? 12 : 11} className="dsl-trong">Chưa có mã nào trong nhóm này.</td></tr>}
                       {n.dong.length > 0 && hienDong.length < n.dong.length && (
                         <tr><td colSpan={coThung ? 12 : 11} className="dmo-an">Đang ẩn {n.dong.length - hienDong.length} dòng do lọc — số đã chia vẫn giữ nguyên · <button className="lk" onClick={sl.xoaLoc}>Bỏ lọc</button></td></tr>
+                      )}
+                      {hien.length < hienDong.length && (
+                        <tr><td colSpan={coThung ? 12 : 11} className="dmo-an dmo-them-dong">
+                          <button className="lk" onClick={() => setMoHet((m) => ({ ...m, [n.gia]: true }))}>＋ Hiện thêm {fmtN(hienDong.length - hien.length)} mã còn kho chưa chia</button>
+                          <span> · hoặc lọc cột Mã để tìm nhanh</span></td></tr>
+                      )}
+                      {moHet[n.gia] && !sl.coLoc && soChua > GIOI_HAN_DONG && (
+                        <tr><td colSpan={coThung ? 12 : 11} className="dmo-an"><button className="lk" onClick={() => setMoHet((m) => ({ ...m, [n.gia]: false }))}>Thu gọn mã chưa chia</button></td></tr>
                       )}
                     </tbody>
                   </table>
@@ -913,15 +1146,6 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
                     ))}
                   </div>
                 )}
-                {n.conLai.length > 0 && (
-                  <div className="dmo-them-ma">
-                    <span className="tq-ghi">Thêm mã vào nhóm {kGia(n.gia)}:</span>
-                    <select className="dmo-sel nho" value="" onChange={(e) => { if (e.target.value) themMa(e.target.value, mucNho(n.qt)); }}>
-                      <option value="">Chọn mã còn kho ({n.conLai.length})…</option>
-                      {n.conLai.slice(0, 200).map((x) => <option key={x.bc} value={x.bc}>{x.mtc} · mạng {x.banMang} · kho {x.kd}</option>)}
-                    </select>
-                  </div>
-                )}
               </>)}
             </div>
           );
@@ -936,8 +1160,8 @@ export default function DsDoiMoi({ dsDoi, ganDoi, onDaGan, taoDoi }) {
           <div className="dmo-chan-nut">
             <button className="btn btn-ghost" onClick={xuatNhap} disabled={!tongNhan}><IcDown /> Xuất Excel nháp</button>
             <button className="btn btn-ai ch-xn" onClick={xacNhan} disabled={gui || !tongNhan || !soDoi}
-              title={!soDoi ? 'Nhập số đội (vd 35) để xác nhận' : doiCo ? 'Giữ tồn kho SA ngay + giao thùng + xuất file' : `Tạo đội ${maDoi} rồi giữ tồn kho SA + giao thùng + xuất file`}>
-              <IcCheck /> {gui ? 'Đang giữ tồn…' : !soDoi ? 'Xác nhận (cần số đội)' : `Xác nhận & xuất (${fmtN(tongNhan)})`}
+              title={!soDoi ? 'Nhập số đội (vd 35) để xác nhận' : (doiCo ? '' : `Tạo đội ${maDoi} rồi `) + (odooCfg ? 'giữ tồn kho SA + giao thùng + tạo đơn thẳng trên Odoo' : 'giữ tồn kho SA + giao thùng + xuất file')}>
+              <IcCheck /> {gui ? 'Đang giữ tồn…' : !soDoi ? 'Xác nhận (cần số đội)' : odooCfg ? `Xác nhận & tạo đơn Odoo (${fmtN(tongNhan)})` : `Xác nhận & xuất (${fmtN(tongNhan)})`}
             </button>
           </div>
         </div>

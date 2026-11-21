@@ -233,7 +233,7 @@ export function useHoiGhiChu() {
   const [hoi, setHoi] = useState(null);
   const chonOdoo = useRef(false);
   const ask = useCallback((o = {}) => new Promise((resolve) => { chonOdoo.current = false; setHoi({ ...o, resolve }); }), []);
-  const el = hoi ? <HopGhiChu key="gc" {...hoi} coOdoo={!!(hoi.odoo && odoo)}
+  const el = hoi ? <HopGhiChu key="gc" {...hoi} coOdoo={!!(hoi.odoo && odoo)} batBuoc={!!(hoi.odooBatBuoc && odoo)}
     onXong={(v, od) => { chonOdoo.current = !!(od && v !== null); hoi.resolve(v); setHoi(null); }} /> : null;
   return [ask, el, chonOdoo];
 }
@@ -241,7 +241,8 @@ export function useHoiGhiChu() {
 // v3.114.0 — Tạo đơn Odoo từ phiếu đội sale đã xác nhận: mỗi (kho chuyển, đội) = 1 đơn,
 //   tên DSC{ngày}-{kho}-{đội}-NN, tài liệu nguồn = mã phiếu, ghi chú = ghi chú phiếu (+ mã thùng với phiếu thùng)
 //   token (gửi lại từ Phiếu đã chia): đơn đã có trên nhật ký Odoo thì DÙNG LẠI TÊN CŨ -> đơn đã tạo bị chặn, không tạo trùng
-export async function odooTuPhieu(dsPhieu, tieuDe, onDong, token) {
+// NEW - 3.125: mo = { tuGui: gửi thẳng không chờ bấm, saleCh: CH đội đang sale }
+export async function odooTuPhieu(dsPhieu, tieuDe, onDong, token, mo = {}) {
   const don = []; let khongBc = 0;
   const cu = {};
   if (token) (await odooTheoNguon(token, dsPhieu.map((p) => p.ma_phieu))).forEach((d) => {
@@ -259,44 +260,52 @@ export async function odooTuPhieu(dsPhieu, tieuDe, onDong, token) {
     g.forEach((d) => {
       const tg = thung ? [...new Set(rows.filter((r) => r.ma_ch === d.kho_yeu_cau && r.thung).map((r) => r.thung))] : [];
       d.ghi_chu = [p.ghi_chu, tg.length ? `Thùng: ${tg.join(', ')}` : ''].map((x) => String(x || '').trim()).filter(Boolean).join(' | ');
+      if (mo.saleCh && /^DOISALE/i.test(d.kho_yeu_cau)) d.sale_tai_cua_hang = mo.saleCh;   // NEW - 3.125
       const c = cu[p.ma_phieu + '|' + d.kho_cung_ung + '>' + d.kho_yeu_cau];
       if (c) { d.name = c.name; d._tt = { trang_thai: c.trang_thai, loi: c.loi || '' }; }
     });
     don.push(...g);
   }
   if (!don.length) throw new Error('Phiếu không có dòng nào để tạo đơn');
-  moOdoo({ tieuDe, man: 'doi_sale', lyDo: 'doi_sale', don, onDong,
+  moOdoo({ tieuDe, man: 'doi_sale', lyDo: 'doi_sale', don, onDong, tuGui: !!mo.tuGui,
     canh: khongBc ? [`${khongBc} dòng chưa có barcode (mã chưa nhận diện) — không gửi lên Odoo được, cần thêm tay`] : [] });
 }
 // Sau 1 lần xác nhận (kq của fn_ds_xac_nhan): gom đủ phiếu Sale + Phụ kiện + Thùng
-export const odooTuKq = (kq, ghiChu) => odooTuPhieu([
+export const odooTuKq = (kq, ghiChu, mo) => odooTuPhieu([
   kq.id && { id: kq.id, ma_phieu: kq.ma_phieu, ghi_chu: ghiChu },
   kq.id_pk && { id: kq.id_pk, ma_phieu: kq.ma_phieu_pk, ghi_chu: ghiChu },
   kq.id_thung && { id: kq.id_thung, ma_phieu: kq.ma_phieu_thung, ghi_chu: kq.ghi_chu_thung != null ? kq.ghi_chu_thung : ghiChu },
-].filter(Boolean), 'Đội sale — ' + tenPhieu(kq));
+].filter(Boolean), 'Đội sale — ' + tenPhieu(kq), undefined, undefined, mo);
 // Ghi chú mặc định theo đội: nhớ ghi chú lần trước của đội, chưa có thì "Đội Sale 01 – "
 export const ghiChuMacDinh = (maDoi, tenDoi) => lsGet('ghi_chu.' + (maDoi || '-'))
   ?? `${String(tenDoi || maDoi || '').replace(/^Đội SALE/i, 'Đội Sale')} – `;
 export const nhoGhiChu = (maDoi, v) => { if (maDoi) lsSet('ghi_chu.' + maDoi, v || ''); };
 
-function HopGhiChu({ tieuDe, macDinh, phu, nutXong, coOdoo, onXong }) {
+function HopGhiChu({ tieuDe, macDinh, phu, nutXong, coOdoo, batBuoc, onXong }) {
   const [v, setV] = useState(macDinh || '');
   const [od, setOd] = useState(() => !!lsGet('odoo_kem'));
-  const kemOdoo = !!(coOdoo && od);
+  const kemOdoo = !!batBuoc || !!(coOdoo && od);   // NEW - 3.125: batBuoc = màn này luôn tạo đơn Odoo (không xuất file)
   const o = useRef(null);
   useEffect(() => { setTimeout(() => { const e = o.current; if (e) { e.focus(); const n = e.value.length; e.setSelectionRange(n, n); } }, 40); }, []);
   return (
     <div className="kt-modal gc-nen" onMouseDown={(e) => { if (e.target === e.currentTarget) onXong(null); }}>
       <div className="gc-hop" role="dialog" aria-label="Ghi chú file xuất">
         <div className="gc-dau">
-          <div><b>{tieuDe || 'Ghi chú cho file xuất'}</b><small>Ghi vào ô trống đầu tiên của dòng 1 (sau cột tiêu đề cuối) — không đổi cột, không thêm dòng, file vẫn nhập Odoo được</small></div>
+          <div><b>{tieuDe || 'Ghi chú cho file xuất'}</b><small>{batBuoc ? 'Ghi chú gửi kèm từng đơn trên Odoo'
+            : 'Ghi vào ô trống đầu tiên của dòng 1 (sau cột tiêu đề cuối) — không đổi cột, không thêm dòng, file vẫn nhập Odoo được'}</small></div>
           <button className="kt-dong" onClick={() => onXong(null)}>×</button>
         </div>
         <input ref={o} className="gc-o" value={v} maxLength={200} placeholder="Vd: Đội Sale 01 – Lạc Long Quân (có thể để trống)"
           onChange={(e) => setV(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onXong(v.trim(), kemOdoo); } else if (e.key === 'Escape') onXong(null); }} />
         {phu && <div className="gc-phu">{phu}</div>}
-        {coOdoo && (
+        {batBuoc && (
+          <div className="gc-odoo on co-dinh"><IcGuiLen />
+            <span><b>Tạo đơn thẳng trên Odoo</b>
+              <small>Xác nhận xong là giữ tồn + gửi Odoo ngay — mỗi kho chuyển × đội = 1 đơn, không cần xuất file</small></span>
+          </div>
+        )}
+        {coOdoo && !batBuoc && (
           <label className={'gc-odoo' + (od ? ' on' : '')}>
             <input type="checkbox" checked={od} onChange={(e) => { setOd(e.target.checked); lsSet('odoo_kem', e.target.checked); }} />
             <IcGuiLen />
@@ -307,7 +316,7 @@ function HopGhiChu({ tieuDe, macDinh, phu, nutXong, coOdoo, onXong }) {
         <div className="gc-chan">
           <button className="btn btn-ghost" onClick={() => onXong(null)}>Huỷ</button>
           <button className="btn btn-ghost" onClick={() => onXong('', kemOdoo)} title="Xuất file không có ghi chú">Không ghi chú</button>
-          <button className="btn btn-ai gc-xong" onClick={() => onXong(v.trim(), kemOdoo)}>{kemOdoo ? <IcGuiLen /> : <IcDown />} {nutXong || 'Xác nhận & xuất'}{kemOdoo ? ' + Odoo' : ''}</button>
+          <button className="btn btn-ai gc-xong" onClick={() => onXong(v.trim(), kemOdoo)}>{kemOdoo ? <IcGuiLen /> : <IcDown />} {nutXong || 'Xác nhận & xuất'}{kemOdoo && !batBuoc ? ' + Odoo' : ''}</button>
         </div>
       </div>
     </div>

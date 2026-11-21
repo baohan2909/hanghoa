@@ -2,7 +2,7 @@
 //   App gắn <OdooHost user baoToast /> một lần; màn hình gọi moOdoo({...}) (lib/odoo.js) để mở.
 //   Luồng: xem lại đơn (tick chọn) -> chọn Lý do / Người tạo / Ghi chú -> [Xem JSON] -> [Gửi N đơn lên Odoo]
 //          -> kết quả từng đơn (✓ Đã tạo · ⚠ Cần xem · ✕ Lỗi) -> [Gửi lại đơn lỗi] (giữ nguyên tên đơn, không tạo trùng)
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb } from './supabase.js';
 import { goiOdoo, layCfgOdoo, thanhRequest, ghiChuGanDay, nhoGhiChu, saleChCuaDoi, nhoSaleCh } from './odoo.js';
 import { IcAlert, IcCheck, IcDown, IcGuiLen } from './icons.jsx';
@@ -100,6 +100,10 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
 
   // v3.120.0: bỏ nút "Xem JSON" — JSON đã gửi xem ở Đơn hàng Odoo › Dữ liệu kỹ thuật (Quản trị / Điều phối)
 
+  // NEW - 3.125: opts.tuGui — màn gọi muốn BẮN THẲNG lên Odoo (vd Đội mới · chia trước): có cấu hình + lý do mặc định là gửi luôn,
+  //   không chờ bấm. Đơn trùng / vượt tồn vẫn dừng lại hỏi như cũ; lỗi thì "Gửi lại" ngay trong hộp.
+  const tuGuiCon = useRef(!!opts.tuGui);
+
   const gui = async () => {
     const ds = conGui;
     if (!ds.length || dangGui) return;
@@ -157,6 +161,11 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
   const guiLoi = daGui.filter((d) => kq[d._i].trang_thai !== 'thanh_cong');
   const guiOk = daGui.filter((d) => kq[d._i].trang_thai === 'thanh_cong');
 
+  useEffect(() => {   // NEW - 3.125: tự gửi 1 lần
+    if (!tuGuiCon.current || !cfg || !lyDo || dangGui || !conGui.length) return;
+    tuGuiCon.current = false;
+    gui();
+  });   // eslint-disable-line
   return (
     <div className="kt-modal gc-nen" onMouseDown={(e) => { if (e.target === e.currentTarget && !dangGui) onDong(); }}>
       <div className="od-hop" role="dialog" aria-label="Tạo đơn điều chuyển Odoo">
@@ -171,6 +180,8 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
         </div>
 
         <div className="od-than">
+          {opts.tuGui && !daGui.length && (
+            <div className="od-bao od-tu-gui"><IcGuiLen /> {cfg && !lyDo ? 'Chọn lý do để gửi lên Odoo' : 'Đang gửi thẳng lên Odoo — mỗi kho chuyển × đội = 1 đơn…'}</div>)}
           <div className="od-cai">
             <label><span>Lý do <b className="od-bb">*</b></span>
               <Sel value={lyDo} onChange={(v) => !dangGui && setLyDo(v)} placeholder="— chọn lý do —"
