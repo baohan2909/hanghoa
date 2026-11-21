@@ -5160,3 +5160,36 @@ button.pdh-dc:hover { border-color: #3FB6A8; } .pdh-dc.on { border-color: #1E5F6
 .hd-xn svg { width: 16px; height: 16px; }
 .hd-nut { display: flex; justify-content: flex-end; margin-top: 10px; }
 .card.hd-trong { padding: 24px; text-align: center; color: var(--ink-2); max-width: 900px; }
+
+/* ============ v3.119.0 — Bảo trì hệ thống: màn khoá (btr-) · dải nhắc · thẻ cài đặt ============ */
+.btr { position: fixed; inset: 0; z-index: 600; background: var(--grad); display: flex; align-items: center; justify-content: center; padding: 24px 18px; overflow: auto; }
+.btr::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 18% 22%, rgba(255,255,255,.10), transparent 42%), radial-gradient(circle at 82% 78%, rgba(63,182,168,.35), transparent 46%); pointer-events: none; }
+.btr.xem { z-index: 650; }
+.btr-the { position: relative; width: min(520px, 100%); color: #fff; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+.btr-ic { width: 64px; height: 64px; border-radius: 20px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); display: grid; place-items: center; margin-bottom: 4px; }
+.btr-ic svg { width: 30px; height: 30px; }
+.btr-the small { font-size: 12.5px; font-weight: 600; opacity: .75; }
+.btr-the h1 { margin: 0; font-size: 26px; line-height: 1.25; font-weight: 800; letter-spacing: -.01em; }
+.btr-the p { margin: 0; font-size: 15px; line-height: 1.6; opacity: .9; max-width: 440px; }
+.btr-du-kien { font-size: 13.5px; padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); }
+.btr-nut { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+.btr-chinh, .btr-phu { height: 44px; padding: 0 18px; border-radius: 12px; font: inherit; font-size: 14.5px; font-weight: 800; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.btr-chinh { background: #fff; color: #1E5F63; border: 0; box-shadow: 0 0 16px rgba(63,182,168,.45); }
+.btr-chinh[disabled] { opacity: .7; }
+.btr-phu { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); }
+.btr-chinh svg, .btr-phu svg { width: 17px; height: 17px; }
+.btr-the em { font-style: normal; font-size: 12px; opacity: .65; margin-top: 6px; }
+@media (max-width: 640px) { .btr-the h1 { font-size: 22px; } .btr-nut { width: 100%; flex-direction: column; } .btr-chinh, .btr-phu { width: 100%; justify-content: center; } }
+
+.btr-dai { display: flex; align-items: center; gap: 10px; padding: 9px 16px; background: #FCEAF2; color: #9D1450; font-size: 13px; border-bottom: 1px solid rgba(214,0,108,.18); }
+.btr-dai svg { width: 16px; height: 16px; flex: none; }
+.btr-dai span { flex: 1; min-width: 0; }
+.btr-dai button { border: 1px solid rgba(214,0,108,.35); background: #fff; color: #9D1450; border-radius: 8px; height: 30px; padding: 0 10px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+
+.card.btc.btr-cd.khoa { border: 1px solid rgba(214,0,108,.35); box-shadow: 0 0 0 3px rgba(214,0,108,.08), var(--shadow); }
+.btr-tt { font-size: 12px; font-weight: 800; padding: 4px 11px; border-radius: 999px; background: #E7F4EE; color: #1D6B45; white-space: nowrap; }
+.btr-tt.on { background: #D6006C; color: #fff; }
+.btc-than.btr-o { padding: 0; overflow: visible; }
+.btr-nhan { display: flex; flex-direction: column; gap: 5px; }
+.btr-nhan > span { font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
+.btr-chan { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }

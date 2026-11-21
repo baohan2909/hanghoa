@@ -5,6 +5,7 @@ import Login from './screens/Login.jsx';
 import XinHang from './screens/XinHang.jsx';
 import { OdooHost } from './lib/OdooHop.jsx';
 import { BanTinHost } from './lib/BanTin.jsx';
+import { useBaoTri, ManBaoTri, DaiBaoTri } from './lib/BaoTri.jsx';
 
 // Màn ít dùng / nặng: tải khi mở, giữ lần tải đầu nhẹ cho máy cửa hàng
 const Kho = lazy(() => import('./screens/Kho.jsx'));
@@ -207,8 +208,12 @@ export default function App() {
 
   const [gon, setGon] = useState(() => localStorage.getItem('nsflow_side_gon') === '1');
   const doiGon = () => setGon((v) => { localStorage.setItem('nsflow_side_gon', v ? '0' : '1'); return !v; });
+  const { bt: baoTri, hoi: hoiBaoTri } = useBaoTri(user);   // v3.119.0: khoá app bảo trì (Tham số)
 
   if (!user) return <Login onOk={(u) => { localStorage.setItem('nsflow_user', JSON.stringify(u)); localStorage.setItem('nsflow_login_at', String(Date.now())); setUser(u); }} />;
+
+  // v3.119.0: đang bảo trì và vai trò này bị khoá -> chỉ hiện màn thông báo (máy chủ cũng từ chối mọi thao tác)
+  if (baoTri?.khoa) return <ManBaoTri bt={baoTri} user={user} onKiem={hoiBaoTri} dangXuat={dangXuat} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich, dautruong: DauTruong,
     giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tonkd: TonKho, huongdan: HuongDan }[tab]
@@ -277,6 +282,7 @@ export default function App() {
             </button>
             <div className="t">ĐIỀU PHỐI HÀNG HÓA</div>
           </div>
+          <DaiBaoTri bt={baoTri} chonTab={user.vai_tro === 'ADMIN' ? chonTab : null} />
           <main className="main">
             <ErrBound key={tab}><Suspense fallback={<div className="card" style={{ padding: 34, textAlign: 'center', color: 'var(--ink-2)' }}>Đang mở màn hình…</div>}>
               <Screen chonTab={chonTab} />

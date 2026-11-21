@@ -3,6 +3,7 @@ import { sb } from '../lib/supabase.js';
 import { IcGear, IcCheck } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
 import { BanTinCaiDat } from '../lib/BanTin.jsx';
+import { BaoTriCaiDat } from '../lib/BaoTri.jsx';
 
 // Nhóm hiển thị để màn hình có trật tự nghiệp vụ, không phải bãi key-value
 const NHOM = [
@@ -65,7 +66,7 @@ export default function ThamSo() {
   };
 
   const theoNhom = (keys) => ds.filter((t) => keys.includes(t.key));
-  const khac = ds.filter((t) => !NHOM.some((n) => n.keys.includes(t.key)));
+  const khac = ds.filter((t) => !NHOM.some((n) => n.keys.includes(t.key)) && t.key !== 'bao_tri');   // bao_tri: chỉnh ở thẻ Bảo trì
 
   const Bang = ({ items }) => (
     <table className="tbl">
@@ -108,6 +109,7 @@ export default function ThamSo() {
       </div>
 
       {/* v3.118.0: bản tin hướng dẫn cập nhật — Quản trị tự soạn / bật / tắt */}
+      <BaoTriCaiDat user={user} baoToast={baoToast} />
       <BanTinCaiDat user={user} baoToast={baoToast} />
 
       {NHOM.map((n) => {
