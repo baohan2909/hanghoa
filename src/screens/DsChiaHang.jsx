@@ -55,9 +55,9 @@ export default function DsChiaHang({ dsDoi, ts }) {
 // 1. CHIA TỪNG ĐỘI
 // ============================================================================
 const LOC = [
-  ['canh', 'Dòng cần xem', 'Dòng nền hồng: vượt kho, bán chạy mà vẫn thiếu, thùng + chia thêm vượt mục tiêu, đội đang dư mà vẫn nhận'],
+  ['canh', 'Dòng cần xem', 'Dòng nền hồng: vượt kho, bán chạy mà sau chia chưa đủ số ngày ở ô Chia đủ, thùng + chia thêm vượt mục tiêu, đội đang dư mà vẫn nhận'],
   ['chay', 'Bán chạy', 'Top 15% mã bán nhiều nhất của đội'],
-  ['thap', 'Bán tốt tồn thấp', 'Đang bán nhưng còn dưới ngưỡng sắp hết'],
+  ['thap', 'Bán tốt tồn thấp', 'Đang bán nhưng tồn + đang về chưa đủ số ngày ở ô Chia đủ (làm tròn lên)'],
   ['het', 'Đã hết', 'Có bán mà đội đang 0 hàng'],
   ['kho', 'Kho có hàng', 'Kho SA còn khả dụng (không tính kho thùng TK05005)'],
   ['thung', 'Có trong thùng', 'Mã nằm trong các thùng đã chọn'],
@@ -81,7 +81,7 @@ function khopLoc(l, x, sapHet, tonLau) {
   switch (l) {
     case 'canh': return x.canh.length > 0;
     case 'chay': return x.chay;
-    case 'thap': return x.v > 0 && (x.nd ?? 0) < sapHet;
+    case 'thap': return x.v > 0 && x.co < x.muc;   // v3.122.0: theo ô Chia đủ (muc = làm tròn lên), không theo ngưỡng Sắp hết
     case 'het': return x.ban > 0 && x.co <= 0;
     case 'kho': return x.kd > 0;
     case 'thung': return x.th > 0;
@@ -251,7 +251,7 @@ function ChiaDoi({ dsDoi, ts }) {
       const pk = !!r[14];
       const ban = r[5], v = ban / cuaSo, co = r[8] + r[9], kd = pk ? (r[13] || 0) : r[10] + r[11];
       const th = trongThung.m[r[0]] || 0;
-      const muc = Math.ceil(v * mucTieu * heSo / 100);
+      const muc = Math.ceil(ban * mucTieu * heSo / (cuaSo * 100) - 1e-9);   // v3.122.0: làm tròn lên, bỏ sai số dấu phẩy động (1.0000000000000002 → 1, không thành 2)
       // Hàng thùng lấy từ TK05005 -> KHÔNG trừ kho SA. Gợi ý chia thêm chỉ giới hạn bởi kho SA.
       // v3.112.0: nhu cầu -> làm tròn LÊN mức hợp lệ theo giá sale (lưỡi bội 5, túi ráp S/M bước 200) -> không vượt kho
       const gia = r[15] ?? null;
@@ -286,7 +286,8 @@ function ChiaDoi({ dsDoi, ts }) {
       x.chay = x.ban > 0 && x.ban >= nguongChay;
       const c = [];
       if (x.khoCon < 0) c.push(`Chia thêm vượt ${x.pk ? 'kho phụ kiện PK05001' : 'kho SA'} khả dụng ${-x.khoCon} cái (kho còn ${x.kd})`);
-      if (x.v > 0 && (x.ndSau ?? 0) < sapHet && x.chay) c.push(`Bán chạy mà sau chia chỉ đủ ${(x.ndSau ?? 0).toFixed(1)} ngày`);
+      // v3.122.0: so với ô Chia đủ — cần = làm tròn lên (sức bán/ngày × Chia đủ × Tỷ lệ), không dùng ngưỡng Sắp hết 7 ngày
+      if (x.chay && x.v > 0 && x.co + x.nhan < x.muc) c.push(`Bán chạy mà sau chia còn thiếu ${x.muc - x.co - x.nhan} cái để đủ ${mucTieu} ngày (cần ${x.muc}, có ${x.co + x.nhan})`);
       if (x.th > 0 && x.them > 0 && x.co + x.nhan > x.muc + Math.max(2, Math.ceil(x.v * 3))) c.push(`Đã có ${x.th} trong thùng mà còn chia thêm ${x.them} — vượt mục tiêu ${x.muc}`);
       if (x.nhan > 0 && x.nd != null && x.nd > tonLau) c.push(`Đội đang dư (đủ ${Math.round(x.nd)} ngày) mà vẫn nhận thêm`);
       if (x.nhan > 0 && x.ban === 0 && x.ton > 0 && !x.pk) c.push(`Đội không bán mã này ${cuaSo} ngày, vẫn còn ${x.ton}`);
