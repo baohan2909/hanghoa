@@ -77,7 +77,44 @@ export function thanhRequest(d, chung) {
   const nt = String(chung.nguoiTao || d.nguoi_tao || '').trim();
   if (nt) o.nguoi_tao = nt;
   if (d.cho_trung) o.cho_trung = true;   // đã xác nhận gửi dù giống hệt đơn đã tạo trong 48 giờ (SQL 206)
+  if (d.cho_vuot) o.cho_vuot = true;     // đã xác nhận gửi dù vượt tồn khả dụng của kho (SQL 207)
+  const sale = String(d.sale_tai_cua_hang || '').trim();
+  if (sale) o.sale_tai_cua_hang = sale;  // đội sale: cửa hàng đội đang bán
   return o;
+}
+
+// Huỷ / xoá đơn trên Odoo (SQL 207 — mặc định TẮT tới khi IT xác nhận API: tham số odoo_api.huy_bat / xoa_bat)
+export async function huyOdoo({ token, id, hanhDong, lyDo }) {
+  let r;
+  try {
+    r = await fetch(FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON}`, apikey: SUPABASE_ANON },
+      body: JSON.stringify({ token, hanh_dong: hanhDong, id, ly_do: lyDo }),
+    });
+  } catch (e) {
+    return { ok: false, loi: 'Không kết nối được máy chủ: ' + (e?.message || e) };
+  }
+  const t = await r.text();
+  try { return JSON.parse(t); } catch { return { ok: false, loi: `HTTP ${r.status}: ${t.slice(0, 300)}` }; }
+}
+
+// Ghi chú gần đây (mỗi máy) — bấm để điền nhanh
+const KHOA_GC = 'ns_odoo_gc_gan_day';
+export function ghiChuGanDay() {
+  try { const a = JSON.parse(localStorage.getItem(KHOA_GC) || '[]'); return Array.isArray(a) ? a.slice(0, 8) : []; } catch { return []; }
+}
+export function nhoGhiChu(t) {
+  const s = String(t || '').trim(); if (!s) return;
+  try { localStorage.setItem(KHOA_GC, JSON.stringify([s, ...ghiChuGanDay().filter((x) => x !== s)].slice(0, 8))); } catch { /* bỏ qua */ }
+}
+// Cửa hàng đội sale đang bán (nhớ theo từng đội, mỗi máy)
+const KHOA_SALE = 'ns_odoo_sale_ch';
+export function saleChCuaDoi(doi) {
+  try { return JSON.parse(localStorage.getItem(KHOA_SALE) || '{}')[doi] || ''; } catch { return ''; }
+}
+export function nhoSaleCh(doi, ch) {
+  try { const m = JSON.parse(localStorage.getItem(KHOA_SALE) || '{}'); m[doi] = ch; localStorage.setItem(KHOA_SALE, JSON.stringify(m)); } catch { /* bỏ qua */ }
 }
 
 export const moOdoo = (opts) => window.dispatchEvent(new CustomEvent('ns-odoo-mo', { detail: opts }));

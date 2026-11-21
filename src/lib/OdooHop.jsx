@@ -3,8 +3,10 @@
 //   Luồng: xem lại đơn (tick chọn) -> chọn Lý do / Người tạo / Ghi chú -> [Xem JSON] -> [Gửi N đơn lên Odoo]
 //          -> kết quả từng đơn (✓ Đã tạo · ⚠ Cần xem · ✕ Lỗi) -> [Gửi lại đơn lỗi] (giữ nguyên tên đơn, không tạo trùng)
 import { useEffect, useMemo, useState } from 'react';
-import { goiOdoo, layCfgOdoo, thanhRequest } from './odoo.js';
+import { sb } from './supabase.js';
+import { goiOdoo, layCfgOdoo, thanhRequest, ghiChuGanDay, nhoGhiChu, saleChCuaDoi, nhoSaleCh } from './odoo.js';
 import { IcAlert, IcCheck, IcDown, IcGuiLen } from './icons.jsx';
+import { Sel } from './ui.jsx';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi');
 const TT = {
@@ -26,9 +28,14 @@ export function OdooHost({ user, baoToast }) {
     onDong={() => { const f = opts.onDong; setOpts(null); try { f && f(); } catch { /* bỏ qua */ } }} />;
 }
 
+const laDoiSale = (k) => /^DOISALE/i.test(String(k || ''));
+
 function HopOdoo({ opts, user, baoToast, onDong }) {
   const [cfg, setCfg] = useState(null);
-  const [don, setDon] = useState(() => (opts.don || []).map((d, i) => ({ ...d, _i: i })));
+  // đội sale: cửa hàng đội đang bán — nhớ theo từng đội (gửi Odoo "sale_tai_cua_hang")
+  const [don, setDon] = useState(() => (opts.don || []).map((d, i) => ({
+    ...d, _i: i, sale_tai_cua_hang: d.sale_tai_cua_hang || (laDoiSale(d.kho_yeu_cau) ? saleChCuaDoi(d.kho_yeu_cau) : ''),
+  })));
   // đơn đã có trên nhật ký (d._tt): đã tạo thành công -> không tick, không gửi lại
   const [chon, setChon] = useState(() => new Set((opts.don || []).map((d, i) => (d._tt?.trang_thai === 'thanh_cong' ? -1 : i)).filter((i) => i >= 0)));
   const [kq, setKq] = useState(() => {
@@ -42,6 +49,10 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
   const [canhSv, setCanhSv] = useState([]);
   const [json, setJson] = useState(null);
   const [trung, setTrung] = useState(null);   // SQL 206: đơn giống hệt đơn đã tạo trong 48 giờ -> phải xác nhận
+  const [vuot, setVuot] = useState(null);     // SQL 207: dòng vượt tồn khả dụng của kho (đã trừ hàng chờ xuất) -> phải xác nhận
+  const [dsCh, setDsCh] = useState(null);     // danh sách cửa hàng cho ô "CH đội đang sale"
+  const [gcGan] = useState(() => ghiChuGanDay());
+  const coDoiSale = don.some((d) => laDoiSale(d.kho_yeu_cau));
   const [phanHoi, setPhanHoi] = useState(null);
   const [mo, setMo] = useState(() => new Set());
 
@@ -51,9 +62,15 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
       const ds = c?.ly_do || [];
       const md = c?.ly_do_mac_dinh?.[opts.lyDo] || (ds.includes(opts.lyDo) ? opts.lyDo : '') || ds[0] || '';
       setLyDo((v) => v || md);
-      setNguoiTao((v) => v || c?.nguoi_tao || '');
+      // tài khoản CỬA HÀNG tạo đơn -> mặc định cửa hàng là người tạo trên Odoo
+      setNguoiTao((v) => v || (user.vai_tro === 'CH' && user.ma_ch ? user.ma_ch : '') || c?.nguoi_tao || '');
     });
   }, [user.token]);   // eslint-disable-line
+  useEffect(() => {
+    if (!coDoiSale || dsCh) return;
+    sb.rpc('fn_ton_kho_ds', { p_token: user.token }).then(({ data }) => setDsCh(data?.cua_hang || []));
+  }, [coDoiSale, dsCh, user.token]);
+  const doiDon = (i, gia) => setDon((ds) => ds.map((d) => (d._i === i ? { ...d, ...gia } : d)));
 
   useEffect(() => {
     const k = (e) => { if (e.key === 'Escape' && !dangGui) onDong(); };
@@ -101,14 +118,15 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
     const donMoi = don.map((d) => (ten[d._i] && !d.name ? { ...d, name: ten[d._i] } : d));
     setDon(donMoi);
 
-    if (Array.isArray(r?.trung) && r.trung.length) {
-      // chưa gửi gì — hỏi xác nhận từng đơn trùng nội dung
+    if ((Array.isArray(r?.trung) && r.trung.length) || (Array.isArray(r?.vuot) && r.vuot.length)) {
+      // chưa gửi gì — hỏi xác nhận: đơn trùng nội dung / dòng vượt tồn khả dụng
       setKq((m) => { const n = { ...m }; ds.forEach((d) => { delete n[d._i]; }); return n; });
-      setTrung(r.trung.map((t) => ({ ...t, _i: ds[t.i - 1]?._i })));
+      setTrung(r.trung?.length ? r.trung.map((t) => ({ ...t, _i: ds[t.i - 1]?._i })) : null);
+      setVuot(r.vuot?.length ? r.vuot.map((t) => ({ ...t, _i: ds[t.i - 1]?._i })) : null);
       setLoi(r.loi);
       return;
     }
-    setTrung(null);
+    setTrung(null); setVuot(null);
     if (!Array.isArray(r?.ket_qua)) {
       setKq((m) => { const n = { ...m }; ds.forEach((d) => { n[d._i] = { trang_thai: 'loi', loi: r?.loi || 'Không gửi được' }; }); return n; });
       setLoi(r?.loi || 'Không gửi được');
@@ -120,13 +138,14 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
     donMoi.forEach((d) => {
       if (!ds.some((x) => x._i === d._i)) return;
       const x = theoTen[d.name];
-      kqMoi[d._i] = x ? { trang_thai: x.trang_thai, loi: x.loi || '' } : { trang_thai: 'loi', loi: r.loi || 'Không thấy kết quả của đơn này' };
+      kqMoi[d._i] = x ? { trang_thai: x.trang_thai, loi: x.loi || '', duyet: x.odoo_duyet || '' } : { trang_thai: 'loi', loi: r.loi || 'Không thấy kết quả của đơn này' };
       if (x?.trang_thai === 'thanh_cong') okMoi.push(d);
     });
     setKq((m) => ({ ...m, ...kqMoi }));
     if (r.loi) setLoi(r.loi);
     const nLoi = ds.length - okMoi.length;
-    baoToast(`Odoo: ${okMoi.length ? `✓ tạo ${okMoi.length} đơn` : ''}${okMoi.length && nLoi ? ' · ' : ''}${nLoi ? `${nLoi} đơn chưa tạo được — xem từng đơn` : ''}`);
+    if (okMoi.length) { nhoGhiChu(ghiChu); ds.forEach((d) => { if (laDoiSale(d.kho_yeu_cau) && d.sale_tai_cua_hang) nhoSaleCh(d.kho_yeu_cau, d.sale_tai_cua_hang); }); }
+    baoToast(`Odoo: ${okMoi.length ? `✓ tạo ${okMoi.length} đơn — đã trừ tồn khả dụng kho` : ''}${okMoi.length && nLoi ? ' · ' : ''}${nLoi ? `${nLoi} đơn chưa tạo được — xem từng đơn` : ''}`);
     if (okMoi.length && opts.onThanhCong) {
       try { await opts.onThanhCong(okMoi); } catch (e) { baoToast('Đã tạo đơn Odoo nhưng bước lưu sau đó lỗi: ' + (e?.message || e)); }
     }
@@ -150,22 +169,23 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
         <div className="od-than">
           <div className="od-cai">
             <label><span>Lý do <b className="od-bb">*</b></span>
-              <select value={lyDo} onChange={(e) => setLyDo(e.target.value)} disabled={dangGui}>
-                {!lyDo && <option value="">— chọn lý do —</option>}
-                {(cfg?.ly_do || []).map((x) => <option key={x} value={x}>{x}</option>)}
-              </select>
+              <Sel value={lyDo} onChange={(v) => !dangGui && setLyDo(v)} placeholder="— chọn lý do —"
+                options={(cfg?.ly_do || []).map((x) => ({ value: x, label: x }))} />
             </label>
-            <label>Người tạo
+            <label>Người tạo trên Odoo
               <input value={nguoiTao} maxLength={40} disabled={dangGui} placeholder="Để trống = user của kho yêu cầu"
                 onChange={(e) => setNguoiTao(e.target.value)} />
             </label>
-            <label className="rong">Ghi chú chung
-              <input value={ghiChu} maxLength={300} disabled={dangGui} placeholder="Vd: Giao gấp trước 15h (có thể để trống)"
+            <label className="rong">Ghi chú chung <small className="od-dem">{ghiChu.length}/300</small>
+              <textarea value={ghiChu} maxLength={300} rows={2} disabled={dangGui} placeholder="Vd: Giao gấp trước 15h · Hàng khách đặt · Gom chung chuyến xe chiều"
                 onChange={(e) => setGhiChu(e.target.value)} />
+              {gcGan.length > 0 && !dangGui && (
+                <span className="od-gc-nhanh">{gcGan.filter((g) => g !== ghiChu).slice(0, 6).map((g) => (
+                  <button key={g} type="button" onClick={() => setGhiChu(g)} title="Điền ghi chú đã dùng gần đây">{g}</button>))}</span>)}
             </label>
           </div>
 
-          {loi && <div className="od-bao loi"><IcAlert /> {loi}</div>}
+          {loi && !trung && !vuot && <div className="od-bao loi"><IcAlert /> {loi}</div>}
           {trung && (
             <div className="od-bao canh od-trung"><IcAlert /><div>
               <b>Kiểm tra trước khi gửi — có thể là đơn gửi trùng:</b>
@@ -173,6 +193,19 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
               <div className="od-trung-nut">
                 <button className="btn btn-ghost" onClick={() => { setChon((s) => { const n = new Set(s); trung.forEach((t) => n.delete(t._i)); return n; }); setTrung(null); setLoi(''); }}>Bỏ các đơn trùng</button>
                 <button className="btn btn-ai od-gui" onClick={() => { const ids = new Set(trung.map((t) => t._i)); setDon((ds) => ds.map((d) => (ids.has(d._i) ? { ...d, cho_trung: true } : d))); setTrung(null); setLoi(''); }}>
+                  <IcCheck /> Đã kiểm tra — vẫn gửi</button>
+              </div>
+            </div></div>
+          )}
+          {vuot && (
+            <div className="od-bao canh od-trung od-vuot"><IcAlert /><div>
+              <b>Vượt tồn khả dụng — kho không đủ hàng cho các dòng này (đã trừ hàng của phiếu đang chờ xuất):</b>
+              {vuot.slice(0, 12).map((t, j) => <div key={j}>• {t.name}: <b>{t.ma}</b> cần {fmt(t.can)} · kho {t.kho} còn khả dụng <b className={t.kha_dung > 0 ? '' : 'het'}>{fmt(Math.max(t.kha_dung, 0))}</b>{t.kha_dung < 0 ? ` (đã hứa vượt ${fmt(-t.kha_dung)})` : ''}</div>)}
+              {vuot.length > 12 && <div>… và {vuot.length - 12} dòng khác</div>}
+              <p className="od-vuot-ghi">Vẫn gửi được (vd chia trước khi kho nhận hàng) — Odoo sẽ giữ NHÁP nếu kho thiếu hàng lúc duyệt.</p>
+              <div className="od-trung-nut">
+                <button className="btn btn-ghost" onClick={() => { setChon((s) => { const n = new Set(s); vuot.forEach((t) => n.delete(t._i)); return n; }); setVuot(null); setLoi(''); }}>Bỏ các đơn vượt</button>
+                <button className="btn btn-ai od-gui" onClick={() => { const ids = new Set(vuot.map((t) => t._i)); setDon((ds) => ds.map((d) => (ids.has(d._i) ? { ...d, cho_vuot: true } : d))); setVuot(null); setLoi(''); }}>
                   <IcCheck /> Đã kiểm tra — vẫn gửi</button>
               </div>
             </div></div>
@@ -194,17 +227,32 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
                         {d.ly_do && <span className="od-ly"> · lý do riêng: {d.ly_do}</span>}
                         {d.tai_lieu_nguon && d.tai_lieu_nguon !== d.name && <span> · nguồn {d.tai_lieu_nguon}</span>}</small>
                       {d.ghi_chu && <small className="od-gc">✎ {d.ghi_chu}</small>}
+                      {laDoiSale(d.kho_yeu_cau) && (
+                        <div className="od-sale"><span>CH đội đang sale</span>
+                          <Sel value={d.sale_tai_cua_hang || ''} timKiem placeholder="— không ghi —"
+                            onChange={(v) => { if (!dangGui && !daTao) doiDon(d._i, { sale_tai_cua_hang: v }); }}
+                            options={[{ value: '', label: '— không ghi —' },
+                              ...(d.sale_tai_cua_hang && !(dsCh || []).some((c) => c.ma === d.sale_tai_cua_hang) ? [{ value: d.sale_tai_cua_hang, label: d.sale_tai_cua_hang }] : []),
+                              ...(dsCh || []).map((c) => ({ value: c.ma, label: c.ma + ' · ' + c.ten }))]} />
+                        </div>)}
                     </div>
                     <div className="od-so"><b>{fmt(tongDon(d))}</b> cái<small>{d.chi_tiet.length} dòng</small></div>
                     <div className="od-kq">
                       {tt ? <span className={'od-chip ' + tt[1]}>{k.trang_thai === 'thanh_cong' ? <IcCheck /> : k.trang_thai === 'dang_gui' ? null : <IcAlert />} {tt[0]}</span>
                         : <span className="od-chip cho">Chờ gửi</span>}
+                      {k?.duyet === 'da_duyet' && <span className="od-duyet ok">Odoo tự duyệt</span>}
+                      {k?.duyet === 'giu_nhap' && <span className="od-duyet nhap" title={k.loi}>Odoo giữ NHÁP</span>}
                     </div>
                     <button className="od-mo" onClick={() => doiMo(d._i)}>{mo.has(d._i) ? 'Ẩn' : 'Chi tiết'}</button>
                   </div>
                   {k?.loi && k.trang_thai !== 'thanh_cong' && <div className="od-don-loi">{k.loi}</div>}
                   {mo.has(d._i) && (
                     <div className="od-ct-bao">
+                      {!daTao && (
+                        <label className="od-gc-rieng">Ghi chú riêng đơn này
+                          <input value={d.ghi_chu || ''} maxLength={200} disabled={dangGui} placeholder="Chỉ ghi vào đơn này (ghép với ghi chú chung)"
+                            onChange={(e) => doiDon(d._i, { ghi_chu: e.target.value })} />
+                        </label>)}
                       <table className="od-ct">
                         <thead><tr><th>Mã</th><th>SKU</th><th>Barcode</th><th className="num">SL</th></tr></thead>
                         <tbody>

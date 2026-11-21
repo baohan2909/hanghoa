@@ -577,7 +577,7 @@ export default function XinHang() {
   };
   // TẠO ĐƠN ODOO (v3.114.0): mỗi kho nguồn = 1 đơn, tên đơn cấp CHUNG dãy số với file Excel
   //   ({DK|KC}{yyyymmdd}-{kho nguồn}-{CH}-{NN}) -> không trùng đơn dù xuất Excel hay gửi Odoo.
-  //   Đơn tạo xong mới GIỮ HÀNG (như sau khi xuất file).
+  //   Đơn tạo xong: tồn khả dụng kho trừ ngay trong sổ cam kết (SQL 207), không cần giữ hàng 60 phút.
   const taoOdoo = async () => {
     const dsAll = rows.filter((r) => r.sl_xin > 0);
     if (!dsAll.length) { baoToast('Chưa có số lượng nào để tạo đơn'); return; }
@@ -596,18 +596,9 @@ export default function XinHang() {
       lyDo: loai === 'KHAN_CAP' ? 'khan_cap' : 'de_nghi', don,
       canh: thieuKho.length ? [`Chưa xác định kho nguồn cho nhóm: ${thieuKho.join(', ')} — bỏ tick đơn đó nếu không chắc`] : [],
       onExcel: xuatTatCa,
-      onThanhCong: async (ok) => {
-        let hetHan = null, phut = 0;
-        for (const d of ok) {
-          try {
-            const { data: kq } = await sb.rpc('fn_giu_hang', { p_token: user.token, p_ma_ch: maCH, p_kho_ma: d.kho_cung_ung,
-              p_lines: d.chi_tiet.map((c) => ({ barcode: c.barcode, so_luong: c.nhu_cau })) });
-            if (kq?.het_han) { hetHan = kq.het_han; phut = kq.phut; }
-          } catch { /* đã tạo đơn, giữ hàng lỗi thì bỏ qua */ }
-        }
-        if (hetHan) setGiuInfo({ het_han: hetHan, phut });
-        huyKdnNeuCo();
-      },
+      // v3.117.0 (SQL 207): đơn gửi Odoo thành công đã được TRỪ KHẢ DỤNG kho ngay trong sổ cam kết tồn
+      //   (giữ tới khi kho xuất thật) -> KHÔNG giữ hàng 60 phút nữa (tránh trừ 2 lần).
+      onThanhCong: async () => { huyKdnNeuCo(); },
     });
   };
   const giaiPhong = async () => {

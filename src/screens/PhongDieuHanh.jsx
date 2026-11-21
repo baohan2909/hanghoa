@@ -4,6 +4,7 @@ import { useApp } from '../App.jsx';
 import { Sel } from '../lib/ui.jsx';
 import { IcSearch, IcRefresh, IcAlert, IcCheck, IcClock, IcTruck, IcBox, IcMoRong, IcOut, IcGuiLen, IcRadar, IcTeam } from '../lib/icons.jsx';
 import OdooDon from './OdooDon.jsx';
+import TonKho from './TonKho.jsx';
 import { SUPABASE_URL, SUPABASE_ANON } from '../config.js';
 
 /* ============================================================================
@@ -58,7 +59,7 @@ const LUONG = [
   ['dang_giao', 'Đang giao', 'quá 3 ngày từ lúc xuất'], ['da_nhan', 'Cửa hàng đã nhận', ''],
 ];
 const TEN_LUONG = Object.fromEntries(LUONG.map(([k, t]) => [k, t]));
-const TAB = [['tq', 'Tổng quan'], ['ch', 'Cửa hàng'], ['ma', 'Mã hàng'], ['dc', 'Điều chuyển'], ['odoo', 'Đơn Odoo'], ['viec', 'Việc cần làm']];
+const TAB = [['tq', 'Tổng quan'], ['ch', 'Cửa hàng'], ['ma', 'Mã hàng'], ['ton', 'Tồn khả dụng'], ['dc', 'Điều chuyển'], ['odoo', 'Đơn Odoo'], ['viec', 'Việc cần làm']];
 
 /* ================== MÀN CHÍNH ================== */
 export default function PhongDieuHanh({ chonTab }) {
@@ -294,6 +295,8 @@ export default function PhongDieuHanh({ chonTab }) {
           <TabDieuChuyen luong={luong} loc={locDc} setLoc={setLocDc} />
         ) : tab === 'odoo' ? (
           <OdooDon nhung key={'odoo-' + odooNhom} locDau={odooNhom} />
+        ) : tab === 'ton' ? (
+          <TonKho nhung />
         ) : (
           <TabViec maSX={maSX} maDC={maDC} chNhac={chNhac} chBS={chBS} dangTaiMa={dsMa == null} moHoSo={moHoSo} moMa={moMa} bcViec={bcViec} />
         )}
