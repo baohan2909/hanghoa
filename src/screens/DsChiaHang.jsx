@@ -14,6 +14,7 @@ import KhoThung from './DsKhoThung.jsx';
 import { tachSize, thuTuSize, useBoLoc, MenuBoLoc, HopBoLoc } from './DsBoLoc.jsx';
 import DsBanChia from './DsBanChia.jsx';
 import GoiYThung, { useGoiYThung, NutGoiY, mucDiem } from './DsGoiYThung.jsx';
+import { boLocSo, boLocChu, ThCot, soSanh } from './DsLocCot.jsx';
 
 // ============================================================================
 // CHIA HÀNG ĐỘI SALE (bản làm lại v3.102.0; v3.104.0 Kho thùng; v3.112.0 nâng cấp) — 6 chế độ:
@@ -27,24 +28,52 @@ import GoiYThung, { useGoiYThung, NutGoiY, mucDiem } from './DsGoiYThung.jsx';
 //   6. Cân đối giữa đội : DsBanChia.jsx (bản cũ, giữ nguyên).
 // Mọi số đang nhập TỰ LƯU (máy + máy chủ), lọc/tìm/đổi chế độ không mất số.
 // SQL: 194_chia_hang_doi_sale.sql + 195_kho_tk05005_thung.sql (2 nguồn: SA và thùng TK05005 — 2 phiếu, 2 file) + 202_nang_cap_doi_sale.sql
+// v3.123.0 (SQL 212): danh sách đội lấy từ hệ thống (fn_ds_doi_ds) — đội mới chưa có tồn / chưa bán vẫn chia được;
+//   gõ số đội (vd 35) -> fn_ds_doi_tao tạo DOISALE35 / Đội SALE 35 theo quy tắc hiện hữu. Bảng: bấm tiêu đề sắp xếp, phễu lọc (DsLocCot.jsx).
 // ============================================================================
 
 // ============================================================================
 // VỎ: chọn chế độ
 // ============================================================================
 export default function DsChiaHang({ dsDoi, ts }) {
+  const { user, baoToast } = useApp();
   const [che, setChe] = useState(() => lsGet('che') || 'doi');
   useEffect(() => { lsSet('che', che); }, [che]);
+  // NEW - 212: mọi đội sale trong hệ thống (không phụ thuộc file đồng bộ tồn / bán)
+  const [doiHT, setDoiHT] = useState([]);
+  const [ganDoiMoi, setGanDoiMoi] = useState(null);
+  useEffect(() => { sb.rpc('fn_ds_doi_ds').then(({ data }) => { if (Array.isArray(data)) setDoiHT(data); }); }, []);
+  const dsDoiDu = useMemo(() => {
+    const co = new Set(dsDoi.map((d) => d.ma_ch));
+    const them = doiHT.filter((d) => !co.has(d.ma_ch)).map((d) => ({ ma_ch: d.ma_ch, ten: d.ten, moi: true, chua_co_hang: true,
+      ton: 0, duong: 0, co: 0, ban: 0, ban_ngay: 0, ngay_du: null, so_ma: 0, ma_sap_het: 0, ma_het: 0, ma_ton_lau: 0, sl_ton_lau: 0, ban_14: [], chuyen_di: 0, nhan_ve: 0 }));
+    return [...dsDoi.map((d) => (!d.ban && !d.co ? { ...d, chua_co_hang: true } : d)), ...them];
+  }, [dsDoi, doiHT]);
+  // gõ số đội -> mã / tên theo quy tắc hiện hữu; chưa có thì máy chủ tạo
+  const taoDoi = useCallback(async (so) => {
+    const n = parseInt(String(so).replace(/\D/g, ''), 10);
+    if (!(n >= 1 && n <= 999)) { baoToast('Số đội từ 1 đến 999'); return null; }
+    const { data, error } = await sb.rpc('fn_ds_doi_tao', { p_token: user?.token, p_so: n });
+    if (error || !data?.ok) {
+      const m = error?.message || 'không rõ lỗi';
+      baoToast(/function|does not exist/i.test(m) ? 'Máy chủ chưa có fn_ds_doi_tao — cần chạy SQL 212' : 'Chưa thêm được đội: ' + m);
+      throw new Error(m);
+    }
+    setDoiHT((ds) => [...ds.filter((d) => d.ma_ch !== data.ma_ch), { ma_ch: data.ma_ch, ten: data.ten }]);
+    if (data.moi_tao) baoToast(`Đã tạo ${data.ten} (${data.ma_ch}) — chia hàng được ngay`);
+    return { ma_ch: data.ma_ch, ten: data.ten, moi_tao: data.moi_tao };
+  }, [user?.token, baoToast]);
+  const moDoiMoi = (ma) => { setGanDoiMoi(ma); setChe('doimoi'); };
   const CHE = [['doi', 'Chia từng đội'], ['thung', 'Kho thùng'], ['loat', 'Chia hàng mới'], ['doimoi', 'Đội mới · chia trước'], ['phieu', 'Phiếu đã chia'], ['can', 'Cân đối giữa đội']];
   return (
     <div className="ch">
       <div className="ch-che">
         {CHE.map(([k, t]) => <button key={k} className={che === k ? 'on' : ''} onClick={() => setChe(k)}>{t}</button>)}
       </div>
-      {che === 'doi' && <ChiaDoi dsDoi={dsDoi} ts={ts} />}
-      {che === 'thung' && <KhoThung dsDoi={dsDoi} />}
-      {che === 'loat' && <DsChiaMoi dsDoi={dsDoi} ts={ts} />}
-      {che === 'doimoi' && <DsDoiMoi dsDoi={dsDoi} ts={ts} />}
+      {che === 'doi' && <ChiaDoi dsDoi={dsDoiDu} ts={ts} taoDoi={taoDoi} moDoiMoi={moDoiMoi} />}
+      {che === 'thung' && <KhoThung dsDoi={dsDoiDu} />}
+      {che === 'loat' && <DsChiaMoi dsDoi={dsDoiDu} ts={ts} />}
+      {che === 'doimoi' && <DsDoiMoi dsDoi={dsDoiDu} ts={ts} ganDoi={ganDoiMoi} onDaGan={() => setGanDoiMoi(null)} taoDoi={taoDoi} />}
       {che === 'phieu' && <DsPhieu />}
       {che === 'can' && <DsBanChia dsDoi={dsDoi} ts={ts} />}
     </div>
@@ -118,22 +147,9 @@ const COT_MAC_DINH = [
 const LOC_MAC_DINH = LOC.map(([k, t, g]) => ({ k, ten: t, mo: g }));
 const IcMat = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
   <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></svg>);
-// "5" = bằng 5 · ">5" ">=5" "<3" "<=3" "!=0" · "5-10" khoảng · trả 'sai' nếu gõ không hiểu
-function boLocSo(chuoi) {
-  const t = String(chuoi || '').replace(/\s+/g, '').replace(',', '.');
-  if (!t) return null;
-  let m = t.match(/^(>=|<=|>|<|=|!=|≠)?(-?\d+(?:\.\d+)?)$/);
-  if (m) {
-    const op = m[1] || '=', n = +m[2];
-    return (v) => v != null && (op === '>' ? v > n : op === '>=' ? v >= n : op === '<' ? v < n : op === '<=' ? v <= n
-      : op === '!=' || op === '≠' ? v !== n : v === n);
-  }
-  m = t.match(/^(-?\d+(?:\.\d+)?)(?:-|\.\.|~)(-?\d+(?:\.\d+)?)$/);
-  if (m) { const a = Math.min(+m[1], +m[2]), b = Math.max(+m[1], +m[2]); return (v) => v != null && v >= a && v <= b; }
-  return 'sai';
-}
+// Ô lọc cột: cú pháp chung DsLocCot.jsx — "5" · ">5" ">=5" "<3" "<=3" "!=0" · "5-10" khoảng · "1;3;5" chọn giá trị
 
-function ChiaDoi({ dsDoi, ts }) {
+function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
   const { user, baoToast } = useApp();
   const nguoi = user?.ma_dang_nhap || '';
   const [doi, setDoi] = useState(() => lsGet('doi_dang') || null);
@@ -305,8 +321,9 @@ function ChiaDoi({ dsDoi, ts }) {
     Object.entries(locCot).forEach(([k, chuoi]) => {
       if (!chuoi || !String(chuoi).trim() || !dangHien.has(k)) return;   // cột đang ẩn: không lọc ngầm
       if (k === 'sp') {
-        const tu = String(chuoi).toLowerCase().split(/\s+/).filter(Boolean);
-        fs.push((x) => { const h = `${x.mtc} ${x.n3 || ''} ${x.n1 || ''} ${x.bc}`.toLowerCase(); return tu.every((w) => h.includes(w)); });
+        const f = boLocChu(chuoi);
+        const theoMa = /^\s*(=|∅)/.test(String(chuoi));   // chọn giá trị: so đúng mã tham chiếu
+        if (typeof f === 'function') fs.push((x) => f(theoMa ? x.mtc : `${x.mtc} ${x.n3 || ''} ${x.n1 || ''} ${x.bc}`));
         return;
       }
       const fn = boLocSo(chuoi);
@@ -326,6 +343,8 @@ function ChiaDoi({ dsDoi, ts }) {
   const boLocSet = useMemo(() => (boLoc ? new Set(boLoc.ma.flatMap((x) => [x.b, x.m])) : null), [boLoc]);
   const demNguon = useMemo(() => ({ tat: dong.length, sa: dong.filter((x) => !x.pk).length, pk: dong.filter((x) => x.pk).length }), [dong]);
 
+  const sapCot = useMemo(() => { const m = /^cot:(\w+):(-?1)$/.exec(sap || ''); return m ? { k: m[1], g: +m[2] } : null; }, [sap]);
+  const datSapCot = (s) => setSap(s ? `cot:${s.k}:${s.g}` : 'ban_g');
   const hien = useMemo(() => {
     let v = dong.filter((x) => (nguonXem === 'tat' || (nguonXem === 'pk') === x.pk)
       && (!boLocSet || boLocSet.has(x.bc) || boLocSet.has(x.mtc))
@@ -338,8 +357,13 @@ function ChiaDoi({ dsDoi, ts }) {
       ton_g: (a, b) => b.co - a.co, ton_t: (a, b) => a.co - b.co, kho_g: (a, b) => b.kd - a.kd,
       ma: (a, b) => a.mtc.localeCompare(b.mtc), nhom: (a, b) => (a.n3 || '').localeCompare(b.n3 || '') || b.ban - a.ban,
     }[sap];
-    return v.sort(f);
-  }, [dong, loc, locCotFn, sap, sapHet, tonLau, nguonXem, boLocSet]);
+    // NEW - 212: bấm tiêu đề cột -> sap = 'cot:<k>:<1|-1>'
+    if (sapCot) {
+      const lay = sapCot.k === 'sp' ? (x) => x.mtc : COT_SO[sapCot.k];
+      if (lay) return v.sort((a, b) => soSanh(lay(a), lay(b), sapCot.g) || b.ban - a.ban || a.mtc.localeCompare(b.mtc));
+    }
+    return v.sort(f || ((a, b) => b.ban - a.ban));
+  }, [dong, loc, locCotFn, sap, sapCot, sapHet, tonLau, nguonXem, boLocSet]);
 
   const tong = useMemo(() => {
     const t = { ma: 0, maSa: 0, maPk: 0, th: 0, them: 0, sa: 0, pk: 0, nhan: 0, vuot: 0, vuotPk: 0, canh: 0, banNgay: 0, co: 0, maBan: 0 };
@@ -464,6 +488,10 @@ function ChiaDoi({ dsDoi, ts }) {
     if (n) setDoi(n.ma_ch);
   };
   const doiInfo = dsDoi.find((d) => d.ma_ch === doi);
+  // NEW - 212: gõ số đội -> chọn ngay; đội chưa có trong hệ thống thì tạo theo quy tắc hiện hữu
+  const chonSoDoi = async (so) => {
+    try { const r = await taoDoi(so); if (r) setDoi(r.ma_ch); return !!r; } catch { return false; }
+  };
 
   // ---------- bảng ảo hoá ----------
   const khung = useRef(null);
@@ -542,12 +570,13 @@ function ChiaDoi({ dsDoi, ts }) {
         <b>Chọn đội để chia hàng</b>
         <div className="ch-doi-luoi">
           {doiSx.map((d) => (
-            <button key={d.ma_ch} onClick={() => setDoi(d.ma_ch)} className={nhapDs['doi:' + d.ma_ch] ? 'co-nhap' : ''}>
+            <button key={d.ma_ch} onClick={() => setDoi(d.ma_ch)} className={(nhapDs['doi:' + d.ma_ch] ? 'co-nhap ' : '') + (d.chua_co_hang ? 'chua-hang' : '')}>
               <b>{tenNgan(d.ten)}</b>
-              <small>{d.moi ? 'đội mới' : d.ngay_du == null ? '—' : `đủ ${d.ngay_du > 365 ? '>1 năm' : d.ngay_du + ' ngày'}`}</small>
+              <small>{d.chua_co_hang ? 'chưa có hàng' : d.moi ? 'đội mới' : d.ngay_du == null ? '—' : `đủ ${d.ngay_du > 365 ? '>1 năm' : d.ngay_du + ' ngày'}`}</small>
               {nhapDs['doi:' + d.ma_ch] && <i>nháp</i>}
             </button>
           ))}
+          <ThemDoi onThem={chonSoDoi} lon />
         </div>
       </div>
     );
@@ -624,12 +653,13 @@ function ChiaDoi({ dsDoi, ts }) {
       <div className="ch-top">
         <div className="ch-dai">
           {doiSx.map((d) => (
-            <button key={d.ma_ch} className={(d.ma_ch === doi ? 'on ' : '') + (nhapDs['doi:' + d.ma_ch] ? 'co-nhap' : '')}
-              onClick={() => setDoi(d.ma_ch)} title={tenNgan(d.ten) + (nhapDs['doi:' + d.ma_ch] ? ' — có bản nháp đang dở' : '')}>
+            <button key={d.ma_ch} className={(d.ma_ch === doi ? 'on ' : '') + (nhapDs['doi:' + d.ma_ch] ? 'co-nhap ' : '') + (d.chua_co_hang ? 'chua-hang' : '')}
+              onClick={() => setDoi(d.ma_ch)} title={tenNgan(d.ten) + (d.chua_co_hang ? ' — chưa có hàng, chưa có lịch sử bán' : '') + (nhapDs['doi:' + d.ma_ch] ? ' — có bản nháp đang dở' : '')}>
               {tenNgan(d.ten).replace('Đội ', '')}
             </button>
           ))}
         </div>
+        <ThemDoi onThem={chonSoDoi} />
         <button className="ch-gon-nut" onClick={() => setGon(!gon)} title={gon ? 'Mở rộng đầu bàn (thẻ thùng, số liệu đầy đủ)' : 'Thu gọn đầu bàn để bảng chia rộng hơn'}>
           {gon ? '⌄ Mở rộng' : '⌃ Thu gọn'}
         </button>
@@ -699,6 +729,14 @@ function ChiaDoi({ dsDoi, ts }) {
         </div>
       </>)}
 
+      {kq && kq.ma_ch === doi && tong.co === 0 && tong.maBan === 0 && (
+        <div className="ch-doi-moi-bao">
+          <IcSpark />
+          <div><b>{tenNgan(tenDoi)} chưa có hàng và chưa có lịch sử bán</b>
+            <span>AI ở bàn này chưa có cơ sở đề nghị (gợi ý = 0). Vẫn chia tay và chọn thùng như bình thường — hoặc để AI lập bộ hàng đầu tiên theo cơ cấu giá và ghép tổ hợp thùng đóng sẵn.</span></div>
+          <button className="btn btn-ai" onClick={() => moDoiMoi(doi)}>Mở Đội mới · chia trước</button>
+        </div>
+      )}
       {moKho && (
         <div className="kt-modal" onClick={(e) => { if (e.target === e.currentTarget) setMoKho(false); }}>
           <div className="kt-modal-in">
@@ -767,7 +805,8 @@ function ChiaDoi({ dsDoi, ts }) {
           <MenuBoLoc ds={dsBoLoc} dangDung={boLocDung} onDung={setBoLocDung} onTao={() => setSuaBoLoc('moi')} onSua={(b) => setSuaBoLoc(b)}
             an={tc.bo_loc_an || []} laAdmin={laAdmin} onTuyChinh={(t) => setMoTc(t || 'loc')}
             onAn={(id) => { datTc((t) => ({ ...t, bo_loc_an: [...new Set([...(t.bo_loc_an || []), id])] })); baoToast('Đã ẩn bộ lọc khỏi menu của anh — hiện lại ở “Ẩn / hiện bộ lọc…”'); }} />
-          <select className={'ch-sel' + (sap === 'ma_nhom' ? ' on' : '')} value={sap} onChange={(e) => setSap(e.target.value)} title="Sắp xếp">
+          <select className={'ch-sel' + (sap === 'ma_nhom' || sapCot ? ' on' : '')} value={sap} onChange={(e) => setSap(e.target.value)} title="Sắp xếp — hoặc bấm tên cột trên bảng">
+            {sapCot && <option value={sap}>Theo cột: {sapCot.k === 'sp' ? 'Mã' : (cotDs.find((c) => c.k === sapCot.k)?.ten || sapCot.k)} {sapCot.g > 0 ? '↑' : '↓'}</option>}
             {SAP.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
           </select>
           <button className="ch-tc-nut" onClick={() => setMoTc(true)} title="Tùy chỉnh Bàn làm việc: ẩn / hiện, sắp lại bộ lọc và cột, lưu bộ lọc của tôi (theo tài khoản)">⚙<span className="ch-an-hep"> Tùy chỉnh</span></button>
@@ -788,11 +827,14 @@ function ChiaDoi({ dsDoi, ts }) {
           </colgroup>
           <thead>
             <tr className="ten">
-              <th>#</th><th></th><th className="l">Sản phẩm <span className="ch-dem2">{fmtN(hien.length)}/{fmtN(dong.length)}</span></th>
+              <th>#</th><th></th>
+              <ThCot k="sp" loai="chu" className="l" nhan="Sản phẩm (mã)" title="Sản phẩm (mã tham chiếu)" sap={sapCot} onSap={datSapCot}
+                ten={<>Sản phẩm <span className="ch-dem2">{fmtN(hien.length)}/{fmtN(dong.length)}</span></>}
+                loc={locCot.sp} onLoc={(v) => setLocCot((c) => ({ ...c, sp: v }))} giaTri={() => dong.map((x) => x.mtc)} />
               {cotHien.map((c) => (
-                <th key={c.k} className={{ th: 'c-thung', them: 'c-them', kd: 'c-kd' }[c.k] || ''} title={c.k === 'ban' ? `Bán trong ${cuaSo} ngày` : c.mo}>
-                  {c.k === 'ban' ? `Bán ${cuaSo}n` : c.ten}
-                </th>
+                <ThCot key={c.k} k={c.k} className={{ th: 'c-thung', them: 'c-them', kd: 'c-kd' }[c.k] || ''} title={c.k === 'ban' ? `Bán trong ${cuaSo} ngày` : c.mo}
+                  ten={c.k === 'ban' ? `Bán ${cuaSo}n` : c.ten} sap={sapCot} onSap={datSapCot}
+                  loc={locCot[c.k]} onLoc={(v) => setLocCot((o) => ({ ...o, [c.k]: v }))} giaTri={() => dong.map(COT_SO[c.k])} />
               ))}
             </tr>
             <tr className="loc">
@@ -807,7 +849,7 @@ function ChiaDoi({ dsDoi, ts }) {
               {cotHien.map(({ k }) => (
                 <th key={k} className={{ th: 'c-thung', them: 'c-them', kd: 'c-kd' }[k] || ''}>
                   <input className={locCotFn.sai[k] ? 'sai' : locCot[k] ? 'co' : ''} value={locCot[k] || ''} inputMode="text"
-                    title={'Lọc cột: gõ 5 (bằng), >5, >=5, <3, <=3, !=0, hoặc khoảng 5-10' + (locCotFn.sai[k] ? '\nChưa hiểu cách gõ này — đang bỏ qua' : '')}
+                    title={'Lọc cột: gõ 5 (bằng), >5, >=5, <3, <=3, !=0, khoảng 5-10, hoặc chọn nhiều giá trị 1;3;5 — hoặc bấm phễu trên tiêu đề' + (locCotFn.sai[k] ? '\nChưa hiểu cách gõ này — đang bỏ qua' : '')}
                     onChange={(e) => setLocCot((c) => ({ ...c, [k]: e.target.value }))}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); diDen(0); } }} />
                 </th>
@@ -919,6 +961,34 @@ function ChiaDoi({ dsDoi, ts }) {
 
 // Ô số tham số đầu bàn (v3.112.2): gõ tự do (xoá trắng, gõ 1, 2… không bị nhảy số),
 // chốt khi Enter / rời ô / ngừng gõ 0,6 giây nếu số nằm trong khoảng cho phép
+// NEW - 212: ô "+ số đội" — đội chưa có trong danh sách (chưa có tồn / chưa bán) vẫn chia được
+function ThemDoi({ onThem, lon }) {
+  const [mo, setMo] = useState(false);
+  const [v, setV] = useState('');
+  const [dang, setDang] = useState(false);
+  const xong = async () => {
+    if (!v.trim() || dang) return;
+    setDang(true);
+    const ok = await onThem(v);
+    setDang(false);
+    if (ok) { setV(''); setMo(false); }
+  };
+  if (!mo) {
+    return (
+      <button className={'ch-them-doi' + (lon ? ' lon' : '')} onClick={() => setMo(true)} title="Đội chưa có trong danh sách — gõ số đội (vd 35), mã và tên tự đặt theo quy tắc">
+        {lon ? <><b>＋ Đội khác</b><small>gõ số đội</small></> : '＋ Đội'}
+      </button>
+    );
+  }
+  return (
+    <span className={'ch-them-doi-o' + (lon ? ' lon' : '')}>
+      <input autoFocus inputMode="numeric" placeholder="Số đội, vd 35" aria-label="Số đội" value={v} onChange={(e) => setV(e.target.value.replace(/\D/g, '').slice(0, 3))}
+        onKeyDown={(e) => { if (e.key === 'Enter') xong(); if (e.key === 'Escape') { setMo(false); setV(''); } }} onBlur={() => { if (!v) setMo(false); }} />
+      <button onMouseDown={(e) => e.preventDefault()} onClick={xong} disabled={!v || dang}>{dang ? '…' : 'Chọn'}</button>
+    </span>
+  );
+}
+
 function OSoTs({ gt, min, max, onDat }) {
   const [o, setO] = useState(String(gt));
   const hen = useRef(null);

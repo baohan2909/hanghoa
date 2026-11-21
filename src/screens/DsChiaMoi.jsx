@@ -5,6 +5,13 @@ import { IcCheck, IcDown, IcAlert, IcSearch } from '../lib/icons.jsx';
 import { AnhSP } from './DsBanChia.jsx';
 import { TrangThaiLuu, baoLoiXacNhan, fmtN, lsGet, lsSet, so, tenNgan, useNhap, xuatHaiFile, tenPhieu, soFile, useHoiGhiChu, odooTuKq } from './dsChung.jsx';
 import { useLamTron, quyTac, chiaTyTrong, kGia, moTaMuc } from './dsLamTron.js';
+import { ThCot, locVaSap } from './DsLocCot.jsx';
+
+// NEW - 212: cột bảng kết quả từng mã (sắp xếp + phễu lọc dùng chung DsLocCot.jsx)
+const COT_CM = {
+  ten: { lay: (d) => d.ten, loai: 'chu', tim: (d) => `${d.ten} ${d.m}` }, co: { lay: (d) => d.co }, w: { lay: (d) => d.w },
+  tl: { lay: (d) => Math.round(d.tl * 100) }, dn: { lay: (d) => d.dn }, th: { lay: (d) => d.th }, sau: { lay: (d) => d.sau },
+};
 
 // ============================================================================
 // CHIA HÀNG MỚI CHO ĐỘI SALE (v3.112.0 — làm lại theo giao diện "Hàng mới" của Chia hàng cửa hàng)
@@ -282,6 +289,7 @@ function TheMa({ i, bc, r, c, kh, coSo, qt, chonDoi, tenDoi, gt, dx, tcD, cuaSo,
   const [moRong, setMoRong] = useState(true);
   const [locD, setLocD] = useState('');
   const [sap, setSap] = useState({ k: 'w', g: -1 });
+  const [locC, setLocC] = useState({});
   const [qTc, setQTc] = useState(c.tc || '');
   const [goiTc, setGoiTc] = useState([]);
   const hTc = useRef(null);
@@ -296,14 +304,17 @@ function TheMa({ i, bc, r, c, kh, coSo, qt, chonDoi, tenDoi, gt, dx, tcD, cuaSo,
   const tongThuc = chonDoi.reduce((a, m) => a + gt(bc, m), 0);
   const tongDn = chonDoi.reduce((a, m) => a + (dx[m] || 0), 0);
   const coDn = Object.keys(dx).length > 0;
-  const dong = chonDoi.map((m) => {
+  const dongDu = chonDoi.map((m) => {
     const co = r?.o?.[m]?.[0] || 0, w = kh?.w?.[m] || 0;
     const tl = kh && kh.W > 0 ? w / kh.W : 0;
     return { m, ten: tenDoi(m), co, w, tl, dn: dx[m] || 0, th: gt(bc, m), sau: co + gt(bc, m) };
-  }).filter((d) => !locD.trim() || d.ten.toLowerCase().includes(locD.trim().toLowerCase()) || d.m.toLowerCase().includes(locD.trim().toLowerCase()))
-    .sort((a, b) => sap.g * ((a[sap.k] > b[sap.k]) - (a[sap.k] < b[sap.k])) || a.m.localeCompare(b.m));
+  });
+  const dong = locVaSap(dongDu.filter((d) => !locD.trim() || d.ten.toLowerCase().includes(locD.trim().toLowerCase()) || d.m.toLowerCase().includes(locD.trim().toLowerCase())),
+    COT_CM, sap, locC, (a, b) => a.m.localeCompare(b.m));
+  const coLocC = Object.values(locC).some((v) => String(v || '').trim());
   const th = (key, ten, title) => (
-    <th className="ct-giua sortable" title={title} onClick={() => setSap((s) => ({ k: key, g: s.k === key ? -s.g : -1 }))}>{ten}{sap.k === key ? (sap.g < 0 ? ' ↓' : ' ↑') : ''}</th>
+    <ThCot k={key} ten={ten} title={title} loai={COT_CM[key].loai} className={COT_CM[key].loai === 'chu' ? 'lc-trai' : 'ct-giua'} sap={sap} onSap={setSap}
+      loc={locC[key]} onLoc={(v) => setLocC((o) => ({ ...o, [key]: v }))} giaTri={() => dongDu.map(COT_CM[key].lay)} nhanSo={key === 'tl' ? (v) => v + '%' : undefined} />
   );
   const nhanCs = { tc: c.tc ? `bán ${c.tc}` : 'mã tham chiếu', ban: 'sức bán đội', ma: 'bán mã này', deu: 'chia đều' }[coSo];
   const tcRong = coSo === 'tc' && tcD && !tcD.loi && !Object.keys(tcD.tc || {}).length;
@@ -375,6 +386,7 @@ function TheMa({ i, bc, r, c, kh, coSo, qt, chonDoi, tenDoi, gt, dx, tcD, cuaSo,
             <span className={'cm-con' + (kho - tongThuc < 0 ? ' do' : '')}>kho còn {fmtN(kho - tongThuc)}</span>
             {coDn && tongDn !== tongThuc && <button className="btn-mini" onClick={onApDn} title="Đặt lại Thực chia = Đề nghị">Áp đề nghị</button>}
             <input className="cm-loc-doi" placeholder="Lọc đội…" value={locD} onChange={(e) => setLocD(e.target.value)} />
+            {coLocC && <button className="btn-mini" onClick={() => setLocC({})} title="Bỏ lọc theo cột — số đã chia giữ nguyên">Bỏ lọc cột ({dongDu.length - dong.length} ẩn)</button>}
             <button className="btn-mini" onClick={() => setMoRong((v) => !v)}>{moRong ? 'Thu gọn' : 'Mở rộng'}</button>
           </div>
           {moRong && (
@@ -422,16 +434,23 @@ function TheMa({ i, bc, r, c, kh, coSo, qt, chonDoi, tenDoi, gt, dx, tcD, cuaSo,
 // Bảng đối soát: đội × mã (sửa thẳng)
 function BangDoiSoat({ dsMa, chonDoi, tenDoi, gt, onO, onDong }) {
   const [sap, setSap] = useState({ k: 'ten', g: 1 });
-  const hang = chonDoi.map((m) => ({ m, ten: tenDoi(m), tong: dsMa.reduce((a, x) => a + gt(x.bc, m), 0), ...Object.fromEntries(dsMa.map((x) => [x.bc, gt(x.bc, m)])) }))
-    .sort((a, b) => sap.g * ((a[sap.k] > b[sap.k]) - (a[sap.k] < b[sap.k])));
-  const muiTen = (key) => (sap.k === key ? (sap.g < 0 ? ' ↓' : ' ↑') : '');
-  const doiSap = (key) => setSap((s) => ({ k: key, g: s.k === key ? -s.g : -1 }));
+  const [locC, setLocC] = useState({});
+  const hangDu = chonDoi.map((m) => ({ m, ten: tenDoi(m), tong: dsMa.reduce((a, x) => a + gt(x.bc, m), 0), ...Object.fromEntries(dsMa.map((x) => [x.bc, gt(x.bc, m)])) }));
+  const cot = { ten: { lay: (h) => h.ten, loai: 'chu', tim: (h) => `${h.ten} ${h.m}` }, tong: { lay: (h) => h.tong },
+    ...Object.fromEntries(dsMa.map((x) => [x.bc, { lay: (h) => h[x.bc] || 0 }])) };
+  const hang = locVaSap(hangDu, cot, sap, locC, (a, b) => a.m.localeCompare(b.m));
+  const coLocC = Object.values(locC).some((v) => String(v || '').trim());
+  const thd = (key, ten, className, title) => (
+    <ThCot k={key} ten={ten} title={title} loai={cot[key].loai} className={className} sap={sap} onSap={setSap}
+      loc={locC[key]} onLoc={(v) => setLocC((o) => ({ ...o, [key]: v }))} giaTri={() => hangDu.map(cot[key].lay)} />
+  );
   return (
     <div className="kt-modal" onMouseDown={(e) => { if (e.target === e.currentTarget) onDong(); }}>
       <div className="cm-ds">
         <div className="lp-dau">
           <div><b>Bảng đối soát — chia hàng mới đội sale</b>
-            <div className="lp-phu">{chonDoi.length} đội · {dsMa.length} mã · {fmtN(dsMa.reduce((a, x) => a + x.tong, 0))} cái — sửa số ngay trong bảng, bấm tiêu đề để sắp xếp</div></div>
+            <div className="lp-phu">{chonDoi.length} đội · {dsMa.length} mã · {fmtN(dsMa.reduce((a, x) => a + x.tong, 0))} cái — sửa số ngay trong bảng, bấm tiêu đề để sắp xếp, phễu để lọc
+              {coLocC && <> · <button className="lk" onClick={() => setLocC({})}>Bỏ lọc ({hangDu.length - hang.length} đội ẩn)</button></>}</div></div>
           <button className="lp-dong" onClick={onDong}>✕</button>
         </div>
         <div className="lp-cuon">
@@ -439,9 +458,10 @@ function BangDoiSoat({ dsMa, chonDoi, tenDoi, gt, onO, onDong }) {
             <thead>
               <tr>
                 <th className="ds-stt">#</th>
-                <th className="ds-ch ds-sort" onClick={() => doiSap('ten')}>Đội{muiTen('ten')}</th>
-                {dsMa.map((x) => <th key={x.bc} className="ds-ma ds-sort" onClick={() => doiSap(x.bc)} title={x.r?.nganh_3 || ''}><span className="ds-ma-nhan">{x.r?.ma_tham_chieu || x.bc}{muiTen(x.bc)}</span></th>)}
-                <th className="ds-tong ds-sort" onClick={() => doiSap('tong')}>Tổng{muiTen('tong')}</th>
+                {thd('ten', 'Đội', 'ds-ch')}
+                {dsMa.map((x) => <ThCot key={x.bc} k={x.bc} ten={<span className="ds-ma-nhan">{x.r?.ma_tham_chieu || x.bc}</span>} nhan={x.r?.ma_tham_chieu || x.bc} title={x.r?.nganh_3 || ''} className="ds-ma" sap={sap} onSap={setSap}
+                  loc={locC[x.bc]} onLoc={(v) => setLocC((o) => ({ ...o, [x.bc]: v }))} giaTri={() => hangDu.map((h) => h[x.bc] || 0)} />)}
+                {thd('tong', 'Tổng', 'ds-tong')}
               </tr>
             </thead>
             <tbody>
