@@ -93,6 +93,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
   }), [conGui.length, don, kq, chon]);   // eslint-disable-line
   const canh = [...(opts.canh || []), ...canhSv];
   const chung = { lyDo, nguoiTao: nguoiCoDinh || nguoiTao, ghiChu };
+  const ghiGop = (d) => [d.ghi_chu, ghiChu].map((x) => String(x || '').trim()).filter(Boolean).join(' | ');   // đúng như thanhRequest gửi
 
   const doiChon = (i) => setChon((s) => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
   const doiMo = (i) => setMo((s) => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
@@ -143,7 +144,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
     setKq((m) => ({ ...m, ...kqMoi }));
     if (r.loi) setLoi(r.loi);
     const nLoi = ds.length - okMoi.length;
-    if (okMoi.length) { nhoGhiChu(ghiChu); ds.forEach((d) => { if (laDoiSale(d.kho_yeu_cau) && d.sale_tai_cua_hang) nhoSaleCh(d.kho_yeu_cau, d.sale_tai_cua_hang); }); }
+    if (okMoi.length) { nhoGhiChu(ghiChu); okMoi.forEach((d) => { if (d.ghi_chu && !/^Khẩn cấp:/.test(d.ghi_chu)) nhoGhiChu(d.ghi_chu); }); ds.forEach((d) => { if (laDoiSale(d.kho_yeu_cau) && d.sale_tai_cua_hang) nhoSaleCh(d.kho_yeu_cau, d.sale_tai_cua_hang); }); }
     baoToast(`Odoo: ${okMoi.length ? `✓ tạo ${okMoi.length} đơn${laCH ? '' : ' — đã trừ tồn khả dụng kho'}` : ''}${okMoi.length && nLoi ? ' · ' : ''}${nLoi ? `${nLoi} đơn chưa tạo được — xem từng đơn` : ''}`);
     if (okMoi.length && opts.onThanhCong) {
       try { await opts.onThanhCong(okMoi); } catch (e) { baoToast('Đã tạo đơn Odoo nhưng bước lưu sau đó lỗi: ' + (e?.message || e)); }
@@ -184,7 +185,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
                 <input value={nguoiTao} maxLength={40} disabled={dangGui} placeholder="Để trống = user của kho yêu cầu"
                   onChange={(e) => setNguoiTao(e.target.value)} />
               </label>)}
-            <label className="rong">Ghi chú chung <small className="od-dem">{ghiChu.length}/300</small>
+            <label className="rong">Ghi chú chung — thêm vào mọi đơn <small className="od-dem">{ghiChu.length}/300</small>
               <textarea value={ghiChu} maxLength={300} rows={2} disabled={dangGui} placeholder="Vd: Giao gấp trước 15h · Hàng khách đặt · Gom chung chuyến xe chiều"
                 onChange={(e) => setGhiChu(e.target.value)} />
               {gcGan.length > 0 && !dangGui && (
@@ -244,7 +245,6 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
                       <small>{d.kho_cung_ung} → {d.kho_yeu_cau}{d.ten_yeu_cau ? ' · ' + d.ten_yeu_cau : ''}
                         {d.ly_do && <span className="od-ly"> · lý do riêng: {d.ly_do}</span>}
                         {d.tai_lieu_nguon && d.tai_lieu_nguon !== d.name && <span> · nguồn {d.tai_lieu_nguon}</span>}</small>
-                      {d.ghi_chu && <small className="od-gc">✎ {d.ghi_chu}</small>}
                       {laDoiSale(d.kho_yeu_cau) && (
                         <div className="od-sale"><span>CH đội đang sale</span>
                           <Sel value={d.sale_tai_cua_hang || ''} timKiem placeholder="— không ghi —"
@@ -263,14 +263,18 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
                     </div>
                     <button className="od-mo" onClick={() => doiMo(d._i)}>{mo.has(d._i) ? 'Ẩn' : 'Chi tiết'}</button>
                   </div>
+                  {/* v3.121.0: ghi chú RIÊNG từng đơn — luôn hiện, gửi vào trường ghi_chu của Odoo (ghép với ghi chú chung) */}
+                  {!daTao ? (
+                    <div className="od-gc-don">
+                      <input value={d.ghi_chu || ''} maxLength={200} disabled={dangGui} aria-label={'Ghi chú đơn ' + (d.name || d.kho_cung_ung)}
+                        placeholder={`Ghi chú cho đơn ${d.nhom_ten || 'này'} — vd: giao trước 15h, hàng khách đặt…`}
+                        onChange={(e) => doiDon(d._i, { ghi_chu: e.target.value })} />
+                      {ghiChu.trim() && <small>Gửi Odoo: {ghiGop(d)}</small>}
+                    </div>
+                  ) : ghiGop(d) && <div className="od-gc-da">✎ {ghiGop(d)}</div>}
                   {k?.loi && k.trang_thai !== 'thanh_cong' && <div className="od-don-loi">{k.loi}</div>}
                   {mo.has(d._i) && (
                     <div className="od-ct-bao">
-                      {!daTao && (
-                        <label className="od-gc-rieng">Ghi chú riêng đơn này
-                          <input value={d.ghi_chu || ''} maxLength={200} disabled={dangGui} placeholder="Chỉ ghi vào đơn này (ghép với ghi chú chung)"
-                            onChange={(e) => doiDon(d._i, { ghi_chu: e.target.value })} />
-                        </label>)}
                       <table className="od-ct">
                         <thead><tr><th>Mã</th><th>SKU</th><th>Barcode</th><th className="num">SL</th></tr></thead>
                         <tbody>
