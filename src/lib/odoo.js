@@ -142,3 +142,20 @@ export async function odooTheoNguon(token, nguon) {
   const { data, error } = await sb.rpc('fn_odoo_ds', { p_token: token, p_ngay: 60, p_nguon: nguon });
   return error ? [] : data || [];
 }
+
+// NEW - 213: lấy phiếu xuất / nhận MỚI NHẤT từ Odoo (API pickings) cho vài đơn — máy chủ gọi Odoo, app hỏi lại kết quả.
+// Trả { ok, so_doi, loi } sau tối đa ~15 giây.
+export async function layMoiOdoo(token, names) {
+  const ds = [...new Set((names || []).filter(Boolean))].slice(0, 50);
+  if (!ds.length) return { ok: false, loi: 'Không có đơn' };
+  const { data, error } = await sb.rpc('fn_odoo_pk_lam_moi', { p_token: token, p_names: ds });
+  if (error) return { ok: false, loi: error.message };
+  if (!data?.ok) return { ok: false, loi: data?.loi || 'Không gửi được' };
+  for (let i = 0; i < 12; i++) {
+    await new Promise((r) => setTimeout(r, i < 3 ? 900 : 1500));
+    const k = await sb.rpc('fn_odoo_pk_doc', { p_token: token, p_req: data.req_id });
+    if (k.error) return { ok: false, loi: k.error.message };
+    if (k.data?.xong) return { ok: !k.data.loi, so_doi: k.data.so_doi || 0, so_don: k.data.so_don || 0, loi: k.data.loi };
+  }
+  return { ok: false, loi: 'Odoo trả lời chậm — app sẽ tự cập nhật ở lượt chạy ngầm kế tiếp' };
+}
