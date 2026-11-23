@@ -32,6 +32,7 @@ const NOI = { ai: 'AI', may_chu: 'Máy chủ', man_hinh: 'Màn hình' };
 const NGUON = {
   tong_quan: { ten: 'Cùng số liệu màn Tổng quan', chuan: true },
   lich_de_nghi: { ten: 'Cùng công thức màn Lịch đề nghị', chuan: true },
+  dieu_chuyen: { ten: 'Cùng quy tắc màn Điều chuyển kho (dữ liệu Odoo)', chuan: true },   // NEW - 3.137
   chia_doi: { ten: 'Engine màn Chia từng đội', chuan: true },
   ho_so: { ten: 'Hồ sơ chuẩn (bảng gốc)', chuan: true },
   xep_hang: { ten: 'Xếp hạng chuẩn (bảng gốc)', chuan: true },
