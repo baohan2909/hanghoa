@@ -79,3 +79,8 @@ export const aiDsPhien = (token, tim = null, gioiHan = 150) => rpc('fn_ai_ds_phi
 export const aiPhienSua = (token, id, p) => rpc('fn_ai_phien_sua', { p_token: token, p_phien: id, p });
 // NEW - 3.132 Quản trị: đối chiếu số liệu công cụ AI với công thức màn hình (SQL 218c)
 export const aiDoiChieu = (token) => rpc('fn_ai_doi_chieu', { p_token: token });
+// NEW - 3.133 Báo sai + Tri thức (bộ não) (SQL 219)
+export const aiBaoSai = (token, viec, ghiChu, ghiNho = true) => rpc('fn_ai_bao_sai', { p_token: token, p_viec: viec || null, p_ghi_chu: ghiChu, p_ghi_nho: !!ghiNho });
+export const aiDsBaoSai = (token, xuLyId = null, xuLy = null) => rpc('fn_ai_ds_bao_sai', { p_token: token, p_xu_ly_id: xuLyId, p_xu_ly: xuLy });
+export const aiTriThucDs = (token, tim = null) => rpc('fn_ai_tri_thuc_ds', { p_token: token, p_tim: tim || null });
+export const aiTriThucLuu = (token, p) => rpc('fn_ai_tri_thuc_luu', { p_token: token, p });

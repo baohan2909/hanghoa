@@ -9,7 +9,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { IcBrain, IcCheck, IcAlert, IcClock, IcGear, IcMoRong, IcThuNho, IcRefresh, IcSpark, IcBox } from './icons.jsx';
 import { Sel } from './ui.jsx';
 import { layCau, choCau, datMo } from './sttCau.js';
-import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa, aiDsPhien, aiPhienSua, aiDoiChieu } from './sttApi.js';
+import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa, aiDsPhien, aiPhienSua, aiDoiChieu, aiBaoSai, aiDsBaoSai, aiTriThucDs, aiTriThucLuu } from './sttApi.js';
 import { useGiong } from './sttGiong.js';   // NEW - 3.129 giọng nói nói dài, bấm nhiều lần
 
 const fmt = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
@@ -17,6 +17,11 @@ const giay = (ms) => (ms == null ? '' : ms < 1000 ? `${Math.max(1, Math.round(ms
 const gioPhut = (t) => { if (!t) return ''; const d = new Date(t); return d.toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }); };
 const ngayGio = (t) => { if (!t) return ''; const d = new Date(t); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${gioPhut(t)}`; };
 const laPc = () => typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;   // PC: Enter gửi · điện thoại: Enter xuống dòng
+const chepChu = async (t) => {   // NEW - 3.133 chép truy vấn để anh tự chạy đối chiếu
+  try { await navigator.clipboard.writeText(t); return true; } catch {
+    try { const a = document.createElement('textarea'); a.value = t; a.style.position = 'fixed'; a.style.opacity = '0'; document.body.appendChild(a); a.select(); const ok = document.execCommand('copy'); a.remove(); return ok; } catch { return false; }
+  }
+};
 const demChu = (s) => (String(s || '').trim() ? String(s).trim().split(/\s+/).length : 0);
 const lsG = (k, d) => { try { const v = localStorage.getItem('stt_' + k); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const lsS = (k, v) => { try { if (v == null) localStorage.removeItem('stt_' + k); else localStorage.setItem('stt_' + k, JSON.stringify(v)); } catch { /* */ } };
@@ -57,7 +62,8 @@ const tinTuMay = (ds) => (ds || []).map((x) => (x.vai === 'nguoi'
   ? { id: 'n' + x.id, vai: 'nguoi', text: x.noi_dung }
   : { id: 'a' + x.id, vai: 'ai', trang_thai: 'xong', tra_loi: x.noi_dung, the: x.viec?.the || null, viec_id: x.viec_id, pt: 100,
       bat_dau: x.viec?.bat_dau ? new Date(x.viec.bat_dau).getTime() : null, ket_thuc: x.viec?.ket_thuc ? new Date(x.viec.ket_thuc).getTime() : null,
-      token: x.viec ? { vao: x.viec.token_vao || 0, ra: x.viec.token_ra || 0 } : null, nguon: x.viec?.ke_hoach?.nguon || [], buoc: [], canTt: !!x.viec?.the?.thao_tac_id }));
+      token: x.viec ? { vao: x.viec.token_vao || 0, ra: x.viec.token_ra || 0 } : null, nguon: x.viec?.ke_hoach?.nguon || [], cach: x.viec?.ke_hoach?.cach || [], nho: x.viec?.ke_hoach?.nho || [], tri: x.viec?.ke_hoach?.tri || [],
+      buoc: [], canTt: !!x.viec?.the?.thao_tac_id }));
 
 // chữ trả lời: "- " -> gạch đầu dòng, **đậm**
 function Chu({ text }) {
@@ -203,9 +209,24 @@ function TheChiaDoi({ the, tt, onDuyet, onHuy, onXem, gon }) {
 // ---------------------------------------------------------------------------
 // Một lượt AI trong khung trò chuyện
 // ---------------------------------------------------------------------------
-function LuotAI({ m, onDung, onDuyet, onHuy, onXem, onCt }) {
+function LuotAI({ m, onDung, onDuyet, onHuy, onXem, onCt, onBaoSai }) {
   const dang = m.trang_thai === 'dang';
   const [moBuoc, setMoBuoc] = useState(false);
+  // NEW - 3.133 cách tính + báo sai
+  const [moCach, setMoCach] = useState(false);
+  const [chep, setChep] = useState(-1);
+  const [moBs, setMoBs] = useState(false);
+  const [bs, setBs] = useState('');
+  const [hocBs, setHocBs] = useState(true);
+  const [guiBs, setGuiBs] = useState(false);
+  const [loiBs, setLoiBs] = useState('');
+  const guiBaoSai = async (e) => {
+    e.preventDefault();
+    if (!bs.trim() || guiBs) return;
+    setGuiBs(true); setLoiBs('');
+    try { await onBaoSai?.(bs.trim(), hocBs); setMoBs(false); setBs(''); } catch (er) { setLoiBs(er.message || 'Chưa gửi được'); }
+    setGuiBs(false);
+  };
   const [dem, setDem] = useState(0);
   useEffect(() => {
     if (!dang) return undefined;
@@ -246,6 +267,34 @@ function LuotAI({ m, onDung, onDuyet, onHuy, onXem, onCt }) {
             <span key={n} className={'stt-nguon-o ' + (NGUON[n].chuan ? 'chuan' : 'tu')}>{NGUON[n].chuan ? <IcCheck /> : <IcAlert />}{NGUON[n].ten}</span>
           ))}</div>
         )}
+        {/* NEW - 3.133 cách tính đằng sau con số + tri thức đã dùng + điều AI vừa ghi nhớ */}
+        {!dang && (m.cach?.length > 0 || m.tri?.length > 0) && (
+          <div className="stt-cach-o">
+            {m.cach?.length > 0 && <button className="stt-lk" onClick={() => setMoCach((v) => !v)} aria-expanded={moCach}>Cách tính <i className={'stt-mui' + (moCach ? ' len' : '')} /></button>}
+            {m.tri?.length > 0 && <span className="stt-tri-dem" title={m.tri.map((t) => t.cum).join(', ')}><IcBrain />Dùng {m.tri.length} tri thức</span>}
+          </div>
+        )}
+        {!dang && moCach && m.cach?.length > 0 && (
+          <div className="stt-cach">
+            {m.cach.map((c, i) => (
+              <div key={i} className={'stt-cach-dong ' + (c.cong_cu === 'hoi_so_lieu' ? 'tu' : 'chuan')}>
+                <b>{c.nhan}</b>
+                <p>{c.dinh_nghia}</p>
+                {c.bang?.length > 0 && <p className="stt-nho">Bảng dữ liệu: {c.bang.join(' · ')}</p>}
+                {c.sql && <>
+                  <pre className="stt-cach-sql">{c.sql}</pre>
+                  <button className="stt-lk" onClick={async () => { if (await chepChu(c.sql)) { setChep(i); setTimeout(() => setChep(-1), 1800); } }}>{chep === i ? 'Đã chép' : 'Chép truy vấn để tự chạy'}</button>
+                </>}
+              </div>
+            ))}
+            {m.tri?.length > 0 && <p className="stt-nho">Tri thức đã nạp: {m.tri.map((t) => t.cum).join(' · ')}</p>}
+          </div>
+        )}
+        {!dang && m.nho?.length > 0 && (
+          <div className="stt-hoc-ds">{m.nho.map((x, i) => (
+            <span key={i} className={'stt-hoc-o ' + (x.trang_thai === 'dung' ? 'dung' : 'cho')} title={x.noi_dung}><IcBrain />Đã ghi nhớ: {String(x.cum_tu || '').split(',')[0]}{x.trang_thai === 'dung' ? '' : ' · chờ Quản trị duyệt'}</span>
+          ))}</div>
+        )}
         {m.the?.loai === 'chia_doi' && <TheChiaDoi the={m.the} tt={m.tt} onDuyet={onDuyet} onHuy={onHuy} onXem={onXem} />}
         {!dang && (m.viec_id || ds.length > 0) && (
           <div className="stt-luot-chan">
@@ -254,9 +303,23 @@ function LuotAI({ m, onDung, onDuyet, onHuy, onXem, onCt }) {
             <span className="stt-chan-phai">
               {ds.length > 0 && <button className="stt-lk" onClick={() => setMoBuoc((v) => !v)} aria-expanded={moBuoc}>{ds.length} bước đã làm <i className={'stt-mui' + (moBuoc ? ' len' : '')} /></button>}
               {m.viec_id && <button className="stt-lk" onClick={onCt}>Chi tiết</button>}
+              {m.viec_id && onBaoSai && !m.baoSai && <button className="stt-lk stt-lk-bs" onClick={() => setMoBs((v) => !v)} aria-expanded={moBs}>Báo sai</button>}
             </span>
           </div>
         )}
+        {!dang && moBs && !m.baoSai && (
+          <form className="stt-bs" onSubmit={guiBaoSai}>
+            <textarea value={bs} onChange={(e) => setBs(e.target.value)} rows={3} maxLength={1000} autoFocus
+              placeholder="Sai chỗ nào? Số đúng là bao nhiêu, phải hiểu hoặc tính thế nào…" />
+            <label className="stt-bs-hoc"><input type="checkbox" checked={hocBs} onChange={(e) => setHocBs(e.target.checked)} /> Lưu thành bài học — câu hỏi tương tự lần sau em làm theo</label>
+            {loiBs && <p className="stt-loi"><IcAlert />{loiBs}</p>}
+            <div className="stt-bs-nut">
+              <button type="button" className="btn btn-ghost" onClick={() => setMoBs(false)}>Huỷ</button>
+              <button type="submit" className="btn btn-ai" disabled={!bs.trim() || guiBs}>{guiBs ? 'Đang gửi…' : 'Gửi báo sai'}</button>
+            </div>
+          </form>
+        )}
+        {m.baoSai && <p className="stt-bs-ok"><IcCheck />Đã ghi nhận báo sai{m.baoSai.hoc ? ' · đã lưu bài học vào tri thức' : ''}.</p>}
         {!dang && moBuoc && ds.length > 0 && (
           <div className="stt-buoc-mo">
             {m.ke_hoach && <p className="stt-kh"><IcSpark />{m.ke_hoach}</p>}
@@ -392,6 +455,12 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   }, [mo]);
 
   const capNhat = useCallback((id, fn) => setTin((t) => t.map((m) => (m.id === id ? { ...m, ...(typeof fn === 'function' ? fn(m) : fn) } : m))), []);
+  // NEW - 3.133 báo sai 1 câu trả lời (kèm lưu bài học vào tri thức)
+  const baoSai = useCallback(async (m, ghiChu, hoc) => {
+    const r = await aiBaoSai(token, m.viec_id, ghiChu, hoc);
+    capNhat(m.id, { baoSai: { ghi_chu: ghiChu, hoc: !!r?.tri_thuc?.ok } });
+    baoToast?.(r?.tri_thuc?.ok ? (r.tri_thuc.trang_thai === 'dung' ? 'Đã ghi nhận — em lưu bài học, câu tương tự lần sau sẽ làm theo' : 'Đã ghi nhận — bài học chờ Quản trị duyệt') : 'Đã ghi nhận báo sai');
+  }, [token, capNhat, baoToast]);
   const tenTab = useCallback((id) => (tabsDuoc || []).find((t) => t.id === id)?.ten || id, [tabsDuoc]);
 
   // ----- mở màn (dùng cho công cụ mo_man, chia_doi, Xem trên màn) -----
@@ -487,7 +556,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
         if (i >= 0) ds[i] = { ...ds[i], ...e }; else ds.push(e);
         return { buoc: ds };
       });
-      else if (e.t === 'xong') capNhat(id, (m) => ({ trang_thai: 'xong', pt: 100, ptToi: 100, tra_loi: e.tra_loi, the: e.the || m.the, token: e.token, nguon: e.nguon || [], ket_thuc: Date.now() }));
+      else if (e.t === 'xong') capNhat(id, (m) => ({ trang_thai: 'xong', pt: 100, ptToi: 100, tra_loi: e.tra_loi, the: e.the || m.the, token: e.token, nguon: e.nguon || [], cach: e.cach || [], nho: e.nho || [], tri: e.tri || [], ket_thuc: Date.now() }));
       else if (e.t === 'loi') capNhat(id, { trang_thai: 'loi', loi: e.loi, ket_thuc: Date.now() });
     };
     let res = await goiLuong({ token, hanh_dong: 'chay', yeu_cau: yeuCau, phien_id: phienRef.current, man: tenTab(tab), ngu_canh: nguCanh() }, onE, ac.signal);
@@ -609,7 +678,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
                 {tin.map((m) => (m.vai === 'nguoi'
                   ? <div key={m.id} className="stt-nguoi"><p>{m.text}</p></div>
                   : <LuotAI key={m.id} m={m} onDung={() => dung(m)} onDuyet={() => duyet(m)} onHuy={() => huy(m)} onXem={xem}
-                      onCt={() => { setCtId(m.viec_id); setView('ct'); }} />))}
+                      onCt={() => { setCtId(m.viec_id); setView('ct'); }} onBaoSai={(g, h) => baoSai(m, g, h)} />))}
               </div>
               {/* NEW - 3.129/3.130 ô soạn kiểu ChatGPT: gọn = 1 hàng [chữ][micro][gửi]; mở = chữ ở trên tự giãn, hàng nút ở dưới */}
               <form ref={formRef} className={'stt-soan' + (moSoan ? ' mo' : ' gon') + (gi.nghe ? ' nghe' : '') + (to ? ' to' : '') + (banPhim ? ' ban-phim' : '')} onSubmit={(e) => { e.preventDefault(); giao(nhap); }}>
@@ -654,7 +723,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
           {view === 'ls' && <LichSu token={token} admin={quyen.admin} onMo={(id) => { setCtId(id); setView('ct'); }} />}
           {view === 'ct' && ctId && <ChiTiet token={token} id={ctId} onVe={() => setView('ls')}
             onDuyet={async (t) => { const m = { id: 'ct', the: t.xem_truoc ? { ...t.xem_truoc, thao_tac_id: t.id } : null }; if (m.the) { setView('chat'); const jid = 'd' + Date.now(); setTin((x) => [...x, { id: jid, vai: 'ai', trang_thai: 'xong', tra_loi: 'Duyệt lại phiếu từ Lịch sử:', the: m.the, pt: 100, buoc: [] }]); setTimeout(() => duyet({ id: jid, the: m.the }), 50); } }} />}
-          {view === 'cai' && quyen.admin && <CaiDat token={token} onDoi={() => aiQuyen(token).then(setQuyen, () => {})} baoToast={baoToast} />}
+          {view === 'cai' && quyen.admin && <CaiDat token={token} onDoi={() => aiQuyen(token).then(setQuyen, () => {})} baoToast={baoToast} onCt={(id) => { setCtId(id); setView('ct'); }} />}
         </div>
       )}
     </>
@@ -829,7 +898,7 @@ function ChiTiet({ token, id, onVe, onDuyet }) {
 // CÀI ĐẶT (Quản trị)
 // ---------------------------------------------------------------------------
 const VAI = [['ADMIN', 'Quản trị'], ['DIEU_PHOI', 'Điều phối'], ['KHO', 'Kho tổng'], ['CH', 'Cửa hàng']];
-function CaiDat({ token, onDoi, baoToast }) {
+function CaiDat({ token, onDoi, baoToast, onCt }) {
   const [d, setD] = useState(null);
   const [cfg, setCfg] = useState(null);
   const [khoa, setKhoa] = useState('');
@@ -902,6 +971,8 @@ function CaiDat({ token, onDoi, baoToast }) {
           </div>
         )}
       </section>
+      <TriThuc token={token} baoToast={baoToast} />
+      <BaoSaiDs token={token} onCt={onCt} />
       <section>
         <h4>Hoạt động</h4>
         <label className="stt-bat"><input type="checkbox" checked={!!cfg.bat} onChange={(e) => luu({ bat: e.target.checked })} /> Bật SIÊU TRÍ TUỆ</label>
@@ -929,6 +1000,117 @@ function CaiDat({ token, onDoi, baoToast }) {
         )}
       </section>
     </div>
+  );
+}
+// ---------------------------------------------------------------------------
+// NEW - 3.133 TRI THỨC (bộ não): nghĩa từ ngữ / quy tắc / bài học sửa sai — xem, thêm, sửa, duyệt, tắt, xoá
+// ---------------------------------------------------------------------------
+const LOAI_TT = { tu_ngu: 'Từ ngữ', quy_tac: 'Quy tắc luôn áp dụng', sua_sai: 'Bài học sửa sai' };
+const NGUON_TT = { he_thong: 'Hệ thống', ai_ghi_nho: 'AI ghi nhớ', quan_tri: 'Quản trị', nguoi_dung: 'Người dùng' };
+const CC_TT = [['', 'Không chỉ định'], ['lich_de_nghi', 'Lịch đề nghị'], ['tong_quan', 'Tổng quan'], ['ho_so', 'Hồ sơ'], ['xep_hang', 'Xếp hạng'], ['hoi_so_lieu', 'Tự tra số liệu'], ['chia_doi', 'Chia từng đội']];
+function FormTT({ v, onDoi, onLuu, onHuy, dang }) {
+  const thieuCum = v.loai === 'tu_ngu' && !String(v.cum_tu || '').trim();
+  return (
+    <div className="stt-tt-form">
+      <div className="stt-luoi">
+        <label>Loại<Sel value={v.loai} onChange={(x) => onDoi({ ...v, loai: x })} options={Object.entries(LOAI_TT).map(([value, label]) => ({ value, label }))} /></label>
+        <label>Công cụ nên dùng<Sel value={v.cong_cu || ''} onChange={(x) => onDoi({ ...v, cong_cu: x })} options={CC_TT.map(([value, label]) => ({ value, label }))} /></label>
+      </div>
+      <label>Cụm từ (cách nhau dấu phẩy){v.loai === 'tu_ngu' ? '' : ' — không bắt buộc'}<input value={v.cum_tu || ''} onChange={(e) => onDoi({ ...v, cum_tu: e.target.value })} placeholder="vd: đi hàng, chia tồn kho" /></label>
+      {v.loai === 'sua_sai' && <label>Câu hỏi mẫu<input value={v.cau_mau || ''} onChange={(e) => onDoi({ ...v, cau_mau: e.target.value })} placeholder="Câu hỏi từng bị trả lời sai" /></label>}
+      <label>Nội dung — AI sẽ hiểu thế này<textarea rows={3} value={v.noi_dung || ''} onChange={(e) => onDoi({ ...v, noi_dung: e.target.value })} maxLength={800} /></label>
+      <div className="stt-bs-nut">
+        <button type="button" className="btn btn-ghost" onClick={onHuy}>Huỷ</button>
+        <button type="button" className="btn btn-ai" disabled={dang || !String(v.noi_dung || '').trim() || thieuCum} onClick={onLuu}>{dang ? 'Đang lưu…' : 'Lưu'}</button>
+      </div>
+    </div>
+  );
+}
+function TriThuc({ token, baoToast }) {
+  const [ds, setDs] = useState(null);
+  const [tim, setTim] = useState('');
+  const [loc, setLoc] = useState('');
+  const [sua, setSua] = useState(null);
+  const [xoa, setXoa] = useState(null);
+  const [dang, setDang] = useState(false);
+  const [loi, setLoi] = useState('');
+  const tai = useCallback((t) => aiTriThucDs(token, t).then((x) => { setDs(Array.isArray(x) ? x : []); setLoi(''); }, (e) => setLoi(e.message)), [token]);
+  useEffect(() => { const h = setTimeout(() => tai(tim.trim()), tim ? 300 : 0); return () => clearTimeout(h); }, [tim, tai]);
+  const luu = async (p, bao) => {
+    setDang(true);
+    try { await aiTriThucLuu(token, p); baoToast?.(bao); setSua(null); setXoa(null); await tai(tim.trim()); } catch (e) { baoToast?.('Chưa lưu được: ' + e.message); }
+    setDang(false);
+  };
+  const luuForm = () => luu({ ...(sua.id ? { id: sua.id } : {}), loai: sua.loai, cum_tu: String(sua.cum_tu || '').trim(), noi_dung: String(sua.noi_dung || '').trim(),
+    cong_cu: sua.cong_cu || '', cau_mau: sua.loai === 'sua_sai' ? String(sua.cau_mau || '').trim() : '' }, sua.id ? 'Đã sửa tri thức' : 'Đã thêm — AI dùng từ câu sau');
+  const dem = useMemo(() => {
+    const d = ds || [];
+    return { dung: d.filter((x) => x.trang_thai === 'dung').length, cho: d.filter((x) => x.trang_thai === 'cho_duyet').length, tat: d.filter((x) => x.trang_thai === 'tat').length, sua_sai: d.filter((x) => x.loai === 'sua_sai').length };
+  }, [ds]);
+  const hien = (ds || []).filter((x) => !loc || (loc === 'sua_sai' ? x.loai === 'sua_sai' : x.trang_thai === loc));
+  const formEl = sua && <FormTT v={sua} onDoi={setSua} onLuu={luuForm} onHuy={() => setSua(null)} dang={dang} />;
+  return (
+    <section>
+      <h4>Tri thức (bộ não) {dem.cho > 0 && <span className="stt-chip c-cho_duyet">{dem.cho} chờ duyệt</span>}</h4>
+      <p className="stt-nho">Nghĩa từ ngữ, quy tắc và bài học sửa sai. Mỗi câu hỏi, máy chủ tự nạp các mục khớp để AI hiểu đúng ý. AI tự ghi nhớ khi được giải thích hoặc sửa — Quản trị dạy thì dùng ngay, người khác dạy thì chờ duyệt.</p>
+      <div className="stt-hang">
+        <input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm từ ngữ, nội dung…" />
+        <button className="btn btn-ai" onClick={() => setSua({ loai: 'tu_ngu', cum_tu: '', noi_dung: '', cong_cu: '' })} disabled={!!sua && !sua.id}>Thêm</button>
+      </div>
+      <div className="stt-cong">{[['', 'Tất cả', ds?.length || 0], ['cho_duyet', 'Chờ duyệt', dem.cho], ['dung', 'Đang dùng', dem.dung], ['tat', 'Đã tắt', dem.tat], ['sua_sai', 'Bài học sửa sai', dem.sua_sai]].map(([k, t, n]) => (
+        <button key={k} className={loc === k ? 'on' : ''} onClick={() => setLoc(k)}>{t} {n}</button>
+      ))}</div>
+      {sua && !sua.id && formEl}
+      {loi && <p className="stt-loi"><IcAlert />{loi}</p>}
+      {!ds ? <p className="stt-trong"><i className="stt-quay" /> Đang tải…</p> : hien.length === 0 ? <p className="stt-trong">Không có mục nào.</p> : (
+        <ul className="stt-tt-ds">{hien.map((x) => (sua?.id === x.id ? <li key={x.id} className="stt-tt sua">{formEl}</li> : (
+          <li key={x.id} className={'stt-tt ' + x.trang_thai}>
+            <div className="stt-tt-dau">
+              <span className={'stt-chip tt-' + x.loai}>{LOAI_TT[x.loai] || x.loai}</span>
+              {x.trang_thai === 'cho_duyet' && <span className="stt-chip c-cho_duyet">Chờ duyệt</span>}
+              {x.trang_thai === 'tat' && <span className="stt-chip tt-tat">Đã tắt</span>}
+              <b>{x.cum_tu || (x.cau_mau ? '“' + x.cau_mau + '”' : '—')}</b>
+            </div>
+            <p>{x.noi_dung}</p>
+            <small className="stt-tt-meta">{NGUON_TT[x.nguon] || x.nguon}{x.nguoi ? ' · ' + x.nguoi : ''}{x.cong_cu ? ' · dùng công cụ ' + x.cong_cu : ''} · đã nạp {fmt(x.so_lan_dung)} lần{x.dung_cuoi ? ' · gần nhất ' + ngayGio(x.dung_cuoi) : ''}</small>
+            <div className="stt-tt-nut">
+              {x.trang_thai === 'cho_duyet' && <button className="stt-lk" disabled={dang} onClick={() => luu({ id: x.id, trang_thai: 'dung' }, 'Đã duyệt — AI dùng từ câu sau')}>Duyệt</button>}
+              <button className="stt-lk" onClick={() => { setXoa(null); setSua({ id: x.id, loai: x.loai, cum_tu: x.cum_tu || '', noi_dung: x.noi_dung || '', cong_cu: x.cong_cu || '', cau_mau: x.cau_mau || '' }); }}>Sửa</button>
+              {x.trang_thai !== 'cho_duyet' && <button className="stt-lk" disabled={dang} onClick={() => luu({ id: x.id, trang_thai: x.trang_thai === 'tat' ? 'dung' : 'tat' }, x.trang_thai === 'tat' ? 'Đã bật lại' : 'Đã tắt — AI không dùng mục này nữa')}>{x.trang_thai === 'tat' ? 'Bật lại' : 'Tắt'}</button>}
+              <button className={'stt-lk' + (xoa === x.id ? ' do' : '')} disabled={dang} onClick={() => (xoa === x.id ? luu({ id: x.id, xoa: true }, 'Đã xoá') : setXoa(x.id))}>{xoa === x.id ? 'Bấm lần nữa để xoá' : 'Xoá'}</button>
+            </div>
+          </li>
+        )))}</ul>
+      )}
+    </section>
+  );
+}
+// NEW - 3.133 danh sách câu trả lời bị báo sai (Quản trị)
+function BaoSaiDs({ token, onCt }) {
+  const [ds, setDs] = useState(null);
+  const [loi, setLoi] = useState('');
+  const tai = useCallback((id) => aiDsBaoSai(token, id ?? null, id ? 'Đã xử lý' : null).then((x) => { setDs(Array.isArray(x) ? x : []); setLoi(''); }, (e) => setLoi(e.message)), [token]);
+  useEffect(() => { tai(); }, [tai]);
+  const chua = (ds || []).filter((x) => !x.xu_ly).length;
+  return (
+    <section>
+      <h4>Câu trả lời bị báo sai {ds && (chua ? <span className="stt-chip c-loi">{chua} chưa xử lý</span> : ds.length > 0 && <span className="stt-chip c-xong">đã xử lý hết</span>)}</h4>
+      <p className="stt-nho">Mỗi lần có người bấm Báo sai dưới câu trả lời. Dùng để sửa công cụ tận gốc; bài học tự lưu nằm ở mục Tri thức.</p>
+      {loi && <p className="stt-loi"><IcAlert />{loi}</p>}
+      {!ds ? <p className="stt-trong"><i className="stt-quay" /> Đang tải…</p> : ds.length === 0 ? <p className="stt-trong">Chưa có báo sai nào.</p> : (
+        <ul className="stt-tt-ds">{ds.map((x) => (
+          <li key={x.id} className={'stt-tt stt-bsd' + (x.xu_ly ? ' tat' : '')}>
+            <div className="stt-tt-dau"><b>{x.nguoi}</b><small className="stt-tt-meta">{ngayGio(x.tao_luc)}</small></div>
+            {x.yeu_cau && <p className="stt-bsd-hoi"><small>Hỏi</small>{x.yeu_cau}</p>}
+            <p className="stt-bsd-sai"><small>Sai</small>{x.ghi_chu}</p>
+            <div className="stt-tt-nut">
+              {x.viec_id && <button className="stt-lk" onClick={() => onCt?.(x.viec_id)}>Xem việc</button>}
+              {x.xu_ly ? <small className="stt-tt-meta">{x.xu_ly} · {ngayGio(x.xu_ly_luc)}</small> : <button className="stt-lk" onClick={() => tai(x.id)}>Đánh dấu đã xử lý</button>}
+            </div>
+          </li>
+        ))}</ul>
+      )}
+    </section>
   );
 }
 function OChu({ gt, onLuu, so }) {
