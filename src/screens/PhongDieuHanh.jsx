@@ -323,7 +323,7 @@ function TongQuan({ tk, dsKV, luong, odoo, ds, maSX, maDC, chNhac, gio, diToi, m
   // Hàng đợi ưu tiên: mức 3 nghiêm trọng · 2 cần chú ý · 1 theo dõi
   const hangDoi = useMemo(() => {
     const v = [];
-    if (odooCan > 0) v.push({ m: 3, ic: IcGuiLen, t: `${odooCan} đơn Odoo cần xử lý`, c: [odoo.dem.loi && `${odoo.dem.loi} gửi lỗi`, odoo.dem.qua_han && `${odoo.dem.qua_han} quá hạn`, odoo.dem.lech && `${odoo.dem.lech} lệch dữ liệu`, odoo.dem.chua_thay && `${odoo.dem.chua_thay} chưa thấy trên Odoo`].filter(Boolean).join(' · ') || 'Xem từng đơn', nut: 'Mở đơn', go: () => diToi.odoo('can_xu_ly') });
+    if (odooCan > 0) v.push({ m: 3, ic: IcGuiLen, t: `${odooCan} phiếu Odoo cần xử lý`, c: [odoo.dem.loi && `${odoo.dem.loi} gửi lỗi`, odoo.dem.qua_han && `${odoo.dem.qua_han} quá hạn`, odoo.dem.da_giao_cho_nhan && `${odoo.dem.da_giao_cho_nhan} đã giao chưa nhận` /* NEW - 3.139 */, odoo.dem.chua_thay && `${odoo.dem.chua_thay} chưa thấy trên Odoo`].filter(Boolean).join(' · ') || 'Xem từng đơn', nut: 'Mở đơn', go: () => diToi.odoo('can_xu_ly') });
     const kho0 = (luong?.theo_kho || [])[0];
     if (lb.cho_xuat?.qua_han) v.push({ m: lb.cho_xuat.qua_han >= 20 ? 3 : 2, ic: IcBox, t: `${lb.cho_xuat.qua_han} phiếu chờ xuất kho quá 2 ngày`, c: kho0 ? `Nhiều nhất kho ${kho0.kho} (${kho0.qua_han} phiếu quá hạn)` : '', nut: 'Xem phiếu', go: () => diToi.dc({ buoc: 'cho_xuat' }) });
     if (lb.dang_giao?.qua_han) v.push({ m: 2, ic: IcTruck, t: `${lb.dang_giao.qua_han} phiếu đã xuất quá 3 ngày chưa nhận`, c: 'Kiểm tra vận chuyển, nhắc cửa hàng xác nhận nhận hàng', nut: 'Xem phiếu', go: () => diToi.dc({ buoc: 'dang_giao' }) });
@@ -358,7 +358,7 @@ function TongQuan({ tk, dsKV, luong, odoo, ds, maSX, maDC, chNhac, gio, diToi, m
           <button className={'pdh-cs' + ((luong?.so_qua_han || 0) > 0 ? ' vang' : '')} onClick={() => diToi.dc({})}>
             <span>Phiếu điều chuyển đang xử lý</span><b>{luong ? fmtSo(dangXuLy) : '…'}</b><em>{luong ? `${fmtSo(luong.so_qua_han)} quá hạn · 14 ngày` : 'đang tải'}</em></button>
           <button className={'pdh-cs' + (odooCan ? ' do' : '')} onClick={() => diToi.odoo(odooCan ? 'can_xu_ly' : '')}>
-            <span>Đơn Odoo từ app</span><b>{odoo ? fmtSo(odoo.tong) : '…'}</b><em>{odoo ? (odooCan ? `${odooCan} cần xử lý` : 'không có sự cố') + ' · 30 ngày' : 'đang tải'}</em></button>
+            <span>Đơn hàng Odoo</span><b>{odoo ? fmtSo(odoo.tong) : '…'}</b><em>{odoo ? (odooCan ? `${odooCan} cần xử lý` : 'không có sự cố') + ' · 30 ngày' : 'đang tải'}</em></button>
         </div>
       </section>
 

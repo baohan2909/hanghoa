@@ -12,20 +12,24 @@ export default function DoiSoat() {
   const [syncTT, setSyncTT] = useState(null);        // tình trạng đồng bộ mỗi bước
   const [syncLS, setSyncLS] = useState(null);        // lịch sử đồng bộ
   const [dangTai, setDangTai] = useState(false);
+  const [dcTon, setDcTon] = useState(null);         // NEW - 3.139 đối chiếu tồn kho nguồn với phiếu Odoo
+  const [moCt, setMoCt] = useState(false);
 
   const tai = async (imLang) => {
     if (!imLang) setDangTai(true);
-    const [a, b, c, d] = await Promise.all([
+    const [a, b, c, d, e] = await Promise.all([
       sb.rpc('fn_doi_soat_moi_nhat'),
       sb.rpc('fn_doi_soat_lich_su', { p_gioi_han: 50 }),
       sb.rpc('fn_sync_tinh_trang'),
       sb.rpc('fn_sync_lich_su', { p_gioi_han: 40 }),
+      sb.rpc('fn_ton_dc_ds', { p_gio: 24 }),
     ]);
     if (a.error && !imLang) baoToast('Lỗi: ' + a.error.message);
     setMoiNhat(a.data || []);
     setLichSu(b.data || []);
     setSyncTT(c.data || []);
     setSyncLS(d.data || []);
+    if (!e.error) setDcTon(e.data || null);
     if (!imLang) setDangTai(false);
   };
   useEffect(() => { tai(); }, []);   // eslint-disable-line
@@ -115,6 +119,83 @@ export default function DoiSoat() {
             </div>
           ))}
       </div>
+
+      {/* NEW - 3.139 ĐỐI CHIẾU TỒN KHO NGUỒN VỚI PHIẾU ODOO (SQL 227) */}
+      {dcTon && (() => {
+        const gc = dcTon.gio_chuan || {};
+        const luot = dcTon.luot || [];
+        const ct = dcTon.chi_tiet || [];
+        const gio = (t) => (t ? new Date(t).toLocaleString('vi', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '—');
+        return (
+          <div className="card dct" style={{ marginTop: 16, padding: 0, overflow: 'hidden' }}>
+            <div className="card-head" style={{ padding: '12px 16px' }}>Đối chiếu tồn kho nguồn với phiếu Odoo (24 giờ)</div>
+            <div className="dct-ghi">
+              Mỗi lần tồn mới về: <b>tồn mới − (tồn trước − xuất theo phiếu + nhập theo phiếu)</b> = biến động không có phiếu Odoo
+              (bán, nhập mua / sản xuất, đơn online, kiểm kê). Xử lý sau 35 phút để phiếu kịp về.
+              <span className={'dct-chip ' + (gc.co > 0 ? 'ok' : 'vang')}>
+                {gc.co > 0 ? `Giờ chuẩn Odoo: ${fmtSL(gc.co)}/${fmtSL(gc.tong)} dòng tồn` : 'Đang dùng giờ GAS đọc — cập nhật GAS v3.33.0 + nhờ IT ghi giờ vào ô Q1'}
+              </span>
+              {dcTon.cho > 0 && <span className="dct-chip xam">{dcTon.cho} lượt tồn đang chờ đối chiếu</span>}
+            </div>
+            <div className="tbl-wrap" style={{ maxHeight: '44vh', overflow: 'auto' }}>
+              <table className="tbl tbl-fit">
+                <thead><tr>
+                  <th>Lượt tồn</th><th>Kho</th><th className="num">Tồn trước</th><th className="num">Xuất phiếu</th>
+                  <th className="num">Nhập phiếu</th><th className="num">Tồn mới</th>
+                  <th className="num">Tăng ngoài phiếu</th><th className="num">Giảm ngoài phiếu</th><th className="num">Mã lệch</th>
+                </tr></thead>
+                <tbody>
+                  {luot.length === 0 ? (
+                    <tr><td colSpan={9} style={{ textAlign: 'center', padding: 20, color: 'var(--ink-2)' }}>
+                      Chưa có lượt đối chiếu — cần 2 lượt tồn liên tiếp (lượt đầu chỉ làm mốc).</td></tr>
+                  ) : luot.map((r) => (
+                    <tr key={r.moc + r.kho} className={r.ngoai_giam <= -50 ? 'ds-row-lech' : ''}>
+                      <td style={{ fontSize: 12 }}>{gio(r.asof_truoc)} → {gio(r.asof_moi)}{r.gio_chuan !== 'odoo' && <i className="dct-gas"> giờ GAS</i>}</td>
+                      <td>{r.kho}</td>
+                      <td className="num">{fmtSL(r.ton_truoc)}</td>
+                      <td className="num">{r.xuat ? '−' + fmtSL(r.xuat) : '—'}</td>
+                      <td className="num">{r.nhap ? '+' + fmtSL(r.nhap) : '—'}</td>
+                      <td className="num">{fmtSL(r.ton_moi)}</td>
+                      <td className="num dct-tang">{r.ngoai_tang ? '+' + fmtSL(r.ngoai_tang) : '—'}</td>
+                      <td className="num dct-giam">{r.ngoai_giam ? fmtSL(r.ngoai_giam) : '—'}</td>
+                      <td className="num">{r.so_ma_lech || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {ct.length > 0 && (
+              <div className="dct-ct">
+                <button type="button" className="dct-mo" onClick={() => setMoCt(!moCt)} aria-expanded={moCt}>
+                  {moCt ? '▾' : '▸'} Mã lệch ở lượt mới nhất ({ct.length})</button>
+                {moCt && (
+                  <div className="tbl-wrap" style={{ maxHeight: '40vh', overflow: 'auto' }}>
+                    <table className="tbl tbl-fit">
+                      <thead><tr><th>Kho</th><th>Mã</th><th className="num">Tồn trước</th><th className="num">Xuất</th>
+                        <th className="num">Nhập</th><th className="num">Tồn mới</th><th className="num">Ngoài phiếu</th></tr></thead>
+                      <tbody>
+                        {ct.map((r) => (
+                          <tr key={r.kho + r.barcode}>
+                            <td>{r.kho}</td><td>{r.ma || r.barcode}</td>
+                            <td className="num">{fmtSL(r.ton_truoc)}</td><td className="num">{r.xuat || '—'}</td>
+                            <td className="num">{r.nhap || '—'}</td><td className="num">{fmtSL(r.ton_moi)}</td>
+                            <td className={'num ' + (r.ngoai < 0 ? 'dct-giam' : 'dct-tang')}>{r.ngoai > 0 ? '+' : ''}{fmtSL(r.ngoai)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+            {(dcTon.moc_ngay || []).length > 0 && (
+              <div className="dct-ghi">Mốc chuẩn của ngày (lượt tồn đầu tiên từ 1 giờ sáng):{' '}
+                {dcTon.moc_ngay.map((m) => <span key={m.kho} className="dct-chip xam">{m.kho} {fmtSL(m.tong_ton)} · {gio(m.asof)}</span>)}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Lịch sử đối soát */}
       <div className="card" style={{ marginTop: 16, padding: 0, overflow: 'hidden' }}>

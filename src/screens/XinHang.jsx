@@ -4,6 +4,7 @@ import { IcSpark, IcSearch, IcBox, IcAlert, IcDown, IcRefresh, IcGuiLen } from '
 import { useOdooCfg, moOdoo } from '../lib/odoo.js';
 import { Sel, DateBox, isoVN } from '../lib/ui.jsx';
 import { useApp } from '../App.jsx';
+import DangVeCt from '../lib/DangVeCt.jsx';   // NEW - 3.139 bấm số đi đường xem từng phiếu
 
 // ===== Màn ĐỀ NGHỊ HÀNG HÓA (10 mục hoàn thiện) =====
 // 4 nhóm: BH-chính / BH-sale / NV-chính / NV-sale (mục 4), mỗi nhóm 1 kho tổng (mục 5).
@@ -169,6 +170,7 @@ export default function XinHang() {
   const odoo = useOdooCfg(user);   // v3.114.0: tạo đơn Odoo qua API (chính thức từ v3.118.0)
   const [dsCH, setDsCH] = useState([]);
   const [maCH, setMaCH] = useState(user.ma_ch || '');
+  const [dvCt, setDvCt] = useState(null);   // NEW - 3.139 barcode đang xem chi tiết đang về
   const [rows, setRows] = useState(null);
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState('');
@@ -905,8 +907,10 @@ export default function XinHang() {
                           return <span style={{ whiteSpace: 'nowrap' }}
                             title={`Thực tế ${thuc} · ${di > 0 ? 'đang về' : 'đang xuất'} ${Math.abs(di)} · dự tính ${thuc + di}`}>
                             {thuc}
-                            <span style={{ color: di > 0 ? 'var(--teal-deep)' : 'var(--magenta)', fontWeight: 700, fontSize: 12 }}>
-                              {di > 0 ? ' + ' + di : ' − ' + Math.abs(di)}</span>
+                            <button type="button" className="ve-nut ve-nut-ch" onClick={(e) => { e.stopPropagation(); setDvCt(r.barcode); }}
+                              title="Bấm xem từng phiếu đang về / đang trả đi"
+                              style={{ color: di > 0 ? 'var(--teal-deep)' : 'var(--magenta)', fontWeight: 700, fontSize: 12 }}>
+                              {di > 0 ? ' + ' + di : ' − ' + Math.abs(di)}</button>
                             <span style={{ color: 'var(--ink-2)', fontSize: 12 }}> = </span>
                             <b>{thuc + di}</b>
                           </span>; })()}
@@ -1031,6 +1035,7 @@ export default function XinHang() {
           <img src={xemAnh} alt="Ảnh sản phẩm" />
         </div>
       )}
+      {dvCt && maCH && <DangVeCt maCh={maCH} barcode={dvCt} onDong={() => setDvCt(null)} />}
     </>
   );
 }

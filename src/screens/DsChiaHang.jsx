@@ -17,6 +17,7 @@ import GoiYThung, { useGoiYThung, NutGoiY, mucDiem } from './DsGoiYThung.jsx';
 import { boLocSo, boLocChu, ThCot, soSanh } from './DsLocCot.jsx';
 import { useNgheMo } from '../lib/sttCau.js';        // NEW - 3.127 SIÊU TRÍ TUỆ
 import { useCauChiaDoi } from './DsChiaDoiAi.js';    // NEW - 3.127 SIÊU TRÍ TUỆ
+import DangVeCt from '../lib/DangVeCt.jsx';          // NEW - 3.139 bấm Đang về xem từng phiếu
 
 // ============================================================================
 // CHIA HÀNG ĐỘI SALE (bản làm lại v3.102.0; v3.104.0 Kho thùng; v3.112.0 nâng cấp) — 6 chế độ:
@@ -140,7 +141,7 @@ const COT_MAC_DINH = [
   { k: 'ban', ten: 'Bán (cửa sổ)', mo: 'Số bán trong cửa sổ sức bán', w: 70 },
   { k: 'v', ten: '/ngày', mo: 'Bán trung bình mỗi ngày', w: 62, an: true },
   { k: 'ton', ten: 'Tồn', mo: 'Tồn hiện tại của đội', w: 64 },
-  { k: 've', ten: 'Đang về', mo: 'Đang về + đã giữ cho đội, chưa xuất', w: 70 },
+  { k: 've', ten: 'Về / đi', mo: 'Đang về: phiếu Odoo chưa nhận + đơn app chưa lên Odoo, so với tồn dự tính Odoo lấy số lớn hơn. ↩ = đang trả đi. Bấm số để xem từng phiếu', w: 70 },   // NEW - 3.139
   { k: 'nd', ten: 'Đủ (ngày)', mo: 'Số ngày đủ bán với hàng đang có', w: 70, an: true },
   { k: 'th', ten: 'Thùng', mo: 'Số trong các thùng đã chọn', w: 66 },
   { k: 'kd', ten: 'Tồn kho sale', mo: 'Kho SA (phụ kiện: PK05001) còn khả dụng; dòng nhỏ = còn lại sau khi chia', w: 96 },
@@ -158,6 +159,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
   const { user, baoToast } = useApp();
   const nguoi = user?.ma_dang_nhap || '';
   const [doi, setDoi] = useState(() => lsGet('doi_dang') || null);
+  const [dvCt, setDvCt] = useState(null);   // NEW - 3.139 mã đang xem chi tiết Đang về
   const [cuaSo, setCuaSo] = useState(() => lsGet('cua_so') || ts.cua_so || 28);
   const [mucTieu, setMucTieu] = useState(() => lsGet('muc_tieu') || ts.muc_tieu || 21);
   const [heSo, setHeSo] = useState(() => lsGet('he_so') || 100);
@@ -546,7 +548,10 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
       case 'ban': return <td key={k} className={x.ban ? 'dam' : 'mo'}>{x.ban || '·'}</td>;
       case 'v': return <td key={k} className={x.v ? 'phu' : 'mo'}>{x.v ? x.v.toFixed(1) : '·'}</td>;
       case 'ton': return <td key={k} className={x.ton ? '' : 'mo'}>{x.ton || '·'}</td>;
-      case 've': return <td key={k} className={x.ve ? 've' : 'mo'}>{x.ve ? (x.ve > 0 ? '+' + x.ve : x.ve) : '·'}</td>;
+      case 've': return <td key={k} className={x.ve ? (x.ve < 0 ? 've am' : 've') : 'mo'}>{x.ve   // NEW - 3.139 bấm xem từng phiếu; âm = đang trả đi
+        ? <button type="button" className="ve-nut" onClick={(e) => { e.stopPropagation(); setDvCt(x.bc); }}
+            title={x.ve < 0 ? 'Đang chuyển đi (trả kho) — bấm xem phiếu' : 'Bấm xem từng phiếu đang về'}>{x.ve > 0 ? '+' + x.ve : '↩ ' + Math.abs(x.ve)}</button>
+        : '·'}</td>;
       case 'nd': return <td key={k}><Ngay n={x.nd} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></td>;
       case 'th': return <td key={k} className="c-thung">{x.th || <span className="mo">·</span>}</td>;
       case 'kd': return (
@@ -978,6 +983,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
           Ô lọc dưới tiêu đề: gõ 5 (bằng), &gt;5, &lt;3, &gt;=5, !=0, hoặc khoảng 5-10; cột Sản phẩm gõ chữ (nhiều từ = phải có đủ).
         </div>
       )}
+      {dvCt && doi && <DangVeCt maCh={doi} barcode={dvCt} onDong={() => setDvCt(null)} />}
     </div>
   );
 }
@@ -1155,7 +1161,10 @@ function DsPhieu() {
                 <td><b>{p.ma_phieu}</b> <span className={'ch-nguon ' + ({ TK: 'tk', PK: 'pk' }[p.nguon] || 'sa')}>{{ TK: 'Thùng · TK05005', PK: 'Phụ kiện · PK05001' }[p.nguon] || 'Sale · SA'}</span>
                   <div className="tq-ghi">{p.loai === 'loat' ? 'Chia hàng mới' : 'Từng đội'}{p.ma_lien_quan ? ` · đi cùng ${p.ma_lien_quan}` : ''}</div>
                   {p.ghi_chu && <div className="ch-phieu-gc" title="Ghi chú — ghi ở dòng 1 của file">✎ {p.ghi_chu}</div>}
-                  {odoo && odChip(p)}</td>
+                  {odoo && odChip(p)}
+                  {p.odoo_huy && p.trang_thai === 'xac_nhan' && (   // NEW - 3.139 (SQL 230) Odoo đã huỷ đơn của phiếu
+                    <div className="ch-odoo-huy">Odoo đã huỷ {p.odoo_huy_ten || 'đơn'} — {p.nguon === 'TK' ? 'bấm Huỷ để trả thùng về kho (kiểm tra kho chưa giao tay)' : 'app đang nhả phần giữ'}</div>
+                  )}</td>
                 <td><span className={'ch-tt ' + TT[p.trang_thai][1]}>{ttTen(p)}</span></td>
                 <td>{(p.doi || []).map(tenNgan).join(', ')}</td>
                 <td className="num">{fmtN(p.so_ma)}</td>
