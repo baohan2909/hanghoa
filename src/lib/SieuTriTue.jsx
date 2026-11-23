@@ -267,6 +267,10 @@ function LuotAI({ m, onDung, onDuyet, onHuy, onXem, onCt, onBaoSai }) {
             <span key={n} className={'stt-nguon-o ' + (NGUON[n].chuan ? 'chuan' : 'tu')}>{NGUON[n].chuan ? <IcCheck /> : <IcAlert />}{NGUON[n].ten}</span>
           ))}</div>
         )}
+        {/* NEW - 3.135 câu trả lời có số mà không tra công cụ nào -> cảnh báo rõ, không để lẫn với số thật */}
+        {!dang && m.tra_loi && !(m.nguon?.length) && !m.the && (String(m.tra_loi).match(/\d{2,}/g) || []).length >= 2 && (
+          <div className="stt-nguon"><span className="stt-nguon-o tu"><IcAlert />Câu này không tra số liệu — số trong câu chưa được kiểm</span></div>
+        )}
         {/* NEW - 3.133 cách tính đằng sau con số + tri thức đã dùng + điều AI vừa ghi nhớ */}
         {!dang && (m.cach?.length > 0 || m.tri?.length > 0) && (
           <div className="stt-cach-o">
