@@ -247,7 +247,9 @@ export default function OdooDon({ nhung = false, locDau = null }) {
                     {r.ghi_chu && <div className="odn-gc-dong" title={r.ghi_chu}>✎ {r.ghi_chu}</div>}</td>
                   <td><div className="odn-ten nho">{r.kho_cung_ung} → {r.kho_yeu_cau}</div><div className="odn-phu">{r.ten_yeu_cau || ''}</div></td>
                   <td><Buoc7 r={r} /></td>
-                  <td className="so"><b>{r.sl_xuat != null ? fmt(r.sl_xuat) : '—'}</b> / {fmt(r.sl_odoo ?? r.tong_sl)}<div className="odn-phu">{r.so_dong ?? '—'} dòng</div></td>
+                  <td className="so"><b>{r.sl_xuat != null ? fmt(r.sl_xuat) : '—'}</b> / {fmt(r.sl_odoo ?? r.tong_sl)}
+                    {/* 3.139.3: dòng phụ theo số lượng (không theo số dòng) */}
+                    {r.sl_nhan > 0 && <div className="odn-phu">đã nhận {fmt(r.sl_nhan)}</div>}</td>
                   <td><DcChip r={r} /></td>
                   <td>{(r.canh || []).filter((c) => CANH[c]).length
                     ? <div className="odn-chips">{r.canh.map((c) => <Chip key={c} k={c} />)}</div>
