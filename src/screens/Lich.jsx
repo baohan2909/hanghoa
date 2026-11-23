@@ -673,6 +673,11 @@ function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h << 
 // ============ ĐIỀU CHUYỂN KHO — trạng thái THẬT từ Odoo (app chỉ đọc) ============
 // 4 trạng thái sheet: Chưa chuyển -> Chờ sẵn sàng -> Đã xuất -> Đã nhận.
 const DCK_TT = ['Chưa chuyển', 'Chờ sẵn sàng', 'Một phần', 'Đã xuất', 'Chưa nhận', 'Đã nhận'];
+// NEW - 3.139 Hướng phiếu (theo dõi mọi loại phiếu, gồm PDCK): kho / cửa hàng / đội
+const loaiNoi = (ma) => (/^DOISALE/i.test(ma || '') ? 'doi' : /^(CH|DB)\d/i.test(ma || '') ? 'ch' : 'kho');
+const HUONG = { 'kho>ch': 'Kho → cửa hàng', 'kho>doi': 'Kho → đội', 'ch>kho': 'Cửa hàng → kho (trả)', 'doi>kho': 'Đội → kho (trả)',
+  'kho>kho': 'Kho ↔ kho', 'ch>ch': 'Cửa hàng ↔ cửa hàng', 'doi>doi': 'Đội ↔ đội', 'ch>doi': 'Cửa hàng → đội', 'doi>ch': 'Đội → cửa hàng' };
+const huongPhieu = (r) => loaiNoi(r.ma_kho_nguon) + '>' + loaiNoi(r.ma_ch);
 // Nhóm hành trình vận chuyển -> chữ hiển thị cho nhân viên (không dùng từ kỹ thuật)
 const VD_NHOM = { CHO_LAY: 'chờ lấy', DANG_CHAY: 'đang giao', GIAO_XONG: 'đã giao',
   SU_CO: 'sự cố', TRA_HANG: 'trả hàng', HUY: 'đã hủy' };
@@ -928,6 +933,7 @@ function DckTheoPhieu({ tu, den, baoToast }) {
   const [locTT, setLocTT] = useState('');
   const [locCH, setLocCH] = useState('');
   const [locKho, setLocKho] = useState('');
+  const [locHuong, setLocHuong] = useState('');   // NEW - 3.139
   const [q, setQ] = useState('');
   const [sortC, setSortC] = useState({ col: 'tao', dir: 'desc' });
   const [vd, setVd] = useState({});             // ma_phieu -> hành trình vận đơn
@@ -971,6 +977,7 @@ function DckTheoPhieu({ tu, den, baoToast }) {
     if (locTT) v = v.filter((r) => r.trang_thai === locTT);
     if (locCH) v = v.filter((r) => r.ma_ch === locCH);
     if (locKho) v = v.filter((r) => r.ma_kho_nguon === locKho);
+    if (locHuong) v = v.filter((r) => huongPhieu(r) === locHuong);   // NEW - 3.139
     if (q.trim()) { const t = q.trim().toLowerCase();
       v = v.filter((r) => (r.ma_phieu || '').toLowerCase().includes(t)
         || (r.ten_ch || '').toLowerCase().includes(t) || (r.ma_ch || '').toLowerCase().includes(t)
@@ -983,16 +990,16 @@ function DckTheoPhieu({ tu, den, baoToast }) {
       const c = typeof x === 'string' ? x.localeCompare(y) : (x > y ? 1 : x < y ? -1 : 0);
       return sortC.dir === 'asc' ? c : -c; });
     return v;
-  }, [rows, locTT, locCH, locKho, q, sortC, vd, locTreo]);
+  }, [rows, locTT, locCH, locKho, locHuong, q, sortC, vd, locTreo]);
   const ds = (c) => setSortC((s) => ({ col: c, dir: s.col === c && s.dir === 'desc' ? 'asc' : 'desc' }));
   const ic = (c) => sortC.col === c ? (sortC.dir === 'asc' ? ' ▲' : ' ▼') : '';
   const bamTT = (tt) => setLocTT((v) => v === tt ? '' : tt);
 
   const xuat = async () => {
     const XLSX = await import('xlsx');
-    const hdr = ['Mã phiếu', 'Trạng thái', 'Cửa hàng nhận', 'Mã CH', 'Khu vực', 'Kho nguồn', 'Ngày tạo', 'Số mã', 'Tổng nhu cầu', 'Đã nhập', 'Vận chuyển', 'Ngày giao', 'Treo (ngày)'];
+    const hdr = ['Mã phiếu', 'Trạng thái', 'Cửa hàng nhận', 'Mã CH', 'Khu vực', 'Kho nguồn', 'Hướng', 'Ngày tạo', 'Số mã', 'Tổng nhu cầu', 'Đã nhập', 'Vận chuyển', 'Ngày giao', 'Treo (ngày)'];
     const data = hien.map((r) => [r.ma_phieu, r.trang_thai, r.ten_ch, r.ma_ch, r.khu_vuc,
-      r.ten_kho_nguon, r.ngay_tao ? fmtDM(r.ngay_tao) : '', Number(r.so_ma), Number(r.tong_nhu_cau), Number(r.tong_da_nhap),
+      r.ten_kho_nguon, HUONG[huongPhieu(r)], r.ngay_tao ? fmtDM(r.ngay_tao) : '', Number(r.so_ma), Number(r.tong_nhu_cau), Number(r.tong_da_nhap),
       VD_NHOM[vd[r.ma_phieu]?.nhom] || '', vd[r.ma_phieu]?.ngay_giao ? fmtDM(vd[r.ma_phieu].ngay_giao) : '',
       vd[r.ma_phieu]?.treo_ngay || 0]);
     const ws = XLSX.utils.aoa_to_sheet([hdr, ...data]); const wb = XLSX.utils.book_new();
@@ -1002,10 +1009,12 @@ function DckTheoPhieu({ tu, den, baoToast }) {
   return (
     <>
       <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Sel value={locCH} onChange={setLocCH} timKiem placeholder="Tất cả CH nhận"
-          options={[{ value: '', label: 'Tất cả CH nhận' }, ...dsCH]} style={{ minWidth: 180 }} />
-        <Sel value={locKho} onChange={setLocKho} timKiem placeholder="Mọi kho nguồn"
-          options={[{ value: '', label: 'Mọi kho nguồn' }, ...dsKho]} style={{ minWidth: 170 }} />
+        <Sel value={locCH} onChange={setLocCH} timKiem placeholder="Mọi nơi nhận"
+          options={[{ value: '', label: 'Mọi nơi nhận' }, ...dsCH]} style={{ minWidth: 180 }} />
+        <Sel value={locKho} onChange={setLocKho} timKiem placeholder="Mọi nơi xuất"
+          options={[{ value: '', label: 'Mọi nơi xuất' }, ...dsKho]} style={{ minWidth: 170 }} />
+        <Sel value={locHuong} onChange={setLocHuong} placeholder="Mọi hướng"
+          options={[{ value: '', label: 'Mọi hướng' }, ...Object.entries(HUONG).map(([k, t]) => ({ value: k, label: t }))]} style={{ minWidth: 170 }} />
         <input className="flt-in" placeholder="Tìm mã phiếu / CH / kho…" value={q}
           onChange={(e) => setQ(e.target.value)} style={{ height: 40, minWidth: 200, flex: 1 }} />
         <button className="btn btn-ghost" onClick={xuat}>Xuất Excel</button>
@@ -1038,8 +1047,9 @@ function DckTheoPhieu({ tu, den, baoToast }) {
             <thead><tr>
               <th className="sortable" onClick={() => ds('phieu')}>Mã phiếu{ic('phieu')}</th>
               <th className="center sortable" onClick={() => ds('tt')}>Trạng thái{ic('tt')}</th>
-              <th className="sortable" onClick={() => ds('ch')}>Cửa hàng nhận{ic('ch')}</th>
-              <th className="sortable" onClick={() => ds('kho')}>Kho nguồn{ic('kho')}</th>
+              <th className="sortable" onClick={() => ds('ch')}>Nơi nhận{ic('ch')}</th>
+              <th className="sortable" onClick={() => ds('kho')}>Nơi xuất{ic('kho')}</th>
+              <th>Hướng</th>
               <th className="sortable" onClick={() => ds('tao')}>Ngày tạo{ic('tao')}</th>
               <th className="num sortable" onClick={() => ds('ma')}>Số mã{ic('ma')}</th>
               <th className="num sortable" onClick={() => ds('nhu')}>Nhu cầu{ic('nhu')}</th>
@@ -1048,9 +1058,9 @@ function DckTheoPhieu({ tu, den, baoToast }) {
             </tr></thead>
             <tbody>
               {rows === null ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Đang tải…</td></tr>
               ) : hien.length === 0 ? (
-                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Chưa có phiếu điều chuyển (DK/KC) trong khoảng này.</td></tr>
+                <tr><td colSpan={10} style={{ textAlign: 'center', padding: 26, color: 'var(--ink-2)' }}>Chưa có phiếu điều chuyển trong khoảng này.</td></tr>
               ) : hien.map((r) => (
                 <tr key={r.ma_phieu}>
                   <td className="mono" style={{ fontWeight: 700, fontSize: 11 }}>{r.ma_phieu}
@@ -1059,6 +1069,7 @@ function DckTheoPhieu({ tu, den, baoToast }) {
                   <td><div style={{ fontWeight: 600 }}>{r.ten_ch}</div>
                     <div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_ch} · {r.khu_vuc}</div></td>
                   <td style={{ fontSize: 12 }}>{r.ten_kho_nguon}<div className="mono" style={{ fontSize: 10, color: 'var(--ink-2)' }}>{r.ma_kho_nguon}</div></td>
+                  <td><span className={'dck-huong ' + huongPhieu(r).replace('>', '-')}>{HUONG[huongPhieu(r)]}</span></td>
                   <td style={{ fontSize: 12 }}>{r.ngay_tao ? fmtDM(r.ngay_tao) : '—'}</td>
                   <td className="num">{Number(r.so_ma)}</td>
                   <td className="num" style={{ fontWeight: 700 }}>{Number(r.tong_nhu_cau)}</td>

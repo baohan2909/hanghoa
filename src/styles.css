@@ -6085,3 +6085,9 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
   .odn-tt { min-width: 120px; }
 }
 @media (prefers-reduced-motion: reduce) { .odn-the button { transition: none; } }
+
+/* NEW - 3.139 Hướng phiếu ở Điều chuyển kho (mọi loại phiếu, gồm PDCK) */
+.dck-huong { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; background: #EEF0F3; color: #5A6782; }
+.dck-huong.kho-ch, .dck-huong.kho-doi { background: #E3F1F0; color: #1E5F63; }
+.dck-huong.ch-kho, .dck-huong.doi-kho { background: #FDEBDD; color: #B4500F; }
+.dck-huong.ch-ch, .dck-huong.doi-doi, .dck-huong.ch-doi, .dck-huong.doi-ch { background: #E6EEFB; color: #1D4E9E; }
