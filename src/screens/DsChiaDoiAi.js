@@ -49,7 +49,7 @@ export function useCauChiaDoi(s) {
 }
 
 function nguCanh(x) {
-  const c = { man: 'Chia từng đội', ds_doi: x.dsDoi.slice(0, 60).map((d) => `${d.ma_ch}=${tenNgan(d.ten)}`).join('; ') };
+  const c = { man: 'Chia từng đội' };   // danh sách đội không gửi (máy chủ tự tìm theo số / tên) — đỡ tốn lượt AI
   if (!x.doi) return { ...c, doi: null };
   return { ...c, doi: x.doi, ten_doi: x.tenDoi, tham_so: { suc_ban_ngay: x.cuaSo, chia_du_ngay: x.mucTieu, ty_le: x.heSo },
     nhap: { thung: x.thung, so_ma_chia_them: Object.values(x.sua || {}).filter((v) => v > 0).length, tong_nhan: x.tong?.nhan } };

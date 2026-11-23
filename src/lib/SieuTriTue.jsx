@@ -22,8 +22,9 @@ const TT_PHIEU = { cho_duyet: 'Chờ duyệt', dang_chay: 'Đang thực hiện',
 const NOI = { ai: 'AI', may_chu: 'Máy chủ', man_hinh: 'Màn hình' };
 const GOI_Y = [
   'Chia đội 1 tầm 3–5 thùng, chia đủ 15 ngày, tổng tồn sau chia không quá 500',
-  'Kiểm tra lại bàn chia đang mở',
-  'Hôm nay toàn chuỗi bán bao nhiêu cái?',
+  'Tình hình đội 3 thế nào? Mã nào sắp hết?',
+  'Top 10 cửa hàng bán nhiều nhất tuần này, kèm tồn hiện tại',
+  'Cửa hàng Nguyễn Trãi 5 còn phiếu nào chưa nhận?',
 ];
 
 // chữ trả lời: "- " -> gạch đầu dòng, **đậm**
@@ -266,7 +267,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   const nguCanh = () => {
     const c = layCau('chia_doi');
     return { tab, ten_man: tenTab(tab), ...(c ? { chia_tung_doi: c.nguCanh() } : {}),
-      ...(phuongAn.current ? { phuong_an_gan_nhat: phuongAn.current } : {}), man_duoc_mo: (tabsDuoc || []).map((t) => t.id).join(',') };
+      ...(phuongAn.current ? { phuong_an_gan_nhat: phuongAn.current } : {}) };
   };
 
   // ----- chạy công cụ màn hình -----
@@ -443,7 +444,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
                 {tin.length === 0 && (
                   <div className="stt-chao">
                     <b>Anh giao việc, em làm trên màn hình rồi báo lại.</b>
-                    <p>Em dùng đúng công thức sẵn có của app (gợi ý chia, ghép thùng, làm tròn theo giá sale). Việc ghi dữ liệu luôn chờ anh bấm Duyệt.</p>
+                    <p>Hỏi gì về đội, cửa hàng, kho, sản phẩm em cũng tra được. Thao tác chia hàng dùng đúng công thức của app; việc ghi dữ liệu luôn chờ anh bấm Duyệt.</p>
                     <div className="stt-goi-y">{GOI_Y.map((g) => <button key={g} onClick={() => giao(g)} disabled={choDung}>{g}</button>)}</div>
                   </div>
                 )}
@@ -584,7 +585,7 @@ function CaiDat({ token, onDoi, baoToast }) {
   };
   const luuKhoa = async () => {
     setDang('khoa');
-    try { const r = await aiLuuKhoa(token, khoa); setKhoa(''); baoToast?.(`Đã cất khoá vào kho bí mật (…${r.khoa_cuoi})`); await tai(); onDoi?.(); } catch (e) { baoToast?.('Chưa lưu khoá: ' + e.message); }
+    try { const r = await aiLuuKhoa(token, khoa); setKhoa(''); baoToast?.(`Đã lưu khoá (…${r.khoa_cuoi})`); await tai(); onDoi?.(); } catch (e) { baoToast?.('Chưa lưu khoá: ' + e.message); }
     setDang('');
   };
   const thuNoi = async () => { setDang('thu'); setThu(null); setThu(await goiJson({ token, hanh_dong: 'thu' })); setDang(''); };
@@ -599,8 +600,7 @@ function CaiDat({ token, onDoi, baoToast }) {
   return (
     <div className="stt-khung stt-cai">
       <section>
-        <h4>Khoá FableAI</h4>
-        <p className="stt-nho">Khoá cất trong kho bí mật của máy chủ (Vault) — app và mã nguồn không bao giờ thấy. Hiện tại: {d?.khoa_cuoi ? <b>…{d.khoa_cuoi}</b> : <b className="do">chưa có</b>}</p>
+        <h4 className="stt-h-khoa">Khoá FableAI {d?.khoa_cuoi ? <span className="stt-chip c-xong">…{d.khoa_cuoi}</span> : <span className="stt-chip c-loi">chưa có</span>}</h4>
         <div className="stt-hang">
           <input type="password" autoComplete="off" value={khoa} onChange={(e) => setKhoa(e.target.value)} placeholder="Dán khoá mới (sk-…)" />
           <button className="btn btn-ai" disabled={khoa.trim().length < 20 || dang === 'khoa'} onClick={luuKhoa}>{dang === 'khoa' ? 'Đang lưu…' : 'Lưu khoá'}</button>

@@ -5663,3 +5663,4 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
   .stt-nhap textarea { font-size: 16px; }   /* iOS không tự phóng to */
 }
 .stt-ngan.rong .stt-khung { padding-left: max(14px, calc((100% - 920px) / 2)); padding-right: max(14px, calc((100% - 920px) / 2)); }
+.stt-h-khoa { display: flex; align-items: center; gap: 8px; }
