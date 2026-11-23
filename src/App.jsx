@@ -284,7 +284,7 @@ export default function App() {
             <div className="t">ĐIỀU PHỐI HÀNG HÓA</div>
           </div>
           <DaiBaoTri bt={baoTri} chonTab={user.vai_tro === 'ADMIN' ? chonTab : null} />
-          <main className="main">
+          <main className="main" data-tab={tab}>
             <ErrBound key={tab}><Suspense fallback={<div className="card" style={{ padding: 34, textAlign: 'center', color: 'var(--ink-2)' }}>Đang mở màn hình…</div>}>
               <Screen chonTab={chonTab} />
             </Suspense></ErrBound>

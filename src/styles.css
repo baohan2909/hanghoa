@@ -25,6 +25,7 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }   /* NEW - 3.131 tắt chạm đúp phóng to; xoay ngang không tự phóng chữ */
 body {
   background: var(--bg); color: var(--ink);
   font-family: var(--font-body); font-size: 14px; line-height: 1.5;
@@ -121,6 +122,7 @@ input, select { font-family: inherit; font-size: 14px; }
 .sidebar.gon .side-install { padding: 9px 0; }
 
 .main { flex: 1; min-width: 0; padding: 16px 18px 90px; }
+.main[data-tab="dashboard"] { overflow-x: clip; }   /* NEW - 3.131 Tổng quan: phần trang trí / chữ dài không đẩy trang rộng hơn màn hình */
 
 /* Thanh trên cho mobile */
 .mtop { display: none; }
