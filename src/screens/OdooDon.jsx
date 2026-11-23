@@ -565,9 +565,9 @@ export function NganChiTiet({ id, dong, odoo, saiXong, moDon }) {
                           <tr key={d.barcode} className={'kq-' + d.kq}>
                             <td><b>{d.ma}</b><span>{d.ten || d.barcode}</span></td>
                             {laApp && <td className={'so' + (d.ks ? ' ks' : '')}>{fmt(d.app)}</td>}
-                            <td className={'so' + (d.ks ? ' ks' : '')}>{d.odoo == null ? (d.kq === 'bo' ? 'bỏ mã' : '—') : fmt(d.odoo)}</td>
-                            <td className="so">{fmt(d.xuat)}{d.kq === 'thieu' ? <em className="am"> −{fmt((d.odoo || 0) - (d.xuat || 0))}</em>
-                              : d.kq === 'du' ? <em className="duong"> +{fmt((d.xuat || 0) - (d.odoo || 0))}</em> : null}</td>
+                            {/* 3.139.4: kho xuất không khớp -> 2 ô Odoo yêu cầu + Đã xuất tô hồng, không ghi số chênh */}
+                            <td className={'so' + (d.kq === 'thieu' || d.kq === 'du' ? ' lech' : d.ks ? ' ks' : '')}>{d.odoo == null ? (d.kq === 'bo' ? 'bỏ mã' : '—') : fmt(d.odoo)}</td>
+                            <td className={'so' + (d.kq === 'thieu' || d.kq === 'du' ? ' lech' : '')}>{fmt(d.xuat)}</td>
                             <td className="so">{fmt(d.nhan)}</td>
                           </tr>
                         ))}</tbody>

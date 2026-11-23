@@ -6034,8 +6034,7 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .odn-ct4 thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
 .odn-ct4 tfoot td { font-weight: 800; border-top: 1px solid var(--line); border-bottom: 0; }
 .odn-ct4 td.ks { background: #FBF0D9; color: #8A5A00; font-weight: 700; }
-.odn-ct4 tr.kq-thieu td:first-child { box-shadow: inset 3px 0 0 #B0115C; }
-.odn-ct4 tr.kq-du td:first-child { box-shadow: inset 3px 0 0 #1D4E9E; }
+.odn-ct4 td.lech { background: #FCEAF2; color: #B0115C; font-weight: 800; }   /* 3.139.4: kho xuất không khớp */
 .odn-ct4 tr.kq-bo td { color: #8A94A8; } .odn-ct4 tr.kq-bo td:first-child { box-shadow: inset 3px 0 0 #C9CED6; }
 .odn-ct4 em { font-style: normal; font-size: 11px; font-weight: 800; } .odn-ct4 em.am { color: #B0115C; } .odn-ct4 em.duong { color: #1D4E9E; }
 /* phiếu con XKDC / NKDC */
