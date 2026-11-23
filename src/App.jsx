@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, lazy, Suspense, createContext, useContext, Component } from 'react';
 import { sb } from './lib/supabase.js';
-import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy, IcRadar, IcChat2, IcTeam, IcGuiLen } from './lib/icons.jsx';
+import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy, IcRadar, IcChat2, IcTeam, IcGuiLen, IcTui } from './lib/icons.jsx';
 import Login from './screens/Login.jsx';
 import XinHang from './screens/XinHang.jsx';
 import { OdooHost } from './lib/OdooHop.jsx';
@@ -28,6 +28,7 @@ const DoiSale = lazy(() => import('./screens/DoiSale.jsx'));
 const PhongDieuHanh = lazy(() => import('./screens/PhongDieuHanh.jsx'));
 const BaoCaoTelegram = lazy(() => import('./screens/BaoCaoTelegram.jsx'));
 const OdooDon = lazy(() => import('./screens/OdooDon.jsx'));
+const TikTokShop = lazy(() => import('./screens/TikTokShop.jsx'));   // NEW - 3.140
 const TonKho = lazy(() => import('./screens/TonKho.jsx'));
 const HuongDan = lazy(() => import('./screens/HuongDan.jsx'));
 
@@ -52,6 +53,7 @@ const MENU = [
     { id: 'giamsat',   ten: 'Thiếu hàng',     Ic: IcAlert, roles: ['CH', 'DIEU_PHOI', 'ADMIN'] },
     { id: 'vandon',    ten: 'Vận đơn',        Ic: IcTruck, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
     { id: 'baocao',    ten: 'Báo cáo',        Ic: IcClock, roles: ['DIEU_PHOI', 'ADMIN'] },
+    { id: 'tiktok',    ten: 'TikTok Shop',    Ic: IcTui,   roles: ['DIEU_PHOI', 'ADMIN'] },   // NEW - 3.140
   ]},
   { nhom: 'THI ĐUA', items: [
     { id: 'dautruong', ten: 'Đấu trường',     Ic: IcTrophy, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
@@ -217,7 +219,7 @@ export default function App() {
   if (baoTri?.khoa) return <ManBaoTri bt={baoTri} user={user} onKiem={hoiBaoTri} dangXuat={dangXuat} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich, dautruong: DauTruong,
-    giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tonkd: TonKho, huongdan: HuongDan }[tab]
+    giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tiktok: TikTokShop, tonkd: TonKho, huongdan: HuongDan }[tab]
     || (user.vai_tro === 'KHO' ? Kho : XinHang);
   const tabDem = user.vai_tro === 'KHO' ? 'kho' : 'duyet';
   const chonTab = (id) => { setTab(id); setMoMenu(false); };
