@@ -5942,3 +5942,8 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .stt-xh-ds .stt-cong { flex: none; }
 .stt-xh-ds .stt-cong button { padding: 5px 10px; font-size: 12px; }
 @media (max-width: 900px) { .stt-nghe-canh { font-size: 13px; } }
+
+/* NEW - 3.138 Vận đơn: tiêu đề danh mục khách sỉ gập/mở bằng tam giác */
+.vd-ks-tit { background: none; border: 0; padding: 4px 0; margin: 0 0 6px; cursor: pointer; text-align: left; width: 100%; font-family: inherit; color: inherit; }
+.vd-ks-tit:focus-visible { outline: 2px solid var(--teal-deep); outline-offset: 2px; border-radius: 6px; }
+.vd-ks-tg { display: inline-block; width: 14px; color: var(--teal-deep); font-size: 12px; }

@@ -69,6 +69,7 @@ export default function VanDon() {
   const [ks, setKs] = useState([]);          // danh mục khách sĩ
   const [ksAn, setKsAn] = useState(new Set()); // mã đơn của khách sĩ -> ẩn khỏi màn này
   const [txtKs, setTxtKs] = useState('');
+  const [moKs, setMoKs] = useState(false);   // NEW - 3.138 gập/mở danh mục khách sỉ
   const [daGan, setDaGan] = useState([]);
 
   const tai = async () => {
@@ -88,13 +89,13 @@ export default function VanDon() {
     if (!ten.trim()) return;
     const { data, error } = await sb.rpc('fn_ks_them', { p_ten: ten.trim(), p_ghi_chu: null });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã đưa "${ten.trim()}" vào danh mục khách sĩ — ẩn ${data?.so_don ?? 0} đơn`);
+    baoToast(`Đã đưa "${ten.trim()}" vào danh mục khách sỉ — ẩn ${data?.so_don ?? 0} đơn`);
     setTxtKs(''); taiKs(); tai(); taiDiem();
   };
   const xoaKs = async (tenChuan, tenHien) => {
     const { error } = await sb.rpc('fn_ks_xoa', { p_ten_chuan: tenChuan });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(`Đã bỏ "${tenHien}" khỏi danh mục khách sĩ`);
+    baoToast(`Đã bỏ "${tenHien}" khỏi danh mục khách sỉ`);
     taiKs(); tai();
   };
   useEffect(() => { tai(); }, [tu, den]);   // eslint-disable-line
@@ -419,14 +420,17 @@ export default function VanDon() {
           )}
 
           <div style={{ marginTop: 16 }}>
-            <div className="tq-card-tit">Khách sĩ · {ks.length} tên
-              {soAn > 0 && <span className="tq-tit-phu">đang ẩn {soAn} đơn khỏi màn Vận đơn</span>}</div>
+            {/* NEW - 3.138 danh mục khách sỉ gập/mở bằng tam giác (mặc định gập) */}
+            <button type="button" className="tq-card-tit vd-ks-tit" onClick={() => setMoKs(!moKs)} aria-expanded={moKs}>
+              <span className="vd-ks-tg">{moKs ? '▾' : '▸'}</span>Khách sỉ · {ks.length} tên
+              {soAn > 0 && <span className="tq-tit-phu">đang ẩn {soAn} đơn khỏi màn Vận đơn</span>}</button>
+            {moKs && (<>
             <div className="tq-ghi" style={{ marginBottom: 8 }}>
-              Đơn gửi cho khách sĩ không phải hàng đi cửa hàng nên không tính vào màn này.
+              Đơn gửi cho khách sỉ không phải hàng đi cửa hàng nên không tính vào màn này.
               Thêm tên một lần, mọi đơn cùng tên về sau tự động được ẩn.
             </div>
             <div className="vd-ks-them">
-              <input className="flt-in" placeholder="Tên khách sĩ ghi trên phiếu giao…" value={txtKs}
+              <input className="flt-in" placeholder="Tên khách sỉ ghi trên phiếu giao…" value={txtKs}
                 onChange={(e) => setTxtKs(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') themKs(txtKs); }}
                 style={{ height: 38, flex: 1, minWidth: 200 }} />
@@ -442,6 +446,7 @@ export default function VanDon() {
                 ))}
               </div>
             )}
+            </>)}
           </div>
 
           {diem.length > 0 && (
@@ -466,8 +471,8 @@ export default function VanDon() {
                         options={dsCH.map((c) => ({ value: c.ma_ch, label: c.ten }))} />
                     </div>
                     <button className="btn-mini vd-ks-nut" onClick={() => themKs(tenGon(d.ten_nhan))}
-                      title="Không phải cửa hàng — đây là khách sĩ, ẩn khỏi màn Vận đơn">
-                      Đây là khách sĩ</button>
+                      title="Không phải cửa hàng — đây là khách sỉ, ẩn khỏi màn Vận đơn">
+                      Đây là khách sỉ</button>
                   </div>
                 ))}
               </div>
