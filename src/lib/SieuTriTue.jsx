@@ -9,7 +9,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { IcBrain, IcCheck, IcAlert, IcClock, IcGear, IcMoRong, IcThuNho, IcRefresh, IcSpark, IcBox } from './icons.jsx';
 import { Sel } from './ui.jsx';
 import { layCau, choCau, datMo } from './sttCau.js';
-import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa, aiDsPhien, aiPhienSua } from './sttApi.js';
+import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa, aiDsPhien, aiPhienSua, aiDoiChieu } from './sttApi.js';
 import { useGiong } from './sttGiong.js';   // NEW - 3.129 giọng nói nói dài, bấm nhiều lần
 
 const fmt = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
@@ -23,6 +23,15 @@ const lsS = (k, v) => { try { if (v == null) localStorage.removeItem('stt_' + k)
 const TT_VIEC = { dang_chay: 'Đang chạy', cho_man: 'Đang thao tác màn hình', xong: 'Xong', loi: 'Lỗi', dung: 'Đã dừng', dang: 'Đang chạy' };
 const TT_PHIEU = { cho_duyet: 'Chờ duyệt', dang_chay: 'Đang thực hiện', da_chay: 'Đã thực hiện', loi: 'Thực hiện lỗi', huy: 'Đã huỷ' };
 const NOI = { ai: 'AI', may_chu: 'Máy chủ', man_hinh: 'Màn hình' };
+// NEW - 3.132 nguồn số liệu của câu trả lời: xanh = cùng công thức màn hình / hàm chuẩn đã đối chiếu · vàng = AI tự viết truy vấn
+const NGUON = {
+  tong_quan: { ten: 'Cùng số liệu màn Tổng quan', chuan: true },
+  lich_de_nghi: { ten: 'Cùng công thức màn Lịch đề nghị', chuan: true },
+  chia_doi: { ten: 'Engine màn Chia từng đội', chuan: true },
+  ho_so: { ten: 'Hồ sơ chuẩn (bảng gốc)', chuan: true },
+  xep_hang: { ten: 'Xếp hạng chuẩn (bảng gốc)', chuan: true },
+  hoi_so_lieu: { ten: 'AI tự tra bằng truy vấn riêng — nên đối chiếu', chuan: false },
+};
 const GOI_Y = [
   'Chia đội 1 tầm 3–5 thùng, chia đủ 15 ngày, tổng tồn sau chia không quá 500',
   'Tình hình đội 3 thế nào? Mã nào sắp hết?',
@@ -48,7 +57,7 @@ const tinTuMay = (ds) => (ds || []).map((x) => (x.vai === 'nguoi'
   ? { id: 'n' + x.id, vai: 'nguoi', text: x.noi_dung }
   : { id: 'a' + x.id, vai: 'ai', trang_thai: 'xong', tra_loi: x.noi_dung, the: x.viec?.the || null, viec_id: x.viec_id, pt: 100,
       bat_dau: x.viec?.bat_dau ? new Date(x.viec.bat_dau).getTime() : null, ket_thuc: x.viec?.ket_thuc ? new Date(x.viec.ket_thuc).getTime() : null,
-      token: x.viec ? { vao: x.viec.token_vao || 0, ra: x.viec.token_ra || 0 } : null, buoc: [], canTt: !!x.viec?.the?.thao_tac_id }));
+      token: x.viec ? { vao: x.viec.token_vao || 0, ra: x.viec.token_ra || 0 } : null, nguon: x.viec?.ke_hoach?.nguon || [], buoc: [], canTt: !!x.viec?.the?.thao_tac_id }));
 
 // chữ trả lời: "- " -> gạch đầu dòng, **đậm**
 function Chu({ text }) {
@@ -60,6 +69,10 @@ function Chu({ text }) {
     const m = /^\s*[-•*]\s+(.*)$/.exec(d);
     if (m) { ds.push(<li key={i}>{inl(m[1], i)}</li>); return; }
     day();
+    const h = /^\s*#{1,6}\s+(.*)$/.exec(d);   // NEW - 3.132 "### Tiêu đề" -> chữ đậm
+    if (h) { out.push(<p key={i} className="stt-chu-tieu"><b>{h[1].replace(/\*\*/g, '')}</b></p>); return; }
+    const q = /^\s*>\s?(.*)$/.exec(d);        // "> Lưu ý" -> ô ghi chú
+    if (q) { if (q[1].trim()) out.push(<p key={i} className="stt-chu-ghi">{inl(q[1], i)}</p>); return; }
     if (d.trim()) out.push(<p key={i}>{inl(d, i)}</p>);
   });
   day();
@@ -228,6 +241,11 @@ function LuotAI({ m, onDung, onDuyet, onHuy, onXem, onCt }) {
         {m.trang_thai === 'loi' && <p className="stt-loi"><IcAlert />{m.loi}</p>}
         {m.trang_thai === 'dung' && <p className="stt-nho">Đã dừng theo yêu cầu.</p>}
         {m.tra_loi && <Chu text={m.tra_loi} />}
+        {!dang && m.nguon?.length > 0 && (
+          <div className="stt-nguon">{m.nguon.filter((n) => NGUON[n]).map((n) => (
+            <span key={n} className={'stt-nguon-o ' + (NGUON[n].chuan ? 'chuan' : 'tu')}>{NGUON[n].chuan ? <IcCheck /> : <IcAlert />}{NGUON[n].ten}</span>
+          ))}</div>
+        )}
         {m.the?.loai === 'chia_doi' && <TheChiaDoi the={m.the} tt={m.tt} onDuyet={onDuyet} onHuy={onHuy} onXem={onXem} />}
         {!dang && (m.viec_id || ds.length > 0) && (
           <div className="stt-luot-chan">
@@ -469,7 +487,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
         if (i >= 0) ds[i] = { ...ds[i], ...e }; else ds.push(e);
         return { buoc: ds };
       });
-      else if (e.t === 'xong') capNhat(id, (m) => ({ trang_thai: 'xong', pt: 100, ptToi: 100, tra_loi: e.tra_loi, the: e.the || m.the, token: e.token, ket_thuc: Date.now() }));
+      else if (e.t === 'xong') capNhat(id, (m) => ({ trang_thai: 'xong', pt: 100, ptToi: 100, tra_loi: e.tra_loi, the: e.the || m.the, token: e.token, nguon: e.nguon || [], ket_thuc: Date.now() }));
       else if (e.t === 'loi') capNhat(id, { trang_thai: 'loi', loi: e.loi, ket_thuc: Date.now() });
     };
     let res = await goiLuong({ token, hanh_dong: 'chay', yeu_cau: yeuCau, phien_id: phienRef.current, man: tenTab(tab), ngu_canh: nguCanh() }, onE, ac.signal);
@@ -831,6 +849,9 @@ function CaiDat({ token, onDoi, baoToast }) {
     setDang('');
   };
   const thuNoi = async () => { setDang('thu'); setThu(null); setThu(await goiJson({ token, hanh_dong: 'thu' })); setDang(''); };
+  // NEW - 3.132 đối chiếu số liệu AI với công thức màn hình
+  const [dc, setDc] = useState(null);
+  const doiChieu = async () => { setDang('dc'); setDc(null); try { setDc(await aiDoiChieu(token)); } catch (e) { setDc({ loi: e.message }); } setDang(''); };
   const tongNgay = useMemo(() => {
     const m = {};
     (d?.token || []).forEach((t) => { m[t.ngay] = (m[t.ngay] || 0) + Number(t.vao) + Number(t.ra); });
@@ -860,6 +881,24 @@ function CaiDat({ token, onDoi, baoToast }) {
             ))}
             {Array.isArray(thu.models) && thu.models.length > 0 && <p className="stt-nho">Mô hình có sẵn: {thu.models.join(', ')}</p>}
             {thu.models?.loi && <p className="stt-nho">Danh sách mô hình: {thu.models.loi}</p>}
+          </div>
+        )}
+      </section>
+      <section>
+        <h4>Đối chiếu số liệu với màn hình</h4>
+        <p className="stt-nho">Chạy lại các công cụ của AI rồi so với đúng công thức màn hình: Lịch đề nghị 38 ngày, bán 14 ngày theo nhóm, bán hôm nay, hồ sơ 12 cửa hàng.</p>
+        <button className="btn btn-ghost" onClick={doiChieu} disabled={dang === 'dc'}><IcCheck /> {dang === 'dc' ? 'Đang đối chiếu…' : 'Đối chiếu ngay'}</button>
+        {dc?.loi && <p className="stt-loi"><IcAlert />{dc.loi}</p>}
+        {dc?.muc && (
+          <div className="stt-thu">
+            {dc.muc.map((m) => (
+              <div key={m.ten} className={'stt-thu-dong ' + (m.khop === m.so ? 'ok' : 'hong')}>
+                <b>{m.khop === m.so ? '✓' : '✗'} {m.ten}</b>
+                <span>{m.khop}/{m.so} khớp · so với {m.so_sanh_voi} · {m.pham_vi}</span>
+                {m.lech && <code className="stt-dc-lech">{JSON.stringify(m.lech).slice(0, 400)}</code>}
+              </div>
+            ))}
+            <p className="stt-nho">Chạy lúc {gioPhut(dc.luc)} · {giay(dc.ms)}</p>
           </div>
         )}
       </section>

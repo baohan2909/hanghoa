@@ -77,3 +77,5 @@ export const aiLuuKhoa = (token, khoa) => rpc('fn_ai_luu_khoa', { p_token: token
 // NEW - 3.130 danh sách cuộc trò chuyện kiểu ChatGPT (SQL 217)
 export const aiDsPhien = (token, tim = null, gioiHan = 150) => rpc('fn_ai_ds_phien', { p_token: token, p_tim: tim || null, p_gioi_han: gioiHan });
 export const aiPhienSua = (token, id, p) => rpc('fn_ai_phien_sua', { p_token: token, p_phien: id, p });
+// NEW - 3.132 Quản trị: đối chiếu số liệu công cụ AI với công thức màn hình (SQL 218c)
+export const aiDoiChieu = (token) => rpc('fn_ai_doi_chieu', { p_token: token });
