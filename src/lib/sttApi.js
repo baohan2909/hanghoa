@@ -84,3 +84,5 @@ export const aiBaoSai = (token, viec, ghiChu, ghiNho = true) => rpc('fn_ai_bao_s
 export const aiDsBaoSai = (token, xuLyId = null, xuLy = null) => rpc('fn_ai_ds_bao_sai', { p_token: token, p_xu_ly_id: xuLyId, p_xu_ly: xuLy });
 export const aiTriThucDs = (token, tim = null) => rpc('fn_ai_tri_thuc_ds', { p_token: token, p_tim: tim || null });
 export const aiTriThucLuu = (token, p) => rpc('fn_ai_tri_thuc_luu', { p_token: token, p });
+// NEW - 3.134 Xưng hô theo tài khoản (SQL 220)
+export const aiNguoiDs = (token, tim = null) => rpc('fn_ai_nguoi_ds', { p_token: token, p_tim: tim || null });

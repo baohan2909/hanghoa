@@ -5929,3 +5929,16 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
   .stt-cach-dong, .stt-tt { font-size: 13px; }
   .stt-hoc-o, .stt-tri-dem { font-size: 12px; }
 }
+
+/* NEW - 3.134 SIÊU TRÍ TUỆ · gợi ý khi micro iPhone kẹt · xưng hô theo tài khoản */
+.stt-nghe-canh { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 6px; padding: 8px 11px; border-radius: 10px; background: #FFF1D2; color: #80590A; font-size: 12.5px; line-height: 1.45; animation: sttMo .2s ease; }
+.stt-nghe-canh span { flex: 1; }
+.stt-nghe-canh .stt-lk { flex: none; color: #1E5F63; white-space: nowrap; }
+.stt-xh-ds { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; max-height: 380px; overflow: auto; }
+.stt-xh-ds li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+.stt-xh-ds li > div:first-child { display: grid; min-width: 0; }
+.stt-xh-ds b { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stt-xh-ds small { font-size: 11px; color: var(--ink-2); }
+.stt-xh-ds .stt-cong { flex: none; }
+.stt-xh-ds .stt-cong button { padding: 5px 10px; font-size: 12px; }
+@media (max-width: 900px) { .stt-nghe-canh { font-size: 13px; } }

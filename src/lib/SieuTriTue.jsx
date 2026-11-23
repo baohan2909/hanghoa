@@ -9,7 +9,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { IcBrain, IcCheck, IcAlert, IcClock, IcGear, IcMoRong, IcThuNho, IcRefresh, IcSpark, IcBox } from './icons.jsx';
 import { Sel } from './ui.jsx';
 import { layCau, choCau, datMo } from './sttCau.js';
-import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa, aiDsPhien, aiPhienSua, aiDoiChieu, aiBaoSai, aiDsBaoSai, aiTriThucDs, aiTriThucLuu } from './sttApi.js';
+import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa, aiDsPhien, aiPhienSua, aiDoiChieu, aiBaoSai, aiDsBaoSai, aiTriThucDs, aiTriThucLuu, aiNguoiDs } from './sttApi.js';
 import { useGiong } from './sttGiong.js';   // NEW - 3.129 giọng nói nói dài, bấm nhiều lần
 
 const fmt = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
@@ -363,6 +363,11 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   const jobDang = [...tin].reverse().find((m) => m.vai === 'ai' && m.trang_thai === 'dang');
 
   const gi = useGiong({ layNhap: () => nhapRef.current, datNhap: setNhap, bao: baoToast });
+  // NEW - 3.134 xưng hô theo tài khoản (Cài đặt › Xưng hô); chưa đặt = "anh/chị"
+  const xh = quyen?.cfg?.xung_ho?.[quyen?.ma] || 'anh/chị';
+  const Xh = xh.charAt(0).toUpperCase() + xh.slice(1);
+  // NEW - 3.134 micro Safari kẹt -> chuyển sang micro trên bàn phím (luôn chạy được)
+  const dungBanPhim = () => { gi.dung(); const el = oNhap.current; if (el) { el.readOnly = false; el.focus(); setSoanMo(true); } };
   // nháp: lưu sau 250ms + lưu ngay khi trang bị đóng / chuyển app
   useEffect(() => { const h = setTimeout(() => lsS(khoaNhap, nhap ? nhap : null), 250); return () => clearTimeout(h); }, [nhap, khoaNhap]);
   useEffect(() => {
@@ -690,9 +695,17 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
                       <small>Cứ nói liền mạch, xong chạm nút đỏ</small>
                     </div>
                   )}
+                  {gi.nghe && gi.canh && (
+                    <div className="stt-nghe-canh" role="status">
+                      <span>{gi.canh === 'ket'
+                        ? 'Micro của Safari đang kẹt (lỗi của iPhone) — dùng micro trên bàn phím, hoặc chờ khoảng 1 phút rồi thử lại.'
+                        : 'Chưa nghe ra chữ? Nếu ' + xh + ' đang nói mà chữ không hiện, dùng micro trên bàn phím cho chắc.'}</span>
+                      <button type="button" className="stt-lk" onClick={dungBanPhim}>Dùng bàn phím</button>
+                    </div>
+                  )}
                   <textarea ref={oNhap} rows={1} value={nhap} disabled={choDung} readOnly={gi.nghe} className={vuot ? 'vuot' : undefined}
                     onFocus={() => setSoanMo(true)}
-                    placeholder={gi.nghe ? 'Anh nói đi, chữ hiện ở đây…' : 'Hỏi hoặc giao việc…'}
+                    placeholder={gi.nghe ? Xh + ' nói đi, chữ hiện ở đây…' : 'Hỏi hoặc giao việc…'}
                     enterKeyHint={laPc() ? 'send' : 'enter'} aria-label="Nội dung giao việc"
                     onChange={(e) => setNhap(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && laPc()) { e.preventDefault(); giao(nhap); } }} />
@@ -971,6 +984,7 @@ function CaiDat({ token, onDoi, baoToast, onCt }) {
           </div>
         )}
       </section>
+      <XungHo token={token} map={cfg.xung_ho || {}} onLuu={(m) => luu({ xung_ho: m })} />
       <TriThuc token={token} baoToast={baoToast} />
       <BaoSaiDs token={token} onCt={onCt} />
       <section>
@@ -1081,6 +1095,36 @@ function TriThuc({ token, baoToast }) {
             </div>
           </li>
         )))}</ul>
+      )}
+    </section>
+  );
+}
+// NEW - 3.134 XƯNG HÔ theo tài khoản: AI gọi "anh" / "chị"; chưa đặt thì gọi "anh/chị" (không đoán theo tên)
+const XH = [['anh', 'Anh'], ['chị', 'Chị'], ['', 'Anh/chị']];
+function XungHo({ token, map, onLuu }) {
+  const [ds, setDs] = useState(null);
+  const [tim, setTim] = useState('');
+  const [loi, setLoi] = useState('');
+  useEffect(() => {
+    const h = setTimeout(() => aiNguoiDs(token, tim.trim()).then((x) => { setDs(Array.isArray(x) ? x : []); setLoi(''); }, (e) => setLoi(e.message)), tim ? 300 : 0);
+    return () => clearTimeout(h);
+  }, [token, tim]);
+  const dat = (ma, v) => { const m = { ...map }; if (v) m[ma] = v; else delete m[ma]; onLuu(m); };
+  return (
+    <section>
+      <h4>Xưng hô</h4>
+      <p className="stt-nho">AI gọi từng tài khoản đúng như đặt ở đây. Tài khoản chưa đặt (thường là tài khoản dùng chung) được gọi "anh/chị" — AI không đoán theo tên.</p>
+      <input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm tài khoản, tên…" />
+      {loi && <p className="stt-loi"><IcAlert />{loi}</p>}
+      {!ds ? <p className="stt-trong"><i className="stt-quay" /> Đang tải…</p> : ds.length === 0 ? <p className="stt-trong">Không có tài khoản nào.</p> : (
+        <ul className="stt-xh-ds">{ds.map((x) => (
+          <li key={x.ma}>
+            <div><b>{x.ten || x.ma}</b><small>{x.ma} · {x.vai_tro}</small></div>
+            <div className="stt-cong">{XH.map(([v, t]) => (
+              <button key={t} className={(map[x.ma] || '') === v ? 'on' : ''} onClick={() => dat(x.ma, v)}>{t}</button>
+            ))}</div>
+          </li>
+        ))}</ul>
       )}
     </section>
   );
