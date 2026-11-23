@@ -5,16 +5,19 @@
 //   -> công cụ màn hình chạy bằng engine sẵn có (sttCau.js) -> thẻ kết quả + phiếu chờ duyệt
 //   -> Duyệt & thực hiện (chỉ lúc này mới ghi) · Lịch sử: mọi việc, từng bước, thao tác đã thực hiện · Cài đặt (Quản trị)
 // ============================================================================
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { IcBrain, IcCheck, IcAlert, IcClock, IcGear, IcMoRong, IcThuNho, IcRefresh, IcSpark, IcBox } from './icons.jsx';
 import { Sel } from './ui.jsx';
 import { layCau, choCau, datMo } from './sttCau.js';
 import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa } from './sttApi.js';
+import { useGiong } from './sttGiong.js';   // NEW - 3.129 giọng nói nói dài, bấm nhiều lần
 
 const fmt = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
 const giay = (ms) => (ms == null ? '' : ms < 1000 ? `${Math.max(1, Math.round(ms / 10) * 10)}ms` : `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)}s`);
 const gioPhut = (t) => { if (!t) return ''; const d = new Date(t); return d.toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }); };
 const ngayGio = (t) => { if (!t) return ''; const d = new Date(t); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${gioPhut(t)}`; };
+const laPc = () => typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;   // PC: Enter gửi · điện thoại: Enter xuống dòng
+const demChu = (s) => (String(s || '').trim() ? String(s).trim().split(/\s+/).length : 0);
 const lsG = (k, d) => { try { const v = localStorage.getItem('stt_' + k); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const lsS = (k, v) => { try { if (v == null) localStorage.removeItem('stt_' + k); else localStorage.setItem('stt_' + k, JSON.stringify(v)); } catch { /* */ } };
 const TT_VIEC = { dang_chay: 'Đang chạy', cho_man: 'Đang thao tác màn hình', xong: 'Xong', loi: 'Lỗi', dung: 'Đã dừng', dang: 'Đang chạy' };
@@ -43,8 +46,8 @@ function Chu({ text }) {
   return <div className="stt-chu">{out}</div>;
 }
 
-// thanh tiến độ: nhích dần từ pt tới pt_toi trong lúc chờ, không bao giờ vượt pt_toi
-function ThanhTienDo({ pt, ptToi, dang }) {
+// tiến độ: nhích dần từ pt tới pt_toi trong lúc chờ, không bao giờ vượt pt_toi
+function useTienDo(pt, ptToi, dang) {
   const [hien, setHien] = useState(pt || 0);
   const ref = useRef({ pt, ptToi });
   ref.current = { pt, ptToi };
@@ -59,13 +62,40 @@ function ThanhTienDo({ pt, ptToi, dang }) {
     }), 200);
     return () => clearInterval(h);
   }, [dang, pt]);
-  const v = Math.max(0, Math.min(100, dang ? hien : pt || 0));
+  return Math.max(0, Math.min(100, dang ? hien : pt || 0));
+}
+// việc nặng: số % lớn + thanh
+function ThanhTienDo({ pt, ptToi, dang }) {
+  const v = useTienDo(pt, ptToi, dang);
   return (
     <div className="stt-td" role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100}>
       <b className="stt-td-so">{Math.floor(v)}<small>%</small></b>
       <div className="stt-td-ray"><i style={{ width: v + '%' }} /></div>
     </div>
   );
+}
+// NEW - 3.129 việc nhẹ: vòng % nhỏ trên 1 dòng
+const VONG_C = 2 * Math.PI * 9;
+function VongTienDo({ pt, ptToi, dang }) {
+  const v = useTienDo(pt, ptToi, dang);
+  return (
+    <span className="stt-vong" role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100}>
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+        <defs><linearGradient id="sttVongG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#1E5F63" /><stop offset=".7" stopColor="#3FB6A8" /><stop offset="1" stopColor="#CBA45A" /></linearGradient></defs>
+        <circle cx="12" cy="12" r="9" fill="none" stroke="#E8EDEE" strokeWidth="3" />
+        <circle cx="12" cy="12" r="9" fill="none" stroke="url(#sttVongG)" strokeWidth="3" strokeLinecap="round"
+          strokeDasharray={VONG_C} strokeDashoffset={VONG_C * (1 - v / 100)} transform="rotate(-90 12 12)" />
+      </svg>
+      <b>{Math.floor(v)}%</b>
+    </span>
+  );
+}
+// đồng hồ m:ss (lúc đang nghe)
+function DemGio({ tu }) {
+  const [, setN] = useState(0);
+  useEffect(() => { const h = setInterval(() => setN((n) => n + 1), 500); return () => clearInterval(h); }, []);
+  const s = Math.max(0, Math.floor((Date.now() - (tu || Date.now())) / 1000));
+  return <time>{Math.floor(s / 60)}:{String(s % 60).padStart(2, '0')}</time>;
 }
 
 function DongBuoc({ b }) {
@@ -149,34 +179,50 @@ function LuotAI({ m, onDung, onDuyet, onHuy, onXem, onCt }) {
     const h = setInterval(() => setDem(Date.now() - (m.bat_dau || Date.now())), 500);
     return () => clearInterval(h);
   }, [dang, m.bat_dau]);
-  const hienBuoc = dang || moBuoc;
+  // NEW - 3.129 tiến độ tự co giãn: việc nhẹ = vòng % 1 dòng; việc nặng (thao tác màn hình, ≥3 công cụ, ≥3 lượt AI, quá 15 giây) = thẻ tiến độ đầy đủ
+  const ds = m.buoc || [];
+  const nangRef = useRef(false);
+  if (m.nang || ds.filter((b) => b.noi !== 'ai').length >= 3 || ds.filter((b) => b.noi === 'ai').length >= 3 || (dang && dem > 15000)) nangRef.current = true;
+  const nang = nangRef.current;
+  const dungGiua = !dang && ds.length > 0 && (m.trang_thai === 'loi' || m.trang_thai === 'dung');
   return (
-    <div className={'stt-luot ' + m.trang_thai}>
+    <div className={'stt-luot ' + m.trang_thai + (nang ? ' nang' : ' nhe')}>
       <div className="stt-ava"><IcBrain /></div>
       <div className="stt-luot-than">
-        {(dang || (m.buoc?.length > 0 && m.trang_thai !== 'xong')) && (
+        {dang && !nang && (
+          <div className="stt-gon">
+            <VongTienDo pt={m.pt} ptToi={m.ptToi} dang />
+            <span className="stt-gon-chu">{m.buoc_hien || 'Đang xử lý'}</span>
+            <span className="stt-gon-gio">{Math.floor(dem / 1000)}s</span>
+          </div>
+        )}
+        {((dang && nang) || dungGiua) && (
           <div className="stt-tien">
             <ThanhTienDo pt={m.pt} ptToi={m.ptToi} dang={dang} />
             <div className="stt-buoc-hien">{dang ? m.buoc_hien || 'Đang xử lý' : m.trang_thai === 'loi' ? 'Dừng vì lỗi' : 'Đã dừng'}</div>
           </div>
         )}
-        {m.ke_hoach && <p className="stt-kh"><IcSpark />{m.ke_hoach}</p>}
-        {m.buoc?.length > 0 && (
-          <>
-            {!dang && <button className="stt-lk" onClick={() => setMoBuoc((v) => !v)}>{moBuoc ? 'Ẩn' : 'Xem'} {m.buoc.length} bước đã làm</button>}
-            {hienBuoc && <ul className="stt-bds">{m.buoc.map((b) => <DongBuoc key={b.stt} b={b} />)}</ul>}
-          </>
-        )}
-        {dang && <div className="stt-dang-chan"><span><IcClock /> {giay(dem)}</span><button className="stt-lk" onClick={onDung}>Dừng</button></div>}
+        {dang && nang && m.ke_hoach && <p className="stt-kh"><IcSpark />{m.ke_hoach}</p>}
+        {dang && nang && ds.length > 0 && <ul className="stt-bds">{ds.map((b) => <DongBuoc key={b.stt} b={b} />)}</ul>}
+        {dang && nang && <div className="stt-dang-chan"><span><IcClock /> {giay(dem)}</span><button className="stt-lk" onClick={onDung}>Dừng</button></div>}
         {m.trang_thai === 'loi' && <p className="stt-loi"><IcAlert />{m.loi}</p>}
         {m.trang_thai === 'dung' && <p className="stt-nho">Đã dừng theo yêu cầu.</p>}
         {m.tra_loi && <Chu text={m.tra_loi} />}
         {m.the?.loai === 'chia_doi' && <TheChiaDoi the={m.the} tt={m.tt} onDuyet={onDuyet} onHuy={onHuy} onXem={onXem} />}
-        {!dang && m.viec_id && (
+        {!dang && (m.viec_id || ds.length > 0) && (
           <div className="stt-luot-chan">
             {m.ket_thuc && m.bat_dau && <span>{giay(m.ket_thuc - m.bat_dau)}</span>}
             {m.token && (m.token.vao + m.token.ra) > 0 && <span>{fmt(m.token.vao + m.token.ra)} token</span>}
-            <button className="stt-lk" onClick={onCt}>Chi tiết</button>
+            <span className="stt-chan-phai">
+              {ds.length > 0 && <button className="stt-lk" onClick={() => setMoBuoc((v) => !v)} aria-expanded={moBuoc}>{ds.length} bước đã làm <i className={'stt-mui' + (moBuoc ? ' len' : '')} /></button>}
+              {m.viec_id && <button className="stt-lk" onClick={onCt}>Chi tiết</button>}
+            </span>
+          </div>
+        )}
+        {!dang && moBuoc && ds.length > 0 && (
+          <div className="stt-buoc-mo">
+            {m.ke_hoach && <p className="stt-kh"><IcSpark />{m.ke_hoach}</p>}
+            <ul className="stt-bds">{ds.map((b) => <DongBuoc key={b.stt} b={b} />)}</ul>
           </div>
         )}
       </div>
@@ -195,8 +241,14 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   const [view, setView] = useState('chat');   // chat | ls | ct | cai
   const [tin, setTin] = useState([]);
   const [phien, setPhien] = useState(() => lsG('phien:' + (user?.ma_dang_nhap || ''), null));
-  const [nhap, setNhap] = useState('');
-  const [nghe, setNghe] = useState(false);
+  // NEW - 3.129 ô soạn: nháp tự lưu (có sự cố không mất chữ) · tự giãn · phóng to
+  const khoaNhap = 'nhap:' + (user?.ma_dang_nhap || '');
+  const [nhap, setNhap] = useState(() => String(lsG(khoaNhap, '') || ''));
+  const nhapRef = useRef(nhap); nhapRef.current = nhap;
+  const [to, setTo] = useState(false);
+  const [dai, setDai] = useState(false);
+  const [banPhim, setBanPhim] = useState(false);
+  const nganRef = useRef(null);
   const [ctId, setCtId] = useState(null);
   const acRef = useRef(null);
   const phienRef = useRef(phien); phienRef.current = phien;
@@ -206,6 +258,43 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   const daNapPhien = useRef(false);
   const dangChay = tin.some((m) => m.vai === 'ai' && m.trang_thai === 'dang');
   const jobDang = [...tin].reverse().find((m) => m.vai === 'ai' && m.trang_thai === 'dang');
+
+  const gi = useGiong({ layNhap: () => nhapRef.current, datNhap: setNhap, bao: baoToast });
+  // nháp: lưu sau 250ms + lưu ngay khi trang bị đóng / chuyển app
+  useEffect(() => { const h = setTimeout(() => lsS(khoaNhap, nhap ? nhap : null), 250); return () => clearTimeout(h); }, [nhap, khoaNhap]);
+  useEffect(() => {
+    const f = () => lsS(khoaNhap, nhapRef.current ? nhapRef.current : null);
+    window.addEventListener('pagehide', f);
+    return () => window.removeEventListener('pagehide', f);
+  }, [khoaNhap]);
+  // điện thoại: khung bám vùng nhìn thấy khi bàn phím bật (không bị che, không bị đẩy mất đầu khung)
+  useEffect(() => {
+    if (!mo) return undefined;
+    const vv = window.visualViewport; const el = nganRef.current;
+    if (!vv || !el) return undefined;
+    const f = () => {
+      if (!window.matchMedia('(max-width: 900px)').matches) { el.style.removeProperty('--stt-vh'); el.style.removeProperty('--stt-vt'); setBanPhim(false); return; }
+      el.style.setProperty('--stt-vh', Math.round(vv.height) + 'px');
+      el.style.setProperty('--stt-vt', Math.round(vv.offsetTop) + 'px');
+      setBanPhim(window.innerHeight - vv.height > 120);
+    };
+    f();
+    vv.addEventListener('resize', f); vv.addEventListener('scroll', f);
+    return () => { vv.removeEventListener('resize', f); vv.removeEventListener('scroll', f); };
+  }, [mo]);
+  // ô soạn tự giãn theo chữ: đọc trọn đoạn (tối đa ~45% màn), dài hơn thì cuộn trong ô; phóng to = 62% màn
+  useLayoutEffect(() => {
+    const el = oNhap.current; if (!el) return;
+    el.style.height = 'auto';
+    const vh = window.visualViewport?.height || window.innerHeight;
+    const max = Math.round(to ? vh * 0.62 : Math.min(vh * 0.45, 380));
+    const sh = el.scrollHeight;
+    el.style.height = (to ? max : Math.min(sh, max)) + 'px';
+    el.style.overflowY = sh > max ? 'auto' : 'hidden';
+    if (gi.nghe) el.scrollTop = el.scrollHeight;
+    const lh = parseFloat(getComputedStyle(el).lineHeight) || 24;
+    setDai(sh > lh * 4.5);
+  }, [nhap, to, mo, view, gi.nghe, banPhim]);
 
   useEffect(() => { if (token) aiQuyen(token).then(setQuyen, () => setQuyen(null)); }, [token]);
   useEffect(() => { lsS('phien:' + (user?.ma_dang_nhap || ''), phien); }, [phien, user?.ma_dang_nhap]);
@@ -237,7 +326,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   }, [tin]);   // eslint-disable-line
 
   // cuộn xuống cuối khi có tin mới
-  useEffect(() => { const el = khungRef.current; if (el && view === 'chat') el.scrollTop = el.scrollHeight; }, [tin, view, mo]);
+  useEffect(() => { const el = khungRef.current; if (el && view === 'chat') el.scrollTop = el.scrollHeight; }, [tin, view, mo, banPhim]);
   // Esc đóng (PC)
   useEffect(() => {
     if (!mo) return undefined;
@@ -275,7 +364,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
     const stt = 'c-' + g.id;
     const buocCon = [];
     const datBuoc = (patch) => capNhat(jobId, (m) => ({ buoc: (m.buoc || []).map((b) => (b.stt === stt ? { ...b, ...patch } : b)) }));
-    capNhat(jobId, (m) => ({ buoc: [...(m.buoc || []), { stt, noi: 'man_hinh', nhan: g.nhan, trang_thai: 'dang', con: [] }], buoc_hien: g.nhan, pt: ptTu, ptToi: ptTu + 2 }));
+    capNhat(jobId, (m) => ({ nang: true, buoc: [...(m.buoc || []), { stt, noi: 'man_hinh', nhan: g.nhan, trang_thai: 'dang', con: [] }], buoc_hien: g.nhan, pt: ptTu, ptToi: ptTu + 2 }));
     let t0 = performance.now();
     const bao = (f, text) => {
       const pt = Math.round(ptTu + (ptDen - ptTu) * Math.max(0, Math.min(1, f)));
@@ -322,14 +411,16 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   const giao = async (text) => {
     const yeuCau = String(text || '').trim();
     if (!yeuCau || dangChay) return;
-    setNhap('');
+    gi.huy();   // đang nói mà bấm gửi: dừng micro ngay, bỏ kết quả đến muộn (không điền lại ô)
+    setNhap(''); lsS(khoaNhap, null); setTo(false);
+    if (!laPc()) oNhap.current?.blur();
     setView('chat');
     const id = 'j' + Date.now();
     setTin((t) => [...t, { id: 'u' + id, vai: 'nguoi', text: yeuCau }, { id, vai: 'ai', trang_thai: 'dang', pt: 1, ptToi: 4, buoc_hien: 'Gửi yêu cầu', buoc: [], bat_dau: Date.now() }]);
     const ac = new AbortController(); acRef.current = ac;
-    let viecId = null;
+    let viecId = null, daNhan = false;
     const onE = (e) => {
-      if (e.t === 'viec') { viecId = e.viec_id; capNhat(id, { viec_id: e.viec_id }); if (e.phien_id && e.phien_id !== phienRef.current) setPhien(e.phien_id); }
+      if (e.t === 'viec') { daNhan = true; viecId = e.viec_id; capNhat(id, { viec_id: e.viec_id }); if (e.phien_id && e.phien_id !== phienRef.current) setPhien(e.phien_id); }
       else if (e.t === 'tien_do') capNhat(id, (m) => ({ pt: Math.max(m.pt || 0, e.pt || 0), ptToi: e.pt_toi ?? e.pt, buoc_hien: e.buoc || m.buoc_hien }));
       else if (e.t === 'ke_hoach') capNhat(id, { ke_hoach: e.text });
       else if (e.t === 'buoc') capNhat(id, (m) => {
@@ -354,6 +445,11 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
     }
     if (ac.signal.aborted) capNhat(id, { trang_thai: 'dung', ket_thuc: Date.now() });
     else if (res.loi && !res.xong) capNhat(id, (m) => (m.trang_thai === 'dang' ? { trang_thai: 'loi', loi: res.loi, ket_thuc: Date.now() } : {}));
+    // máy chủ chưa nhận được yêu cầu (mất mạng…): trả chữ về ô soạn, không mất
+    if (!daNhan && res.loi && !ac.signal.aborted) {
+      setNhap((cu) => (cu && cu.trim() ? cu : yeuCau));
+      baoToast?.('Chưa gửi được — chữ của anh đã giữ lại trong ô soạn');
+    }
     acRef.current = null;
   };
   const dung = async (m) => {
@@ -387,22 +483,6 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   };
   const xem = async () => { await moChiaDoi(); if (laDt()) setMo(false); };
 
-  // ----- giọng nói (Web Speech, tiếng Việt) -----
-  const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
-  const ngheRef = useRef(null);
-  const batNghe = () => {
-    if (!SR) { baoToast?.('Trình duyệt này chưa hỗ trợ nhập giọng nói — dùng Chrome / Edge / Safari mới'); return; }
-    if (nghe) { ngheRef.current?.stop(); return; }
-    const r = new SR();
-    r.lang = 'vi-VN'; r.interimResults = true; r.continuous = false;
-    const goc = nhap ? nhap.trim() + ' ' : '';
-    r.onresult = (ev) => { let s = ''; for (let i = 0; i < ev.results.length; i++) s += ev.results[i][0].transcript; setNhap(goc + s); };
-    r.onerror = (ev) => { setNghe(false); if (ev.error === 'not-allowed') baoToast?.('Chưa cho phép dùng micro — bật quyền micro cho trang này'); };
-    r.onend = () => { setNghe(false); setTimeout(() => oNhap.current?.focus(), 50); };
-    ngheRef.current = r;
-    try { r.start(); setNghe(true); } catch { setNghe(false); }
-  };
-
   const cuocMoi = () => { if (dangChay) return; setTin([]); setPhien(null); phuongAn.current = null; lsS('pa', null); daNapPhien.current = true; setView('chat'); };
 
   if (!quyen || (!quyen.ok && !quyen.admin)) return null;
@@ -418,7 +498,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
         </button>
       )}
       {mo && (
-        <div className={'stt-ngan' + (rong ? ' rong' : '')} role="dialog" aria-label="SIÊU TRÍ TUỆ">
+        <div ref={nganRef} className={'stt-ngan' + (rong ? ' rong' : '')} role="dialog" aria-label="SIÊU TRÍ TUỆ">
           <header className="stt-dau">
             <div className="stt-dau-ten">
               <span className="stt-logo"><IcBrain /></span>
@@ -453,17 +533,42 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
                   : <LuotAI key={m.id} m={m} onDung={() => dung(m)} onDuyet={() => duyet(m)} onHuy={() => huy(m)} onXem={xem}
                       onCt={() => { setCtId(m.viec_id); setView('ct'); }} />))}
               </div>
-              <form className="stt-nhap" onSubmit={(e) => { e.preventDefault(); giao(nhap); }}>
-                <textarea ref={oNhap} rows={1} value={nhap} disabled={choDung} placeholder={nghe ? 'Đang nghe… anh nói đi' : 'Giao việc cho SIÊU TRÍ TUỆ…'}
-                  onChange={(e) => setNhap(e.target.value)}
-                  onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = Math.min(140, e.target.scrollHeight) + 'px'; }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); giao(nhap); } }} />
-                <button type="button" className={'stt-mic' + (nghe ? ' on' : '')} onClick={batNghe} disabled={choDung} title={SR ? (nghe ? 'Dừng nghe' : 'Nói yêu cầu') : 'Trình duyệt chưa hỗ trợ giọng nói'} aria-label="Nhập giọng nói">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-                </button>
-                <button type="submit" className="stt-gui" disabled={!nhap.trim() || dangChay || choDung} aria-label="Giao việc">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                </button>
+              {/* NEW - 3.129 ô soạn kiểu ChatGPT: khung bo tròn, chữ ở trên tự giãn, hàng nút ở dưới */}
+              <form className={'stt-soan' + (gi.nghe ? ' nghe' : '') + (to ? ' to' : '') + (banPhim ? ' ban-phim' : '')} onSubmit={(e) => { e.preventDefault(); giao(nhap); }}>
+                <div className="stt-hop" onClick={(e) => { if (e.target === e.currentTarget && !gi.nghe) oNhap.current?.focus(); }}>
+                  {gi.nghe && (
+                    <div className="stt-nghe" aria-live="polite">
+                      <span className="stt-song" aria-hidden="true"><i /><i /><i /><i /><i /></span>
+                      <b>Đang nghe</b><DemGio tu={gi.tu} />
+                      <small>Cứ nói liền mạch, xong chạm nút đỏ</small>
+                    </div>
+                  )}
+                  <textarea ref={oNhap} rows={1} value={nhap} disabled={choDung} readOnly={gi.nghe}
+                    placeholder={gi.nghe ? 'Anh nói đi, chữ hiện ở đây…' : 'Hỏi hoặc giao việc cho SIÊU TRÍ TUỆ…'}
+                    enterKeyHint={laPc() ? 'send' : 'enter'} aria-label="Nội dung giao việc"
+                    onChange={(e) => setNhap(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && laPc()) { e.preventDefault(); giao(nhap); } }} />
+                  <div className="stt-hop-chan">
+                    <span className="stt-hop-goi">
+                      {gi.nghe ? <button type="button" className="stt-lk stt-bo-luot" onClick={gi.boLuot}>Huỷ lượt nói</button>
+                        : nhap.trim() ? `${fmt(demChu(nhap))} chữ` : laPc() ? 'Enter để gửi · Shift + Enter xuống dòng' : ''}
+                    </span>
+                    {(dai || to) && !gi.nghe && (
+                      <button type="button" className="stt-nut nho" onClick={() => setTo((v) => !v)} title={to ? 'Thu nhỏ ô soạn' : 'Phóng to ô soạn'} aria-label={to ? 'Thu nhỏ ô soạn' : 'Phóng to ô soạn'}>{to ? <IcThuNho /> : <IcMoRong />}</button>
+                    )}
+                    <button type="button" className={'stt-nut mic' + (gi.nghe ? ' on' : '')} onClick={gi.bam} disabled={choDung}
+                      title={!gi.co ? 'Trình duyệt chưa hỗ trợ giọng nói' : gi.nghe ? 'Dừng nghe, giữ chữ' : 'Nói yêu cầu'} aria-label={gi.nghe ? 'Dừng nghe' : 'Nhập giọng nói'}>
+                      {gi.nghe
+                        ? <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2.5" fill="currentColor" /></svg>
+                        : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>}
+                    </button>
+                    {dangChay
+                      ? <button type="button" className="stt-nut gui dung" onClick={() => jobDang && dung(jobDang)} title="Dừng việc đang chạy" aria-label="Dừng việc đang chạy">
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7.5" y="7.5" width="9" height="9" rx="2" fill="currentColor" /></svg></button>
+                      : <button type="submit" className="stt-nut gui" disabled={!nhap.trim() || choDung} title="Gửi" aria-label="Gửi">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg></button>}
+                  </div>
+                </div>
               </form>
             </>
           )}

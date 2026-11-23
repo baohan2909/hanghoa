@@ -5527,7 +5527,7 @@ td.dmo-th { background: #FAF6EE; font-weight: 700; }
 .stt-chu > :first-child { margin-top: 0; }
 .stt-tien + .stt-chu, .stt-bds + .stt-chu, .stt-lk + .stt-chu { margin-top: 10px; }
 .stt-luot-chan { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 11.5px; color: var(--ink-2); }
-.stt-luot-chan .stt-lk { margin-left: auto; font-size: 12px; }
+.stt-luot-chan .stt-lk { font-size: 12px; }
 
 .stt-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap;
   background: #EEF0F3; color: var(--ink-2); }
@@ -5575,16 +5575,6 @@ td.dmo-th { background: #FAF6EE; font-weight: 700; }
 .stt-the-nut .btn { height: 38px; }
 .stt-the-nut .btn svg { width: 15px; height: 15px; }
 .stt-the-nut .stt-huy { color: var(--magenta); }
-
-.stt-nhap { flex: none; display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid var(--line); }
-.stt-nhap textarea { flex: 1; min-width: 0; resize: none; height: 42px; max-height: 140px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line);
-  font: inherit; font-size: 14px; line-height: 1.45; color: var(--ink); background: var(--bg); outline: none; }
-.stt-nhap textarea:focus { border-color: var(--teal); background: #fff; }
-.stt-mic, .stt-gui { flex: none; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; }
-.stt-mic { background: var(--bg); border: 1.5px solid var(--line); color: var(--ink); }
-.stt-mic.on { background: var(--magenta); border-color: var(--magenta); color: #fff; animation: sttNhip 1.2s ease-in-out infinite; }
-.stt-gui { background: var(--grad); color: #fff; box-shadow: 0 4px 14px rgba(30,95,99,.3); }
-.stt-gui:disabled, .stt-mic:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 
 .stt-ls-dau { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .stt-cong { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 10px; background: #ECEEF1; }
@@ -5652,7 +5642,7 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
   .stt-tay.chay .stt-tay-ray { background: linear-gradient(90deg, #3FB6A8, var(--gold)); }
   body.ch-khoa-cuon .stt-tay { top: calc(100dvh - 150px); bottom: auto; left: 100vw; width: 30px; height: auto; padding: 10px 0; flex-direction: column; border-radius: 12px 0 0 12px; z-index: 270; }
   body.ch-khoa-cuon .stt-tay .stt-tay-chu { display: none; }
-  .stt-ngan, .stt-ngan.rong { left: 0; top: 0; right: auto; bottom: auto; width: 100vw; height: 100vh; height: 100dvh; box-shadow: none; animation: none; }
+  .stt-ngan, .stt-ngan.rong { left: 0; top: var(--stt-vt, 0px); right: auto; bottom: auto; width: 100vw; height: 100vh; height: var(--stt-vh, 100dvh); box-shadow: none; animation: none; }
   .stt-an-dt { display: none !important; }
   .stt-dau { padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
   .stt-dau-nut button span { display: none; }
@@ -5660,7 +5650,87 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
   .stt-khung { padding: 12px 10px 18px; }
   .stt-luot-than { padding: 11px; }
   .stt-luoi { grid-template-columns: 1fr; }
-  .stt-nhap textarea { font-size: 16px; }   /* iOS không tự phóng to */
 }
 .stt-ngan.rong .stt-khung { padding-left: max(14px, calc((100% - 920px) / 2)); padding-right: max(14px, calc((100% - 920px) / 2)); }
 .stt-h-khoa { display: flex; align-items: center; gap: 8px; }
+
+/* ============================================================================
+   NEW - 3.129 SIÊU TRÍ TUỆ · ô soạn kiểu ChatGPT + giọng nói nói dài + tiến độ tự co giãn
+   Ô soạn: khung trắng bo 24px, chữ ở trên tự giãn (tối đa ~45% màn, phóng to 62%), hàng nút ở dưới:
+   [số chữ / gợi ý phím] [phóng to] [micro ○ — đang nghe: đỏ #D6006C, ô vuông trắng] [gửi ↑ gradient navy→teal · đang chạy: ■ navy]
+   ============================================================================ */
+@keyframes sttSong { 0%, 100% { height: 4px; opacity: .55; } 50% { height: 15px; opacity: 1; } }
+@keyframes sttAnh { from { background-position: 130% 0; } to { background-position: -110% 0; } }
+@keyframes sttMo { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+.stt-soan { flex: none; padding: 6px 12px calc(12px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, rgba(247,245,241,0) 0%, var(--bg) 22%); }
+.stt-soan.ban-phim { padding-bottom: 8px; }
+.stt-ngan.rong .stt-soan { padding-left: max(12px, calc((100% - 920px) / 2)); padding-right: max(12px, calc((100% - 920px) / 2)); }
+.stt-hop { display: flex; flex-direction: column; gap: 8px; padding: 13px 10px 9px 16px; border-radius: 24px; background: #fff; cursor: text;
+  border: 1px solid #E1DDD3; box-shadow: 0 1px 2px rgba(20,33,58,.05), 0 10px 30px rgba(20,33,58,.09); transition: border-color .15s, box-shadow .15s; }
+.stt-hop:has(textarea:focus) { border-color: rgba(30,95,99,.42); box-shadow: 0 0 0 4px rgba(63,182,168,.12), 0 10px 30px rgba(20,33,58,.09); }
+.stt-soan.nghe .stt-hop { border-color: rgba(214,0,108,.38); box-shadow: 0 0 0 4px rgba(214,0,108,.08), 0 10px 30px rgba(20,33,58,.09); }
+.stt-hop textarea { display: block; width: 100%; min-height: 24px; margin: 0; padding: 0 6px 0 0; border: 0; outline: none; resize: none; background: transparent;
+  font: inherit; font-size: 15px; line-height: 1.55; color: var(--ink); overflow-y: hidden; scrollbar-width: thin; }
+.stt-hop textarea::placeholder { color: #9AA1AE; }
+.stt-hop textarea[readonly] { caret-color: transparent; }
+.stt-hop textarea:disabled { background: transparent; }
+.stt-hop-chan { display: flex; align-items: center; gap: 6px; min-height: 36px; }
+.stt-hop-goi { flex: 1; min-width: 0; font-size: 11.5px; color: #8C93A1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.stt-bo-luot { font-size: 12px; color: #8E0047; }
+.stt-nut { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); background: transparent;
+  transition: background .15s, color .15s, transform .1s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.stt-nut svg { width: 19px; height: 19px; }
+.stt-nut:active:not(:disabled) { transform: scale(.93); }
+.stt-nut:disabled { cursor: not-allowed; }
+.stt-nut:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.stt-nut.nho { width: 30px; height: 30px; color: var(--ink-2); }
+.stt-nut.nho svg { width: 15px; height: 15px; }
+.stt-nut.mic { border: 1px solid #E1DDD3; }
+.stt-nut.mic.on { background: var(--magenta); border-color: var(--magenta); color: #fff; animation: sttNhip 1.4s ease-in-out infinite; }
+.stt-nut.gui { background: var(--grad); color: #fff; box-shadow: 0 4px 12px rgba(30,95,99,.28); }
+.stt-nut.gui:disabled { background: #ECEAE4; color: #A9AEB8; box-shadow: none; }
+.stt-nut.gui.dung { background: var(--ink); box-shadow: 0 4px 12px rgba(20,33,58,.25); }
+@media (hover: hover) {
+  .stt-nut:hover:not(:disabled) { background: #F1EFE9; }
+  .stt-nut.mic.on:hover { background: #B8005D; }
+  .stt-nut.gui:hover:not(:disabled) { background: var(--grad); filter: brightness(1.08); }
+  .stt-nut.gui.dung:hover { background: #24344F; filter: none; }
+}
+.stt-nghe { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E0047; }
+.stt-nghe b { font-weight: 800; }
+.stt-nghe time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.stt-nghe small { margin-left: auto; font-size: 11px; color: #A4708B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stt-song { display: inline-flex; align-items: center; gap: 2px; height: 16px; }
+.stt-song i { width: 3px; height: 4px; border-radius: 2px; background: var(--magenta); animation: sttSong 1s ease-in-out infinite; }
+.stt-song i:nth-child(2) { animation-delay: .15s; }
+.stt-song i:nth-child(3) { animation-delay: .3s; }
+.stt-song i:nth-child(4) { animation-delay: .45s; }
+.stt-song i:nth-child(5) { animation-delay: .6s; }
+
+/* tiến độ việc nhẹ: vòng % + bước đang làm (chữ ánh sáng chạy) + giây */
+.stt-luot.dang.nhe .stt-luot-than { padding-top: 10px; padding-bottom: 10px; }
+.stt-gon { display: flex; align-items: center; gap: 9px; min-height: 26px; }
+.stt-vong { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.stt-vong svg { flex: none; }
+.stt-vong svg circle:last-child { transition: stroke-dashoffset .25s linear; }
+.stt-vong b { min-width: 34px; font-size: 13px; font-weight: 800; color: var(--teal-deep); font-variant-numeric: tabular-nums; }
+.stt-gon-chu { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2);
+  background: linear-gradient(90deg, var(--ink-2) 0%, var(--ink-2) 38%, #3FB6A8 50%, var(--ink-2) 62%, var(--ink-2) 100%); background-size: 240% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: sttAnh 1.9s linear infinite; }
+.stt-gon-gio { flex: none; font-size: 11.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.stt-luot.nang.dang .stt-tien { animation: sttMo .25s ease-out; }
+.stt-gon + .stt-chu { margin-top: 10px; }
+.stt-chan-phai { margin-left: auto; display: inline-flex; align-items: center; gap: 14px; }
+.stt-mui { display: inline-block; width: 6px; height: 6px; margin-left: 2px; border-right: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform .15s; }
+.stt-mui.len { transform: translateY(1px) rotate(-135deg); }
+.stt-buoc-mo { margin-top: 4px; }
+.stt-buoc-mo .stt-kh { margin-top: 6px; }
+
+@media (max-width: 900px) {
+  .stt-soan { padding-left: 10px; padding-right: 10px; }
+  .stt-hop textarea { font-size: 16px; }   /* iOS không tự phóng to */
+}
+@media (prefers-reduced-motion: reduce) {
+  .stt-song i, .stt-nut.mic.on, .stt-gon-chu, .stt-luot.nang.dang .stt-tien { animation: none; }
+}
