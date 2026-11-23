@@ -540,6 +540,7 @@ export function NganChiTiet({ id, dong, odoo, saiXong, moDon }) {
   const tong4 = useMemo(() => dong4.reduce((a, d) => ({ app: a.app + (d.app || 0), odoo: a.odoo + (d.odoo || 0), xuat: a.xuat + (d.xuat || 0), nhan: a.nhan + (d.nhan || 0) }),
     { app: 0, odoo: 0, xuat: 0, nhan: 0 }), [dong4]);
   const dcCt = ct ? DC[ct.dc] : null;
+  const nkXong = !!ct && (ct.nhan_thieu || (ct.b7 || [])[6] === 2);   // 3.139.6: phiếu nhập đã xong
   const dcGiai = !ct ? '' : ct.dc === 'khop' ? 'Mọi mã kho xuất đúng số Odoo yêu cầu.'
     : ct.dc === 'xuat_thieu' ? `${ct.dc_chi?.n_thieu} mã xuất ít hơn Odoo yêu cầu, tổng thiếu ${fmt(ct.dc_chi?.sl_thieu)}.`
     : ct.dc === 'xuat_du' ? `${ct.dc_chi?.n_du} mã xuất nhiều hơn Odoo yêu cầu, tổng dư ${fmt(ct.dc_chi?.sl_du)}.`
@@ -669,8 +670,8 @@ export function NganChiTiet({ id, dong, odoo, saiXong, moDon }) {
               {the === 'sp' && <>
                 <section className="odn-muc">
                   <h3>Sản phẩm & đối soát <span>{dong4.length} mã · Odoo yêu cầu {fmt(ct.sl_odoo)} · đã xuất {fmt(ct.sl_xuat)} · đã nhận {fmt(ct.sl_nhan)}</span></h3>
-                  <div className={'odn-dc2 ' + (dcCt?.[1] || 'xam') + (ct.dc_tam ? ' tam' : '')}>
-                    <b>{dcCt?.[0] || 'Chưa lên Odoo'}{ct.dc_tam ? ' · tạm tính' : ''}</b>
+                  <div className={'odn-dc2 ' + (ct.nhan_thieu ? 'do' : dcCt?.[1] || 'xam') + (ct.dc_tam ? ' tam' : '')}>
+                    <b>{dcCt?.[0] || 'Chưa lên Odoo'}{ct.dc_tam ? ' · tạm tính' : ''}{ct.nhan_thieu ? ' · Nhận thiếu' : ''}</b>
                     <span>{dcGiai}{ct.dc_tam ? ' Còn phiếu xuất dở dang — số sẽ đổi khi kho xuất tiếp.' : ''}</span>
                     {ct.kho_sua && <span className="odn-dc2-phu"><b>Kho sửa đơn:</b> Odoo yêu cầu khác số app gửi ở các ô tô vàng.</span>}
                     {ct.nhan_thieu && <span className="odn-dc2-phu"><b>Nhận thiếu:</b> phiếu nhập đã xong, đã nhận {fmt(ct.sl_nhan)} / đã xuất {fmt(ct.sl_xuat)}.</span>}
@@ -685,8 +686,9 @@ export function NganChiTiet({ id, dong, odoo, saiXong, moDon }) {
                             {laApp && <td className={'so' + (d.ks ? ' ks' : '')}>{fmt(d.app)}</td>}
                             {/* 3.139.4: kho xuất không khớp -> 2 ô Odoo yêu cầu + Đã xuất tô hồng, không ghi số chênh */}
                             <td className={'so' + (d.kq === 'thieu' || d.kq === 'du' ? ' lech' : d.ks ? ' ks' : '')}>{d.odoo == null ? (d.kq === 'bo' ? 'bỏ mã' : '—') : fmt(d.odoo)}</td>
-                            <td className={'so' + (d.kq === 'thieu' || d.kq === 'du' ? ' lech' : '')}>{fmt(d.xuat)}</td>
-                            <td className="so">{fmt(d.nhan)}</td>
+                            <td className={'so' + (d.kq === 'thieu' || d.kq === 'du' || (nkXong && (d.nhan || 0) < (d.xuat || 0)) ? ' lech' : '')}>{fmt(d.xuat)}</td>
+                            {/* 3.139.6: phiếu nhập đã xong mà nhận ít hơn xuất -> tô hồng Đã xuất + Đã nhận */}
+                            <td className={'so' + (nkXong && (d.nhan || 0) < (d.xuat || 0) ? ' lech' : '')}>{fmt(d.nhan)}</td>
                           </tr>
                         ))}</tbody>
                         <tfoot><tr><td>Tổng</td>{laApp && <td className="so">{fmt(tong4.app)}</td>}<td className="so">{fmt(tong4.odoo)}</td><td className="so">{fmt(tong4.xuat)}</td><td className="so">{fmt(tong4.nhan)}</td></tr></tfoot>
