@@ -74,3 +74,6 @@ export const aiHuy = (token, id) => rpc('fn_ai_thao_tac_huy', { p_token: token, 
 export const aiCauHinh = (token) => rpc('fn_ai_cau_hinh', { p_token: token });
 export const aiCauHinhLuu = (token, cfg) => rpc('fn_ai_cau_hinh_luu', { p_token: token, p_cfg: cfg });
 export const aiLuuKhoa = (token, khoa) => rpc('fn_ai_luu_khoa', { p_token: token, p_khoa: khoa });
+// NEW - 3.130 danh sách cuộc trò chuyện kiểu ChatGPT (SQL 217)
+export const aiDsPhien = (token, tim = null, gioiHan = 150) => rpc('fn_ai_ds_phien', { p_token: token, p_tim: tim || null, p_gioi_han: gioiHan });
+export const aiPhienSua = (token, id, p) => rpc('fn_ai_phien_sua', { p_token: token, p_phien: id, p });

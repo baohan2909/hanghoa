@@ -9,7 +9,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { IcBrain, IcCheck, IcAlert, IcClock, IcGear, IcMoRong, IcThuNho, IcRefresh, IcSpark, IcBox } from './icons.jsx';
 import { Sel } from './ui.jsx';
 import { layCau, choCau, datMo } from './sttCau.js';
-import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa } from './sttApi.js';
+import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa, aiDsPhien, aiPhienSua } from './sttApi.js';
 import { useGiong } from './sttGiong.js';   // NEW - 3.129 giọng nói nói dài, bấm nhiều lần
 
 const fmt = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
@@ -29,6 +29,26 @@ const GOI_Y = [
   'Top 10 cửa hàng bán nhiều nhất tuần này, kèm tồn hiện tại',
   'Cửa hàng Nguyễn Trãi 5 còn phiếu nào chưa nhận?',
 ];
+
+// NEW - 3.130 biểu tượng riêng của khung (nét 1.9, bo tròn — cùng họ với icons.jsx)
+const Sv = ({ children, ...p }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>{children}</svg>;
+const IcDs = () => <Sv><path d="M4 6h16M4 12h10M4 18h16" /></Sv>;
+const IcViet = () => <Sv><path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" /><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.5-8.5z" /></Sv>;
+const IcVe = () => <Sv><path d="M15 5l-7 7 7 7" /></Sv>;
+const IcGhim = () => <Sv><path d="M9 4h6l-1 6 4 3v2H6v-2l4-3-1-6zM12 15v6" /></Sv>;
+const IcBaCham = () => <Sv><circle cx="5" cy="12" r="1.2" fill="currentColor" /><circle cx="12" cy="12" r="1.2" fill="currentColor" /><circle cx="19" cy="12" r="1.2" fill="currentColor" /></Sv>;
+const IcTim = () => <Sv><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2" /></Sv>;
+const NHOM_NGAY = (t) => {
+  const d = new Date(t); const h = new Date(); h.setHours(0, 0, 0, 0);
+  const n = Math.floor((h - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  return n <= 0 ? 'Hôm nay' : n === 1 ? 'Hôm qua' : n < 7 ? '7 ngày qua' : n < 30 ? '30 ngày qua' : 'Cũ hơn';
+};
+// tin nhắn đã lưu trên máy chủ -> dạng khung trò chuyện
+const tinTuMay = (ds) => (ds || []).map((x) => (x.vai === 'nguoi'
+  ? { id: 'n' + x.id, vai: 'nguoi', text: x.noi_dung }
+  : { id: 'a' + x.id, vai: 'ai', trang_thai: 'xong', tra_loi: x.noi_dung, the: x.viec?.the || null, viec_id: x.viec_id, pt: 100,
+      bat_dau: x.viec?.bat_dau ? new Date(x.viec.bat_dau).getTime() : null, ket_thuc: x.viec?.ket_thuc ? new Date(x.viec.ket_thuc).getTime() : null,
+      token: x.viec ? { vao: x.viec.token_vao || 0, ra: x.viec.token_ra || 0 } : null, buoc: [], canTt: !!x.viec?.the?.thao_tac_id }));
 
 // chữ trả lời: "- " -> gạch đầu dòng, **đậm**
 function Chu({ text }) {
@@ -250,6 +270,8 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   const [banPhim, setBanPhim] = useState(false);
   const nganRef = useRef(null);
   const [ctId, setCtId] = useState(null);
+  const [moDs, setMoDs] = useState(false);       // NEW - 3.130 ngăn danh sách cuộc trò chuyện
+  const [dangNap, setDangNap] = useState(false);
   const acRef = useRef(null);
   const phienRef = useRef(phien); phienRef.current = phien;
   const phuongAn = useRef(lsG('pa', null));
@@ -282,19 +304,39 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
     vv.addEventListener('resize', f); vv.addEventListener('scroll', f);
     return () => { vv.removeEventListener('resize', f); vv.removeEventListener('scroll', f); };
   }, [mo]);
-  // ô soạn tự giãn theo chữ: đọc trọn đoạn (tối đa ~45% màn), dài hơn thì cuộn trong ô; phóng to = 62% màn
+  // NEW - 3.130 ô soạn MỞ khi chạm vào ô / bấm micro; chạm ra ngoài -> THU GỌN 1 hàng (chữ dài chỉ hiện 3 dòng đầu, mờ dần)
+  const [soanMo, setSoanMo] = useState(false);
+  const [vuot, setVuot] = useState(false);
+  const formRef = useRef(null);
+  const moSoan = soanMo || gi.nghe || to;
+  useEffect(() => {
+    if (!soanMo) return undefined;
+    const f = (e) => {
+      if (formRef.current && !formRef.current.contains(e.target)) {
+        setSoanMo(false); setTo(false);
+        if (document.activeElement === oNhap.current) oNhap.current.blur();
+      }
+    };
+    document.addEventListener('pointerdown', f, true);
+    return () => document.removeEventListener('pointerdown', f, true);
+  }, [soanMo]);
+  // ô soạn tự giãn theo chữ: đang mở = đọc trọn đoạn (tối đa ~45% màn, phóng to 62%), dài hơn thì cuộn trong ô
   useLayoutEffect(() => {
     const el = oNhap.current; if (!el) return;
     el.style.height = 'auto';
+    const cs = getComputedStyle(el);
+    const lh = parseFloat(cs.lineHeight) || 24;
+    const dem = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
     const vh = window.visualViewport?.height || window.innerHeight;
-    const max = Math.round(to ? vh * 0.62 : Math.min(vh * 0.45, 380));
+    const max = Math.round(!moSoan ? lh * 3 + dem : to ? vh * 0.62 : Math.min(vh * 0.45, 380));
     const sh = el.scrollHeight;
-    el.style.height = (to ? max : Math.min(sh, max)) + 'px';
-    el.style.overflowY = sh > max ? 'auto' : 'hidden';
-    if (gi.nghe) el.scrollTop = el.scrollHeight;
-    const lh = parseFloat(getComputedStyle(el).lineHeight) || 24;
-    setDai(sh > lh * 4.5);
-  }, [nhap, to, mo, view, gi.nghe, banPhim]);
+    el.style.height = (to && moSoan ? max : Math.min(sh, max)) + 'px';
+    el.style.overflowY = moSoan && sh > max ? 'auto' : 'hidden';
+    if (!moSoan) el.scrollTop = 0;
+    else if (gi.nghe) el.scrollTop = el.scrollHeight;
+    setDai(sh - dem > lh * 4.5);
+    setVuot(!moSoan && sh > max + 2);
+  }, [nhap, to, mo, view, gi.nghe, banPhim, moSoan]);
 
   useEffect(() => { if (token) aiQuyen(token).then(setQuyen, () => setQuyen(null)); }, [token]);
   useEffect(() => { lsS('phien:' + (user?.ma_dang_nhap || ''), phien); }, [phien, user?.ma_dang_nhap]);
@@ -306,11 +348,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
     daNapPhien.current = true;
     aiPhienTin(token, phien).then((ds) => {
       if (!Array.isArray(ds) || !ds.length) return;
-      setTin((cu) => (cu.length ? cu : ds.map((x) => (x.vai === 'nguoi'
-        ? { id: 'n' + x.id, vai: 'nguoi', text: x.noi_dung }
-        : { id: 'a' + x.id, vai: 'ai', trang_thai: 'xong', tra_loi: x.noi_dung, the: x.viec?.the || null, viec_id: x.viec_id, pt: 100,
-          bat_dau: x.viec?.bat_dau ? new Date(x.viec.bat_dau).getTime() : null, ket_thuc: x.viec?.ket_thuc ? new Date(x.viec.ket_thuc).getTime() : null,
-          token: x.viec ? { vao: x.viec.token_vao || 0, ra: x.viec.token_ra || 0 } : null, buoc: [], canTt: !!x.viec?.the?.thao_tac_id }))));
+      setTin((cu) => (cu.length ? cu : tinTuMay(ds)));
     }).catch(() => { /* phiên cũ không còn: bỏ qua */ });
   }, [mo, phien, token]);
 
@@ -411,9 +449,12 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   const giao = async (text) => {
     const yeuCau = String(text || '').trim();
     if (!yeuCau || dangChay) return;
-    gi.huy();   // đang nói mà bấm gửi: dừng micro ngay, bỏ kết quả đến muộn (không điền lại ô)
-    setNhap(''); lsS(khoaNhap, null); setTo(false);
-    if (!laPc()) oNhap.current?.blur();
+    const tuO = String(text) === nhapRef.current;   // gửi từ ô soạn (không phải bấm câu gợi ý) -> mới xoá ô
+    if (tuO) {
+      gi.huy();   // đang nói mà bấm gửi: dừng micro ngay, bỏ kết quả đến muộn (không điền lại ô)
+      setNhap(''); lsS(khoaNhap, null); setTo(false);
+    }
+    if (!laPc()) { oNhap.current?.blur(); setSoanMo(false); }
     setView('chat');
     const id = 'j' + Date.now();
     setTin((t) => [...t, { id: 'u' + id, vai: 'nguoi', text: yeuCau }, { id, vai: 'ai', trang_thai: 'dang', pt: 1, ptToi: 4, buoc_hien: 'Gửi yêu cầu', buoc: [], bat_dau: Date.now() }]);
@@ -483,7 +524,19 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   };
   const xem = async () => { await moChiaDoi(); if (laDt()) setMo(false); };
 
-  const cuocMoi = () => { if (dangChay) return; setTin([]); setPhien(null); phuongAn.current = null; lsS('pa', null); daNapPhien.current = true; setView('chat'); };
+  const cuocMoi = () => {
+    if (dangChay) { baoToast?.('Đang có việc chạy — chờ xong hoặc bấm Dừng rồi mới mở cuộc trò chuyện mới'); return; }
+    setTin([]); setPhien(null); phuongAn.current = null; lsS('pa', null); daNapPhien.current = true; setView('chat'); setMoDs(false);
+  };
+  // NEW - 3.130 mở lại 1 cuộc trò chuyện cũ (nối tiếp được như ChatGPT)
+  const moPhien = async (id) => {
+    if (dangChay && id !== phien) { baoToast?.('Đang có việc chạy — chờ xong hoặc bấm Dừng rồi mới chuyển cuộc trò chuyện'); return; }
+    setMoDs(false); setView('chat');
+    if (id === phien && tin.length) return;
+    setPhien(id); daNapPhien.current = true; phuongAn.current = null; lsS('pa', null);
+    setTin([]); setDangNap(true);
+    try { setTin(tinTuMay(await aiPhienTin(token, id))); } catch (e) { baoToast?.('Chưa mở được cuộc trò chuyện: ' + e.message); } finally { setDangNap(false); }
+  };
 
   if (!quyen || (!quyen.ok && !quyen.admin)) return null;
   const choDung = !quyen.ok;   // Quản trị khi AI tắt: vẫn vào được Cài đặt
@@ -501,19 +554,24 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
         <div ref={nganRef} className={'stt-ngan' + (rong ? ' rong' : '')} role="dialog" aria-label="SIÊU TRÍ TUỆ">
           <header className="stt-dau">
             <div className="stt-dau-ten">
+              {/* NEW - 3.130 trái: mở danh sách cuộc trò chuyện (ở màn trò chuyện) / quay lại (ở màn khác) */}
+              {view === 'chat'
+                ? <button className="stt-dau-ds" onClick={() => setMoDs(true)} title="Các cuộc trò chuyện" aria-label="Các cuộc trò chuyện"><IcDs /></button>
+                : <button className="stt-dau-ds" onClick={() => setView(view === 'ct' ? 'ls' : 'chat')} title="Quay lại" aria-label="Quay lại"><IcVe /></button>}
               <span className="stt-logo"><IcBrain /></span>
-              <div><b>SIÊU TRÍ TUỆ</b><small>{view === 'ls' ? 'Lịch sử giao việc' : view === 'ct' ? 'Chi tiết việc' : view === 'cai' ? 'Cài đặt' : `Đang ở: ${tenTab(tab)}`}</small></div>
+              <div><b>SIÊU TRÍ TUỆ</b><small>{view === 'ls' ? 'Nhật ký việc & phiếu duyệt' : view === 'ct' ? 'Chi tiết việc' : view === 'cai' ? 'Cài đặt' : `Đang ở: ${tenTab(tab)}`}</small></div>
             </div>
             <div className="stt-dau-nut">
-              {view !== 'chat' && <button onClick={() => setView('chat')} title="Về trò chuyện">Trò chuyện</button>}
-              {view === 'chat' && tin.length > 0 && !dangChay && <button onClick={cuocMoi} title="Bắt đầu cuộc trò chuyện mới"><IcSpark /><span>Mới</span></button>}
-              {view === 'chat' && <button onClick={() => setView('ls')} title="Lịch sử"><IcClock /><span>Lịch sử</span></button>}
-              {quyen.admin && view !== 'cai' && <button onClick={() => setView('cai')} title="Cài đặt"><IcGear /></button>}
+              {view === 'chat' && <button onClick={cuocMoi} disabled={!tin.length} title="Cuộc trò chuyện mới" aria-label="Cuộc trò chuyện mới"><IcViet /><span>Mới</span></button>}
+              {quyen.admin && view !== 'cai' && <button onClick={() => setView('cai')} title="Cài đặt" aria-label="Cài đặt"><IcGear /></button>}
               <button className="stt-an-dt" onClick={() => setRong((v) => !v)} title={rong ? 'Thu hẹp' : 'Mở rộng'}>{rong ? <IcThuNho /> : <IcMoRong />}</button>
               <button onClick={() => setMo(false)} title="Thu nhỏ (việc vẫn chạy)" aria-label="Đóng">×</button>
             </div>
             {jobDang && <i className="stt-dau-ray" style={{ width: (jobDang.pt || 0) + '%' }} />}
           </header>
+          {moDs && <DsHoiThoai token={token} phien={phien} dangChay={dangChay} baoToast={baoToast}
+            onMo={moPhien} onMoi={cuocMoi} onDong={() => setMoDs(false)} onNhatKy={() => { setMoDs(false); setView('ls'); }}
+            onDaXoa={(id) => { if (id === phien) { setTin([]); setPhien(null); daNapPhien.current = true; } }} />}
 
           {view === 'chat' && (
             <>
@@ -521,8 +579,10 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
                 {choDung && <div className="stt-bao"><IcAlert />{quyen.loi || 'SIÊU TRÍ TUỆ đang tắt'} — vào Cài đặt để bật.</div>}
                 {quyen.ok && !quyen.co_khoa && <div className="stt-bao"><IcAlert />Chưa có khoá FableAI. {quyen.admin ? 'Vào Cài đặt (bánh răng) để dán khoá.' : 'Nhờ Quản trị dán khoá ở Cài đặt.'}</div>}
                 {quyen.dung_khan && <div className="stt-bao do"><IcAlert />Quản trị đang bật DỪNG KHẨN CẤP — AI chỉ chuẩn bị, không thực hiện thao tác ghi.</div>}
-                {tin.length === 0 && (
+                {dangNap && <p className="stt-trong"><i className="stt-quay" /> Đang mở cuộc trò chuyện…</p>}
+                {tin.length === 0 && !dangNap && (
                   <div className="stt-chao">
+                    <span className="stt-chao-dau" aria-hidden="true"><IcBrain /></span>
                     <b>Anh giao việc, em làm trên màn hình rồi báo lại.</b>
                     <p>Hỏi gì về đội, cửa hàng, kho, sản phẩm em cũng tra được. Thao tác chia hàng dùng đúng công thức của app; việc ghi dữ liệu luôn chờ anh bấm Duyệt.</p>
                     <div className="stt-goi-y">{GOI_Y.map((g) => <button key={g} onClick={() => giao(g)} disabled={choDung}>{g}</button>)}</div>
@@ -533,8 +593,8 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
                   : <LuotAI key={m.id} m={m} onDung={() => dung(m)} onDuyet={() => duyet(m)} onHuy={() => huy(m)} onXem={xem}
                       onCt={() => { setCtId(m.viec_id); setView('ct'); }} />))}
               </div>
-              {/* NEW - 3.129 ô soạn kiểu ChatGPT: khung bo tròn, chữ ở trên tự giãn, hàng nút ở dưới */}
-              <form className={'stt-soan' + (gi.nghe ? ' nghe' : '') + (to ? ' to' : '') + (banPhim ? ' ban-phim' : '')} onSubmit={(e) => { e.preventDefault(); giao(nhap); }}>
+              {/* NEW - 3.129/3.130 ô soạn kiểu ChatGPT: gọn = 1 hàng [chữ][micro][gửi]; mở = chữ ở trên tự giãn, hàng nút ở dưới */}
+              <form ref={formRef} className={'stt-soan' + (moSoan ? ' mo' : ' gon') + (gi.nghe ? ' nghe' : '') + (to ? ' to' : '') + (banPhim ? ' ban-phim' : '')} onSubmit={(e) => { e.preventDefault(); giao(nhap); }}>
                 <div className="stt-hop" onClick={(e) => { if (e.target === e.currentTarget && !gi.nghe) oNhap.current?.focus(); }}>
                   {gi.nghe && (
                     <div className="stt-nghe" aria-live="polite">
@@ -543,8 +603,9 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
                       <small>Cứ nói liền mạch, xong chạm nút đỏ</small>
                     </div>
                   )}
-                  <textarea ref={oNhap} rows={1} value={nhap} disabled={choDung} readOnly={gi.nghe}
-                    placeholder={gi.nghe ? 'Anh nói đi, chữ hiện ở đây…' : 'Hỏi hoặc giao việc cho SIÊU TRÍ TUỆ…'}
+                  <textarea ref={oNhap} rows={1} value={nhap} disabled={choDung} readOnly={gi.nghe} className={vuot ? 'vuot' : undefined}
+                    onFocus={() => setSoanMo(true)}
+                    placeholder={gi.nghe ? 'Anh nói đi, chữ hiện ở đây…' : 'Hỏi hoặc giao việc…'}
                     enterKeyHint={laPc() ? 'send' : 'enter'} aria-label="Nội dung giao việc"
                     onChange={(e) => setNhap(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && laPc()) { e.preventDefault(); giao(nhap); } }} />
@@ -554,9 +615,9 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
                         : nhap.trim() ? `${fmt(demChu(nhap))} chữ` : laPc() ? 'Enter để gửi · Shift + Enter xuống dòng' : ''}
                     </span>
                     {(dai || to) && !gi.nghe && (
-                      <button type="button" className="stt-nut nho" onClick={() => setTo((v) => !v)} title={to ? 'Thu nhỏ ô soạn' : 'Phóng to ô soạn'} aria-label={to ? 'Thu nhỏ ô soạn' : 'Phóng to ô soạn'}>{to ? <IcThuNho /> : <IcMoRong />}</button>
+                      <button type="button" className="stt-nut nho" onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => setTo((v) => !v)} title={to ? 'Thu nhỏ ô soạn' : 'Phóng to ô soạn'} aria-label={to ? 'Thu nhỏ ô soạn' : 'Phóng to ô soạn'}>{to ? <IcThuNho /> : <IcMoRong />}</button>
                     )}
-                    <button type="button" className={'stt-nut mic' + (gi.nghe ? ' on' : '')} onClick={gi.bam} disabled={choDung}
+                    <button type="button" className={'stt-nut mic' + (gi.nghe ? ' on' : '')} onClick={() => { setSoanMo(true); gi.bam(); }} disabled={choDung}
                       title={!gi.co ? 'Trình duyệt chưa hỗ trợ giọng nói' : gi.nghe ? 'Dừng nghe, giữ chữ' : 'Nói yêu cầu'} aria-label={gi.nghe ? 'Dừng nghe' : 'Nhập giọng nói'}>
                       {gi.nghe
                         ? <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2.5" fill="currentColor" /></svg>
@@ -585,6 +646,82 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
 // ---------------------------------------------------------------------------
 // LỊCH SỬ
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// NEW - 3.130 Danh sách cuộc trò chuyện (ngăn trượt từ trái, kiểu ChatGPT): mới · tìm · ghim · đổi tên · xoá
+// ---------------------------------------------------------------------------
+function DsHoiThoai({ token, phien, dangChay, baoToast, onMo, onMoi, onDong, onNhatKy, onDaXoa }) {
+  const [ds, setDs] = useState(null);
+  const [tim, setTim] = useState('');
+  const [loi, setLoi] = useState('');
+  const [menu, setMenu] = useState(null);
+  const [sua, setSua] = useState(null);
+  const [tenMoi, setTenMoi] = useState('');
+  const [xoa, setXoa] = useState(null);
+  const tai = useCallback((q) => { setLoi(''); aiDsPhien(token, q).then((r) => setDs(Array.isArray(r) ? r : []), (e) => { setLoi(e.message); setDs([]); }); }, [token]);
+  useEffect(() => { const h = setTimeout(() => tai(tim.trim()), tim ? 300 : 0); return () => clearTimeout(h); }, [tim, tai]);
+  useEffect(() => { const f = (e) => { if (e.key === 'Escape') onDong(); }; window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f); }, [onDong]);
+  const doi = async (p, patch) => {
+    setMenu(null); setXoa(null);
+    try {
+      await aiPhienSua(token, p.id, patch);
+      if (patch.an) { setDs((d) => d.filter((x) => x.id !== p.id)); onDaXoa?.(p.id); baoToast?.('Đã xoá cuộc trò chuyện'); }
+      else setDs((d) => d.map((x) => (x.id === p.id ? { ...x, ...patch } : x)).sort((a, b) => (b.ghim - a.ghim) || String(b.cap_nhat).localeCompare(String(a.cap_nhat))));
+    } catch (e) { baoToast?.('Chưa lưu được: ' + e.message); }
+  };
+  const nhom = [];
+  (ds || []).forEach((p) => {
+    const ten = p.ghim ? 'Đã ghim' : NHOM_NGAY(p.cap_nhat);
+    if (!nhom.length || nhom[nhom.length - 1].ten !== ten) nhom.push({ ten, ds: [] });
+    nhom[nhom.length - 1].ds.push(p);
+  });
+  return (
+    <>
+      <div className="stt-ds-nen" onClick={onDong} aria-hidden="true" />
+      <aside className="stt-ds" role="dialog" aria-label="Các cuộc trò chuyện">
+        <div className="stt-ds-dau">
+          <b>Cuộc trò chuyện</b>
+          <button className="stt-ds-x" onClick={onDong} aria-label="Đóng danh sách">×</button>
+        </div>
+        <button className="stt-ds-moi" onClick={onMoi} disabled={dangChay}><IcViet />Cuộc trò chuyện mới</button>
+        <label className="stt-ds-tim"><IcTim /><input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm trong các cuộc trò chuyện" aria-label="Tìm cuộc trò chuyện" /></label>
+        <div className="stt-ds-ds">
+          {loi && <p className="stt-loi"><IcAlert />{loi}</p>}
+          {!ds && <p className="stt-trong"><i className="stt-quay" /> Đang tải…</p>}
+          {ds && ds.length === 0 && !loi && <p className="stt-trong">{tim ? 'Không thấy cuộc trò chuyện nào khớp.' : 'Chưa có cuộc trò chuyện nào.'}</p>}
+          {nhom.map((g) => (
+            <section key={g.ten}>
+              <h5>{g.ten}</h5>
+              {g.ds.map((p) => (
+                <div key={p.id} className={'stt-ds-dong' + (p.id === phien ? ' on' : '') + (menu === p.id ? ' mo' : '')}>
+                  {sua === p.id ? (
+                    <form className="stt-ds-sua" onSubmit={(e) => { e.preventDefault(); setSua(null); if (tenMoi.trim() && tenMoi.trim() !== p.tieu_de) doi(p, { tieu_de: tenMoi.trim() }); }}>
+                      <input autoFocus value={tenMoi} onChange={(e) => setTenMoi(e.target.value)} onBlur={(e) => e.currentTarget.form?.requestSubmit()} maxLength={120} aria-label="Tên cuộc trò chuyện" />
+                    </form>
+                  ) : (
+                    <button className="stt-ds-mo" onClick={() => onMo(p.id)}>
+                      <span className="stt-ds-td">{p.ghim && <IcGhim />}<span>{p.tieu_de}</span></span>
+                      <small>{p.dang_chay ? <em>Đang chạy…</em> : NHOM_NGAY(p.cap_nhat) === 'Hôm nay' ? gioPhut(p.cap_nhat) : ngayGio(p.cap_nhat)}{p.cuoi ? ' · ' + p.cuoi : ''}</small>
+                    </button>
+                  )}
+                  {sua !== p.id && <button className="stt-ds-them" onClick={() => { setMenu(menu === p.id ? null : p.id); setXoa(null); }} aria-label="Tuỳ chọn" aria-expanded={menu === p.id}><IcBaCham /></button>}
+                  {menu === p.id && (
+                    <div className="stt-ds-menu">
+                      <button onClick={() => { setMenu(null); setSua(p.id); setTenMoi(p.tieu_de); }}>Đổi tên</button>
+                      <button onClick={() => doi(p, { ghim: !p.ghim })}>{p.ghim ? 'Bỏ ghim' : 'Ghim lên đầu'}</button>
+                      <button className="do" onClick={() => (xoa === p.id ? doi(p, { an: true }) : setXoa(p.id))}>{xoa === p.id ? 'Chạm lần nữa để xoá' : 'Xoá'}</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+        <button className="stt-ds-nk" onClick={onNhatKy}><IcClock />Nhật ký việc & phiếu duyệt</button>
+      </aside>
+    </>
+  );
+}
+
 function LichSu({ token, admin, onMo }) {
   const [ds, setDs] = useState(null);
   const [tatCa, setTatCa] = useState(false);
