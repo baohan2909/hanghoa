@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { IcDown, IcGuiLen } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
-import { useOdooCfg, moOdoo, gomDon, odooTheoNguon } from '../lib/odoo.js';
+import { useOdooCfg, moOdoo, gomDon, odooTheoNguon, luuKemOdoo } from '../lib/odoo.js';
 
 // Dùng chung cho Chia hàng đội sale + Kho thùng (tách từ DsChiaHang v3.103.0)
 export const fmtN = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
@@ -234,6 +234,7 @@ export function useHoiGhiChu() {
   const chonOdoo = useRef(false);
   const ask = useCallback((o = {}) => new Promise((resolve) => { chonOdoo.current = false; setHoi({ ...o, resolve }); }), []);
   const el = hoi ? <HopGhiChu key="gc" {...hoi} coOdoo={!!(hoi.odoo && odoo)} batBuoc={!!(hoi.odooBatBuoc && odoo)}
+    kemMacDinh={odoo?.kem !== false} onDoiKem={(v) => luuKemOdoo(user?.token, v)}
     onXong={(v, od) => { chonOdoo.current = !!(od && v !== null); hoi.resolve(v); setHoi(null); }} /> : null;
   return [ask, el, chonOdoo];
 }
@@ -275,15 +276,16 @@ export const odooTuKq = (kq, ghiChu, mo) => odooTuPhieu([
   kq.id && { id: kq.id, ma_phieu: kq.ma_phieu, ghi_chu: ghiChu },
   kq.id_pk && { id: kq.id_pk, ma_phieu: kq.ma_phieu_pk, ghi_chu: ghiChu },
   kq.id_thung && { id: kq.id_thung, ma_phieu: kq.ma_phieu_thung, ghi_chu: kq.ghi_chu_thung != null ? kq.ghi_chu_thung : ghiChu },
-].filter(Boolean), 'Đội sale — ' + tenPhieu(kq), undefined, undefined, mo);
+].filter(Boolean), 'Đội sale — ' + tenPhieu(kq), undefined, mo?.token, mo);
 // Ghi chú mặc định theo đội: nhớ ghi chú lần trước của đội, chưa có thì "Đội Sale 01 – "
 export const ghiChuMacDinh = (maDoi, tenDoi) => lsGet('ghi_chu.' + (maDoi || '-'))
   ?? `${String(tenDoi || maDoi || '').replace(/^Đội SALE/i, 'Đội Sale')} – `;
 export const nhoGhiChu = (maDoi, v) => { if (maDoi) lsSet('ghi_chu.' + maDoi, v || ''); };
 
-function HopGhiChu({ tieuDe, macDinh, phu, nutXong, coOdoo, batBuoc, onXong }) {
+function HopGhiChu({ tieuDe, macDinh, phu, nutXong, coOdoo, batBuoc, kemMacDinh, onDoiKem, onXong }) {
   const [v, setV] = useState(macDinh || '');
-  const [od, setOd] = useState(() => !!lsGet('odoo_kem'));
+  // NEW - 3.126: lấy theo tài khoản (máy chủ), không theo trình duyệt — máy mới vẫn tick sẵn
+  const [od, setOd] = useState(() => kemMacDinh !== false);
   const kemOdoo = !!batBuoc || !!(coOdoo && od);   // NEW - 3.125: batBuoc = màn này luôn tạo đơn Odoo (không xuất file)
   const o = useRef(null);
   useEffect(() => { setTimeout(() => { const e = o.current; if (e) { e.focus(); const n = e.value.length; e.setSelectionRange(n, n); } }, 40); }, []);
@@ -307,10 +309,10 @@ function HopGhiChu({ tieuDe, macDinh, phu, nutXong, coOdoo, batBuoc, onXong }) {
         )}
         {coOdoo && !batBuoc && (
           <label className={'gc-odoo' + (od ? ' on' : '')}>
-            <input type="checkbox" checked={od} onChange={(e) => { setOd(e.target.checked); lsSet('odoo_kem', e.target.checked); }} />
+            <input type="checkbox" checked={od} onChange={(e) => { setOd(e.target.checked); onDoiKem?.(e.target.checked); }} />
             <IcGuiLen />
             <span><b>Đồng thời tạo đơn trên Odoo</b>
-              <small>Xác nhận + xuất file xong sẽ mở hộp gửi Odoo — mỗi kho chuyển × đội = 1 đơn, xem lại rồi mới gửi</small></span>
+              <small>Xác nhận + xuất file xong sẽ mở hộp gửi Odoo — mỗi kho chuyển × đội = 1 đơn, xem lại rồi mới gửi. Lựa chọn này nhớ theo tài khoản, đổi máy vẫn giữ</small></span>
           </label>
         )}
         <div className="gc-chan">

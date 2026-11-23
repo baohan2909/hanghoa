@@ -21,6 +21,14 @@ export function layCfgOdoo(token, moi = false) {
   return cache.p;
 }
 
+// NEW - 3.126: ô "Đồng thời tạo đơn trên Odoo" nhớ theo TÀI KHOẢN trên máy chủ (cfg.kem, chưa chọn = bật) — đổi máy không mất
+export async function luuKemOdoo(token, bat) {
+  const c = await layCfgOdoo(token);
+  if (c) c.kem = !!bat;   // cập nhật bản đang nhớ trong phiên
+  const { error } = await sb.rpc('fn_odoo_kem', { p_token: token, p_bat: !!bat });
+  return !error;
+}
+
 // null = tài khoản chưa được mở -> màn hình không hiện nút Odoo
 export function useOdooCfg(user) {
   const [cfg, setCfg] = useState(null);

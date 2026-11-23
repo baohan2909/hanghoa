@@ -184,6 +184,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
   const locDs = useMemo(() => sapTheo(LOC_MAC_DINH, tc.loc), [tc.loc]);
   const cfgLT = useLamTron();
   const [hoiGhiChu, hopGhiChu, chonOdoo] = useHoiGhiChu();
+  const odooCfg = useOdooCfg(user);   // NEW - 3.126: nút "Gửi Odoo" ngay trên thanh đã xuất
   const [thayThe, setThayThe] = useState(null);   // barcode đang xem mã thay thế
   // THU GỌN đầu bàn: gộp đội + số liệu + tham số + thùng vào 1 hàng, dòng bảng thấp hơn -> thêm chỗ chia
   const [gon, setGon] = useState(() => lsGet('gon') ?? true);
@@ -472,10 +473,11 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
     if (error) { baoToast('Lỗi: ' + error.message); return; }
     if (!data?.ok) { baoLoiXacNhan(data, baoToast); tai(); return; }
     try { await xuatHaiFile(data, ghiChu); } catch (e) { baoToast('Đã xác nhận nhưng xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
-    if (chonOdoo.current) odooTuKq(data, ghiChu).catch((e) => baoToast('Đã xác nhận, chưa mở được hộp Odoo: ' + (e?.message || e) + ' — gửi lại ở Phiếu đã chia'));
+    const daOdoo = chonOdoo.current;
+    if (daOdoo) odooTuKq(data, ghiChu).catch((e) => baoToast('Đã xác nhận, chưa mở được hộp Odoo: ' + (e?.message || e) + ' — bấm “Gửi Odoo” ở thanh dưới'));
     lsDel(khoa); await xoaNhap();
     setThungCt({});
-    setPhieuMoi({ ...data, doi, sl: tong.nhan, ma: tong.ma, sa: tong.sa, pk: tong.pk, th: tong.th });
+    setPhieuMoi({ ...data, doi, sl: tong.nhan, ma: tong.ma, sa: tong.sa, pk: tong.pk, th: tong.th, ghiChu, odoo: daOdoo });
     baoToast(`Đã xác nhận ${tenPhieu(data)}: ${fmtN(tong.nhan)} cái — ${soFile(data)} file`);
     tai(); taiNhapDs();
   };
@@ -931,8 +933,16 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
         <div className="ch-t3-nut">
           {phieuMoi && phieuMoi.doi === doi ? (
             <div className="ch-xong3">
-              <span title={tenPhieu(phieuMoi)}><IcCheck /> Đã xuất {soFile(phieuMoi)} file · {fmtN(phieuMoi.sl)} cái</span>
-              <button className="btn btn-ai" onClick={() => doiTiep(1)}>Đội tiếp →</button>
+              <span title={tenPhieu(phieuMoi)}><IcCheck /> Đã xuất {soFile(phieuMoi)} file · {fmtN(phieuMoi.sl)} cái{phieuMoi.odoo ? ' + Odoo' : ''}</span>
+              {/* NEW - 3.126: chưa gửi Odoo (bỏ tick / hộp Odoo bị đóng) -> gửi ngay tại đây, không phải vào Phiếu đã chia.
+                  Có token: đơn đã tạo thành công thì dùng lại tên cũ -> bị chặn, không tạo trùng */}
+              {odooCfg && (
+                <button className={'btn ' + (phieuMoi.odoo ? 'btn-ghost' : 'btn-ai')} title={phieuMoi.odoo ? 'Mở lại hộp Odoo (đơn đã tạo sẽ không bị tạo trùng)' : 'Phiếu này chưa gửi Odoo — bấm để gửi ngay'}
+                  onClick={() => { odooTuKq(phieuMoi, phieuMoi.ghiChu, { token: user.token }).catch((e) => baoToast('Chưa mở được hộp Odoo: ' + (e?.message || e))); setPhieuMoi((p) => ({ ...p, odoo: true })); }}>
+                  <IcGuiLen /> {phieuMoi.odoo ? 'Mở lại Odoo' : 'Gửi Odoo'}
+                </button>
+              )}
+              <button className={'btn ' + (phieuMoi.odoo || !odooCfg ? 'btn-ai' : 'btn-ghost')} onClick={() => doiTiep(1)}>Đội tiếp →</button>
             </div>
           ) : (
             <button className="ch-xn3" disabled={gui || !tong.nhan} onClick={xacNhan}
