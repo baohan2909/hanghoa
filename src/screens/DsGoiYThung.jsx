@@ -82,7 +82,7 @@ export function useGoiYThung({ doi, cuaSo, mucTieu, heSo, sapHet, nguoi, thung, 
 // ---------------------------------------------------------------------------
 // Tính "phần còn lấp" khi đã chọn vài thùng (các thùng trùng mã không đếm 2 lần)
 // ---------------------------------------------------------------------------
-function nhuCauMa(ds) {
+export function nhuCauMa(ds) {   // NEW - 3.127: dùng chung cho SIÊU TRÍ TUỆ (dsAiChiaDoi.js)
   // ct: [mã, SL, lấp, bán/ngày, đang có, tồn, loại, còn cần] — còn cần (ct[7]) có từ SQL 200 bản mới;
   // bản cũ chưa có thì lấy cận dưới = lấp lớn nhất mã đó trong các thùng
   const m = {};
@@ -93,7 +93,7 @@ function nhuCauMa(ds) {
   }));
   return m;
 }
-function layTu(b, con) {     // lấy từ 1 thùng theo nhu cầu còn lại -> {lap, lay: {mã: sl}}
+export function layTu(b, con) {     // lấy từ 1 thùng theo nhu cầu còn lại -> {lap, lay: {mã: sl}}
   let lap = 0; const lay = {};
   (b.ct || []).forEach((c) => {
     const k = Math.min(c[1], Math.max(0, con[c[0]] ?? 0));
@@ -101,7 +101,7 @@ function layTu(b, con) {     // lấy từ 1 thùng theo nhu cầu còn lại ->
   });
   return { lap, lay };
 }
-function tru(con, lay) { const n = { ...con }; Object.entries(lay).forEach(([m, k]) => { n[m] = Math.max(0, (n[m] ?? 0) - k); }); return n; }
+export function tru(con, lay) { const n = { ...con }; Object.entries(lay).forEach(([m, k]) => { n[m] = Math.max(0, (n[m] ?? 0) - k); }); return n; }
 
 // ---------------------------------------------------------------------------
 // Vòng điểm 0–100

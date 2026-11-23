@@ -5,6 +5,7 @@ import Login from './screens/Login.jsx';
 import XinHang from './screens/XinHang.jsx';
 import { OdooHost } from './lib/OdooHop.jsx';
 import { BanTinHost } from './lib/BanTin.jsx';
+import { SieuTriTueHost } from './lib/SieuTriTue.jsx';   // NEW - 3.127 SIÊU TRÍ TUỆ
 import { useBaoTri, ManBaoTri, DaiBaoTri } from './lib/BaoTri.jsx';
 
 // Màn ít dùng / nặng: tải khi mở, giữ lần tải đầu nhẹ cho máy cửa hàng
@@ -310,6 +311,9 @@ export default function App() {
         )}
         <OdooHost user={user} baoToast={baoToast} />
         <BanTinHost user={user} baoToast={baoToast} />
+        {/* NEW - 3.127 SIÊU TRÍ TUỆ: trợ lý AI điều hành — có ở mọi tab */}
+        <SieuTriTueHost user={user} tab={tab} chonTab={chonTab} baoToast={baoToast}
+          tabsDuoc={MENU.flatMap((g) => g.items).filter((t) => t.roles.includes(user.vai_tro)).map(({ id, ten }) => ({ id, ten }))} />
         {toast && <div className="toast" role="status">{toast}</div>}
       </div>
     </Ctx.Provider>

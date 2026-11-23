@@ -23,6 +23,7 @@ export function useNhap(nguoi, khoa, macDinh) {
   const [tt, setTt] = useState({ trang: 'yen', luc: lsGet(khoa)?.luc || null });
   const hen = useRef(null);
   const khoaRef = useRef(khoa);
+  const napRef = useRef(false);   // NEW - 3.127: đã đọc xong nháp máy chủ của khoá hiện tại (SIÊU TRÍ TUỆ chờ cái này rồi mới ghi)
 
   // đổi khoá (đổi đội): nạp nháp của khoá mới — máy chủ thắng nếu mới hơn
   useEffect(() => {
@@ -31,14 +32,17 @@ export function useNhap(nguoi, khoa, macDinh) {
     setDl(may?.du_lieu || macDinh);
     setTt({ trang: 'yen', luc: may?.luc || null });
     let huy = false;
+    napRef.current = false;
     sb.rpc('fn_ds_nhap_lay', { p_nguoi: nguoi }).then(({ data }) => {
+      if (!huy) napRef.current = true;
       if (huy || !data?.[khoa]) return;
       const chu = data[khoa];
-      if (!may?.luc || new Date(chu.cap_nhat) > new Date(may.luc)) {
+      const nay = lsGet(khoa);   // NEW - 3.127: so với bản trên máy MỚI NHẤT (có thể vừa nhập trong lúc chờ máy chủ), không phải bản lúc mở
+      if (!nay?.luc || new Date(chu.cap_nhat) > new Date(nay.luc)) {
         setDl(chu.du_lieu); lsSet(khoa, { du_lieu: chu.du_lieu, luc: chu.cap_nhat });
         setTt({ trang: 'da_luu', luc: chu.cap_nhat });
       }
-    });
+    }, () => { if (!huy) napRef.current = true; });
     return () => { huy = true; };
   }, [khoa]);   // eslint-disable-line
 
@@ -63,7 +67,8 @@ export function useNhap(nguoi, khoa, macDinh) {
     setDl(macDinh); setTt({ trang: 'yen', luc: null });
     await sb.rpc('fn_ds_nhap_xoa', { p_nguoi: nguoi, p_khoa: khoaRef.current });
   }, [nguoi]);   // eslint-disable-line
-  return [dl, dat, tt, xoa];
+  const napXong = useCallback(() => napRef.current, []);
+  return [dl, dat, tt, xoa, napXong];
 }
 
 export function TrangThaiLuu({ tt }) {

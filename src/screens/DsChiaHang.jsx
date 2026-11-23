@@ -15,6 +15,8 @@ import { tachSize, thuTuSize, useBoLoc, MenuBoLoc, HopBoLoc } from './DsBoLoc.js
 import DsBanChia from './DsBanChia.jsx';
 import GoiYThung, { useGoiYThung, NutGoiY, mucDiem } from './DsGoiYThung.jsx';
 import { boLocSo, boLocChu, ThCot, soSanh } from './DsLocCot.jsx';
+import { useNgheMo } from '../lib/sttCau.js';        // NEW - 3.127 SIÊU TRÍ TUỆ
+import { useCauChiaDoi } from './DsChiaDoiAi.js';    // NEW - 3.127 SIÊU TRÍ TUỆ
 
 // ============================================================================
 // CHIA HÀNG ĐỘI SALE (bản làm lại v3.102.0; v3.104.0 Kho thùng; v3.112.0 nâng cấp) — 6 chế độ:
@@ -39,6 +41,7 @@ export default function DsChiaHang({ dsDoi, ts }) {
   const { user, baoToast } = useApp();
   const [che, setChe] = useState(() => lsGet('che') || 'doi');
   useEffect(() => { lsSet('che', che); }, [che]);
+  useNgheMo((y) => { if (y?.che && CHE_IDS.includes(y.che)) setChe(y.che); });   // NEW - 3.127: SIÊU TRÍ TUỆ mở đúng chế độ
   // NEW - 212: mọi đội sale trong hệ thống (không phụ thuộc file đồng bộ tồn / bán)
   const [doiHT, setDoiHT] = useState([]);
   const [ganDoiMoi, setGanDoiMoi] = useState(null);
@@ -79,6 +82,8 @@ export default function DsChiaHang({ dsDoi, ts }) {
     </div>
   );
 }
+
+const CHE_IDS = ['doi', 'thung', 'loat', 'doimoi', 'phieu', 'can'];   // NEW - 3.127
 
 // ============================================================================
 // 1. CHIA TỪNG ĐỘI
@@ -215,7 +220,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
   }, [toan, moKho]);
 
   const khoa = 'doi:' + (doi || '-');
-  const [nhap, datNhap, ttLuu, xoaNhap] = useNhap(nguoi, khoa, { thung: [], sua: {} });
+  const [nhap, datNhap, ttLuu, xoaNhap, napXong] = useNhap(nguoi, khoa, { thung: [], sua: {} });
   const sua = nhap.sua || {};
   const thung = nhap.thung || [];
   // gợi ý thùng: tự phân tích khi đổi đội / tham số / nháp (SQL 200)
@@ -232,7 +237,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
     const { data, error } = await sb.rpc('fn_ds_chia_doi', { p_ma_ch: doi, p_cua_so: cuaSo });
     setDang(false);
     if (error) { baoToast('Lỗi tải: ' + error.message); return; }
-    setKq(data);
+    setKq(data ? { ...data, _doi: doi, _cs: cuaSo } : data);   // NEW - 3.127: đánh dấu số liệu thuộc đội / cửa sổ nào
   };
   useEffect(() => { setKq(null); setPhieuMoi(null); tai(); }, [doi, cuaSo]);   // eslint-disable-line
 
@@ -454,14 +459,17 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
   const boThung = (ma) => datNhap((d) => ({ ...d, thung: (d.thung || []).filter((x) => x !== ma) }));
 
   // ---------- xác nhận ----------
-  const xacNhan = async () => {
+  // NEW - 3.127: mo.tuDong = SIÊU TRÍ TUỆ thực hiện phiếu đã được người dùng DUYỆT — không hỏi ghi chú, không tải file
+  //   (file tải lại ở tab Phiếu đã chia), Odoo tự gửi khi mo.odoo; trả kết quả cho trợ lý.
+  const xacNhan = async (mo) => {
+    const tuDong = mo?.tuDong === true;
     // Nguồn 1: chia thêm từ kho SA (kiểm tồn SA). Nguồn 2: thùng (TK05005, không kiểm SA) -> server tách 2 phiếu
     // 3 nguồn: SA (sl_sa) · Phụ kiện PK05001 (sl_pk) · Thùng TK05005 (thung) -> server tách tối đa 3 phiếu
     const dongGui = dong.filter((x) => x.them > 0).map((x) => (x.pk ? { ma_ch: doi, barcode: x.bc, sl_pk: x.them } : { ma_ch: doi, barcode: x.bc, sl_sa: x.them }));
     const thungHopLe = thung.filter((t) => thungCt[t] && !thungCt[t].khong_co && !thungCt[t].da_giao && !thungCt[t].kiem);
-    if (!dongGui.length && !thungHopLe.length) { baoToast('Chưa có số nào'); return; }
-    if (tong.vuot) { baoToast(`Còn ${tong.vuot} mã chia thêm vượt kho (SA / phụ kiện) — sửa trước khi xác nhận (lọc theo dòng hồng)`); return; }
-    const ghiChu = await hoiGhiChu({ odoo: true, macDinh: ghiChuMacDinh(doi, tenDoi), tieuDe: `Ghi chú file xuất — ${tenNgan(tenDoi)}`,
+    if (!dongGui.length && !thungHopLe.length) { baoToast('Chưa có số nào'); return tuDong ? { ok: false, loi: 'Chưa có số nào' } : undefined; }
+    if (tong.vuot) { const m = `Còn ${tong.vuot} mã chia thêm vượt kho (SA / phụ kiện) — sửa trước khi xác nhận (lọc theo dòng hồng)`; baoToast(m); return tuDong ? { ok: false, loi: m } : undefined; }
+    const ghiChu = tuDong ? (mo.ghiChu ?? ghiChuMacDinh(doi, tenDoi)) : await hoiGhiChu({ odoo: true, macDinh: ghiChuMacDinh(doi, tenDoi), tieuDe: `Ghi chú file xuất — ${tenNgan(tenDoi)}`,
       nutXong: `Xác nhận & xuất ${tong.soPhieu} file`,
       phu: <>{fmtN(tong.nhan)} cái · {[tong.sa > 0 && 'Sale', tong.pk > 0 && 'Phụ kiện', tong.th > 0 && 'Thùng'].filter(Boolean).join(' + ')}
         {trongThung.rut.length > 0 && <span className="gc-rut">⚠ Rút khỏi thùng (thu hồi đội sale) — tự ghi vào ghi chú phiếu thùng: {Object.entries(trongThung.rut.reduce((g, r) => { (g[r.t] = g[r.t] || []).push(`${r.m} ×${r.s}`); return g; }, {})).map(([t, ds]) => `${t}: ${ds.join(', ')}`).join(' ; ')}</span>}</> });
@@ -470,16 +478,17 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
     setGui(true);
     const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'doi', nguoi, khoa_nhap: khoa, ghi_chu: ghiChu || null, dong: dongGui, thung: thungHopLe.map((t) => ({ ma_thung: t, ma_ch: doi })) } });
     setGui(false);
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    if (!data?.ok) { baoLoiXacNhan(data, baoToast); tai(); return; }
-    try { await xuatHaiFile(data, ghiChu); } catch (e) { baoToast('Đã xác nhận nhưng xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
-    const daOdoo = chonOdoo.current;
-    if (daOdoo) odooTuKq(data, ghiChu).catch((e) => baoToast('Đã xác nhận, chưa mở được hộp Odoo: ' + (e?.message || e) + ' — bấm “Gửi Odoo” ở thanh dưới'));
+    if (error) { baoToast('Lỗi: ' + error.message); return tuDong ? { ok: false, loi: error.message } : undefined; }
+    if (!data?.ok) { baoLoiXacNhan(data, baoToast); tai(); return tuDong ? { ok: false, loi: data?.loi || data?.thong_bao || 'Máy chủ từ chối xác nhận', chi_tiet: data } : undefined; }
+    if (!tuDong) try { await xuatHaiFile(data, ghiChu); } catch (e) { baoToast('Đã xác nhận nhưng xuất file lỗi — tải lại ở tab Phiếu đã chia'); }
+    const daOdoo = tuDong ? !!mo.odoo : chonOdoo.current;
+    if (daOdoo) odooTuKq(data, ghiChu, tuDong ? { tuGui: true, token: user?.token } : undefined).catch((e) => baoToast('Đã xác nhận, chưa mở được hộp Odoo: ' + (e?.message || e) + ' — bấm “Gửi Odoo” ở thanh dưới'));
     lsDel(khoa); await xoaNhap();
     setThungCt({});
     setPhieuMoi({ ...data, doi, sl: tong.nhan, ma: tong.ma, sa: tong.sa, pk: tong.pk, th: tong.th, ghiChu, odoo: daOdoo });
     baoToast(`Đã xác nhận ${tenPhieu(data)}: ${fmtN(tong.nhan)} cái — ${soFile(data)} file`);
     tai(); taiNhapDs();
+    return { ok: true, phieu: tenPhieu(data), sl: tong.nhan, sale: tong.sa, phu_kien: tong.pk, thung: tong.th, so_file: soFile(data), odoo: daOdoo, ghi_chu: ghiChu };
   };
 
   // ---------- danh sách đội ----------
@@ -514,6 +523,10 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
     else if (top > el.scrollTop + vung) el.scrollTop = top - vung;
     setTimeout(() => { const o = el.querySelector(`input[data-r="${i}"]`); if (o) { o.focus(); o.select(); } }, 40);
   };
+
+  // NEW - 3.127 SIÊU TRÍ TUỆ: cầu nối — trợ lý điều khiển bàn chia bằng đúng engine của màn này (DsChiaDoiAi.js)
+  useCauChiaDoi({ doi, setDoi, kq, dang, dong, tong, thung, thungCt, trongThung, sua, cuaSo, setCuaSo, mucTieu, setMucTieu, heSo, setHeSo,
+    dsDoi, gy, odooCfg, tenDoi: kq?.ten || tenNgan(doiInfo?.ten) || doi, datNhap, napXong, nguoi, user, sapHet: ts.sap_het || 7, xacNhan });
 
   // ---------- ô theo cột (thứ tự / ẩn hiện theo Tùy chỉnh) ----------
   const giaiThich = (x) => {

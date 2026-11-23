@@ -4,6 +4,7 @@ import { useApp } from '../App.jsx';
 import { IcRefresh, IcDown, IcAlert, IcTruck, IcBox, IcClock, IcGrid, IcSpark, IcGuiLen } from '../lib/icons.jsx';
 import { useOdooCfg, moOdoo, gomDon } from '../lib/odoo.js';
 import DsChiaHang from './DsChiaHang.jsx';
+import { useNgheMo } from '../lib/sttCau.js';   // NEW - 3.127 SIÊU TRÍ TUỆ
 
 // ============================================================================
 // ĐỘI SALE — màn RIÊNG cho 20 đội sale (hoạt động độc lập với CH/ĐB)
@@ -113,6 +114,7 @@ export default function DoiSale() {
   const [sapXep, setSapXep] = useState('van_de');
   const [manHinh, setManHinh] = useState('tq');   // tq = tổng quan | ban = bàn chia hàng
   const [chonBan, setChonBan] = useState(null);
+  useNgheMo((y) => { if (y?.man === 'ban' || y?.man === 'tq') setManHinh(y.man); });   // NEW - 3.127: SIÊU TRÍ TUỆ mở bàn chia
 
   // v3.108.0: đọc bản ĐÃ TÍNH SẴN (fn_ds_tong_quan_nhanh, SQL 198) -> mở trang ngay, không vướng giới hạn 3 giây;
   // bản cũ hơn 5 phút thì tính lại ở nền. Tính lại quá giờ -> giữ bản cũ, KHÔNG báo nhầm "chưa có số bán".
