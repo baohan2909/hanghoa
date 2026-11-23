@@ -104,51 +104,65 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
   //   không chờ bấm. Đơn trùng / vượt tồn vẫn dừng lại hỏi như cũ; lỗi thì "Gửi lại" ngay trong hộp.
   const tuGuiCon = useRef(!!opts.tuGui);
 
+  // NEW - 3.136 GỬI TỪNG LÔ ≤ 8 ĐƠN: cổng Odoo của IT chỉ chờ Odoo 30 giây mỗi lần gọi — gửi dồn 47 đơn (~33 giây) thì cổng báo
+  //   "Read timed out" dù Odoo VẪN tạo đủ đơn (23/11, NS00078). Chia lô nhỏ, gửi lần lượt; lô nào gặp đơn trùng / vượt tồn thì dừng hỏi như cũ.
+  const LO_GUI = 8;
+  const QUA_GIO = /timed? ?out|quá giờ|hết thời gian/i;
   const gui = async () => {
-    const ds = conGui;
-    if (!ds.length || dangGui) return;
+    const tatCa = conGui;
+    if (!tatCa.length || dangGui) return;
     if (!lyDo) { setLoi('Chọn lý do trước khi gửi'); return; }
     setLoi(''); setDangGui(true); setJson(null);
-    setKq((m) => { const n = { ...m }; ds.forEach((d) => { n[d._i] = { trang_thai: 'dang_gui' }; }); return n; });
-    const r = await goiOdoo({ token: user.token, man: opts.man, requests: ds.map((d) => thanhRequest(d, chung)) });
+    setKq((m) => { const n = { ...m }; tatCa.forEach((d) => { n[d._i] = { trang_thai: 'dang_gui' }; }); return n; });
+    let donMoi = don; const okMoi = []; let loiCuoi = ''; let dungHoi = false; let daGuiN = 0;
+    for (let lo = 0; lo < tatCa.length; lo += LO_GUI) {
+      const ds = tatCa.slice(lo, lo + LO_GUI);
+      const sau = tatCa.slice(lo + LO_GUI);
+      const r = await goiOdoo({ token: user.token, man: opts.man, requests: ds.map((d) => thanhRequest(d, chung)) });
+      if (r?.canh) setCanhSv(r.canh);
+      if (r?.http != null || r?.phan_hoi != null) setPhanHoi({ http: r.http, body: r.phan_hoi });
+      // tên đơn máy chủ đã cấp -> ghi lại để gửi lại vẫn đúng tên (không tạo trùng)
+      const ten = {};
+      if (Array.isArray(r?.requests)) ds.forEach((d, j) => { if (r.requests[j]?.name) ten[d._i] = r.requests[j].name; });
+      donMoi = donMoi.map((d) => (ten[d._i] && !d.name ? { ...d, name: ten[d._i] } : d));
+      setDon(donMoi);
+      if ((Array.isArray(r?.trung) && r.trung.length) || (Array.isArray(r?.vuot) && r.vuot.length)) {
+        // lô này chưa gửi gì — hỏi xác nhận: đơn trùng nội dung / dòng vượt tồn khả dụng; các lô sau cũng chưa gửi
+        setKq((m) => { const n = { ...m }; [...ds, ...sau].forEach((d) => { delete n[d._i]; }); return n; });
+        setTrung(r.trung?.length ? r.trung.map((t) => ({ ...t, _i: ds[t.i - 1]?._i })) : null);
+        setVuot(r.vuot?.length ? r.vuot.map((t) => ({ ...t, _i: ds[t.i - 1]?._i })) : null);
+        setChanVuot(!!r.chan_vuot);
+        loiCuoi = r.loi || ''; dungHoi = true;
+        break;
+      }
+      setTrung(null); setVuot(null);
+      if (!Array.isArray(r?.ket_qua)) {
+        const l = r?.loi || 'Không gửi được';
+        setKq((m) => { const n = { ...m }; ds.forEach((d) => { n[d._i] = { trang_thai: 'loi', loi: l }; }); sau.forEach((d) => { delete n[d._i]; }); return n; });
+        loiCuoi = l + (sau.length ? ` — ${sau.length} đơn sau chưa gửi, bấm Gửi lại` : '');
+        daGuiN += ds.length;
+        break;
+      }
+      const theoTen = {};
+      r.ket_qua.forEach((x) => { theoTen[x.name] = x; });
+      const kqMoi = {};
+      donMoi.forEach((d) => {
+        if (!ds.some((x) => x._i === d._i)) return;
+        const x = theoTen[d.name];
+        const l = x ? (x.loi || '') : (r.loi || 'Không thấy kết quả của đơn này');
+        kqMoi[d._i] = x ? { trang_thai: x.trang_thai, loi: QUA_GIO.test(l) ? l + ' — Odoo có thể VẪN tạo đơn: KHÔNG gửi lại, đợi ~10 phút app đối chiếu' : l, duyet: x.odoo_duyet || '', odoo_id: x.odoo_id || null }
+          : { trang_thai: 'loi', loi: l };
+        if (x?.trang_thai === 'thanh_cong') okMoi.push(d);
+      });
+      setKq((m) => ({ ...m, ...kqMoi }));
+      if (r.loi) loiCuoi = r.loi;
+      daGuiN += ds.length;
+    }
     setDangGui(false);
-    if (r?.canh) setCanhSv(r.canh);
-    if (r?.http != null || r?.phan_hoi != null) setPhanHoi({ http: r.http, body: r.phan_hoi });
-
-    // tên đơn máy chủ đã cấp -> ghi lại để gửi lại vẫn đúng tên (không tạo trùng)
-    const ten = {};
-    if (Array.isArray(r?.requests)) ds.forEach((d, j) => { if (r.requests[j]?.name) ten[d._i] = r.requests[j].name; });
-    const donMoi = don.map((d) => (ten[d._i] && !d.name ? { ...d, name: ten[d._i] } : d));
-    setDon(donMoi);
-
-    if ((Array.isArray(r?.trung) && r.trung.length) || (Array.isArray(r?.vuot) && r.vuot.length)) {
-      // chưa gửi gì — hỏi xác nhận: đơn trùng nội dung / dòng vượt tồn khả dụng
-      setKq((m) => { const n = { ...m }; ds.forEach((d) => { delete n[d._i]; }); return n; });
-      setTrung(r.trung?.length ? r.trung.map((t) => ({ ...t, _i: ds[t.i - 1]?._i })) : null);
-      setVuot(r.vuot?.length ? r.vuot.map((t) => ({ ...t, _i: ds[t.i - 1]?._i })) : null);
-      setChanVuot(!!r.chan_vuot);
-      setLoi(r.loi);
-      return;
-    }
-    setTrung(null); setVuot(null);
-    if (!Array.isArray(r?.ket_qua)) {
-      setKq((m) => { const n = { ...m }; ds.forEach((d) => { n[d._i] = { trang_thai: 'loi', loi: r?.loi || 'Không gửi được' }; }); return n; });
-      setLoi(r?.loi || 'Không gửi được');
-      return;
-    }
-    const theoTen = {};
-    r.ket_qua.forEach((x) => { theoTen[x.name] = x; });
-    const kqMoi = {}; const okMoi = [];
-    donMoi.forEach((d) => {
-      if (!ds.some((x) => x._i === d._i)) return;
-      const x = theoTen[d.name];
-      kqMoi[d._i] = x ? { trang_thai: x.trang_thai, loi: x.loi || '', duyet: x.odoo_duyet || '', odoo_id: x.odoo_id || null } : { trang_thai: 'loi', loi: r.loi || 'Không thấy kết quả của đơn này' };
-      if (x?.trang_thai === 'thanh_cong') okMoi.push(d);
-    });
-    setKq((m) => ({ ...m, ...kqMoi }));
-    if (r.loi) setLoi(r.loi);
-    const nLoi = ds.length - okMoi.length;
-    if (okMoi.length) { nhoGhiChu(ghiChu); okMoi.forEach((d) => { if (d.ghi_chu && !/^Khẩn cấp:/.test(d.ghi_chu)) nhoGhiChu(d.ghi_chu); }); ds.forEach((d) => { if (laDoiSale(d.kho_yeu_cau) && d.sale_tai_cua_hang) nhoSaleCh(d.kho_yeu_cau, d.sale_tai_cua_hang); }); }
+    if (loiCuoi) setLoi(loiCuoi);
+    if (dungHoi && !okMoi.length) return;
+    const nLoi = daGuiN - okMoi.length;
+    if (okMoi.length) { nhoGhiChu(ghiChu); okMoi.forEach((d) => { if (d.ghi_chu && !/^Khẩn cấp:/.test(d.ghi_chu)) nhoGhiChu(d.ghi_chu); }); tatCa.forEach((d) => { if (laDoiSale(d.kho_yeu_cau) && d.sale_tai_cua_hang) nhoSaleCh(d.kho_yeu_cau, d.sale_tai_cua_hang); }); }
     baoToast(`Odoo: ${okMoi.length ? `✓ tạo ${okMoi.length} đơn${laCH ? '' : ' — đã trừ tồn khả dụng kho'}` : ''}${okMoi.length && nLoi ? ' · ' : ''}${nLoi ? `${nLoi} đơn chưa tạo được — xem từng đơn` : ''}`);
     if (okMoi.length && opts.onThanhCong) {
       try { await opts.onThanhCong(okMoi); } catch (e) { baoToast('Đã tạo đơn Odoo nhưng bước lưu sau đó lỗi: ' + (e?.message || e)); }
