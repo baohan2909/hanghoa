@@ -93,7 +93,7 @@ const NHAN_MAT = {
   buoc: { gui: 'Chờ Odoo nhận', loi: 'Gửi lỗi', 1: 'Chờ duyệt', 2: 'Chờ sẵn sàng', 4: 'Đã xuất kho', 5: 'Đang vận chuyển', 6: 'Đã giao – chờ xác nhận',
     '7p': 'Nhận một phần', 7: 'Đã nhận', huy: 'Đã huỷ' },
   vc: { cho_lay: 'Chờ GHTK lấy hàng', dang_vc: 'Đang vận chuyển', da_giao: 'Đã giao – chờ xác nhận', da_nhan: 'Đã xác nhận nhận',
-    bat_thuong: 'Giao bất thường', khong: 'Chưa có vận đơn' },
+    bat_thuong: 'Giao bất thường', khong: 'Không có dữ liệu vận chuyển' },
   nhanh: { chua_xuat: 'Chưa xuất', chua_nhan: 'Đã xuất, chưa nhận', nhan_1p: 'Nhận một phần', nhan_du: 'Đã nhận đủ' },
   dc: { khop: 'Khớp số lượng', xuat_thieu: 'Kho xuất thiếu', xuat_du: 'Kho xuất dư', vua_du_vua_thieu: 'Vừa dư vừa thiếu', cho_doi_soat: 'Chờ đối soát',
     huy: 'Đã huỷ', chua_len: 'Chưa lên Odoo', kho_sua: 'Kho sửa đơn', nhan_thieu: 'Nhận thiếu', tam: 'Tạm tính (còn XKDC dở)' },
@@ -421,10 +421,11 @@ const VC_CHIP = {
   da_nhan: ['Cửa hàng đã nhận', 'ok'], bat_thuong: ['Giao bất thường', 'do'],
 };
 function VanChuyen({ r }) {
-  const daXuat = (r.b7 || [])[3] === 2;
   const nhanXong = (r.b7 || [])[6] === 2;
-  const c = VC_CHIP[r.vc] || (nhanXong ? ['Đã nhận · không vận đơn', 'ok'] : daXuat && r.dc !== 'huy' ? ['Chưa có vận đơn', 'xam'] : null);
-  if (!c) return <span className="odn-phu">—</span>;
+  const c = VC_CHIP[r.vc];
+  // 3.139.8: phiếu không có dữ liệu vận chuyển (gửi nguồn khác, chưa có API) -> để trống, chỉ hiện giờ nhận trên Odoo nếu có
+  if (!c) return r.nk_xong ? <div className="odn-vc-o"><small className="nhan">{nhanXong ? 'Nhận' : 'Nhận một phần'} {gioNgay(r.nk_xong)}</small></div>
+    : <span className="odn-phu">—</span>;
   const lay = (r.b7_luc || [])[4];
   return (
     <div className="odn-vc-o">
