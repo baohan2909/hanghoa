@@ -455,7 +455,7 @@ export function NganChiTiet({ id, dong, odoo, saiXong, moDon }) {
               <section className="odn-tl">
                 {B7_TEN.map((t, i) => {
                   const s = (ct.b7 || [])[i] ?? 0; const luc = (ct.b7_luc || [])[i];
-                  const cls = { 2: ' xong', 1: ' dang', 3: ' thieu', 4: ' loi', 5: ' huy' }[s] || '';
+                  const cls = { 2: ' xong', 4: ' loi', 5: ' huy' }[s] || '';   // 3.139.2: chỉ bước xong mới tô xanh
                   const ten = s === 4 ? (TT_GUI[ct.trang_thai]?.[0] || 'Gửi lỗi') : t;
                   const phu = s === 2 ? (luc ? gioNgay(luc) : '')
                     : s === 3 ? 'chưa có dữ liệu'
@@ -574,16 +574,6 @@ export function NganChiTiet({ id, dong, odoo, saiXong, moDon }) {
                     </div>
                   )}
                 </section>
-                {!laCH && <section className="odn-muc">
-                  <h3>Ảnh hưởng tồn khả dụng <span>kho {ct.kho_cung_ung} · đang trừ {fmt((ct.ton?.dong || []).reduce((a, d) => a + (d.dang_tru || 0), 0))} cái</span></h3>
-                  {(ct.ton?.dong || []).length === 0 ? <p className="odn-phu">Phiếu không giữ tồn (tạo trước khi có sổ tồn 21/11, chưa gửi, hoặc loại phiếu không theo dõi).</p> : (
-                    <table className="odn-ct">
-                      <thead><tr><th>Mã hàng</th><th className="so">Đặt</th><th className="so">Đã xuất</th><th className="so">Đang trừ</th><th>Trạng thái</th></tr></thead>
-                      <tbody>{ct.ton.dong.map((d, i) => (
-                        <tr key={i}><td><b>{d.ma}</b><span>{d.barcode}</span></td><td className="so">{fmt(d.sl_dat)}</td><td className="so">{fmt(d.sl_xuat)}</td>
-                          <td className="so"><b>{fmt(d.dang_tru)}</b></td><td><span className="odn-phu">{TT_CK[d.trang_thai] || d.trang_thai}{d.nguon === 'odoo' ? ' · theo Odoo' : ''}</span></td></tr>))}</tbody>
-                    </table>)}
-                </section>}
               </>}
 
               {the === 'pk' && (
