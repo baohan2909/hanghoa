@@ -106,7 +106,8 @@ const THU_MAT = { buoc: ['gui', 'loi', '1', '2', '4', '5', '6', '7p', '7', 'huy'
 const PHEU = {
   don: [['nguon', 'Nguồn đơn'], ['loai', 'Loại phiếu']],
   noi: [['xuat', 'Nơi xuất', true], ['nhan', 'Nơi nhận', true]],
-  buoc: [['buoc', 'Bước hiện tại'], ['vc', 'Vận chuyển']],
+  buoc: [['buoc', 'Bước hiện tại']],
+  vc: [['vc', 'Vận chuyển']],
   sl: [['nhanh', 'Tình trạng xuất / nhận']],
   dc: [['dc', 'Kết quả đối soát']],
   canh: [['canh', 'Cảnh báo']],
@@ -183,6 +184,7 @@ export default function OdooDon({ nhung = false, locDau = null }) {
     const g = {
       ngay: (r) => r.ngay || '', sl: (r) => r.sl_odoo ?? r.tong_sl ?? 0, buoc7: (r) => (r.dc === 'huy' ? -1 : r.buoc7 ?? 0), name: (r) => r.name,
       kho_yeu_cau: (r) => r.ten_yeu_cau || r.kho_yeu_cau || '', cho_gio: (r) => r.cho_gio ?? -1,
+      vc_luc: (r) => r.nk_xong || r.vc_giao || (r.b7_luc || [])[4] || '',
     }[sap.k];
     a.sort((x, y) => { const p = g(x), q2 = g(y); return (p < q2 ? -1 : p > q2 ? 1 : 0) * sap.d; });
     return a;
@@ -246,15 +248,15 @@ export default function OdooDon({ nhung = false, locDau = null }) {
       <div className="odn-bang-khung">
         <table className="odn-bang">
           <thead><tr>
-            {[['don', 'Đơn', 'name'], ['noi', 'Từ → đến', 'kho_yeu_cau'], ['buoc', 'Bước', 'buoc7'], ['sl', 'Xuất / yêu cầu', 'sl', 'so'],
+            {[['don', 'Đơn', 'name'], ['noi', 'Từ → đến', 'kho_yeu_cau'], ['buoc', 'Bước', 'buoc7'], ['vc', 'Vận chuyển', 'vc_luc'], ['sl', 'Xuất / yêu cầu', 'sl', 'so'],
               ['dc', 'Đối soát', null], ['canh', 'Cảnh báo', 'cho_gio']].map(([c, ten, ks, cls]) => (
               <ThPheu key={c} c={c} ten={ten} cls={cls} sapTen={ks ? mt(ks) : ''} onSap={ks ? () => bamCot(ks) : null}
                 mat={ds?.mat} cot={cot} setCot={setCot} />
             ))}
           </tr></thead>
           <tbody>
-            {ds == null ? <tr><td colSpan={6} className="odn-trong">Đang tải phiếu…</td></tr>
-              : rows.length === 0 ? <tr><td colSpan={6} className="odn-trong">{coLoc ? 'Không có phiếu khớp bộ lọc.' : 'Chưa có phiếu Odoo nào trong khoảng ngày này.'}</td></tr>
+            {ds == null ? <tr><td colSpan={7} className="odn-trong">Đang tải phiếu…</td></tr>
+              : rows.length === 0 ? <tr><td colSpan={7} className="odn-trong">{coLoc ? 'Không có phiếu khớp bộ lọc.' : 'Chưa có phiếu Odoo nào trong khoảng ngày này.'}</td></tr>
               : rows.map((r) => (
                 <tr key={r.id} className={chon === r.id ? 'on' : ''} onClick={() => setChon(r.id)}>
                   <td><div className="odn-ten"><Nguon n={r.nguon} />{r.name}</div>
@@ -262,6 +264,7 @@ export default function OdooDon({ nhung = false, locDau = null }) {
                     {r.ghi_chu && <div className="odn-gc-dong" title={r.ghi_chu}>✎ {r.ghi_chu}</div>}</td>
                   <td><div className="odn-ten nho">{r.kho_cung_ung} → {r.kho_yeu_cau}</div><div className="odn-phu">{r.ten_yeu_cau || ''}</div></td>
                   <td><Buoc7 r={r} /></td>
+                  <td><VanChuyen r={r} /></td>
                   <td className="so"><b>{r.sl_xuat != null ? fmt(r.sl_xuat) : '—'}</b> / {fmt(r.sl_odoo ?? r.tong_sl)}
                     {/* 3.139.3: dòng phụ theo số lượng (không theo số dòng) */}
                     {r.sl_nhan > 0 && <div className="odn-phu">đã nhận {fmt(r.sl_nhan)}</div>}</td>
@@ -412,6 +415,27 @@ function Buoc7({ r }) {
     </div>
   );
 }
+// NEW - 3.139.7: cột Vận chuyển — trạng thái GHTK (API), giờ giao, giờ cửa hàng xác nhận nhận trên Odoo
+const VC_CHIP = {
+  cho_lay: ['Chờ GHTK lấy hàng', 'xam'], dang_vc: ['Đang vận chuyển', 'xanh'], da_giao: ['Đã giao – chờ nhận', 'vang'],
+  da_nhan: ['Cửa hàng đã nhận', 'ok'], bat_thuong: ['Giao bất thường', 'do'],
+};
+function VanChuyen({ r }) {
+  const daXuat = (r.b7 || [])[3] === 2;
+  const nhanXong = (r.b7 || [])[6] === 2;
+  const c = VC_CHIP[r.vc] || (nhanXong ? ['Đã nhận · không vận đơn', 'ok'] : daXuat && r.dc !== 'huy' ? ['Chưa có vận đơn', 'xam'] : null);
+  if (!c) return <span className="odn-phu">—</span>;
+  const lay = (r.b7_luc || [])[4];
+  return (
+    <div className="odn-vc-o">
+      <span className={'odn-chip ' + c[1]}>{c[0]}</span>
+      {r.vc_tt && <small>GHTK: {r.vc_tt}</small>}
+      {r.vc_giao ? <small>Giao {gioNgay(r.vc_giao)}</small> : lay ? <small>Lấy {gioNgay(lay)}</small> : null}
+      {r.nk_xong && <small className="nhan">{nhanXong ? 'Nhận' : 'Nhận một phần'} {gioNgay(r.nk_xong)}</small>}
+    </div>
+  );
+}
+
 // NEW - 3.139: chip đối soát + nhãn phụ
 function DcChip({ r }) {
   const d = DC[r.dc];
