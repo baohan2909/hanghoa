@@ -6536,38 +6536,58 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .vuot-ghi { line-height: 1.5; }
 .btn.vuot-nut { background: linear-gradient(135deg, #8A5A00, #CBA45A); color: #fff; box-shadow: 0 0 10px rgba(203,164,90,.35); }
 .btn.vuot-nut:hover { filter: brightness(1.06); }
-/* NEW - 3.155.3 Phiếu đã chia — vừa màn hình, không kéo ngang */
-.ph-khung { padding: 0; overflow: hidden; }
+/* NEW - 3.155.4 Phiếu đã chia — cột cân theo nội dung, không cột nào giãn 100% */
+.ph-khung { padding: 0; overflow: hidden; container-type: inline-size; }
 .ch-phieu2 { width: 100%; table-layout: auto; }
-.ch-phieu2 th.ph-chinh { text-align: left; }
-.ch-phieu2 td { vertical-align: top; padding-top: 10px; padding-bottom: 10px; }
-.ch-phieu2 td.ph-chinh { width: 100%; min-width: 0; }
+.ch-phieu2 th.ph-trai { text-align: left; }
+.ch-phieu2 th, .ch-phieu2 td { padding-left: 14px; padding-right: 14px; }
+.ch-phieu2 td { vertical-align: top; padding-top: 12px; padding-bottom: 12px; }
+.ch-phieu2 td.ph-chinh .ch-odoo-huy { max-width: 360px; }
+.ch-phieu2 td.ph-doi { font-size: 13px; color: var(--ink); line-height: 1.4; padding-top: 14px; }
+.ch-phieu2 td.ph-doi b { font-weight: 700; }
+.ch-phieu2 td.ph-doi .ph-meta { max-width: 260px; }
+.ch-phieu2 td.ph-ngay { font-size: 13px; color: var(--ink-2); white-space: nowrap; padding-top: 14px; font-variant-numeric: tabular-nums; }
+.ph-dt { display: none; }
 .ph-dau { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
-.ph-ma { font-size: 13.5px; color: var(--ink); overflow-wrap: anywhere; }
+.ph-ma { font-size: 13.5px; color: var(--ink); white-space: nowrap; }
 .ph-dau .ch-nguon { margin-left: 0; }
 .ph-dau .od-chip { margin: 0; }
+.ph-dau > * { flex-shrink: 0; white-space: nowrap; }
 .ph-meta { font-size: 12px; color: var(--ink-2); margin-top: 3px; line-height: 1.45; overflow-wrap: anywhere; }
 .ph-gc { font-size: 12.5px; font-weight: 700; color: var(--ink); margin-top: 3px; overflow-wrap: anywhere; }
-.ch-phieu2 td.ph-tt, .ch-phieu2 td.num { white-space: nowrap; padding-top: 12px; }
+.ch-phieu2 td.ph-tt, .ch-phieu2 td.num { white-space: nowrap; padding-top: 14px; }
 .ch-phieu2 td.ph-tt { text-align: center; }
 .ch-phieu2 tbody tr { content-visibility: visible; }
 .ph-ttc { display: inline-block; font-size: 11.5px; font-weight: 800; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
 .ph-ttc.giu { background: rgba(203,164,90,.2); color: #87631F; } .ph-ttc.xong { background: rgba(63,182,168,.16); color: var(--teal-deep); }
 .ph-ttc.huy { background: #EEF0F3; color: var(--ink-2); }
-.ch-phieu2 td.ph-nut-o { width: 1%; }
-.ph-nut { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; width: 290px; }
+.ch-phieu2 td.ph-nut-o { padding-top: 9px; padding-bottom: 9px; }
+.ph-nut { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
 .ph-nut .btn { height: 30px; padding: 0 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .ph-nut .btn svg { width: 14px; height: 14px; }
 .ph-nut .ph-huy { color: var(--ink-2); }
 .ph-nut .ph-huy:hover { color: var(--red); border-color: rgba(198,55,60,.4); }
+/* khung rộng: cột Phiếu và cột nút ôm sát nội dung, khoảng dư chia cho Đội sale / Ngày / Trạng thái */
+@container (min-width: 1320px) {
+  .ch-phieu2 td.ph-chinh, .ch-phieu2 td.ph-nut-o { width: 1%; }
+  .ph-dau, .ph-nut { flex-wrap: nowrap; }
+}
+/* khung vừa: nút xếp 2 × 2 cho gọn */
+@container (max-width: 1319px) {
+  .ph-nut { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 190px; }
+  .ph-nut .btn { justify-content: center; width: 100%; }
+}
 @media (max-width: 760px) {
   .ch-phieu2 thead { display: none; }
   .ch-phieu2, .ch-phieu2 tbody { display: block; }
   .ch-phieu2 tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 12px 14px; border-bottom: 1px solid #F0EDE4; }
   .ch-phieu2 td { display: block; padding: 0 !important; border: 0; }
   .ch-phieu2 td.ph-chinh { flex: 1 1 100%; }
+  .ch-phieu2 td.ph-doi, .ch-phieu2 td.ph-ngay { display: none; }
+  .ph-dt { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 4px; }
+  .ph-dt b { color: var(--ink); font-weight: 700; }
   .ch-phieu2 td.num { display: inline-flex !important; width: auto !important; align-items: baseline; gap: 4px; font-size: 13px; text-align: left; white-space: nowrap; }
   .ch-phieu2 td.num::before { content: attr(data-nhan); font-family: var(--font-body); font-size: 11.5px; color: var(--ink-2); }
   .ch-phieu2 td.ph-nut-o { flex: 1 1 100%; width: auto; }
-  .ph-nut { width: auto; justify-content: flex-start; }
+  .ph-nut { display: flex; width: auto; justify-content: flex-start; }
 }

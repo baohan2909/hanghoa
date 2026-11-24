@@ -1190,30 +1190,45 @@ function DsPhieu() {
   };
   const TT = { xac_nhan: ['Đang giữ tồn', 'giu'], da_xuat: ['Đã xuất', 'xong'], huy: ['Đã huỷ', 'huy'] };
   const ttTen = (p) => (p.nguon === 'TK' && p.trang_thai === 'xac_nhan' ? 'Chờ xuất thùng' : TT[p.trang_thai][0]);
+  // NEW - 3.155.4: cột Đội sale = ghi chú dòng 1 (vd "Đội Sale 12 – BÀ RỊA"); ghi chú không mở đầu bằng tên đội thì hiện tên đội + ghi chú nhỏ
+  const doiCua = (p) => {
+    const ma = p.doi || [];
+    const ten = ma.map((m) => { const s = /^DOISALE(\d+)$/i.exec(m); return s ? 'Đội Sale ' + s[1] : tenNgan(m); }).join(', ');
+    const gc = (p.ghi_chu || '').trim().replace(/[\s–-]+$/, '');
+    const s = ma.length === 1 && /^DOISALE(\d+)$/i.exec(ma[0]);
+    const trung = gc && s && new RegExp('^\\s*đội\\s*sale\\s*0*' + Number(s[1]) + '(?!\\d)', 'i').test(gc);
+    return trung ? { chinh: gc, phu: '' } : { chinh: ten || gc || '—', phu: ten && gc ? gc : '' };
+  };
+  const hai = (n) => String(n).padStart(2, '0');
+  const ngayLen = (s) => { if (!s) return '—'; const d = new Date(s); return `${hai(d.getDate())}/${hai(d.getMonth() + 1)} · ${hai(d.getHours())}:${hai(d.getMinutes())}`; };
   return (
     <div className="card ph-khung">
-      {/* NEW - 3.155.3: bảng gọn vừa màn — gộp Đội / Thùng / Người · lúc vào ô Phiếu, nút tự xuống dòng; điện thoại thành thẻ */}
+      {/* NEW - 3.155.4: cột cân theo nội dung (không cột nào giãn 100%) — Phiếu · Đội sale · Ngày lên đơn · Trạng thái · số · nút; điện thoại thành thẻ */}
       <table className="tbl ch-phieu2">
-        <thead><tr><th className="ph-chinh">Phiếu</th><th>Trạng thái</th><th className="num">Mã</th><th className="num">Tổng</th><th className="num">Còn giữ</th><th /></tr></thead>
+        <thead><tr><th className="ph-trai">Phiếu</th><th className="ph-trai">Đội sale</th><th className="ph-trai">Ngày lên đơn</th><th>Trạng thái</th>
+          <th className="num">Mã</th><th className="num">Tổng</th><th className="num">Còn giữ</th><th /></tr></thead>
         <tbody>
-          {ds == null ? <tr><td colSpan={6} className="dsl-trong">Đang tải…</td></tr>
-            : ds.length === 0 ? <tr><td colSpan={6} className="dsl-trong">Chưa có phiếu nào trong 30 ngày.</td></tr>
+          {ds == null ? <tr><td colSpan={8} className="dsl-trong">Đang tải…</td></tr>
+            : ds.length === 0 ? <tr><td colSpan={8} className="dsl-trong">Chưa có phiếu nào trong 30 ngày.</td></tr>
             : ds.map((p) => {
-              const doi = (p.doi || []).map(tenNgan).join(', ');
-              const gc = p.ghi_chu && p.ghi_chu !== doi ? p.ghi_chu : '';
+              const dv = doiCua(p);
+              const ngay = ngayLen(p.tao_luc);
+              const tao = `Tạo bởi ${p.nguoi || '—'} lúc ${ngayGio(p.tao_luc)}`;
               return (
                 <tr key={p.id}>
                   <td className="ph-chinh">
                     <div className="ph-dau"><b className="ph-ma">{p.ma_phieu}</b>
                       <span className={'ch-nguon ' + ({ TK: 'tk', PK: 'pk' }[p.nguon] || 'sa')}>{{ TK: 'Thùng', PK: 'Phụ kiện' }[p.nguon] || 'Sale'}</span>
                       {odoo && odChip(p)}</div>
-                    <div className="ph-meta">{doi || '—'} · {p.loai === 'loat' ? 'Chia hàng mới' : 'Từng đội'} · {p.nguoi || '—'} · {ngayGio(p.tao_luc)}</div>
-                    {gc && <div className="ph-gc" title="Ghi chú — ghi ở dòng 1 của file">✎ {gc}</div>}
+                    <div className="ph-dt" title={tao}><b>{dv.chinh}</b> · {ngay}</div>
                     {(p.ma_lien_quan || (p.thung || []).length > 0) && <div className="ph-meta">{p.ma_lien_quan ? `Đi cùng ${p.ma_lien_quan}` : ''}{p.ma_lien_quan && (p.thung || []).length ? ' · ' : ''}{(p.thung || []).length ? 'Thùng ' + p.thung.join(', ') : ''}</div>}
                     {p.odoo_huy && p.trang_thai === 'xac_nhan' && (   // NEW - 3.139 (SQL 230) Odoo đã huỷ đơn của phiếu
                       <div className="ch-odoo-huy">Odoo đã huỷ {p.odoo_huy_ten || 'đơn'} — {p.nguon === 'TK' ? 'bấm Huỷ để trả thùng về kho (kiểm tra kho chưa giao tay)' : 'app đang nhả phần giữ'}</div>
                     )}
                   </td>
+                  <td className="ph-doi" title={'Mã đội: ' + ((p.doi || []).join(', ') || '—') + ' · ghi ở dòng 1 của file'}>
+                    <b>{dv.chinh}</b>{dv.phu && <div className="ph-meta">{dv.phu}</div>}</td>
+                  <td className="ph-ngay" title={tao}>{ngay}</td>
                   <td className="ph-tt"><span className={'ph-ttc ' + TT[p.trang_thai][1]}>{ttTen(p)}</span></td>
                   <td className="num" data-nhan="Mã">{fmtN(p.so_ma)}</td>
                   <td className="num" data-nhan="Tổng"><b>{fmtN(p.tong)}</b></td>
