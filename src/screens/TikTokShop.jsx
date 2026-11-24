@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { Sel, DateBox, isoVN } from '../lib/ui.jsx';
@@ -90,6 +91,55 @@ const boNho = new Map();
 const nhoMan = { loc: null, the: 'tq' };
 const khoaNho = (loai, p) => loai + '|' + JSON.stringify(p || {});
 
+/* ================= NEW - 3.151: HÌNH SẢN PHẨM theo mã ================= */
+// Bảng { mã mẹ: link hình } (hình nonson.vn trong san_pham) — tải 1 lần, 30 phút làm mới 1 lần, nhớ trên máy để mở lại hiện ngay
+const khoHinh = { map: null, luc: 0, dang: false, nghe: new Set() };
+try { const c = JSON.parse(localStorage.getItem('tt_hinh') || 'null'); if (c && typeof c === 'object') khoHinh.map = c; } catch { /* bỏ qua */ }
+const ngheHinh = (f) => { khoHinh.nghe.add(f); return () => khoHinh.nghe.delete(f); };
+const layHinhMap = () => khoHinh.map;
+const maMe = (s) => String(s || '').trim().replace(/-(XXXL|XXL|XL|XS|S|M|L|F|FS|FREE|FREESIZE|[0-9]{2})$/i, '');
+const hinhCua = (map, ma) => (map && ma ? map[ma] || map[maMe(ma)] || map[maMe(maMe(ma))] || null : null);
+async function taiHinh(token) {
+  if (!token || khoHinh.dang || (khoHinh.luc && Date.now() - khoHinh.luc < 30 * 60 * 1000)) return;
+  khoHinh.dang = true;
+  try {
+    const { data, error } = await sb.rpc('fn_tt_hinh', { p_token: token });
+    if (!error && data && typeof data === 'object') {
+      khoHinh.map = data; khoHinh.luc = Date.now(); khoHinh.nghe.forEach((f) => f());
+      try { localStorage.setItem('tt_hinh', JSON.stringify(data)); } catch { /* đầy bộ nhớ: bỏ qua */ }
+    }
+  } finally { khoHinh.dang = false; }
+}
+
+// Ô hình của 1 mã: rê chuột phóng to, bấm (hoặc chạm trên điện thoại) xem hình lớn kèm mã + tên
+function AnhMa({ ma, ten, co = 40 }) {
+  const map = useSyncExternalStore(ngheHinh, layHinhMap);
+  const url = hinhCua(map, ma);
+  const [loi, setLoi] = useState(false);
+  const [phong, setPhong] = useState(null);
+  const [xem, setXem] = useState(false);
+  useEffect(() => {
+    if (!xem) return undefined;
+    const h = (e) => { if (e.key === 'Escape') setXem(false); };
+    window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h);
+  }, [xem]);
+  const kt = { width: co, height: co };
+  if (!url || loi) return <span className="tts-anh trong" style={kt} title={ma ? 'Mã ' + ma + ' chưa có hình' : ''} />;
+  const viTri = (e) => setPhong({ x: e.clientX, y: e.clientY });
+  return (<>
+    <img className="tts-anh" style={kt} src={url} alt={ma} loading="lazy" decoding="async" onError={() => setLoi(true)}
+      onMouseEnter={viTri} onMouseMove={viTri} onMouseLeave={() => setPhong(null)}
+      onClick={(e) => { e.stopPropagation(); setPhong(null); setXem(true); }} />
+    {phong && !xem && createPortal(
+      <img className="sp-zoom" src={url} alt="" style={{ left: Math.min(phong.x + 18, window.innerWidth - 206), top: Math.max(8, Math.min(phong.y - 95, window.innerHeight - 206)) }} />,
+      document.body)}
+    {xem && createPortal(
+      <div className="img-lightbox tts-anh-xem" onClick={(e) => { e.stopPropagation(); setXem(false); }}>
+        <figure><img src={url} alt={ma} /><figcaption><b>{ma}</b>{ten ? <span>{ten}</span> : null}</figcaption></figure>
+      </div>, document.body)}
+  </>);
+}
+
 export default function TikTokShop() {
   const { user, baoToast } = useApp();
   const [loc, setLoc] = useState(() => nhoMan.loc || ({ tu: truNgay(6), den: isoVN(), kenh: '', dm: '', tt: '', nb: null, ch: null }));
@@ -102,6 +152,7 @@ export default function TikTokShop() {
   const [api, setApi] = useState(() => boNho.get('api')?.data || null);
   const [apiXong, setApiXong] = useState(false);   // đã hỏi phiên bản dữ liệu lần đầu
   const phienBan = api?.phien_ban || '';
+  useEffect(() => { taiHinh(user.token); }, [user.token, phienBan]);   // NEW - 3.151: bảng hình theo mã
   const [the, setThe] = useState(nhoMan.the);
   useEffect(() => { nhoMan.the = the; }, [the]);
   // NEW - 3.150: danh sách ID đang theo dõi ★ (lưu trên máy chủ theo người dùng)
@@ -461,7 +512,8 @@ function BangSanPham({ ds }) {
           {rows.length === 0 ? <tr><td colSpan={7} className="odn-trong">Không có sản phẩm trong khoảng lọc.</td></tr>
             : rows.map((r) => [
               <tr key={r.ma} className={mo === r.ma ? 'on' : ''} onClick={() => setMo(mo === r.ma ? null : r.ma)}>
-                <td title={r.ten || ''}><div className="odn-ten">{r.ma}</div><div className="odn-phu">{r.dm || '—'} · {(r.co || []).length} phân loại</div></td>
+                <td title={r.ten || ''}><div className="tts-ma-o"><AnhMa ma={r.ma} ten={r.ten} co={44} />
+                  <div><div className="odn-ten">{r.ma}</div><div className="odn-phu">{r.dm || '—'} · {(r.co || []).length} phân loại</div></div></div></td>
                 <td className="so"><b>{fmt(r.sl)}</b>{r.dat !== r.sl && <div className="odn-phu">đặt {fmt(r.dat)}</div>}</td>
                 <td className="so">{fmt(r.don)}</td>
                 <td className="so"><b>{tien(r.dt)}</b></td>
@@ -721,6 +773,7 @@ function TheTd({ e, ky, chonNb, doiTd }) {
       <div className="tts-td-sp">
         {sp.length === 0 ? <div className="odn-phu">Chưa có đơn trong khoảng này.</div> : sp.map((x) => (
           <div key={x.ma} className="tts-td-sp-dong" title={x.ten || ''}>
+            <AnhMa ma={x.ma} ten={x.ten} co={30} />
             <span className="tts-td-sp-ma"><b>{x.ma}</b><small>{x.dm || ''}</small></span>
             <span className="tts-td-sp-thanh"><i style={{ width: (x.sl / spMax) * 100 + '%', background: mau }} /></span>
             <b className="so">{fmt(x.sl)}</b><span className="so odn-phu">{tien(x.dt)}</span>
@@ -884,7 +937,7 @@ function TheoDoi({ bc, pLoc, phienBan, apiXong, td, doiTd, chonNb }) {
             <tbody>
               {mtHien.map((m) => (
                 <tr key={m.ma}>
-                  <td title={m.ten || ''}><b>{m.ma}</b><div className="odn-phu">{m.dm || ''}</div></td>
+                  <td title={m.ten || ''}><div className="tts-ma-o"><AnhMa ma={m.ma} ten={m.ten} co={34} /><div><b>{m.ma}</b><div className="odn-phu">{m.dm || ''}</div></div></div></td>
                   {ds.map((e) => { const v = m.theo?.[e.handle] || 0; return (
                     <td key={e.handle} className="so tts-mt-o" title={`${m.ma} · ${tenE(e)}: ${fmt(v)} sp${m.tong ? ' (' + pctTxt(v, m.tong) + ' của mã này)' : ''}`}>
                       <span style={{ background: mauO(v), color: chuTrang(v) ? '#fff' : '#14213A' }}>{v ? fmt(v) : '·'}</span></td>); })}
@@ -1060,8 +1113,9 @@ function DsDon({ pLoc, tenNb, phienBan, apiXong }) {
                 <tr key={d.ma_don} className={mo === d.ma_don ? 'on' : ''} onClick={() => setMo(mo === d.ma_don ? null : d.ma_don)}>
                   <td><div className="odn-ten">{d.ma_don}</div><div className="odn-phu">{gioNgay(d.tao_luc)}{d.nguon === 'api' ? ' · API' : ''}</div></td>
                   <td><Chip tt={d.tt} />{d.tt === 'huy' && d.ly_do_huy && <div className="odn-phu tts-cat" title={d.ly_do_huy}>{d.ly_do_huy}</div>}</td>
-                  <td><div className="tts-ten-sp" title={dong[0]?.ten}>{dong[0]?.sku || '—'}{dong.length > 1 ? ` +${dong.length - 1} mã` : ''}</div>
-                    <div className="odn-phu">{fmt(sl)} sản phẩm</div></td>
+                  <td><div className="tts-ma-o"><AnhMa ma={dong[0]?.sku} ten={dong[0]?.ten} co={36} />
+                    <div><div className="tts-ten-sp" title={dong[0]?.ten}>{dong[0]?.sku || '—'}{dong.length > 1 ? ` +${dong.length - 1} mã` : ''}</div>
+                    <div className="odn-phu">{fmt(sl)} sản phẩm</div></div></div></td>
                   <td className="so"><b>{fmt(d.tong_tien)}</b></td>
                   <td>{d.kenh && <KenhChip k={d.kenh} />}<div className="odn-phu">{d.creator ? tenGoi(tenNb, d.creator) : 'không qua người bán'}{d.ten_ch ? ' · ' + d.ten_ch : ''}</div></td>
                   <td><div className="odn-ten nho">{d.dvvc || '—'}</div><div className="odn-phu">{d.van_don || ''}{d.giao_luc ? ' · giao ' + gioNgay(d.giao_luc) : d.gui_luc ? ' · gửi ' + gioNgay(d.gui_luc) : ''}</div></td>
@@ -1071,7 +1125,7 @@ function DsDon({ pLoc, tenNb, phienBan, apiXong }) {
                   <tr key={d.ma_don + '_ct'} className="tts-mo"><td colSpan={7}>
                     <table className="tts-ct"><thead><tr><th>Mã hàng</th><th>Sản phẩm · phân loại</th><th className="so">SL</th><th className="so">Giá niêm yết</th><th className="so">Shop giảm</th><th className="so">Khách trả</th><th>Người bán</th></tr></thead>
                       <tbody>{dong.map((x, i) => (
-                        <tr key={i}><td><b>{x.sku || '—'}</b></td><td>{x.ten}<div className="odn-phu">{x.pl}</div></td>
+                        <tr key={i}><td><div className="tts-ma-o"><AnhMa ma={x.sku} ten={x.ten} co={36} /><b>{x.sku || '—'}</b></div></td><td>{x.ten}<div className="odn-phu">{x.pl}</div></td>
                           <td className="so">{fmt(x.sl)}{x.tra > 0 && <div className="odn-phu">trả {x.tra}</div>}</td>
                           <td className="so">{fmt(x.truoc)}</td><td className="so">{fmt(x.shop_giam)}</td><td className="so"><b>{fmt(x.tien)}</b></td>
                           <td>{x.nb ? tenGoi(tenNb, x.nb) : '—'}{x.kenh && <div className="odn-phu">{(KENH[x.kenh] || KENH.khac)[0]}</div>}</td></tr>

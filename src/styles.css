@@ -6349,7 +6349,7 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .tts-24-cot > i { flex: 1; border-radius: 2px 2px 0 0; min-width: 0; }
 .tts-24-truc { display: flex; justify-content: space-between; font-size: 10px; color: #8A94A8; }
 .tts-td-sp { display: flex; flex-direction: column; gap: 4px; }
-.tts-td-sp-dong { display: grid; grid-template-columns: minmax(96px, 150px) 1fr 56px 70px; gap: 8px; align-items: center; font-size: 12.5px; }
+.tts-td-sp-dong { display: grid; grid-template-columns: 30px minmax(90px, 150px) 1fr 56px 70px; gap: 8px; align-items: center; font-size: 12.5px; }
 .tts-td-sp-ma { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .tts-td-sp-ma b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tts-td-sp-ma small { color: #8A94A8; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -6360,5 +6360,17 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
   .tts-td-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tts-td-hai { grid-template-columns: 1fr; }
   .tts-td-the-dau { flex-direction: column; }
-  .tts-td-sp-dong { grid-template-columns: minmax(80px, 120px) 1fr 44px 60px; }
+  .tts-td-sp-dong { grid-template-columns: 28px minmax(72px, 110px) 1fr 40px 58px; }
 }
+
+/* ================= NEW - 3.151: hình sản phẩm theo mã ================= */
+.tts-anh { flex: none; display: block; object-fit: contain; background: #fff; border: 1px solid #E3E7EE; border-radius: 8px; cursor: zoom-in; }
+.tts-anh:hover { border-color: var(--teal); }
+.tts-anh.trong { background: #F3F5F8; border-style: dashed; cursor: default; }
+.tts-ma-o { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tts-ma-o > div { min-width: 0; }
+.tts-anh-xem figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 92vw; }
+.tts-anh-xem img { max-height: 76vh; max-width: 88vw; }
+.tts-anh-xem figcaption { color: #fff; text-align: center; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 2px; max-width: 640px; }
+.tts-anh-xem figcaption b { font-size: 16px; }
+.tts-anh-xem figcaption span { color: rgba(255,255,255,.8); }
