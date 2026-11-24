@@ -175,7 +175,7 @@ export default function TikTokShop() {
             {api?.ds_luc && (soLech(api) > 0
               ? <i className="do" title="Có ngày số đơn trên app ít hơn TikTok — hệ thống đang tự kéo bù, xem thẻ Đối soát">Đối soát: lệch {fmt(soLech(api))} ngày</i>
               : <i className="ok" title="Số đơn, đơn liên kết, trả hàng từng ngày khớp TikTok — tự đối soát 3 giờ/lần">Đối soát khớp {fmt((api.doi_soat || []).length)} ngày</i>)}
-            {api?.lk_kq?.luc && <i className="ok" title="ID người bán theo từng mã đơn (API liên kết TikTok), chạy cùng lượt kéo đơn 5 phút/lần">ID từng đơn lúc {gioNgay(api.lk_kq.luc)}</i>}
+            {(api?.ar_kq?.luc || api?.lk_kq?.luc) && <i className="ok" title="ID người bán theo từng mã đơn (báo cáo phân tích TikTok 20 phút/lần + API liên kết 5 phút/lần)">ID từng đơn lúc {gioNgay(api.ar_kq?.luc || api.lk_kq.luc)}</i>}
             {api?.tk_luc && <i className="ok" title="Phiên LIVE + video có ID người bán (TikTok thống kê), chạy mỗi 60 phút">Thống kê LIVE/video lúc {gioNgay(api.tk_luc)}</i>}
             {api?.loi && <i className="do" title={api.loi}>Lỗi API: {String(api.loi).slice(0, 60)}</i>}
           </span>
@@ -435,7 +435,7 @@ function BangNguoiBan({ bc, chon, moGan }) {
   return (
     <div className="odn-bang-khung">
       <div className="tts-ghi-nguon">
-        <span><b>Từ đơn</b>: ID người bán theo từng mã đơn — mua trong phiên LIVE lấy chủ phiên; còn lại theo ghi nhận liên kết của TikTok (video, LIVE, giỏ hàng người bán); đơn nạp Excel giữ nguyên.</span>
+        <span><b>Từ đơn</b>: ID người bán theo từng mã đơn, đúng cách Seller Center ghi nhận (báo cáo phân tích TikTok) — mua trực tiếp từ LIVE hoặc video của mọi tài khoản: chính thức, marketing, nhà sáng tạo. Đơn mua qua thẻ sản phẩm không tính cho ai.</span>
         <span><b>LIVE / Video (TikTok thống kê)</b>: số liệu chính thức theo từng phiên LIVE và video, TikTok chốt chậm 1–2 ngày
           {tk.live_den || tk.video_den ? ` (đang có tới ${tk.live_den ? 'LIVE ' + ngayVN(tk.live_den) : ''}${tk.video_den ? ' · video ' + ngayVN(tk.video_den) : ''})` : ''}.</span>
       </div>
@@ -451,7 +451,7 @@ function BangNguoiBan({ bc, chon, moGan }) {
             : rows.map((r) => (
               <tr key={r.nb} onClick={() => chon(r.nb)} title="Bấm để lọc toàn bộ báo cáo theo người bán này">
                 <td><div className="odn-ten">{r.nb ? '@' + r.nb : 'Không qua người bán'}</div>
-                  <div className="odn-phu">{r.nb ? (r.loai ? LOAI[r.loai] || r.loai : 'Chưa gán') : 'thẻ sản phẩm của shop + video kênh công ty (TikTok không ghi ID theo đơn)'}</div></td>
+                  <div className="odn-phu">{r.nb ? (r.loai ? LOAI[r.loai] || r.loai : 'Chưa gán') : 'đơn mua qua thẻ sản phẩm (không qua LIVE / video)'}</div></td>
                 <td>{r.ten_ch ? <span className="odn-ten nho">{r.ten_ch}</span>
                   : r.nb && !r.loai ? <button className="tts-link" onClick={(e) => { e.stopPropagation(); moGan(); }}>Gán cửa hàng</button> : <span className="odn-phu">—</span>}</td>
                 <td className="so"><b>{r.don ? fmt(r.don) : '—'}</b></td>
