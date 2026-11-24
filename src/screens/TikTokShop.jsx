@@ -26,7 +26,7 @@ const truNgay = (n, tu = new Date()) => { const d = new Date(tu); d.setDate(d.ge
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
 const pctTxt = (a, b) => pct(a, b).toLocaleString('vi') + '%';
 
-const KENH = { live: ['LIVE', '#D6006C'], video: ['Video', '#3FB6A8'], the: ['Thẻ sản phẩm', '#CBA45A'], khac: ['Chưa rõ kênh', '#A7B0BF'] };
+const KENH = { live: ['LIVE', '#D6006C'], video: ['Video', '#3FB6A8'], the: ['Thẻ sản phẩm', '#CBA45A'], khac: ['Không qua người bán', '#A7B0BF'] };
 const TT = {
   cho_tt: ['Chờ thanh toán', 'xam'], cho_gui: ['Chờ gửi hàng', 'vang'], dang_giao: ['Đang giao', 'xanh'],
   da_giao: ['Đã giao', 'ok'], hoan_thanh: ['Hoàn thành', 'ok'], huy: ['Đã huỷ', 'do'], tra_hang: ['Trả hàng', 'do'], khac: ['Khác', 'xam'],
@@ -140,7 +140,7 @@ export default function TikTokShop() {
   const coLoc = !!(q || loc.kenh || loc.dm || loc.tt || loc.nb != null || loc.ch != null);
   const t = bc?.tong || {};
   const tongDon = (t.don || 0) + (t.don_huy || 0);
-  const nbTen = (h) => (h === '' ? 'Chưa xác định người bán' : '@' + h);
+  const nbTen = (h) => (h === '' ? 'Không qua người bán' : '@' + h);
 
   const KPI = [
     ['', 'Đơn hợp lệ', fmt(t.don), `${fmt(t.so_nb)} người bán · ${fmt(t.so_sp)} mã`],
@@ -172,6 +172,7 @@ export default function TikTokShop() {
               ? <i className="ok" title={api.keo_luc ? 'Lần lấy cuối ' + gioNgay(api.keo_luc) : ''}>API đã kết nối{api.shop_ten ? ' · ' + api.shop_ten : ''}{api.keo_luc ? ' · lấy lúc ' + gioNgay(api.keo_luc) : ''}</i>
               : <i className="cho">API chưa kết nối — đang dùng file Excel</i>}
             {api?.dang_keo && <i className="ok">Đang lấy đơn…</i>}
+            {api?.lk_kq?.luc && <i className="ok" title="ID người bán theo từng mã đơn (API liên kết TikTok), chạy cùng lượt kéo đơn 5 phút/lần">ID từng đơn lúc {gioNgay(api.lk_kq.luc)}</i>}
             {api?.tk_luc && <i className="ok" title="Phiên LIVE + video có ID người bán (TikTok thống kê), chạy mỗi 60 phút">Thống kê LIVE/video lúc {gioNgay(api.tk_luc)}</i>}
             {api?.loi && <i className="do" title={api.loi}>Lỗi API: {String(api.loi).slice(0, 60)}</i>}
           </span>
@@ -429,7 +430,7 @@ function BangNguoiBan({ bc, chon, moGan }) {
   return (
     <div className="odn-bang-khung">
       <div className="tts-ghi-nguon">
-        <span><b>Từ đơn</b>: đơn LIVE gắn ID theo mã phòng LIVE + đơn nạp từ Excel — có đến từng mã đơn.</span>
+        <span><b>Từ đơn</b>: ID người bán theo từng mã đơn — mua trong phiên LIVE lấy chủ phiên; còn lại theo ghi nhận liên kết của TikTok (video, LIVE, giỏ hàng người bán); đơn nạp Excel giữ nguyên.</span>
         <span><b>LIVE / Video (TikTok thống kê)</b>: số liệu chính thức theo từng phiên LIVE và video, TikTok chốt chậm 1–2 ngày
           {tk.live_den || tk.video_den ? ` (đang có tới ${tk.live_den ? 'LIVE ' + ngayVN(tk.live_den) : ''}${tk.video_den ? ' · video ' + ngayVN(tk.video_den) : ''})` : ''}.</span>
       </div>
@@ -444,8 +445,8 @@ function BangNguoiBan({ bc, chon, moGan }) {
           {rows.length === 0 ? <tr><td colSpan={12} className="odn-trong">Không có người bán trong khoảng lọc.</td></tr>
             : rows.map((r) => (
               <tr key={r.nb} onClick={() => chon(r.nb)} title="Bấm để lọc toàn bộ báo cáo theo người bán này">
-                <td><div className="odn-ten">{r.nb ? '@' + r.nb : 'Chưa xác định người bán'}</div>
-                  <div className="odn-phu">{r.nb ? (r.loai ? LOAI[r.loai] || r.loai : 'Chưa gán') : 'đơn thẻ sản phẩm + đơn video chưa gắn được ID'}</div></td>
+                <td><div className="odn-ten">{r.nb ? '@' + r.nb : 'Không qua người bán'}</div>
+                  <div className="odn-phu">{r.nb ? (r.loai ? LOAI[r.loai] || r.loai : 'Chưa gán') : 'thẻ sản phẩm của shop + video kênh công ty (TikTok không ghi ID theo đơn)'}</div></td>
                 <td>{r.ten_ch ? <span className="odn-ten nho">{r.ten_ch}</span>
                   : r.nb && !r.loai ? <button className="tts-link" onClick={(e) => { e.stopPropagation(); moGan(); }}>Gán cửa hàng</button> : <span className="odn-phu">—</span>}</td>
                 <td className="so"><b>{r.don ? fmt(r.don) : '—'}</b></td>
