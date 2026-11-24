@@ -6374,3 +6374,26 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .tts-anh-xem figcaption { color: #fff; text-align: center; font-size: 13px; line-height: 1.5; display: flex; flex-direction: column; gap: 2px; max-width: 640px; }
 .tts-anh-xem figcaption b { font-size: 16px; }
 .tts-anh-xem figcaption span { color: rgba(255,255,255,.8); }
+
+/* ================= NEW - 3.152: Chạy thủ công TikTok + chọn ngày kéo lại ================= */
+.tts-tc { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.tts-tc-dau { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 13px; }
+.tts-tc-dau > span { font-size: 12px; color: #6B7487; flex: 1 1 380px; }
+.tts-tc-chay { font-style: normal; font-size: 12px; font-weight: 700; color: var(--teal-deep); background: #E3F1F0; border-radius: 999px; padding: 2px 10px; }
+.tts-tc-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 10px; }
+.tts-tc-o { border: 1px solid #E3E7EE; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; background: #FAFBFC; min-width: 0; }
+.tts-tc-o.loi { border-color: #F2C4C6; background: #FFF7F7; }
+.tts-tc-o > b { font-size: 13.5px; }
+.tts-tc-mo { font-size: 11.5px; color: #6B7487; line-height: 1.45; flex: 1; }
+.tts-tc-tt { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+.tts-tc-tt.do { color: var(--red); }
+.tts-tc-o .odn-nut-phu { align-self: flex-start; margin-top: 2px; display: inline-flex; align-items: center; gap: 6px; }
+.tts-tc-chon { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 12px; color: #6B7487; }
+.tts-tc-chon > span { flex: 1 1 360px; }
+.tts-tc-chon-nut { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.tts-tc-keo { display: inline-flex; align-items: center; gap: 6px; }
+.tts-tc-keo:not(:disabled) { background: var(--grad); color: #fff; border-color: transparent; }
+.tts-bang-ds tbody tr { cursor: pointer; }
+.tts-bang-ds .tts-o-chon { width: 36px; text-align: center; }
+.tts-bang-ds .tts-o-chon input { width: 16px; height: 16px; accent-color: #1E5F63; cursor: pointer; }
+.tts-bang.tts-bang-ds tr.tts-dong-chon td { background: #E3F1F0; }

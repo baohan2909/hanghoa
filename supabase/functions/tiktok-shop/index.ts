@@ -8,6 +8,7 @@
 //   POST {viec:'tra_hang'}    → NEW - 3.143: trả hàng / hoàn tiền (returns/search); bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'doi_soat'}    → NEW - 3.143: đối soát từng ngày với TikTok (đơn, đơn liên kết, trả hàng) + tự kéo bù — lịch 3 giờ/lần
 //                              NEW - 3.145: đối soát + kéo bù đủ từ ngày tt_api.ds_tu (anh chốt 01/10/2026), tối đa 62 ngày gần nhất
+//                              NEW - 3.152: kèm ngay:[...] (nút "Kéo lại" trong app) → chỉ đếm + kéo lại đúng các ngày đó, dù đang khớp
 //   POST {viec:'ai_report'}   → NEW - 3.144: báo cáo phân tích cấp từng đơn — ID người bán mọi tài khoản (chính thức, marketing, nhà sáng tạo) — lịch 20 phút/lần
 //   POST {viec:'san_pham'}    → NEW - 3.141: đồng bộ sản phẩm + ngành (loại hàng); bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'thu', duong_dan, tham_so, method, body}  → gọi thử 1 API, trả NGUYÊN VĂN phản hồi (để đối chiếu tên trường)
@@ -277,7 +278,7 @@ async function keoKhung(cfg: J, token: string, loai: 'don' | 'lk' | 'tra', tu: n
   }
   return { trang, so, xong };
 }
-async function doiSoat(cfg: J) {
+async function doiSoat(cfg: J, chiNgay: unknown[] = []) {
   const batDau = Date.now();
   const HET = 130_000;
   const conGio = () => HET - (Date.now() - batDau);
@@ -289,10 +290,11 @@ async function doiSoat(cfg: J) {
   const tuNgay = cfg.ds_tu ? Math.round((Date.parse(homNay) - Date.parse(String(cfg.ds_tu).slice(0, 10))) / 86400e3) + 1 : 0;
   const soNgay = Math.min(62, Math.max(Math.min(45, (Number(cfg.lui_ngay) || 30) + 1), tuNgay));
   const cuoi = Math.floor(Date.now() / 1000) - 15 * 60;   // bỏ 15 phút gần nhất (đơn mới chưa kịp kéo)
-  const khung = Array.from({ length: soNgay }, (_, i) => {
-    const ngay = congNgay(homNay, -i);
-    return { ngay, tu: mocNgay(ngay), den: Math.min(mocNgay(congNgay(ngay, 1)), cuoi) };
-  }).filter((k) => k.den > k.tu);
+  // NEW - 3.152: KÉO LẠI THỦ CÔNG các ngày anh chọn trong app — chỉ đếm + kéo lại đúng các ngày đó (kéo cả ngày dù đang khớp)
+  const chon = [...new Set(chiNgay.map((x) => String(x).slice(0, 10)).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x) && x <= homNay))]
+    .sort().reverse().slice(0, 31);
+  const khung = (chon.length ? chon : Array.from({ length: soNgay }, (_, i) => congNgay(homNay, -i))).map((ngay) => (
+    { ngay, tu: mocNgay(ngay), den: Math.min(mocNgay(congNgay(ngay, 1)), cuoi) })).filter((k) => k.den > k.tu);
   const dem: J[] = [];
   let i = 0;
   const tho = async () => {
@@ -308,7 +310,7 @@ async function doiSoat(cfg: J) {
   };
   await Promise.all([tho(), tho()]);
   const r0 = await rpc('fn_tt_doi_soat_nap', { p: { ds: dem } });
-  const can: J[] = r0?.can_sua || [];
+  const can: J[] = chon.length ? khung.map((k) => ({ ngay: k.ngay, don: true, lk: true, tra: true })) : (r0?.can_sua || []);
   const sua: string[] = [], chiTiet: J[] = [];
   for (const c of can) {   // mới nhất trước
     if (conGio() < 25_000) break;
@@ -325,8 +327,9 @@ async function doiSoat(cfg: J) {
     const r1 = await rpc('fn_tt_doi_soat_nap', { p: { ds: dem.filter((d) => sua.includes(d.ngay)), sua } });
     conLech = (r1?.can_sua || []).length;
   }
-  const kq = { ngay: dem.length, lech_truoc: can.length, da_sua: chiTiet, con_lech: conLech,
+  const kq: J = { ngay: dem.length, lech_truoc: chon.length ? (r0?.can_sua || []).length : can.length, da_sua: chiTiet, con_lech: conLech,
     giay: Math.round((Date.now() - batDau) / 1000), luc: new Date().toISOString() };
+  if (chon.length) { kq.thu_cong = chon; kq.chua_kip = chon.filter((x) => !sua.includes(x)); }
   // còn lệch → 15 phút sau đối soát lại; khớp hết → 3 giờ sau
   await rpc('fn_tt_doi_soat_nap', { p: { xong: true, kq, lui_phut: conLech > 0 ? 165 : 0 } });
   return kq;
@@ -598,7 +601,7 @@ Deno.serve(async (req) => {
     if (body.viec === 'san_pham') return json(await dongBoSanPham(cfg, Date.now()));
     if (body.viec === 'lien_ket') return json(await keoLienKet(cfg, Date.now()));
     if (body.viec === 'tra_hang') return json(await keoTraHang(cfg, Date.now()));
-    if (body.viec === 'doi_soat') return json(await doiSoat(cfg));
+    if (body.viec === 'doi_soat') return json(await doiSoat(cfg, Array.isArray(body.ngay) ? body.ngay : []));
     if (body.viec === 'ai_report') return json(await keoAiReport(cfg));
     const batDau = Date.now();
     const kq: J = await keoDon(cfg);

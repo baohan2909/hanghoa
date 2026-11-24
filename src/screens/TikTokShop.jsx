@@ -344,7 +344,7 @@ export default function TikTokShop() {
           : the === 'vl' ? <VideoLive bc={bc} chon={(nb) => { setLoc((l) => ({ ...l, nb })); baoToast('Đang lọc theo ' + nbTen(nb)); }} />
           : the === 'ch' ? <BangCuaHang ds={bc.ch} chon={(ch) => { setLoc((l) => ({ ...l, ch })); baoToast('Đang lọc theo cửa hàng'); }} />
           : the === 'don' ? <DsDon pLoc={pLoc} tenNb={bc.ten_nb} phienBan={phienBan} apiXong={apiXong} />
-          : the === 'ds' ? <DoiSoat api={api} />
+          : the === 'ds' ? <DoiSoat api={api} xong={taiApi} />
           : <GanNguoiBan xong={taiApi} phienBan={phienBan} apiXong={apiXong} />}
 
         {tongDon === 0 && bc && !dang && (kho?.tong_don || 0) === 0 && (
@@ -1010,31 +1010,102 @@ const lechNgay = (r) => (r.app_don ?? 0) < (r.tiktok_don ?? 0) || (r.app_lk ?? 0
 const soLech = (api) => (api?.doi_soat || []).filter(lechNgay).length;
 // NEW - 3.145: ngày đã tự kéo bù từ 3 lần trở lên mà vẫn lệch → cần xem
 const soKet = (api) => (api?.doi_soat || []).filter((r) => lechNgay(r) && (r.sua_lan || 0) >= 3).length;
-function DoiSoat({ api }) {
+// NEW - 3.152: CHẠY THỦ CÔNG — tự động vẫn chạy như cũ; khi thấy lỗi / cần lấy ngay thì bấm ở đây
+const ngayNgan = (s) => (s ? String(s).slice(8, 10) + '/' + String(s).slice(5, 7) : '');
+const VIEC_TC = [
+  { k: 'keo', ten: 'Lấy đơn mới', nut: 'Lấy ngay',
+    mo: 'Đơn mới + đơn đổi trạng thái, ID người bán (liên kết), trả hàng. Tự chạy 5 phút/lần.',
+    luc: (a) => a?.keo_luc, tt: (a) => (a?.keo_kq?.so_don != null ? `${fmt(a.keo_kq.so_don)} đơn cập nhật` : '') },
+  { k: 'doi_soat', ten: 'Đối soát + kéo bù', nut: 'Đối soát ngay',
+    mo: 'Đếm lại từng ngày với TikTok từ 01/10, ngày nào app thiếu thì kéo lại cả ngày (mới nhất trước). Tự chạy 3 giờ/lần, đang lệch thì 15 phút/lần.',
+    luc: (a) => a?.ds_kq?.luc || a?.ds_luc, loi: (a) => a?.ds_kq?.loi,
+    tt: (a) => (a?.ds_kq?.con_lech != null ? (a.ds_kq.con_lech ? `còn lệch ${fmt(a.ds_kq.con_lech)} ngày` : 'khớp hết') : '') },
+  { k: 'thong_ke', ten: 'LIVE + video', nut: 'Lấy ngay',
+    mo: 'Phiên LIVE và video có đơn theo từng ID (TikTok chốt số chậm 1–2 ngày). Tự chạy 60 phút/lần.',
+    luc: (a) => a?.tk_luc, loi: (a) => a?.tk_kq?.loi_live || a?.tk_kq?.loi_video || a?.tk_kq?.loi,
+    tt: (a) => [a?.live_moc ? `LIVE tới ${ngayNgan(a.live_moc)}` : '', a?.video_moc ? `video tới ${ngayNgan(a.video_moc)}` : ''].filter(Boolean).join(' · ') },
+  { k: 'ai_report', ten: 'ID người bán từng đơn', nut: 'Lấy ngay',
+    mo: 'Báo cáo phân tích TikTok — ID người bán cho mọi đơn (kênh công ty, marketing, nhà sáng tạo). Tự chạy 20 phút/lần.',
+    luc: (a) => a?.ar_kq?.luc || a?.ar_luc, loi: (a) => a?.ar_kq?.loi,
+    tt: (a) => (a?.ar_moc ? `đã chốt tới ${ngayNgan(a.ar_moc)}` : '') },
+];
+
+function DoiSoat({ api, xong }) {
+  const { user, baoToast } = useApp();
   const ds = api?.doi_soat || [];
   const kq = api?.ds_kq || {};
+  const [chon, setChon] = useState(() => new Set());
+  const [gui, setGui] = useState('');
+  const dang = !!api?.dang_keo || !!gui;
   const o = (tk, app) => {
     if (tk == null) return <td className="so odn-phu">—</td>;
     const thieu = (tk || 0) - (app || 0);
     return <td className="so">{fmt(app || 0)} / {fmt(tk)}{thieu > 0 ? <span className="tts-huy"> thiếu {fmt(thieu)}</span> : thieu < 0 ? <span className="odn-phu"> +{fmt(-thieu)}</span> : <span className="tts-khop"> ✓</span>}</td>;
   };
-  return (
+  const doiChon = (ngay) => setChon((c) => { const n = new Set(c); if (n.has(ngay)) n.delete(ngay); else if (n.size < 31) n.add(ngay); return n; });
+  const chay = async (viec, ngay = null) => {
+    setGui(viec);
+    const { data, error } = await sb.rpc('fn_tt_api_chay', { p_token: user.token, p_viec: viec, p_ngay: ngay });
+    setGui('');
+    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    if (data?.kq === 'dang_chay') { baoToast(`Đang có 1 lượt chạy — khoảng ${fmt(data.con_giay)} giây nữa bấm lại`); return; }
+    if (!data?.ok) { baoToast('Chưa kết nối API TikTok'); return; }
+    baoToast(ngay ? `Đã gửi lệnh kéo lại ${fmt(ngay.length)} ngày — khoảng 1–2 phút có kết quả` : 'Đã gửi lệnh — khoảng 1–2 phút có kết quả');
+    if (ngay) setChon(new Set());
+    setTimeout(xong, 1500);
+  };
+  const thieu = ds.filter(lechNgay).map((r) => r.ngay);
+  const chuaKip = kq.chua_kip || [];
+  return (<>
+    <div className="tts-tc">
+      <div className="tts-tc-dau">
+        <b>Chạy thủ công</b>
+        <span>Tự động vẫn chạy như cũ — chỉ bấm khi thấy lỗi hoặc cần lấy ngay. Mỗi lượt khoảng 1–2 phút; đang có lượt chạy thì phải đợi xong (không chạy chồng).</span>
+        {api?.dang_keo && <i className="tts-tc-chay">Đang chạy 1 lượt…</i>}
+      </div>
+      {api?.loi && <div className="odn-bao do"><IcAlert /> Lỗi gần nhất: {api.loi}</div>}
+      <div className="tts-tc-luoi">
+        {VIEC_TC.map((v) => {
+          const loi = v.loi?.(api);
+          const luc = v.luc(api);
+          return (
+            <div key={v.k} className={'tts-tc-o' + (loi ? ' loi' : '')}>
+              <b>{v.ten}</b>
+              <span className="tts-tc-mo">{v.mo}</span>
+              <span className={'tts-tc-tt' + (loi ? ' do' : '')}>{luc ? 'Lần cuối ' + gioNgay(luc) : 'Chưa chạy'}{v.tt(api) ? ' · ' + v.tt(api) : ''}{loi ? ' · lỗi: ' + String(loi).slice(0, 120) : ''}</span>
+              <button className="odn-nut-phu" disabled={dang} onClick={() => chay(v.k)}><IcRefresh /> {gui === v.k ? 'Đang gửi…' : v.nut}</button>
+            </div>);
+        })}
+      </div>
+    </div>
+
     <div className="odn-bang-khung">
       <div className="tts-ghi-nguon">
         <span><b>Đối soát với TikTok</b>: mỗi 3 giờ hệ thống tự đếm số đơn, số dòng hàng có ID người bán và số yêu cầu trả hàng của từng ngày trên TikTok rồi so với app. Ngày nào app thiếu → tự kéo lại cả ngày đó, 15 phút sau đối soát lại.</span>
-        <span>Lần gần nhất: {api?.ds_luc ? gioNgay(kq.luc || api.ds_luc) : 'chưa chạy'}{kq.lech_truoc != null ? ` · lệch trước khi sửa ${fmt(kq.lech_truoc)} ngày · còn lệch ${fmt(kq.con_lech || 0)} ngày` : ''}{kq.loi ? ` · lỗi: ${kq.loi}` : ''}. Hiển thị dạng app / TikTok; 15 phút gần nhất chưa tính.</span>
+        <span>Lần gần nhất: {api?.ds_luc ? gioNgay(kq.luc || api.ds_luc) : 'chưa chạy'}{kq.lech_truoc != null ? ` · lệch trước khi sửa ${fmt(kq.lech_truoc)} ngày · còn lệch ${fmt(kq.con_lech || 0)} ngày` : ''}{kq.loi ? ` · lỗi: ${kq.loi}` : ''}{kq.thu_cong ? ` · lượt kéo lại thủ công ${fmt(kq.thu_cong.length)} ngày` : ''}. Hiển thị dạng app / TikTok; 15 phút gần nhất chưa tính.</span>
       </div>
-      <table className="odn-bang tts-bang">
-        <thead><tr><th>Ngày</th><th className="so">Đơn hàng</th><th className="so" title="TikTok đếm theo dòng hàng (mỗi mã hàng trong đơn là 1 dòng)">Dòng hàng có ID người bán</th><th className="so">Yêu cầu trả hàng</th><th className="so">Tự kéo bù</th></tr></thead>
-        <tbody>{ds.length === 0 ? <tr><td colSpan={5} className="odn-trong">Chưa có kết quả đối soát — lượt đầu chạy trong vòng 5 phút.</td></tr>
+      <div className="tts-tc-chon">
+        <span>Bấm vào từng ngày để chọn rồi <b>Kéo lại</b> — kéo lại cả ngày từ TikTok kể cả ngày đang khớp. Mỗi lượt kéo được khoảng 1–2 ngày đông đơn; ngày chưa kịp sẽ báo để bấm tiếp.</span>
+        <div className="tts-tc-chon-nut">
+          {thieu.length > 0 && <button className="tts-link" onClick={() => setChon(new Set(thieu.slice(0, 31)))}>Chọn {fmt(Math.min(31, thieu.length))} ngày đang thiếu</button>}
+          {chuaKip.length > 0 && !dang && <button className="tts-link" onClick={() => setChon(new Set(chuaKip))}>Chọn {fmt(chuaKip.length)} ngày lượt trước chưa kịp</button>}
+          {chon.size > 0 && <button className="tts-link" onClick={() => setChon(new Set())}>Bỏ chọn</button>}
+          <button className="odn-nut-phu tts-tc-keo" disabled={!chon.size || dang} onClick={() => chay('doi_soat', [...chon].sort().reverse())}>
+            <IcRefresh /> {gui === 'doi_soat' && chon.size ? 'Đang gửi…' : chon.size ? `Kéo lại ${fmt(chon.size)} ngày đã chọn` : 'Chọn ngày để kéo lại'}</button>
+        </div>
+      </div>
+      <table className="odn-bang tts-bang tts-bang-ds">
+        <thead><tr><th className="tts-o-chon" aria-label="Chọn" /><th>Ngày</th><th className="so">Đơn hàng</th><th className="so" title="TikTok đếm theo dòng hàng (mỗi mã hàng trong đơn là 1 dòng)">Dòng hàng có ID người bán</th><th className="so">Yêu cầu trả hàng</th><th className="so">Đã kéo bù</th></tr></thead>
+        <tbody>{ds.length === 0 ? <tr><td colSpan={6} className="odn-trong">Chưa có kết quả đối soát — lượt đầu chạy trong vòng 5 phút.</td></tr>
           : ds.map((r) => (
-            <tr key={r.ngay} className={lechNgay(r) ? 'tts-dong-lech' : ''}>
+            <tr key={r.ngay} className={(lechNgay(r) ? 'tts-dong-lech' : '') + (chon.has(r.ngay) ? ' tts-dong-chon' : '')} onClick={() => doiChon(r.ngay)}>
+              <td className="tts-o-chon"><input type="checkbox" checked={chon.has(r.ngay)} onChange={() => doiChon(r.ngay)} onClick={(e) => e.stopPropagation()} aria-label={'Chọn ngày ' + ngayVN(r.ngay)} /></td>
               <td><b>{ngayVN(r.ngay)}</b></td>{o(r.tiktok_don, r.app_don)}{o(r.tiktok_lk, r.app_lk)}{o(r.tiktok_tra, r.app_tra)}
               <td className="so">{r.sua_lan ? `${fmt(r.sua_lan)} lần` : '—'}</td>
             </tr>))}</tbody>
       </table>
     </div>
-  );
+  </>);
 }
 
 function BangCuaHang({ ds, chon }) {
