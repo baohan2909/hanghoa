@@ -124,6 +124,17 @@ export default function App() {
   };
 
   const baoToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
+  // NEW - 3.140.1: quay về từ ủy quyền TikTok Shop (Edge Function tiktok-shop chuyển hướng về ?tiktok=ok|loi)
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const kq = p.get('tiktok');
+    if (!kq) return;
+    setTab('tiktok');
+    setToast(kq === 'ok' ? 'Đã kết nối TikTok Shop' + (p.get('shop') ? ' · ' + p.get('shop') : '') + ' — đơn sẽ tự về mỗi 5 phút'
+      : 'Kết nối TikTok Shop chưa được: ' + (p.get('ly_do') || 'không rõ lý do'));
+    setTimeout(() => setToast(''), 8000);
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
   const dangXuat = () => { localStorage.removeItem('nsflow_user'); localStorage.removeItem('nsflow_login_at'); setUser(null); };
 
   // ===== TỰ CẬP NHẬT =====

@@ -168,17 +168,11 @@ async function layShop(cfg: J, token: string) {
   return sh;
 }
 
-function html(tieu: string, mo: string, ok = true) {
-  return new Response(
-    `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-     <title>${tieu}</title>
-     <body style="margin:0;background:#F7F5F1;font-family:'Be Vietnam Pro',system-ui,sans-serif">
-     <div style="max-width:520px;margin:70px auto;padding:28px 24px;background:#fff;border:1px solid #E6E2D8;border-radius:16px;text-align:center">
-       <div style="width:54px;height:54px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;
-         background:${ok ? 'linear-gradient(135deg,#14213A 0%,#1E5F63 62%,#3FB6A8 100%)' : '#FCEAF2'};color:${ok ? '#fff' : '#B0115C'};font-size:26px;font-weight:800">${ok ? '✓' : '!'}</div>
-       <div style="font-size:20px;font-weight:800;color:#14213A;margin:6px 0 8px">${tieu}</div>
-       <p style="color:#4A5670;line-height:1.65;margin:0">${mo}</p></div></body></html>`,
-    { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+// Supabase Edge Function không phục vụ trang HTML (bị đổi sang text/plain) → kết quả ủy quyền chuyển hướng về app
+const APP_URL = 'https://baohan2909.github.io/hanghoa/';
+function veApp(ok: boolean, thamSo: Record<string, string> = {}) {
+  return new Response(null, { status: 302,
+    headers: { Location: APP_URL + '?' + new URLSearchParams({ tiktok: ok ? 'ok' : 'loi', ...thamSo }) } });
 }
 
 Deno.serve(async (req) => {
@@ -188,16 +182,16 @@ Deno.serve(async (req) => {
   // ===== 1) Ủy quyền: TikTok chuyển hướng về đây kèm ?code =====
   if (req.method === 'GET') {
     const code = url.searchParams.get('code') || url.searchParams.get('auth_code') || '';
-    if (!code) return html('Điều phối hàng hóa · TikTok Shop', 'Đường dẫn này nhận ủy quyền từ TikTok Shop. Mở link ủy quyền trong app để kết nối.', true);
+    if (!code) return veApp(false, { ly_do: 'Thiếu mã ủy quyền — mở link ủy quyền trong app để kết nối' });
     try {
       const cfg = await rpc('fn_tt_api_cfg', {});
-      if (!cfg?.app_secret) return html('Chưa lưu khoá bí mật', 'Chạy câu SQL lưu khoá bí mật app NS CARE vào Vault (tên <b>tiktok_app_secret</b>) rồi ủy quyền lại.', false);
+      if (!cfg?.app_secret) return veApp(false, { ly_do: 'Chưa lưu khoá bí mật app vào Vault (tiktok_app_secret)' });
       const r = await fetch(AUTH + '/api/v2/token/get?' + new URLSearchParams({
         app_key: cfg.app_key, app_secret: cfg.app_secret, auth_code: code, grant_type: 'authorized_code',
       }));
       const j = await r.json().catch(() => null);
       const d = j?.data || {};
-      if (!d.access_token) return html('TikTok từ chối', 'Chi tiết: ' + JSON.stringify(j || {}).slice(0, 400), false);
+      if (!d.access_token) return veApp(false, { ly_do: 'TikTok từ chối: ' + String(j?.message || j?.code || 'không rõ').slice(0, 200) });
       await rpc('fn_tt_api_luu', { p: {
         access_token: d.access_token, refresh_token: d.refresh_token || null,
         het_han: isoTuGiay(d.access_token_expire_in), refresh_het_han: isoTuGiay(d.refresh_token_expire_in),
@@ -206,10 +200,9 @@ Deno.serve(async (req) => {
       cfg.access_token = d.access_token;
       const sh = await layShop(cfg, d.access_token);
       const ten = sh?.data?.shops?.[0]?.name;
-      return html('Đã kết nối TikTok Shop', (ten ? `Cửa hàng <b>${ten}</b> đã kết nối với app Điều phối hàng hóa. ` : '') +
-        'Đơn hàng sẽ tự về app mỗi 5 phút. Anh đóng tab này và quay lại app.');
+      return veApp(true, ten ? { shop: String(ten) } : {});
     } catch (e) {
-      return html('Lỗi kết nối', String((e as Error)?.message || e), false);
+      return veApp(false, { ly_do: String((e as Error)?.message || e).slice(0, 200) });
     }
   }
 
