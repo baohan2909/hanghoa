@@ -4,6 +4,7 @@ import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { Sel, DateBox, isoVN } from '../lib/ui.jsx';
 import { IcRefresh, IcSearch, IcAlert, IcClock, IcGuiLen, IcCheck } from '../lib/icons.jsx';
+import NutXuat from '../lib/bao-cao/NutXuat.jsx';   // NEW - 3.154
 
 // ============================================================================
 // NEW - 3.140 TIKTOK SHOP (SQL 237 · 238 · Edge Function tiktok-shop)
@@ -256,6 +257,29 @@ export default function TikTokShop() {
   const kho = bc?.kho;
   const napCuoi = bc?.nap?.[0];
 
+  // NEW - 3.154: XUẤT — báo cáo PDF / dữ liệu Excel theo đúng bộ lọc đang xem
+  const TT_TEN = { cho: 'chờ gửi hàng', dang_giao: 'đang giao', giao: 'đã giao', huy: 'đã huỷ', tra_hang: 'trả hàng' };
+  const moTaLoc = () => [loc.kenh ? 'Kênh ' + (KENH[loc.kenh]?.[0] || loc.kenh) : '', loc.dm ? 'Loại hàng ' + loc.dm : '', loc.tt ? 'Đơn ' + (TT_TEN[loc.tt] || loc.tt) : '',
+    loc.nb != null ? 'Người bán ' + nbTen(loc.nb) : '', loc.ch != null ? 'Cửa hàng ' + ((bc?.ch || []).find((c) => c.ma_ch === loc.ch)?.ten || loc.ch || 'chưa gán') : '',
+    qTre ? `Tìm "${qTre}"` : ''].filter(Boolean).join(' · ') || 'Mọi kênh, loại hàng, người bán — không lọc';
+  const meta = () => ({ loc: moTaLoc(), nguoi: [user.ten, user.ma_dang_nhap].filter(Boolean).join(' · '),
+    luc: new Date().toLocaleString('vi', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) });
+  const taoBaoCao = async (bao) => {
+    bao('Đang dựng báo cáo…');
+    const [{ docTikTok }, { taoPdfBlob }] = await Promise.all([import('../lib/bao-cao/tiktok.js'), import('../lib/bao-cao/pdf.js')]);
+    const blob = await taoPdfBlob(docTikTok(bc, meta()));
+    return { blob, ten: `BaoCao_TikTokShop_${bc.tu}_${bc.den}.pdf` };
+  };
+  const taoDuLieu = async (bao) => {
+    const [{ sheetsTikTok }, { excelBlob, layHetDong }] = await Promise.all([import('../lib/bao-cao/tiktok.js'), import('../lib/bao-cao/excel.js')]);
+    bao('Đang lấy từng dòng hàng…', 0);
+    const dong = await layHetDong(sb, 'fn_tt_xuat', { p_token: user.token, p_loc: pLoc }, (a, b) => bao(`Đang lấy dòng hàng ${fmt(a)} / ${fmt(b)}`, b ? (a / b) * 0.85 : null));
+    bao('Đang tạo file Excel…', 0.9);
+    await new Promise((r) => setTimeout(r, 30));
+    const blob = await excelBlob(sheetsTikTok(bc, dong, meta()));
+    return { blob, ten: `DuLieu_TikTokShop_${bc.tu}_${bc.den}.xlsx` };
+  };
+
   return (
     <>
       <div className="cmdbar">
@@ -283,6 +307,7 @@ export default function TikTokShop() {
             {api?.loi && <i className="do" title={api.loi}>Lỗi API: {String(api.loi).slice(0, 60)}</i>}
           </span>
           {api?.ket_noi && <button className="odn-nut-phu" onClick={keoNgay} disabled={api?.dang_keo}><IcRefresh /> Lấy ngay từ TikTok</button>}
+          <NutXuat sanSang={!!bc && !dang} taoBaoCao={taoBaoCao} taoDuLieu={taoDuLieu} ghiChu="Theo đúng khoảng ngày + bộ lọc đang xem" />
           <button className="btn btn-ai odn-nut-chinh" onClick={() => setNap(true)}><IcGuiLen /> Nạp file Excel</button>
         </div>
 

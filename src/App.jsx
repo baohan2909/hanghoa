@@ -18,7 +18,6 @@ const GiamSat = lazy(() => import('./screens/GiamSat.jsx'));
 const DacBiet = lazy(() => import('./screens/DacBiet.jsx'));
 const TheoDoiOnline = lazy(() => import('./screens/TheoDoiOnline.jsx'));
 const VanDon = lazy(() => import('./screens/VanDon.jsx'));
-const BaoCao = lazy(() => import('./screens/BaoCao.jsx'));
 const ThamSo = lazy(() => import('./screens/ThamSo.jsx'));
 const DoiSoat = lazy(() => import('./screens/DoiSoat.jsx'));
 const YeuCauDieuPhoi = lazy(() => import('./screens/YeuCauDieuPhoi.jsx'));
@@ -53,8 +52,7 @@ const MENU = [
     { id: 'dieuhanh',  ten: 'Phòng điều hành', Ic: IcRadar, roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'giamsat',   ten: 'Thiếu hàng',     Ic: IcAlert, roles: ['CH', 'DIEU_PHOI', 'ADMIN'] },
     { id: 'vandon',    ten: 'Vận đơn',        Ic: IcTruck, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
-    { id: 'baocao',    ten: 'Báo cáo',        Ic: IcClock, roles: ['DIEU_PHOI', 'ADMIN'] },
-    { id: 'banonline', ten: 'Bán online',     Ic: IcOnline,  roles: ['DIEU_PHOI', 'ADMIN'] },   // NEW - 3.153 Nhanh.vn
+    { id: 'banonline', ten: 'Online',         Ic: IcOnline,  roles: ['DIEU_PHOI', 'ADMIN'] },   // NEW - 3.153 Nhanh.vn
     { id: 'tiktok',    ten: 'TikTok Shop',    Ic: IcTui,   roles: ['DIEU_PHOI', 'ADMIN'] },   // NEW - 3.140
   ]},
   { nhom: 'THI ĐUA', items: [
@@ -257,7 +255,7 @@ export default function App() {
   if (baoTri?.khoa) return <ManBaoTri bt={baoTri} user={user} onKiem={hoiBaoTri} dangXuat={dangXuat} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich, dautruong: DauTruong,
-    giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tiktok: TikTokShop, banonline: BanOnline, tonkd: TonKho, huongdan: HuongDan }[tab]
+    giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tiktok: TikTokShop, banonline: BanOnline, tonkd: TonKho, huongdan: HuongDan }[tab]
     || (user.vai_tro === 'KHO' ? Kho : XinHang);
   const tabDem = user.vai_tro === 'KHO' ? 'kho' : 'duyet';
   const chonTab = (id) => { setTab(id); setMoMenu(false); };

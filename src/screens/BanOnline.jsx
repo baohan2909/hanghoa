@@ -7,41 +7,13 @@ import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { Sel, DateBox, isoVN } from '../lib/ui.jsx';
 import { IcRefresh, IcSearch, IcAlert, IcClock, IcGuiLen, IcCheck } from '../lib/icons.jsx';
+import NutXuat from '../lib/bao-cao/NutXuat.jsx';   // NEW - 3.154
 
 /* ================= tiện ích ================= */
-const fmt = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
-const tien = (n) => {
-  const v = Number(n) || 0, a = Math.abs(v);
-  if (a >= 1e9) return (v / 1e9).toLocaleString('vi', { maximumFractionDigits: 2 }) + ' tỷ';
-  if (a >= 1e6) return (v / 1e6).toLocaleString('vi', { maximumFractionDigits: 1 }) + ' tr';
-  return Math.round(v).toLocaleString('vi');
-};
-const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
-const pctTxt = (a, b) => pct(a, b).toLocaleString('vi') + '%';
-const ngayVN = (s) => (s ? String(s).slice(8, 10) + '/' + String(s).slice(5, 7) + '/' + String(s).slice(0, 4) : '—');
+// NEW - 3.154: hằng số + định dạng dùng chung với file xuất (lib/bao-cao/hangSo.js)
+import { fmt, tien, pct, pctTxt, ngayVN, tyLe, THU_TU_KENH, kenhTen, kenhMau, NHOM_KENH, TTN, NGANH, CS, LY_DO } from '../lib/bao-cao/hangSo.js';
 const gioNgay = (s) => (s ? new Date(s).toLocaleString('vi', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '—');
 const truNgay = (n, tu = new Date()) => { const d = new Date(tu); d.setDate(d.getDate() - n); return isoVN(d); };
-const tyLe = (moi, cu) => (cu > 0 ? ((moi - cu) / cu) * 100 : moi > 0 ? null : 0);
-
-// Kênh bán (saleChannel của Nhanh) — mỗi kênh giữ 1 màu cố định (bảng màu đã kiểm cho người mù màu, không dùng tím)
-const KENH = {
-  48: ['TikTok Shop', '#2a78d6'], 42: ['Shopee', '#eb6834'], 1: ['Admin', '#1baf7a'], 10: ['Website (API)', '#eda100'],
-  20: ['Facebook', '#e87ba4'], 49: ['Zalo OA', '#008300'], 41: ['Lazada', '#e34948'],
-  2: ['Website', '#8A94A8'], 21: ['Instagram', '#8A94A8'], 43: ['Sendo', '#8A94A8'], 45: ['Tiki', '#8A94A8'],
-  50: ['Shopee chat', '#8A94A8'], 51: ['Lazada chat', '#8A94A8'], 52: ['Zalo cá nhân', '#8A94A8'],
-};
-const THU_TU_KENH = [48, 42, 1, 10, 20, 49, 41, 2, 21, 43, 45, 50, 51, 52];
-const kenhTen = (k) => (KENH[k] ? KENH[k][0] : 'Kênh ' + k);
-const kenhMau = (k) => (KENH[k] ? KENH[k][1] : '#A7B0BF');
-const NHOM_KENH = { san: 'Sàn TMĐT', web: 'Web + Facebook + Zalo' };
-const TTN = { tc: ['Thành công', 'ok'], giao: ['Đang giao', 'duong'], xl: ['Đang xử lý', 'xam'], hoan: ['Hoàn', 'cam'], tb: ['Thất bại', 'do'], huy: ['Huỷ', 'do'] };
-const NGANH = { BH: 'Bảo hiểm', NV: 'Nón vải', PK: 'Phụ kiện', '?': 'Chưa rõ' };
-const CS = { chinh: 'Chính', sale: 'Sale', '?': 'Chưa rõ' };
-const LY_DO = { 1: 'Đặt nhầm sản phẩm', 2: 'Phí ship cao', 3: 'Không muốn chuyển khoản', 4: 'Đơn trùng', 5: 'Không liên lạc được khách',
-  6: 'Hết hàng', 8: 'Chờ chuyển khoản', 9: 'Khách không thích sản phẩm', 10: 'Không hài lòng nhân viên giao', 11: 'Giao chậm',
-  12: 'Đã mua ở cửa hàng', 14: 'Sai địa chỉ nhận', 16: 'Khách không muốn mua nữa', 18: 'Khác', 19: 'Không liên lạc được người gửi',
-  20: 'Người gửi không bán online / ngoài tỉnh', 22: 'Chưa giao hàng cho hãng', 23: 'Hãng lấy hàng chậm', 24: 'Sai địa chỉ kho lấy',
-  25: 'Hãng làm mất hàng', 26: 'Shop tự giao', 29: 'Shop chưa xử lý đơn', 30: 'Sai giá sản phẩm', 35: 'Khách vắng nhà (hẹn giao lại)' };
 
 const NHANH = [
   ['Hôm nay', () => [isoVN(), isoVN()]],
@@ -213,11 +185,33 @@ export default function BanOnline() {
       laiGop != null ? `${pctTxt(laiGop, t.dt_co_gv)} doanh số có giá vốn` : `${pctTxt(t.phi_san || 0, t.dt || 0)} doanh số`],
   ];
 
+  // NEW - 3.154: XUẤT — báo cáo PDF / dữ liệu Excel theo đúng bộ lọc đang xem
+  const moTaLoc = () => [loc.kenh ? 'Kênh ' + kenhTen(Number(loc.kenh)) : '', loc.shop ? 'Gian hàng ' + loc.shop : '', loc.nganh ? 'Ngành ' + (NGANH[loc.nganh] || loc.nganh) : '',
+    loc.cs ? 'Hàng ' + (CS[loc.cs] || loc.cs).toLowerCase() : '', loc.tt ? 'Trạng thái ' + (TTN[loc.tt]?.[0] || loc.tt).toLowerCase() : '', qTre ? `Tìm "${qTre}"` : '']
+    .filter(Boolean).join(' · ') || 'Mọi kênh, gian hàng, ngành, trạng thái — không lọc';
+  const meta = () => ({ loc: moTaLoc(), nguoi: [user.ten, user.ma_dang_nhap].filter(Boolean).join(' · '),
+    luc: new Date().toLocaleString('vi', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) });
+  const taoBaoCao = async (bao) => {
+    bao('Đang dựng báo cáo…');
+    const [{ docOnline }, { taoPdfBlob }] = await Promise.all([import('../lib/bao-cao/online.js'), import('../lib/bao-cao/pdf.js')]);
+    const blob = await taoPdfBlob(docOnline(bc, meta()));
+    return { blob, ten: `BaoCao_Online_${bc.tu}_${bc.den}.pdf` };
+  };
+  const taoDuLieu = async (bao) => {
+    const [{ sheetsOnline }, { excelBlob, layHetDong }] = await Promise.all([import('../lib/bao-cao/online.js'), import('../lib/bao-cao/excel.js')]);
+    bao('Đang lấy từng dòng hàng…', 0);
+    const dong = await layHetDong(sb, 'fn_nh_xuat', { p_token: user.token, p_loc: pLoc }, (a, b) => bao(`Đang lấy dòng hàng ${fmt(a)} / ${fmt(b)}`, b ? (a / b) * 0.85 : null));
+    bao('Đang tạo file Excel…', 0.9);
+    await new Promise((r) => setTimeout(r, 30));
+    const blob = await excelBlob(sheetsOnline(bc, dong, meta()));
+    return { blob, ten: `DuLieu_Online_${bc.tu}_${bc.den}.xlsx` };
+  };
+
   const ds = (bc?.tong?.don || 0) + (bc?.tong?.don_huy || 0);
   return (
     <>
       <div className="cmdbar">
-        <h1>Bán online</h1>
+        <h1>Online</h1>
         <div className="sub">Toàn bộ đơn online qua Nhanh.vn — TikTok, Shopee, Lazada, Facebook, Zalo OA, Website, Admin.</div>
       </div>
       <div className="odn tts bo">
@@ -232,6 +226,7 @@ export default function BanOnline() {
             {api?.loi && <i className="do" title={api.loi}>Lỗi kết nối</i>}
           </span>
           {!api?.ket_noi && <button className="odn-nut-phu" onClick={() => setThe('kn')}>Kết nối Nhanh.vn</button>}
+          <NutXuat sanSang={!!bc && !dang} taoBaoCao={taoBaoCao} taoDuLieu={taoDuLieu} ghiChu="Theo đúng khoảng ngày + bộ lọc đang xem" />
           <button className="btn btn-ai odn-nut-chinh" onClick={() => setNap(true)}><IcGuiLen /> Nạp file báo cáo</button>
         </div>
 
