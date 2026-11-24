@@ -4,6 +4,7 @@
 //   GET  ?code=...            → nhận ủy quyền từ TikTok (đường dẫn chuyển hướng của app), đổi token, lấy shop_cipher, lưu tt_api
 //   POST {viec:'keo'}         → kéo đơn theo update_time (lịch tq_lam_moi 5 phút/lần, hoặc nút "Lấy ngay" trong app)
 //   POST {viec:'thong_ke'}    → NEW - 3.141: kéo phiên LIVE + thống kê video (có ID người bán), mỗi 60 phút
+//   POST {viec:'lien_ket'}    → NEW - 3.142: API liên kết — ID người bán từng đơn; bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'san_pham'}    → NEW - 3.141: đồng bộ sản phẩm + ngành (loại hàng); bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'thu', duong_dan, tham_so, method, body}  → gọi thử 1 API, trả NGUYÊN VĂN phản hồi (để đối chiếu tên trường)
 //   POST bắt buộc header x-tt-khoa = tt_api.khoa_noi_bo (SQL tự gửi qua pg_net).
@@ -163,6 +164,45 @@ async function keoDon(cfg: J) {
   const kq = { trang, so_don: soDon, ...tong, xong_het: xongHet, giay: Math.round((Date.now() - batDau) / 1000) };
   await rpc('fn_tt_api_ghi', { p: { xong: true, loi: '', kq, ...(mau ? { mau } : {}) } });
   return { ok: true, ...kq };
+}
+
+// ---- NEW - 3.142: API liên kết — ID người bán cho TỪNG ĐƠN (LIVE / VIDEO / …), mã video / mã phiên, hoa hồng ----
+//   Search Seller Affiliate Orders 202410, lọc theo create_time; lần đầu lùi 'lui_ngay' ngày, sau đó quét lại từ mốc − 6 giờ.
+//   Dở trang thì cất page_token + khung giờ, lượt sau đi tiếp.
+async function keoLienKet(cfg: J, batDau: number, hetGio = 115_000) {
+  const kq: J = { trang: 0, don: 0, dong: 0, gan: 0 };
+  const conGio = () => hetGio - (Date.now() - batDau);
+  if (conGio() < 15_000) return { ...kq, bo_qua: 'het_gio' };
+  const token = await damBaoToken(cfg);
+  const cipher = cfg.shop_cipher;
+  const bayGio = Math.floor(Date.now() / 1000) - 60;
+  const tuMoi = cfg.lk_moc ? Number(cfg.lk_moc) - 6 * 3600 : bayGio - (Number(cfg.lui_ngay) || 30) * 86400;
+  let pt = String(cfg.lk_token || '');
+  let tu = pt ? Number(cfg.lk_tu) || 0 : tuMoi;
+  let den = pt ? Number(cfg.lk_den) || 0 : bayGio;
+  if (pt && (!tu || !den)) { pt = ''; tu = tuMoi; den = bayGio; }
+  let xong = false;
+  while (conGio() > 12_000 && kq.trang < 150) {
+    const ts: Record<string, string> = { shop_cipher: cipher, page_size: '100' };
+    if (pt) ts.page_token = pt;
+    const j = await goiTikTok(cfg, token, '/affiliate_seller/202410/orders/search', ts, 'POST', { create_time_ge: tu, create_time_lt: den });
+    if (j?.code !== 0) {
+      kq.loi = `${j?.code}: ${j?.message || ''}`.slice(0, 200);
+      if (pt) await rpc('fn_tt_lk_nap', { p: { token: '' } });   // trang hỏng/hết hạn → lượt sau quét lại khung từ mốc
+      break;
+    }
+    if (kq.trang === 0 && j?.data?.total_count != null) kq.tong = j.data.total_count;
+    const ds: J[] = j?.data?.orders || [];
+    pt = j?.data?.next_page_token || '';
+    kq.trang++; kq.don += ds.length;
+    xong = !pt || !ds.length;
+    const r = await rpc('fn_tt_lk_nap', { p: { ds, token: xong ? '' : pt, tu, den, xong } });
+    kq.dong += r?.dong || 0; kq.gan += r?.gan || 0;
+    if (xong) break;
+  }
+  Object.assign(kq, { xong, tu, den, giay: Math.round((Date.now() - batDau) / 1000), luc: new Date().toISOString() });
+  await rpc('fn_tt_lk_nap', { p: { kq } });
+  return kq;
 }
 
 // ---- NEW - 3.141: loại hàng (ngành sản phẩm) — chạy ké sau mỗi lượt kéo đơn, dùng phần thời gian còn lại ----
@@ -369,10 +409,12 @@ Deno.serve(async (req) => {
     }
     if (body.viec === 'thong_ke') return json(await thongKe(cfg));
     if (body.viec === 'san_pham') return json(await dongBoSanPham(cfg, Date.now()));
+    if (body.viec === 'lien_ket') return json(await keoLienKet(cfg, Date.now()));
     const batDau = Date.now();
     const kq: J = await keoDon(cfg);
-    // NEW - 3.141: dùng thời gian còn lại của lượt để đồng bộ loại hàng; lỗi ở bước này không làm hỏng lượt kéo đơn
-    try { kq.san_pham = await dongBoSanPham(cfg, batDau); } catch (e) { kq.san_pham = { loi: String((e as Error)?.message || e).slice(0, 200) }; }
+    // NEW - 3.142: ID người bán từng đơn (API liên kết), rồi loại hàng — dùng thời gian còn lại; lỗi ở 2 bước này không làm hỏng lượt kéo đơn
+    try { kq.lien_ket = await keoLienKet(cfg, batDau); } catch (e) { kq.lien_ket = { loi: String((e as Error)?.message || e).slice(0, 200) }; }
+    try { kq.san_pham = await dongBoSanPham(cfg, batDau, 130_000); } catch (e) { kq.san_pham = { loi: String((e as Error)?.message || e).slice(0, 200) }; }
     return json(kq);
   } catch (e) {
     const loi = String((e as Error)?.message || e).slice(0, 500);
