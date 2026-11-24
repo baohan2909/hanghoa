@@ -54,15 +54,21 @@ async function kySign(secret: string, duongDan: string, thamSo: Record<string, s
 async function goiTikTok(cfg: J, token: string, duongDan: string, thamSoThem: Record<string, string> = {},
   method = 'GET', body: unknown = null) {
   const thoBody = body ? JSON.stringify(body) : '';
-  const thamSo: Record<string, string> = { app_key: cfg.app_key, timestamp: String(Math.floor(Date.now() / 1000)), ...thamSoThem };
-  thamSo.sign = await kySign(cfg.app_secret, duongDan, thamSo, thoBody);
-  const r = await fetch(API + duongDan + '?' + new URLSearchParams(thamSo), {
-    method,
-    headers: { 'x-tts-access-token': token, 'Content-Type': 'application/json' },
-    ...(thoBody ? { body: thoBody } : {}),
-  });
-  const t = await r.text();
-  try { return JSON.parse(t); } catch { return { code: -1, message: 'Không đọc được phản hồi', http: r.status, tho: t.slice(0, 500) }; }
+  // NEW - 3.143: TikTok báo vượt giới hạn tốc độ (36009002) → chờ rồi gọi lại, tối đa 4 lần
+  for (let lan = 0; ; lan++) {
+    const thamSo: Record<string, string> = { app_key: cfg.app_key, timestamp: String(Math.floor(Date.now() / 1000)), ...thamSoThem };
+    thamSo.sign = await kySign(cfg.app_secret, duongDan, thamSo, thoBody);
+    const r = await fetch(API + duongDan + '?' + new URLSearchParams(thamSo), {
+      method,
+      headers: { 'x-tts-access-token': token, 'Content-Type': 'application/json' },
+      ...(thoBody ? { body: thoBody } : {}),
+    });
+    const t = await r.text();
+    let j: J;
+    try { j = JSON.parse(t); } catch { j = { code: -1, message: 'Không đọc được phản hồi', http: r.status, tho: t.slice(0, 500) }; }
+    if ((j?.code === 36009002 || r.status === 429) && lan < 4) { await new Promise((ok) => setTimeout(ok, 1500 * (lan + 1))); continue; }
+    return j;
+  }
 }
 
 const isoTuGiay = (s: unknown) => (s ? new Date(Number(s) * 1000).toISOString() : null);
@@ -296,7 +302,7 @@ async function doiSoat(cfg: J) {
       dem.push({ ...k, don: Number.isFinite(don) ? don : null, lk: Number.isFinite(lk) ? lk : null, tra: Number.isFinite(tra) ? tra : null });
     }
   };
-  await Promise.all([tho(), tho(), tho()]);
+  await Promise.all([tho(), tho()]);
   const r0 = await rpc('fn_tt_doi_soat_nap', { p: { ds: dem } });
   const can: J[] = r0?.can_sua || [];
   const sua: string[] = [], chiTiet: J[] = [];
@@ -378,7 +384,7 @@ async function dongBoSanPham(cfg: J, batDau: number, hetGio = 110_000) {
       } else {
         kq.loi_dm++;
         if (!kq.loi_dm_mau) kq.loi_dm_mau = `${j?.code}: ${j?.message || ''}`.slice(0, 200);
-        if (j?.code === 36009004 || j?.code === 429) break;   // bị giới hạn tốc độ → để lượt sau
+        if (j?.code === 36009002 || j?.code === 429) break;   // bị giới hạn tốc độ → để lượt sau
         cho.push({ id, loi: `${j?.code}: ${j?.message || ''}`.slice(0, 200) });
       }
       if (cho.length >= 40) await ghi();

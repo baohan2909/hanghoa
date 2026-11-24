@@ -172,6 +172,9 @@ export default function TikTokShop() {
               ? <i className="ok" title={api.keo_luc ? 'Lần lấy cuối ' + gioNgay(api.keo_luc) : ''}>API đã kết nối{api.shop_ten ? ' · ' + api.shop_ten : ''}{api.keo_luc ? ' · lấy lúc ' + gioNgay(api.keo_luc) : ''}</i>
               : <i className="cho">API chưa kết nối — đang dùng file Excel</i>}
             {api?.dang_keo && <i className="ok">Đang lấy đơn…</i>}
+            {api?.ds_luc && (soLech(api) > 0
+              ? <i className="do" title="Có ngày số đơn trên app ít hơn TikTok — hệ thống đang tự kéo bù, xem thẻ Đối soát">Đối soát: lệch {fmt(soLech(api))} ngày</i>
+              : <i className="ok" title="Số đơn, đơn liên kết, trả hàng từng ngày khớp TikTok — tự đối soát 3 giờ/lần">Đối soát khớp {fmt((api.doi_soat || []).length)} ngày</i>)}
             {api?.lk_kq?.luc && <i className="ok" title="ID người bán theo từng mã đơn (API liên kết TikTok), chạy cùng lượt kéo đơn 5 phút/lần">ID từng đơn lúc {gioNgay(api.lk_kq.luc)}</i>}
             {api?.tk_luc && <i className="ok" title="Phiên LIVE + video có ID người bán (TikTok thống kê), chạy mỗi 60 phút">Thống kê LIVE/video lúc {gioNgay(api.tk_luc)}</i>}
             {api?.loi && <i className="do" title={api.loi}>Lỗi API: {String(api.loi).slice(0, 60)}</i>}
@@ -221,9 +224,10 @@ export default function TikTokShop() {
         <div className="odn-the" role="tablist">
           {[['tq', 'Tổng quan'], ['sp', 'Sản phẩm', bc?.sp?.length], ['nb', 'Người bán', bc ? new Set([...(bc.nb || []).map((x) => x.nb).filter(Boolean), ...Object.keys(bc.live_nb || {}), ...Object.keys(bc.video_nb || {})]).size : null],
             ['vl', 'Video & LIVE', bc ? (bc.live_top || []).length + (bc.video_top || []).length : null],
-            ['ch', 'Cửa hàng', bc?.ch?.length], ['don', 'Đơn hàng', tongDon], ['gan', 'Gán cửa hàng', bc?.chua_gan || null]].map(([k, ten, so]) => (
+            ['ch', 'Cửa hàng', bc?.ch?.length], ['don', 'Đơn hàng', tongDon], ['gan', 'Gán cửa hàng', bc?.chua_gan || null],
+            ['ds', 'Đối soát', soLech(api) || null]].map(([k, ten, so]) => (
             <button key={k} role="tab" aria-selected={the === k} className={the === k ? 'on' : ''} onClick={() => setThe(k)}>
-              {ten}{so != null && so !== 0 && <i className={k === 'gan' ? 'canh' : ''}>{fmt(so)}</i>}
+              {ten}{so != null && so !== 0 && <i className={k === 'gan' || k === 'ds' ? 'canh' : ''}>{fmt(so)}</i>}
             </button>
           ))}
         </div>
@@ -235,6 +239,7 @@ export default function TikTokShop() {
           : the === 'vl' ? <VideoLive bc={bc} chon={(nb) => { setLoc((l) => ({ ...l, nb })); baoToast('Đang lọc theo ' + nbTen(nb)); }} />
           : the === 'ch' ? <BangCuaHang ds={bc.ch} chon={(ch) => { setLoc((l) => ({ ...l, ch })); baoToast('Đang lọc theo cửa hàng'); }} />
           : the === 'don' ? <DsDon pLoc={pLoc} />
+          : the === 'ds' ? <DoiSoat api={api} />
           : <GanNguoiBan xong={tai} />}
 
         {tongDon === 0 && bc && !dang && (kho?.tong_don || 0) === 0 && (
@@ -509,6 +514,36 @@ function VideoLive({ bc, chon }) {
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+// NEW - 3.143: đối soát từng ngày app ↔ TikTok
+const lechNgay = (r) => (r.app_don ?? 0) < (r.tiktok_don ?? 0) || (r.app_lk ?? 0) < (r.tiktok_lk ?? 0) || (r.app_tra ?? 0) < (r.tiktok_tra ?? 0);
+const soLech = (api) => (api?.doi_soat || []).filter(lechNgay).length;
+function DoiSoat({ api }) {
+  const ds = api?.doi_soat || [];
+  const kq = api?.ds_kq || {};
+  const o = (tk, app) => {
+    if (tk == null) return <td className="so odn-phu">—</td>;
+    const thieu = (tk || 0) - (app || 0);
+    return <td className="so">{fmt(app || 0)} / {fmt(tk)}{thieu > 0 ? <span className="tts-huy"> thiếu {fmt(thieu)}</span> : thieu < 0 ? <span className="odn-phu"> +{fmt(-thieu)}</span> : <span className="tts-khop"> ✓</span>}</td>;
+  };
+  return (
+    <div className="odn-bang-khung">
+      <div className="tts-ghi-nguon">
+        <span><b>Đối soát với TikTok</b>: mỗi 3 giờ hệ thống tự đếm số đơn, số dòng hàng có ID người bán và số yêu cầu trả hàng của từng ngày trên TikTok rồi so với app. Ngày nào app thiếu → tự kéo lại cả ngày đó, 15 phút sau đối soát lại.</span>
+        <span>Lần gần nhất: {api?.ds_luc ? gioNgay(kq.luc || api.ds_luc) : 'chưa chạy'}{kq.lech_truoc != null ? ` · lệch trước khi sửa ${fmt(kq.lech_truoc)} ngày · còn lệch ${fmt(kq.con_lech || 0)} ngày` : ''}{kq.loi ? ` · lỗi: ${kq.loi}` : ''}. Hiển thị dạng app / TikTok; 15 phút gần nhất chưa tính.</span>
+      </div>
+      <table className="odn-bang tts-bang">
+        <thead><tr><th>Ngày</th><th className="so">Đơn hàng</th><th className="so" title="TikTok đếm theo dòng hàng (mỗi mã hàng trong đơn là 1 dòng)">Dòng hàng có ID người bán</th><th className="so">Yêu cầu trả hàng</th><th className="so">Tự kéo bù</th></tr></thead>
+        <tbody>{ds.length === 0 ? <tr><td colSpan={5} className="odn-trong">Chưa có kết quả đối soát — lượt đầu chạy trong vòng 5 phút.</td></tr>
+          : ds.map((r) => (
+            <tr key={r.ngay} className={lechNgay(r) ? 'tts-dong-lech' : ''}>
+              <td><b>{ngayVN(r.ngay)}</b></td>{o(r.tiktok_don, r.app_don)}{o(r.tiktok_lk, r.app_lk)}{o(r.tiktok_tra, r.app_tra)}
+              <td className="so">{r.sua_lan ? `${fmt(r.sua_lan)} lần` : '—'}</td>
+            </tr>))}</tbody>
+      </table>
     </div>
   );
 }

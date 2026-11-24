@@ -6224,3 +6224,8 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .tts-bang th.tts-lv, .tts-bang td.tts-lv { background: #FCEFF5; }
 .tts-bang th.tts-vd, .tts-bang td.tts-vd { background: #E9F6F2; }
 .tts-bang tr.tts-nhom th.tts-lv { color: #B0115C; } .tts-bang tr.tts-nhom th.tts-vd { color: #1E5F63; }
+
+/* NEW - 3.143 TikTok Shop: thẻ Đối soát — dòng lệch nền vàng nhạt #FFF8E6, dấu khớp xanh #2E9E6A */
+.tts-bang tr.tts-dong-lech td { background: #FFF8E6; }
+.tts-khop { color: #2E9E6A; font-weight: 600; }
+.odn-api i.do { cursor: help; }
