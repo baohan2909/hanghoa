@@ -1191,38 +1191,44 @@ function DsPhieu() {
   const TT = { xac_nhan: ['Đang giữ tồn', 'giu'], da_xuat: ['Đã xuất', 'xong'], huy: ['Đã huỷ', 'huy'] };
   const ttTen = (p) => (p.nguon === 'TK' && p.trang_thai === 'xac_nhan' ? 'Chờ xuất thùng' : TT[p.trang_thai][0]);
   return (
-    <div className="card" style={{ padding: 0, overflow: 'auto' }}>
-      <table className="tbl ch-phieu">
-        <thead><tr><th>Phiếu</th><th>Trạng thái</th><th>Đội</th><th className="num">Mã</th><th className="num">Tổng</th><th className="num">Còn giữ</th><th>Thùng</th><th>Người · lúc</th><th /></tr></thead>
+    <div className="card ph-khung">
+      {/* NEW - 3.155.3: bảng gọn vừa màn — gộp Đội / Thùng / Người · lúc vào ô Phiếu, nút tự xuống dòng; điện thoại thành thẻ */}
+      <table className="tbl ch-phieu2">
+        <thead><tr><th className="ph-chinh">Phiếu</th><th>Trạng thái</th><th className="num">Mã</th><th className="num">Tổng</th><th className="num">Còn giữ</th><th /></tr></thead>
         <tbody>
-          {ds == null ? <tr><td colSpan={9} className="dsl-trong">Đang tải…</td></tr>
-            : ds.length === 0 ? <tr><td colSpan={9} className="dsl-trong">Chưa có phiếu nào trong 30 ngày.</td></tr>
-            : ds.map((p) => (
-              <tr key={p.id}>
-                <td><b>{p.ma_phieu}</b> <span className={'ch-nguon ' + ({ TK: 'tk', PK: 'pk' }[p.nguon] || 'sa')}>{{ TK: 'Thùng · TK05005', PK: 'Phụ kiện · PK05001' }[p.nguon] || 'Sale · SA'}</span>
-                  <div className="tq-ghi">{p.loai === 'loat' ? 'Chia hàng mới' : 'Từng đội'}{p.ma_lien_quan ? ` · đi cùng ${p.ma_lien_quan}` : ''}</div>
-                  {p.ghi_chu && <div className="ch-phieu-gc" title="Ghi chú — ghi ở dòng 1 của file">✎ {p.ghi_chu}</div>}
-                  {odoo && odChip(p)}
-                  {p.odoo_huy && p.trang_thai === 'xac_nhan' && (   // NEW - 3.139 (SQL 230) Odoo đã huỷ đơn của phiếu
-                    <div className="ch-odoo-huy">Odoo đã huỷ {p.odoo_huy_ten || 'đơn'} — {p.nguon === 'TK' ? 'bấm Huỷ để trả thùng về kho (kiểm tra kho chưa giao tay)' : 'app đang nhả phần giữ'}</div>
-                  )}</td>
-                <td><span className={'ch-tt ' + TT[p.trang_thai][1]}>{ttTen(p)}</span></td>
-                <td>{(p.doi || []).map(tenNgan).join(', ')}</td>
-                <td className="num">{fmtN(p.so_ma)}</td>
-                <td className="num"><b>{fmtN(p.tong)}</b></td>
-                <td className="num">{p.trang_thai === 'xac_nhan' && p.nguon !== 'TK' ? fmtN(p.con_giu) : '—'}</td>
-                <td className="tq-ghi">{(p.thung || []).join(', ') || '—'}</td>
-                <td className="tq-ghi">{p.nguoi || '—'} · {ngayGio(p.tao_luc)}</td>
-                <td style={{ whiteSpace: 'nowrap' }}>
-                  <button className="btn" onClick={() => xuatPhieu(p.id, p.ma_phieu, p.ghi_chu).catch((e) => baoToast('Lỗi: ' + e.message))}><IcDown /> File</button>
-                  {odoo && p.trang_thai !== 'huy' && <button className="btn od-nut-nho" onClick={() => guiOdoo(p)} title="Tạo đơn điều chuyển Odoo từ phiếu này"><IcGuiLen /> Odoo</button>}
-                  {p.trang_thai === 'xac_nhan' && <>
-                    <button className="btn" onClick={() => doiTt(p, 'da_xuat')}><IcCheck /> Đã xuất</button>
-                    <button className="btn" onClick={() => doiTt(p, 'huy')}>Huỷ</button>
-                  </>}
-                </td>
-              </tr>
-            ))}
+          {ds == null ? <tr><td colSpan={6} className="dsl-trong">Đang tải…</td></tr>
+            : ds.length === 0 ? <tr><td colSpan={6} className="dsl-trong">Chưa có phiếu nào trong 30 ngày.</td></tr>
+            : ds.map((p) => {
+              const doi = (p.doi || []).map(tenNgan).join(', ');
+              const gc = p.ghi_chu && p.ghi_chu !== doi ? p.ghi_chu : '';
+              return (
+                <tr key={p.id}>
+                  <td className="ph-chinh">
+                    <div className="ph-dau"><b className="ph-ma">{p.ma_phieu}</b>
+                      <span className={'ch-nguon ' + ({ TK: 'tk', PK: 'pk' }[p.nguon] || 'sa')}>{{ TK: 'Thùng', PK: 'Phụ kiện' }[p.nguon] || 'Sale'}</span>
+                      {odoo && odChip(p)}</div>
+                    <div className="ph-meta">{doi || '—'} · {p.loai === 'loat' ? 'Chia hàng mới' : 'Từng đội'} · {p.nguoi || '—'} · {ngayGio(p.tao_luc)}</div>
+                    {gc && <div className="ph-gc" title="Ghi chú — ghi ở dòng 1 của file">✎ {gc}</div>}
+                    {(p.ma_lien_quan || (p.thung || []).length > 0) && <div className="ph-meta">{p.ma_lien_quan ? `Đi cùng ${p.ma_lien_quan}` : ''}{p.ma_lien_quan && (p.thung || []).length ? ' · ' : ''}{(p.thung || []).length ? 'Thùng ' + p.thung.join(', ') : ''}</div>}
+                    {p.odoo_huy && p.trang_thai === 'xac_nhan' && (   // NEW - 3.139 (SQL 230) Odoo đã huỷ đơn của phiếu
+                      <div className="ch-odoo-huy">Odoo đã huỷ {p.odoo_huy_ten || 'đơn'} — {p.nguon === 'TK' ? 'bấm Huỷ để trả thùng về kho (kiểm tra kho chưa giao tay)' : 'app đang nhả phần giữ'}</div>
+                    )}
+                  </td>
+                  <td className="ph-tt"><span className={'ph-ttc ' + TT[p.trang_thai][1]}>{ttTen(p)}</span></td>
+                  <td className="num" data-nhan="Mã">{fmtN(p.so_ma)}</td>
+                  <td className="num" data-nhan="Tổng"><b>{fmtN(p.tong)}</b></td>
+                  <td className="num" data-nhan="Còn giữ">{p.trang_thai === 'xac_nhan' && p.nguon !== 'TK' ? fmtN(p.con_giu) : '—'}</td>
+                  <td className="ph-nut-o"><div className="ph-nut">
+                    <button className="btn" onClick={() => xuatPhieu(p.id, p.ma_phieu, p.ghi_chu).catch((e) => baoToast('Lỗi: ' + e.message))} title="Tải file Excel của phiếu"><IcDown /> File</button>
+                    {odoo && p.trang_thai !== 'huy' && <button className="btn od-nut-nho" onClick={() => guiOdoo(p)} title="Tạo đơn điều chuyển Odoo từ phiếu này"><IcGuiLen /> Odoo</button>}
+                    {p.trang_thai === 'xac_nhan' && <>
+                      <button className="btn" onClick={() => doiTt(p, 'da_xuat')} title="Đánh dấu đã xuất kho"><IcCheck /> Đã xuất</button>
+                      <button className="btn ph-huy" onClick={() => doiTt(p, 'huy')}>Huỷ</button>
+                    </>}
+                  </div></td>
+                </tr>
+              );
+            })}
         </tbody>
       </table>
       <div className="tq-ghi" style={{ padding: '8px 12px' }}>
