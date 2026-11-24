@@ -26,7 +26,7 @@ const truNgay = (n, tu = new Date()) => { const d = new Date(tu); d.setDate(d.ge
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
 const pctTxt = (a, b) => pct(a, b).toLocaleString('vi') + '%';
 
-const KENH = { live: ['LIVE', '#D6006C'], video: ['Video', '#3FB6A8'], the: ['Thẻ sản phẩm', '#CBA45A'], khac: ['Khác', '#A7B0BF'] };
+const KENH = { live: ['LIVE', '#D6006C'], video: ['Video', '#3FB6A8'], the: ['Thẻ sản phẩm', '#CBA45A'], khac: ['Chưa rõ kênh', '#A7B0BF'] };
 const TT = {
   cho_tt: ['Chờ thanh toán', 'xam'], cho_gui: ['Chờ gửi hàng', 'vang'], dang_giao: ['Đang giao', 'xanh'],
   da_giao: ['Đã giao', 'ok'], hoan_thanh: ['Hoàn thành', 'ok'], huy: ['Đã huỷ', 'do'], tra_hang: ['Trả hàng', 'do'], khac: ['Khác', 'xam'],
@@ -140,7 +140,7 @@ export default function TikTokShop() {
   const coLoc = !!(q || loc.kenh || loc.dm || loc.tt || loc.nb != null || loc.ch != null);
   const t = bc?.tong || {};
   const tongDon = (t.don || 0) + (t.don_huy || 0);
-  const nbTen = (h) => (h === '' ? 'Không qua người bán' : '@' + h);
+  const nbTen = (h) => (h === '' ? 'Chưa xác định người bán' : '@' + h);
 
   const KPI = [
     ['', 'Đơn hợp lệ', fmt(t.don), `${fmt(t.so_nb)} người bán · ${fmt(t.so_sp)} mã`],
@@ -172,6 +172,7 @@ export default function TikTokShop() {
               ? <i className="ok" title={api.keo_luc ? 'Lần lấy cuối ' + gioNgay(api.keo_luc) : ''}>API đã kết nối{api.shop_ten ? ' · ' + api.shop_ten : ''}{api.keo_luc ? ' · lấy lúc ' + gioNgay(api.keo_luc) : ''}</i>
               : <i className="cho">API chưa kết nối — đang dùng file Excel</i>}
             {api?.dang_keo && <i className="ok">Đang lấy đơn…</i>}
+            {api?.tk_luc && <i className="ok" title="Phiên LIVE + video có ID người bán (TikTok thống kê), chạy mỗi 60 phút">Thống kê LIVE/video lúc {gioNgay(api.tk_luc)}</i>}
             {api?.loi && <i className="do" title={api.loi}>Lỗi API: {String(api.loi).slice(0, 60)}</i>}
           </span>
           {api?.ket_noi && <button className="odn-nut-phu" onClick={keoNgay} disabled={api?.dang_keo}><IcRefresh /> Lấy ngay từ TikTok</button>}
@@ -217,7 +218,8 @@ export default function TikTokShop() {
 
         {/* Thẻ */}
         <div className="odn-the" role="tablist">
-          {[['tq', 'Tổng quan'], ['sp', 'Sản phẩm', bc?.sp?.length], ['nb', 'Người bán', bc?.nb?.filter((x) => x.nb !== '').length],
+          {[['tq', 'Tổng quan'], ['sp', 'Sản phẩm', bc?.sp?.length], ['nb', 'Người bán', bc ? new Set([...(bc.nb || []).map((x) => x.nb).filter(Boolean), ...Object.keys(bc.live_nb || {}), ...Object.keys(bc.video_nb || {})]).size : null],
+            ['vl', 'Video & LIVE', bc ? (bc.live_top || []).length + (bc.video_top || []).length : null],
             ['ch', 'Cửa hàng', bc?.ch?.length], ['don', 'Đơn hàng', tongDon], ['gan', 'Gán cửa hàng', bc?.chua_gan || null]].map(([k, ten, so]) => (
             <button key={k} role="tab" aria-selected={the === k} className={the === k ? 'on' : ''} onClick={() => setThe(k)}>
               {ten}{so != null && so !== 0 && <i className={k === 'gan' ? 'canh' : ''}>{fmt(so)}</i>}
@@ -228,7 +230,8 @@ export default function TikTokShop() {
         {!bc ? <div className="odn-bang-khung"><div className="odn-trong">Đang tải báo cáo…</div></div>
           : the === 'tq' ? <TongQuan bc={bc} tongDon={tongDon} chonNb={(nb) => { setLoc((l) => ({ ...l, nb })); }} />
           : the === 'sp' ? <BangSanPham ds={bc.sp} />
-          : the === 'nb' ? <BangNguoiBan ds={bc.nb} chon={(nb) => { setLoc((l) => ({ ...l, nb })); baoToast('Đang lọc theo ' + nbTen(nb)); }} moGan={() => setThe('gan')} />
+          : the === 'nb' ? <BangNguoiBan bc={bc} chon={(nb) => { setLoc((l) => ({ ...l, nb })); baoToast('Đang lọc theo ' + nbTen(nb)); }} moGan={() => setThe('gan')} />
+          : the === 'vl' ? <VideoLive bc={bc} chon={(nb) => { setLoc((l) => ({ ...l, nb })); baoToast('Đang lọc theo ' + nbTen(nb)); }} />
           : the === 'ch' ? <BangCuaHang ds={bc.ch} chon={(ch) => { setLoc((l) => ({ ...l, ch })); baoToast('Đang lọc theo cửa hàng'); }} />
           : the === 'don' ? <DsDon pLoc={pLoc} />
           : <GanNguoiBan xong={tai} />}
@@ -406,31 +409,105 @@ function BangSanPham({ ds }) {
   );
 }
 
-function BangNguoiBan({ ds, chon, moGan }) {
-  const [rows, th] = useSap(ds, { k: 'dt', d: -1 });
+// NEW - 3.141: gộp 3 nguồn theo ID người bán — đơn (LIVE gắn theo mã phòng + Excel), thống kê phiên LIVE, thống kê video
+function BangNguoiBan({ bc, chon, moGan }) {
+  const ds = useMemo(() => {
+    const m = new Map();
+    for (const r of bc.nb || []) m.set(r.nb, { ...r });
+    const them = (h) => { if (!m.has(h)) m.set(h, { nb: h, don: 0, sl: 0, dt: 0, huy: 0, so_sp: 0, live: 0, video: 0, the: 0 }); return m.get(h); };
+    for (const [h, v] of Object.entries(bc.live_nb || {})) Object.assign(them(h), { lv_phien: v.so_phien, lv_dt: v.dt, lv_sl: v.sl, lv_don: v.don, lv_xem: v.xem });
+    for (const [h, v] of Object.entries(bc.video_nb || {})) Object.assign(them(h), { vd_so: v.so_video, vd_don: v.don, vd_sl: v.sl, vd_dt: v.dt, vd_xem: v.xem });
+    const loaiCua = new Map((bc.nb || []).map((r) => [r.nb, r]));
+    for (const r of m.values()) {
+      if (!r.ten_ch && loaiCua.get(r.nb)?.ten_ch) r.ten_ch = loaiCua.get(r.nb).ten_ch;
+      r.tong_dt = (r.nb === '' ? r.dt : (r.lv_dt || 0) + (r.vd_dt || 0)) || r.dt || 0;
+    }
+    return [...m.values()];
+  }, [bc]);
+  const [rows, th] = useSap(ds, { k: 'tong_dt', d: -1 });
+  const tk = bc.tk || {};
   return (
     <div className="odn-bang-khung">
+      <div className="tts-ghi-nguon">
+        <span><b>Từ đơn</b>: đơn LIVE gắn ID theo mã phòng LIVE + đơn nạp từ Excel — có đến từng mã đơn.</span>
+        <span><b>LIVE / Video (TikTok thống kê)</b>: số liệu chính thức theo từng phiên LIVE và video, TikTok chốt chậm 1–2 ngày
+          {tk.live_den || tk.video_den ? ` (đang có tới ${tk.live_den ? 'LIVE ' + ngayVN(tk.live_den) : ''}${tk.video_den ? ' · video ' + ngayVN(tk.video_den) : ''})` : ''}.</span>
+      </div>
       <table className="odn-bang tts-bang">
-        <thead><tr>{th('nb', 'Người bán (ID TikTok)')}{th('ten_ch', 'Cửa hàng')}{th('don', 'Đơn', 'so')}{th('sl', 'SL bán', 'so')}
-          {th('dt', 'Doanh thu', 'so')}{th('huy', 'Đơn huỷ', 'so')}<th>Kênh</th>{th('so_sp', 'Mã hàng', 'so')}</tr></thead>
+        <thead>
+          <tr className="tts-nhom"><th colSpan={2} /><th colSpan={4} className="so">Từ đơn</th><th colSpan={3} className="so tts-lv">LIVE · TikTok thống kê</th><th colSpan={3} className="so tts-vd">Video · TikTok thống kê</th></tr>
+          <tr>{th('nb', 'Người bán (ID TikTok)')}{th('ten_ch', 'Cửa hàng')}{th('don', 'Đơn', 'so')}{th('sl', 'SL', 'so')}{th('dt', 'Doanh thu', 'so')}{th('huy', 'Huỷ', 'so')}
+            {th('lv_phien', 'Phiên', 'so tts-lv')}{th('lv_sl', 'SL', 'so tts-lv')}{th('lv_dt', 'Doanh số', 'so tts-lv')}
+            {th('vd_so', 'Video', 'so tts-vd')}{th('vd_sl', 'SL', 'so tts-vd')}{th('vd_dt', 'Doanh số', 'so tts-vd')}</tr>
+        </thead>
         <tbody>
-          {rows.length === 0 ? <tr><td colSpan={8} className="odn-trong">Không có người bán trong khoảng lọc.</td></tr>
+          {rows.length === 0 ? <tr><td colSpan={12} className="odn-trong">Không có người bán trong khoảng lọc.</td></tr>
             : rows.map((r) => (
               <tr key={r.nb} onClick={() => chon(r.nb)} title="Bấm để lọc toàn bộ báo cáo theo người bán này">
-                <td><div className="odn-ten">{r.nb ? '@' + r.nb : 'Không qua người bán'}</div>
-                  <div className="odn-phu">{r.nb ? (r.loai ? LOAI[r.loai] || r.loai : 'Chưa gán') : 'khách tự tìm / thẻ sản phẩm của shop'}</div></td>
+                <td><div className="odn-ten">{r.nb ? '@' + r.nb : 'Chưa xác định người bán'}</div>
+                  <div className="odn-phu">{r.nb ? (r.loai ? LOAI[r.loai] || r.loai : 'Chưa gán') : 'đơn thẻ sản phẩm + đơn video chưa gắn được ID'}</div></td>
                 <td>{r.ten_ch ? <span className="odn-ten nho">{r.ten_ch}</span>
                   : r.nb && !r.loai ? <button className="tts-link" onClick={(e) => { e.stopPropagation(); moGan(); }}>Gán cửa hàng</button> : <span className="odn-phu">—</span>}</td>
-                <td className="so"><b>{fmt(r.don)}</b></td>
-                <td className="so">{fmt(r.sl)}</td>
-                <td className="so"><b>{tien(r.dt)}</b></td>
+                <td className="so"><b>{r.don ? fmt(r.don) : '—'}</b></td>
+                <td className="so">{r.sl ? fmt(r.sl) : '—'}</td>
+                <td className="so"><b>{r.dt ? tien(r.dt) : '—'}</b></td>
                 <td className="so">{r.huy > 0 ? <span className="tts-huy">{fmt(r.huy)}</span> : '—'}</td>
-                <td><ThanhKenh r={r} /></td>
-                <td className="so">{fmt(r.so_sp)}</td>
+                <td className="so tts-lv">{r.lv_phien ? fmt(r.lv_phien) : '—'}</td>
+                <td className="so tts-lv">{r.lv_sl ? fmt(r.lv_sl) : '—'}</td>
+                <td className="so tts-lv"><b>{r.lv_dt ? tien(r.lv_dt) : '—'}</b></td>
+                <td className="so tts-vd">{r.vd_so ? fmt(r.vd_so) : '—'}</td>
+                <td className="so tts-vd">{r.vd_sl ? fmt(r.vd_sl) : '—'}</td>
+                <td className="so tts-vd"><b>{r.vd_dt ? tien(r.vd_dt) : '—'}</b></td>
               </tr>
             ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// NEW - 3.141: phiên LIVE + video nổi bật (TikTok thống kê, có ID người bán)
+function VideoLive({ bc, chon }) {
+  const [xem, setXem] = useState('live');
+  const live = bc.live_top || [], video = bc.video_top || [];
+  return (
+    <div className="tts-gan">
+      <div className="tts-gan-dau">
+        <div className="tts-nhanh">
+          <button className={xem === 'live' ? 'on' : ''} onClick={() => setXem('live')}>Phiên LIVE ({fmt(live.length)})</button>
+          <button className={xem === 'video' ? 'on' : ''} onClick={() => setXem('video')}>Video có đơn ({fmt(video.length)})</button>
+        </div>
+        <span className="odn-phu">Top 100 theo doanh số trong khoảng ngày đang lọc · TikTok chốt số liệu chậm 1–2 ngày · bấm dòng để lọc theo người bán.</span>
+      </div>
+      <div className="odn-bang-khung">
+        {xem === 'live' ? (
+          <table className="odn-bang tts-bang">
+            <thead><tr><th>Người bán</th><th>Phiên LIVE</th><th className="so">Đơn</th><th className="so">SL</th><th className="so">Doanh số</th><th className="so">Khách</th><th className="so">Người xem</th></tr></thead>
+            <tbody>{live.length === 0 ? <tr><td colSpan={7} className="odn-trong">Chưa có phiên LIVE trong khoảng này.</td></tr>
+              : live.map((r) => (
+                <tr key={r.id} onClick={() => chon(r.username || '')}>
+                  <td><div className="odn-ten">@{r.username}</div><div className="odn-phu">{r.ten_ch || 'chưa gán cửa hàng'}</div></td>
+                  <td><div className="tts-ten-sp" title={r.tieu_de}>{r.tieu_de || '—'}</div>
+                    <div className="odn-phu">{gioNgay(r.bat_dau)} → {r.ket_thuc ? new Date(r.ket_thuc).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : '…'} · {fmt(r.so_sp)} mã</div></td>
+                  <td className="so">{fmt(r.don)}</td><td className="so">{fmt(r.sl)}</td><td className="so"><b>{tien(r.dt)}</b></td>
+                  <td className="so">{fmt(r.khach)}</td><td className="so">{fmt(r.xem)}</td>
+                </tr>))}</tbody>
+          </table>
+        ) : (
+          <table className="odn-bang tts-bang">
+            <thead><tr><th>Người bán</th><th>Video</th><th>Sản phẩm</th><th className="so">Đơn</th><th className="so">SL</th><th className="so">Doanh số</th><th className="so">Lượt xem</th></tr></thead>
+            <tbody>{video.length === 0 ? <tr><td colSpan={7} className="odn-trong">Chưa có video có đơn trong khoảng này.</td></tr>
+              : video.map((r) => (
+                <tr key={r.video_id} onClick={() => chon(r.username || '')}>
+                  <td><div className="odn-ten">@{r.username}</div><div className="odn-phu">{r.ten_ch || 'chưa gán cửa hàng'}</div></td>
+                  <td><div className="tts-ten-sp" title={r.tieu_de}>{r.tieu_de || '—'}</div><div className="odn-phu">đăng {gioNgay(r.dang_luc)}</div></td>
+                  <td><div className="tts-ten-sp" title={(r.san_pham || []).map((x) => x.name).join(' · ')}>{(r.san_pham || [])[0]?.name || '—'}</div>
+                    {(r.san_pham || []).length > 1 && <div className="odn-phu">+{r.san_pham.length - 1} sản phẩm</div>}</td>
+                  <td className="so">{fmt(r.don)}</td><td className="so">{fmt(r.sl)}</td><td className="so"><b>{tien(r.dt)}</b></td><td className="so">{fmt(r.xem)}</td>
+                </tr>))}</tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

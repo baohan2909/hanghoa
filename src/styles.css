@@ -6215,3 +6215,12 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
   .tts-bang th:nth-child(7), .tts-bang td:nth-child(7) { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .tts-tien-do i, .tts-dong.bam { transition: none; } }
+
+/* NEW - 3.141 TikTok Shop: bảng người bán gộp 3 nguồn — nhóm cột LIVE nền hồng nhạt #FCEFF5, Video nền xanh ngọc nhạt #E9F6F2 */
+.tts-ghi-nguon { display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: #FAFBFC;
+  font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+.tts-ghi-nguon b { color: var(--ink); }
+.tts-bang tr.tts-nhom th { font-size: 11px; color: #8A94A8; padding-top: 6px; padding-bottom: 3px; border-bottom: 0; cursor: default; text-align: center; }
+.tts-bang th.tts-lv, .tts-bang td.tts-lv { background: #FCEFF5; }
+.tts-bang th.tts-vd, .tts-bang td.tts-vd { background: #E9F6F2; }
+.tts-bang tr.tts-nhom th.tts-lv { color: #B0115C; } .tts-bang tr.tts-nhom th.tts-vd { color: #1E5F63; }
