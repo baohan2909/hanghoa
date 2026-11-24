@@ -4853,19 +4853,20 @@ button.pdh-dc:hover { border-color: #3FB6A8; } .pdh-dc.on { border-color: #1E5F6
 .odn-link.do { color: #B0115C; }
 
 /* ---- Tạo đơn trực tiếp ---- */
+/* NEW - 3.152.1: td-dau / td-o / td-trong / td-xoa trùng tên với khối "Mã đang quan tâm" (Tổng quan, v3.56.1) → chỉ áp trong hộp .td-hop */
 .kt-modal.td-nen { z-index: 295; padding: 16px; }
 .td-hop { width: min(1100px, 100%); max-height: calc(100dvh - 32px); background: var(--bg); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;
   box-shadow: 0 24px 70px rgba(20,33,58,.35); }
-.td-dau { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 18px; background: #14213A; color: #fff; }
-.td-dau > div { flex: 1; min-width: 0; } .td-dau > .odn-x { flex: none; }
-.td-dau small { font-size: 11.5px; font-weight: 600; color: #AFC0D6; }
-.td-dau b { display: block; font-size: 18px; font-weight: 800; margin: 2px 0; } .td-dau b em { font-style: normal; font-weight: 600; color: #D5DEEA; font-size: 15px; }
-.td-dau span { font-size: 12px; color: #9FB4CC; }
+.td-hop .td-dau { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 18px; background: #14213A; color: #fff; }
+.td-hop .td-dau > div { flex: 1; min-width: 0; } .td-hop .td-dau > .odn-x { flex: none; }
+.td-hop .td-dau small { font-size: 11.5px; font-weight: 600; color: #AFC0D6; }
+.td-hop .td-dau b { display: block; font-size: 18px; font-weight: 800; margin: 2px 0; } .td-hop .td-dau b em { font-style: normal; font-weight: 600; color: #D5DEEA; font-size: 15px; }
+.td-hop .td-dau span { font-size: 12px; color: #9FB4CC; }
 .td-than { flex: 1; overflow: auto; display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 14px; padding: 14px 16px; align-items: start; }
 .td-cai { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 0; }
-.td-o { display: flex; flex-direction: column; gap: 5px; }
-.td-o > span { font-size: 12px; font-weight: 700; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
-.td-o > span small { margin-left: auto; font-weight: 600; color: #8A94A8; }
+.td-hop .td-o { display: flex; flex-direction: column; gap: 5px; }
+.td-hop .td-o > span { font-size: 12px; font-weight: 700; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+.td-hop .td-o > span small { margin-left: auto; font-weight: 600; color: #8A94A8; }
 .td-khoa { font-style: normal; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: #E6F2F1; color: #1E5F63; }
 .td-co-dinh { height: 40px; display: flex; align-items: center; padding: 0 12px; border-radius: 10px; background: #F4F6F8; border: 1.5px solid var(--line); font-weight: 700; font-size: 14px; color: var(--ink); }
 .td-seg, .tk-seg { display: inline-flex; background: #F1F3F6; border-radius: 10px; padding: 3px; gap: 3px; }
@@ -4888,8 +4889,8 @@ button.pdh-dc:hover { border-color: #3FB6A8; } .pdh-dc.on { border-color: #1E5F6
 .td-kq-so { display: flex; align-items: center; gap: 6px; flex: none; font-size: 11.5px; }
 .td-kq-so i { font-style: normal; color: #6B7686; } .td-kq-so b { font-weight: 800; color: #1E5F63; background: #E6F2F1; padding: 2px 8px; border-radius: 999px; }
 .td-kq-so b.het { color: #B0115C; background: #FCEAF2; }
-.td-trong { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 36px 16px; background: #fff; border: 1.5px dashed var(--line); border-radius: 14px; text-align: center; color: var(--ink-2); }
-.td-trong svg { width: 30px; height: 30px; color: #9FB4C4; } .td-trong b { font-size: 14px; color: var(--ink); } .td-trong span { font-size: 12.5px; max-width: 380px; }
+.td-hop .td-trong { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 36px 16px; background: #fff; border: 1.5px dashed var(--line); border-radius: 14px; text-align: center; color: var(--ink-2); }
+.td-hop .td-trong svg { width: 30px; height: 30px; color: #9FB4C4; } .td-hop .td-trong b { font-size: 14px; color: var(--ink); } .td-hop .td-trong span { font-size: 12.5px; max-width: 380px; }
 .td-xong { align-items: flex-start; }
 .td-bang-khung { background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: auto; }
 .td-bang { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -4903,8 +4904,8 @@ button.pdh-dc:hover { border-color: #3FB6A8; } .pdh-dc.on { border-color: #1E5F6
 .td-bang input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(63,182,168,.15); }
 .td-bang tr.vuot input { border-color: rgba(214,0,108,.45); }
 .td-vuot { display: block; font-style: normal; font-size: 10.5px; font-weight: 800; color: #B0115C; }
-.td-xoa { width: 28px; height: 28px; border-radius: 8px; font-size: 18px; line-height: 1; color: #8A94A8; background: transparent; cursor: pointer; }
-.td-xoa:hover { background: #FCEAF2; color: var(--magenta); }
+.td-hop .td-xoa { width: 28px; height: 28px; border-radius: 8px; font-size: 18px; line-height: 1; color: #8A94A8; background: transparent; cursor: pointer; }
+.td-hop .td-xoa:hover { background: #FCEAF2; color: var(--magenta); }
 .td-chan { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #fff; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .td-tong { margin-right: auto; font-size: 13px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .td-tong b { color: var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; }
