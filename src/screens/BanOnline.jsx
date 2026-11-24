@@ -30,6 +30,23 @@ const boNho = new Map();
 const nhoMan = { loc: null, the: 'tq' };
 const khoaNho = (loai, p) => loai + '|' + JSON.stringify(p || {});
 
+// NEW - 3.156.1: NHỚ BÁO CÁO TRÊN MÁY — mở lại app hiện ngay số lần trước (rồi tự cập nhật ngầm), giữ 5 bộ lọc gần nhất
+const LS_BC = 'nh_bc_nho';
+let daNapLs = '';
+const docLs = (ma) => { try { const m = JSON.parse(localStorage.getItem(LS_BC) || 'null'); return m && m.ma === ma && m.ds ? m.ds : {}; } catch { return {}; } };
+function napLs(ma) {
+  if (daNapLs === ma) return;
+  daNapLs = ma;
+  for (const [k, v] of Object.entries(docLs(ma))) if (!boNho.has(k)) boNho.set(k, v);
+}
+function ghiLs(ma, k, v) {
+  const ds = { ...docLs(ma), [k]: { ...v, luc: Date.now() } };
+  const xep = Object.entries(ds).sort((a, b) => (b[1].luc || 0) - (a[1].luc || 0));
+  for (const n of [5, 3, 1]) {
+    try { localStorage.setItem(LS_BC, JSON.stringify({ ma, ds: Object.fromEntries(xep.slice(0, n)) })); return; } catch { /* đầy → giữ ít hơn */ }
+  }
+}
+
 function Lech({ moi, cu, nguoc }) {
   const v = tyLe(Number(moi) || 0, Number(cu) || 0);
   if (v == null) return <span className="tts-lech moi" title="Kỳ trước chưa có số">mới</span>;
@@ -109,6 +126,7 @@ function AnhSp({ url, ma, ten, co = 40 }) {
 /* ================= MÀN CHÍNH ================= */
 export default function BanOnline() {
   const { user, baoToast } = useApp();
+  napLs(user.ma_dang_nhap);   // NEW - 3.156.1
   const [loc, setLoc] = useState(() => nhoMan.loc || { tu: truNgay(6), den: isoVN(), kenh: '', shop: '', tt: '', nganh: '', cs: '' });
   const [q, setQ] = useState('');
   const [qTre, setQTre] = useState('');
@@ -160,9 +178,41 @@ export default function BanOnline() {
       setDang(false);
       if (error) { setLoi(error.message); return; }
       boNho.set(khoa, { data, pb: phienBan }); setLoi(''); setBc(data);
+      ghiLs(user.ma_dang_nhap, khoa, { data, pb: phienBan });   // NEW - 3.156.1
     });
     return () => { huy = true; };
-  }, [khoa, pLoc, phienBan, apiXong, user.token]);
+  }, [khoa, pLoc, phienBan, apiXong, user.token, user.ma_dang_nhap]);
+
+  // NEW - 3.156.1: TẢI SẴN — sau khi mở màn / đổi bộ lọc (trừ ngày), tải ngầm đủ 6 mốc ngày (Hôm nay … Tháng trước)
+  // cùng bộ lọc đó + danh sách đơn của bộ lọc đang xem → bấm sang mốc khác / thẻ Đơn hàng là có số ngay.
+  // Máy chủ cũng nhớ kết quả (SQL 270) nên lần tải sau chỉ mất chưa tới 1 giây.
+  const pbRef = useRef(phienBan); pbRef.current = phienBan;
+  const nenLoc = useMemo(() => { const { tu: _a, den: _b, ...r } = pLoc; return r; }, [pLoc]);   // eslint-disable-line no-unused-vars
+  const khoaNen = JSON.stringify(nenLoc);
+  useEffect(() => {
+    if (!apiXong || nenLoc.q) return undefined;
+    let huy = false;
+    const t = setTimeout(async () => {
+      for (const [, f] of NHANH) {
+        if (huy || document.visibilityState === 'hidden') return;
+        const [tu, den] = f(); const p = { tu, den, ...nenLoc }; const k = khoaNho('bc', p);
+        if (boNho.get(k)?.pb === pbRef.current) continue;
+        const { data, error } = await sb.rpc('fn_nh_bao_cao', { p_token: user.token, p_loc: p });
+        if (!huy && !error && data && !(boNho.get(k)?.pb === pbRef.current)) boNho.set(k, { data, pb: pbRef.current });
+      }
+    }, 2500);
+    return () => { huy = true; clearTimeout(t); };
+  }, [apiXong, khoaNen, user.token]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {   // danh sách đơn của bộ lọc đang xem
+    if (!bc || dang || !apiXong) return undefined;
+    const k = khoaNho('don', pLoc);
+    if (boNho.get(k)?.pb === phienBan) return undefined;
+    let huy = false;
+    const t = setTimeout(() => sb.rpc('fn_nh_don_ds', { p_token: user.token, p_loc: pLoc, p_gioi_han: 200 }).then(({ data, error }) => {
+      if (!huy && !error && data && !(boNho.get(k)?.pb === phienBan)) boNho.set(k, { data, pb: phienBan });
+    }), 1200);
+    return () => { huy = true; clearTimeout(t); };
+  }, [bc, dang, apiXong, pLoc, phienBan, user.token]);
 
   const datLoc = (k) => (v) => setLoc((l) => ({ ...l, [k]: v }));
   const coLoc = !!(q || loc.kenh || loc.shop || loc.tt || loc.nganh || loc.cs);
@@ -250,6 +300,7 @@ export default function BanOnline() {
           {NHANH.map(([ten, f]) => { const [a, b] = f(); return <button key={ten} className={loc.tu === a && loc.den === b ? 'on' : ''} onClick={() => setLoc((l) => ({ ...l, tu: a, den: b }))}>{ten}</button>; })}
           {bc && <span className="odn-phu">so với kỳ trước {ngayVN(bc.tu_truoc).slice(0, 5)}–{ngayVN(bc.den_truoc)}</span>}
           {dang && <span className="odn-phu">{bc ? 'Đang cập nhật số mới…' : 'Đang tải…'}</span>}
+          {!dang && bc?.nho_luc && <span className="odn-phu" title="Báo cáo được tính sẵn trên máy chủ, tự tính lại khi có đơn mới (tối đa 10 phút / lần)">· số liệu lúc {gioGon(bc.nho_luc)}</span>}
         </div>
 
         {loi && <div className="odn-bao do"><IcAlert /> Không tải được: {loi} <button onClick={() => { boNho.delete(khoa); setLoi(''); taiApi(); }}>Thử lại</button></div>}
