@@ -218,21 +218,20 @@ export default function BanOnline() {
     <>
       <div className="cmdbar">
         <h1>Bán online</h1>
-        <div className="sub">Toàn bộ đơn online qua Nhanh.vn — TikTok, Shopee, Lazada, Facebook, Zalo OA, Website, Admin. Doanh số theo kênh, gian hàng, sản phẩm, ngành, chính / sale, vận chuyển, hoàn huỷ. Tự lấy mỗi 5 phút.</div>
+        <div className="sub">Toàn bộ đơn online qua Nhanh.vn — TikTok, Shopee, Lazada, Facebook, Zalo OA, Website, Admin.</div>
       </div>
       <div className="odn tts bo">
         <div className="odn-dong-bo">
-          <span className="odn-db-i"><IcClock /> Dữ liệu có từ <b>{api?.tong?.tu ? ngayVN(api.tong.tu) : '—'}</b> đến <b>{api?.tong?.den ? ngayVN(api.tong.den) : '—'}</b>
-            <em>· {fmt(api?.tong?.don || 0)} đơn ({fmt(api?.tong?.api || 0)} từ API · {fmt(api?.tong?.excel || 0)} tạm từ file)</em></span>
+          <span className="odn-db-i"><IcClock /> Dữ liệu từ <b>{api?.tong?.tu ? ngayVN(api.tong.tu) : '—'}</b> đến <b>{api?.tong?.den ? ngayVN(api.tong.den) : '—'}</b>
+            <em>· {fmt(api?.tong?.don || 0)} đơn</em></span>
           <span className="odn-api">
             {api?.ket_noi
-              ? <i className="ok" title={api.het_han ? 'Quyền truy cập hết hạn ' + ngayVN(api.het_han) : ''}>Nhanh.vn đã kết nối{api.keo_luc ? ' · lấy lúc ' + gioNgay(api.keo_luc) : ''}</i>
-              : <i className="cho">Chưa kết nối Nhanh.vn{(api?.tong?.excel || 0) > 0 ? ' — đang dùng file báo cáo' : ''}</i>}
-            {api?.ket_noi && !api.bf_xong && <i className="lech" title="Đang kéo bù lịch sử theo ngày tạo đơn">Kéo bù tới {api.bf_ngay ? ngayVN(api.bf_ngay) : ngayVN(api.ds_tu)}</i>}
-            {api?.dang_keo && <i className="ok">Đang lấy đơn…</i>}
-            {api?.loi && <i className="do" title={api.loi}>Lỗi: {String(api.loi).slice(0, 60)}</i>}
+              ? <i className="ok">Cập nhật {api.keo_luc ? gioNgay(api.keo_luc) : '—'}</i>
+              : <i className="cho">Chưa kết nối Nhanh.vn</i>}
+            {api?.ket_noi && !api.bf_xong && <i className="lech">Đang lấy đơn cũ — tới {ngayVN(api.bf_ngay || api.ds_tu)}</i>}
+            {api?.loi && <i className="do" title={api.loi}>Lỗi kết nối</i>}
           </span>
-          <button className="odn-nut-phu" onClick={() => setThe('kn')}>{api?.ket_noi ? 'Kết nối & chạy thủ công' : 'Kết nối Nhanh.vn'}</button>
+          {!api?.ket_noi && <button className="odn-nut-phu" onClick={() => setThe('kn')}>Kết nối Nhanh.vn</button>}
           <button className="btn btn-ai odn-nut-chinh" onClick={() => setNap(true)}><IcGuiLen /> Nạp file báo cáo</button>
         </div>
 
@@ -782,6 +781,8 @@ function DanhSachLech({ ds, loai }) {
 }
 
 /* ================= Kết nối Nhanh.vn + chạy thủ công ================= */
+// 3.153.1: chỉ hiện thứ cần dùng — đã kết nối thì gọn 1 thẻ trạng thái + nút chạy; cấu hình khoá xếp vào "Cài đặt kết nối" (Quản trị)
+const RETURN_LINK = 'https://yocddobdziclxseotekx.supabase.co/functions/v1/nhanh';
 function KetNoi({ api, xong }) {
   const { user, baoToast } = useApp();
   const [appId, setAppId] = useState(api?.app_id || '');
@@ -794,7 +795,7 @@ function KetNoi({ api, xong }) {
     const { error } = await sb.rpc('fn_nh_cau_hinh_luu', { p_token: user.token, p_app_id: appId, p_secret: secret || null, p_tu_dong: null });
     setLuu(false);
     if (error) { baoToast('Chưa lưu được: ' + error.message); return; }
-    setSecret(''); baoToast('Đã lưu — Secret Key cất trong kho khoá bí mật, không hiện lại'); xong();
+    setSecret(''); baoToast('Đã lưu'); xong();
   };
   const chay = async (viec, ngay = null) => {
     const { data, error } = await sb.rpc('fn_nh_chay', { p_token: user.token, p_viec: viec, p_ngay: ngay });
@@ -806,61 +807,82 @@ function KetNoi({ api, xong }) {
   const datTuDong = async (bat) => {
     const { error } = await sb.rpc('fn_nh_cau_hinh_luu', { p_token: user.token, p_app_id: null, p_secret: null, p_tu_dong: bat });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast(bat ? 'Đã bật tự lấy đơn 5 phút/lần' : 'Đã tắt tự lấy đơn'); xong();
+    baoToast(bat ? 'Đã bật tự lấy đơn' : 'Đã tắt tự lấy đơn'); xong();
   };
   const chep = (s) => { try { navigator.clipboard.writeText(s); baoToast('Đã chép'); } catch { /* bỏ qua */ } };
   const conNgay = api?.het_han ? Math.round((new Date(api.het_han) - new Date()) / 86400000) : null;
-  const bf = api?.bf_kq || {}, kk = api?.keo_kq || {};
-  return (
+  const coKhoa = !!(api?.app_id && api?.co_secret);
+
+  const formKhoa = api?.admin ? (
+    <div className="bo-kn-form">
+      <label><span>App ID</span><input className="inp" value={appId} onChange={(e) => setAppId(e.target.value.replace(/\D/g, ''))} inputMode="numeric" /></label>
+      <label><span>Secret Key</span>
+        <input className="inp" type="password" autoComplete="off" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder={api?.co_secret ? 'Đã lưu — dán mới nếu đổi' : 'Dán Secret Key'} /></label>
+      <button className="btn btn-ai" disabled={luu || !appId || (!secret && !api?.co_secret)} onClick={luuCh}>{luu ? 'Đang lưu…' : 'Lưu'}</button>
+    </div>) : <p className="odn-phu">Chỉ Quản trị được nhập khoá kết nối.</p>;
+  const nutKetNoi = (chu) => <a className={'btn btn-ai' + (api?.link_uy_quyen ? '' : ' tat')} href={api?.link_uy_quyen || undefined} aria-disabled={!api?.link_uy_quyen}>{chu}</a>;
+
+  // ----- chưa kết nối: 2 bước -----
+  if (!api?.ket_noi) return (
     <div className="tts-tq">
       <div className="bo-kn">
-        <div className={'bo-kn-buoc' + (api?.app_id && api?.co_secret ? ' xong' : '')}>
-          <span className="bo-kn-so">{api?.app_id && api?.co_secret ? <IcCheck /> : '1'}</span>
+        <div className={'bo-kn-buoc' + (coKhoa ? ' xong' : '')}>
+          <span className="bo-kn-so">{coKhoa ? <IcCheck /> : '1'}</span>
           <div className="bo-kn-than">
-            <b>Tạo app trên open.nhanh.vn</b>
-            <p>Đăng nhập <a href="https://open.nhanh.vn" target="_blank" rel="noreferrer">open.nhanh.vn</a> → <b>Tạo app mới</b> (nên tạo app riêng cho NS FLOW — mỗi app chỉ giữ 1 quyền truy cập, cấp lại ở app đang dùng chỗ khác sẽ làm chỗ đó mất kết nối sau 15 phút). Ô <b>Redirect URL</b> dán đúng địa chỉ này:</p>
-            <div className="bo-kn-chep"><code>{api?.return_link || 'https://yocddobdziclxseotekx.supabase.co/functions/v1/nhanh'}</code>
-              <button className="odn-nut-phu" onClick={() => chep(api?.return_link || 'https://yocddobdziclxseotekx.supabase.co/functions/v1/nhanh')}>Chép</button></div>
-            <p>Tạo xong, trang chi tiết app có <b>App ID</b> và <b>Secret Key</b> — điền vào đây:</p>
-            {api?.admin ? (
-              <div className="bo-kn-form">
-                <label><span>App ID</span><input className="inp" value={appId} onChange={(e) => setAppId(e.target.value.replace(/\D/g, ''))} placeholder="vd 76543" inputMode="numeric" /></label>
-                <label><span>Secret Key {api?.co_secret && <em>đã lưu — để trống nếu không đổi</em>}</span>
-                  <input className="inp" type="password" autoComplete="off" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder={api?.co_secret ? '••••••••••••' : 'dán Secret Key'} /></label>
-                <button className="btn btn-ai" disabled={luu || !appId || (!secret && !api?.co_secret)} onClick={luuCh}>{luu ? 'Đang lưu…' : 'Lưu'}</button>
-              </div>) : <p className="odn-phu">Chỉ tài khoản Quản trị được nhập khoá kết nối.</p>}
+            <b>Nhập App ID + Secret Key</b>
+            <p>Lấy ở trang app trên <a href="https://open.nhanh.vn/apps" target="_blank" rel="noreferrer">open.nhanh.vn</a>.</p>
+            {!api?.app_id && <div className="bo-kn-chep"><span className="odn-phu">Redirect URL khi tạo app:</span><code>{RETURN_LINK}</code>
+              <button className="odn-nut-phu" onClick={() => chep(RETURN_LINK)}>Chép</button></div>}
+            {formKhoa}
           </div>
         </div>
-        <div className={'bo-kn-buoc' + (api?.ket_noi ? ' xong' : '')}>
-          <span className="bo-kn-so">{api?.ket_noi ? <IcCheck /> : '2'}</span>
+        <div className="bo-kn-buoc">
+          <span className="bo-kn-so">2</span>
           <div className="bo-kn-than">
-            <b>Cho phép NS FLOW đọc dữ liệu Nhanh</b>
-            <p>Bấm nút dưới → đăng nhập Nhanh.vn bằng tài khoản có quyền xem đơn (tài khoản Giám đốc phải bật <b>Cài đặt chung › Cài đặt Open API › Cho phép kết nối Open API</b>) → chọn quyền <b>Đơn hàng</b> (thêm Sản phẩm, Khách hàng nếu có) và <b>toàn bộ kho</b> → Đồng ý. Xong sẽ tự quay về app.</p>
-            <a className={'btn btn-ai' + (api?.link_uy_quyen ? '' : ' tat')} href={api?.link_uy_quyen || undefined} aria-disabled={!api?.link_uy_quyen}>{api?.ket_noi ? 'Kết nối lại Nhanh.vn' : 'Kết nối Nhanh.vn'}</a>
-            {api?.ket_noi && <p className="odn-phu">Đã kết nối lúc {gioNgay(api.ket_noi_luc)} · doanh nghiệp {api.business_id} · quyền truy cập hết hạn {ngayVN(api.het_han)}{conNgay != null ? ` (còn ${fmt(conNgay)} ngày — Nhanh chưa cho tự gia hạn, gần hết hạn bấm Kết nối lại)` : ''}</p>}
-          </div>
-        </div>
-        <div className={'bo-kn-buoc' + (api?.bf_xong ? ' xong' : '')}>
-          <span className="bo-kn-so">{api?.bf_xong ? <IcCheck /> : '3'}</span>
-          <div className="bo-kn-than">
-            <b>Tự lấy đơn</b>
-            <p>Mỗi 5 phút: lấy đơn mới + đơn đổi trạng thái, rồi kéo bù lịch sử từng ngày từ <b>{ngayVN(api?.ds_tu)}</b> tới hôm nay (dở chừng thì lượt sau làm tiếp đúng trang).</p>
-            <div className="bo-kn-tt">
-              <span>Đơn mới: {api?.keo_luc ? <>lần cuối {gioNgay(api.keo_luc)} · {fmt(kk.don || 0)} đơn{kk.loi ? <em className="do"> · lỗi: {kk.loi}</em> : ''}</> : 'chưa chạy'}</span>
-              <span>Kéo bù: {api?.bf_xong ? 'đã đủ lịch sử' : api?.bf_ngay ? `đang ở ngày ${ngayVN(api.bf_ngay)}` : 'chưa bắt đầu'}{bf.luc ? ` · lượt cuối ${gioNgay(bf.luc)} · ${fmt(bf.don || 0)} đơn` : ''}{bf.chua_kip?.length ? ` · chưa kịp ${bf.chua_kip.length} ngày` : ''}{bf.loi ? <em className="do"> · lỗi: {bf.loi}</em> : ''}</span>
-              {api?.loi && <span className="do">Lỗi gần nhất: {api.loi}</span>}
-            </div>
-            <div className="bo-kn-nut">
-              <button className="odn-nut-phu" disabled={!api?.ket_noi || api?.dang_keo} onClick={() => chay('tu_dong')}><IcRefresh /> Lấy ngay</button>
-              <span className="bo-kn-ngay"><DateBox label="Ngày" value={ngayKeo} onChange={setNgayKeo} />
-                <button className="odn-nut-phu" disabled={!api?.ket_noi || api?.dang_keo || !ngayKeo} onClick={() => chay('keo_ngay', [ngayKeo])}><IcRefresh /> Kéo lại ngày này</button></span>
-              <button className="odn-nut-phu" disabled={!api?.ket_noi || api?.dang_keo} onClick={() => chay('dia_diem')}>Tải tỉnh / thành</button>
-              {api?.admin && api?.ket_noi && <button className="odn-nut-phu" onClick={() => datTuDong(!api.tu_dong)}>{api.tu_dong ? 'Tắt tự động' : 'Bật tự động'}</button>}
-            </div>
+            <b>Cho phép đọc dữ liệu</b>
+            <p>Chọn quyền đọc + tất cả kho → Đồng ý. Xong tự quay về đây.</p>
+            {nutKetNoi('Kết nối Nhanh.vn')}
           </div>
         </div>
       </div>
-      <div className="odn-chan-bang">Khoá Secret Key lưu trong kho khoá bí mật của máy chủ (Vault) — app và trình duyệt không đọc lại được. Chỉ đọc dữ liệu từ Nhanh, không sửa / tạo đơn trên Nhanh.</div>
+    </div>
+  );
+
+  // ----- đã kết nối: 1 thẻ gọn -----
+  const sapHet = conNgay != null && conNgay <= 30;
+  return (
+    <div className="tts-tq">
+      <div className="bo-kn">
+        <div className="bo-kn-buoc xong">
+          <span className="bo-kn-so"><IcCheck /></span>
+          <div className="bo-kn-than">
+            <b>Đã kết nối Nhanh.vn{sapHet && <span className="odn-chip do bo-kn-chip">Còn {fmt(conNgay)} ngày — bấm Kết nối lại</span>}</b>
+            <div className="bo-kn-tt">
+              <span>{api.tu_dong ? 'Tự cập nhật 5 phút/lần' : <em className="do">Đang tắt tự cập nhật</em>}{api.keo_luc ? ` · lần cuối ${gioNgay(api.keo_luc)}` : ''}{api.dang_keo ? ' · đang lấy…' : ''}</span>
+              {!api.bf_xong && <span>Đang lấy đơn cũ: đã tới {ngayVN(api.bf_ngay || api.ds_tu)}</span>}
+              {api.loi && <span className="do">Lỗi: {api.loi}</span>}
+            </div>
+            <div className="bo-kn-nut">
+              <button className="odn-nut-phu" disabled={api.dang_keo} onClick={() => chay('tu_dong')}><IcRefresh /> Lấy ngay</button>
+              <span className="bo-kn-ngay"><DateBox label="Ngày" value={ngayKeo} onChange={setNgayKeo} />
+                <button className="odn-nut-phu" disabled={api.dang_keo || !ngayKeo} onClick={() => chay('keo_ngay', [ngayKeo])}><IcRefresh /> Kéo lại ngày này</button></span>
+              {sapHet && nutKetNoi('Kết nối lại Nhanh.vn')}
+            </div>
+            {api.admin && (
+              <details className="bo-kn-them">
+                <summary>Cài đặt kết nối</summary>
+                <div className="bo-kn-than">
+                  {formKhoa}
+                  <div className="bo-kn-nut">
+                    {nutKetNoi('Kết nối lại Nhanh.vn')}
+                    <button className="odn-nut-phu" onClick={() => datTuDong(!api.tu_dong)}>{api.tu_dong ? 'Tắt tự cập nhật' : 'Bật tự cập nhật'}</button>
+                  </div>
+                </div>
+              </details>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

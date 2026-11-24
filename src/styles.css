@@ -6477,3 +6477,11 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
   .bo-top-dong { grid-template-columns: 16px 30px minmax(70px, 1fr) 54px 40px; } .bo-top-dong .tts-td-sp-thanh { display: none; }
   .bo-chi-so { margin-left: 0; }
 }
+/* NEW - 3.153.1 Bán online: thẻ kết nối gọn */
+.bo-kn-chip { margin-left: 8px; vertical-align: middle; font-size: 11.5px; }
+.bo-kn-them { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 2px; }
+.bo-kn-them summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--ink-2); list-style: none; display: inline-flex; align-items: center; gap: 6px; }
+.bo-kn-them summary::-webkit-details-marker { display: none; }
+.bo-kn-them summary::before { content: '▸'; font-size: 11px; transition: transform .15s; }
+.bo-kn-them[open] summary::before { transform: rotate(90deg); }
+.bo-kn-them[open] > .bo-kn-than { margin-top: 10px; }
