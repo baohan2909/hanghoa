@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, lazy, Suspense, createContext, useContext, Component } from 'react';
 import { sb } from './lib/supabase.js';
-import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy, IcRadar, IcChat2, IcTeam, IcGuiLen, IcTui } from './lib/icons.jsx';
+import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy, IcRadar, IcChat2, IcTeam, IcGuiLen, IcTui, IcOnline } from './lib/icons.jsx';
 import Login from './screens/Login.jsx';
 import XinHang from './screens/XinHang.jsx';
 import { OdooHost } from './lib/OdooHop.jsx';
@@ -29,6 +29,7 @@ const PhongDieuHanh = lazy(() => import('./screens/PhongDieuHanh.jsx'));
 const BaoCaoTelegram = lazy(() => import('./screens/BaoCaoTelegram.jsx'));
 const OdooDon = lazy(() => import('./screens/OdooDon.jsx'));
 const TikTokShop = lazy(() => import('./screens/TikTokShop.jsx'));   // NEW - 3.140
+const BanOnline = lazy(() => import('./screens/BanOnline.jsx'));     // NEW - 3.153 Bán online (Nhanh.vn)
 const TonKho = lazy(() => import('./screens/TonKho.jsx'));
 const HuongDan = lazy(() => import('./screens/HuongDan.jsx'));
 
@@ -53,6 +54,7 @@ const MENU = [
     { id: 'giamsat',   ten: 'Thiếu hàng',     Ic: IcAlert, roles: ['CH', 'DIEU_PHOI', 'ADMIN'] },
     { id: 'vandon',    ten: 'Vận đơn',        Ic: IcTruck, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
     { id: 'baocao',    ten: 'Báo cáo',        Ic: IcClock, roles: ['DIEU_PHOI', 'ADMIN'] },
+    { id: 'banonline', ten: 'Bán online',     Ic: IcOnline,  roles: ['DIEU_PHOI', 'ADMIN'] },   // NEW - 3.153 Nhanh.vn
     { id: 'tiktok',    ten: 'TikTok Shop',    Ic: IcTui,   roles: ['DIEU_PHOI', 'ADMIN'] },   // NEW - 3.140
   ]},
   { nhom: 'THI ĐUA', items: [
@@ -147,6 +149,17 @@ export default function App() {
     setToast(kq === 'ok' ? 'Đã kết nối TikTok Shop' + (p.get('shop') ? ' · ' + p.get('shop') : '') + ' — đơn sẽ tự về mỗi 5 phút'
       : 'Kết nối TikTok Shop chưa được: ' + (p.get('ly_do') || 'không rõ lý do'));
     setTimeout(() => setToast(''), 8000);
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
+  // NEW - 3.153: quay về từ ủy quyền Nhanh.vn (Edge Function nhanh chuyển hướng về ?nhanh=ok|loi)
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const kq = p.get('nhanh');
+    if (!kq) return;
+    setTab('banonline');
+    setToast(kq === 'ok' ? 'Đã kết nối Nhanh.vn — đơn online sẽ tự về mỗi 5 phút, kéo bù lịch sử dần trong khoảng 1 giờ'
+      : 'Kết nối Nhanh.vn chưa được: ' + (p.get('ly_do') || 'không rõ lý do'));
+    setTimeout(() => setToast(''), 9000);
     window.history.replaceState(null, '', window.location.pathname);
   }, []);
   const dangXuat = () => { localStorage.removeItem('nsflow_user'); localStorage.removeItem('nsflow_login_at'); setUser(null); };
@@ -244,7 +257,7 @@ export default function App() {
   if (baoTri?.khoa) return <ManBaoTri bt={baoTri} user={user} onKiem={hoiBaoTri} dangXuat={dangXuat} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich, dautruong: DauTruong,
-    giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tiktok: TikTokShop, tonkd: TonKho, huongdan: HuongDan }[tab]
+    giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, baocao: BaoCao, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tiktok: TikTokShop, banonline: BanOnline, tonkd: TonKho, huongdan: HuongDan }[tab]
     || (user.vai_tro === 'KHO' ? Kho : XinHang);
   const tabDem = user.vai_tro === 'KHO' ? 'kho' : 'duyet';
   const chonTab = (id) => { setTab(id); setMoMenu(false); };
