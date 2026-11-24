@@ -6183,6 +6183,12 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .tts-gan-bang .sel-btn { height: 34px; font-size: 12.5px; box-shadow: inset 0 0 0 1px var(--line); }
 .tts-gan-bang tbody tr { cursor: default; }
 .tts-gan-bang tr.tts-dang-luu { opacity: .55; }
+/* NEW - 3.146: ô tên gọi người bán — cùng khuôn với ô chọn bên cạnh */
+.tts-ten-goi { width: 100%; height: 34px; padding: 0 12px; border: 0; border-radius: 10px; background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line); font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink, #14213A); }
+.tts-ten-goi::placeholder { color: #9AA3B2; font-weight: 500; }
+.tts-ten-goi:hover { box-shadow: inset 0 0 0 1.5px var(--teal); }
+.tts-ten-goi:focus { outline: none; box-shadow: inset 0 0 0 2px var(--teal); }
 .tts-goi-y { height: 26px; padding: 0 10px; border-radius: 999px; border: 1px dashed #3FB6A8; background: #F2FAF9; color: #1E5F63; font-size: 11.5px; font-weight: 700; }
 .tts-goi-y:hover { background: #E3F1F0; border-style: solid; }
 

@@ -33,6 +33,8 @@ const TT = {
 };
 const TT_LOC = { cho: ['cho_tt', 'cho_gui'], dang_giao: ['dang_giao'], giao: ['da_giao', 'hoan_thanh'], huy: ['huy'], tra_hang: ['tra_hang'] };
 const LOAI = { CH: 'Cửa hàng', DOISALE: 'Đội sale', KENH: 'Kênh công ty', KOL: 'Nhà sáng tạo ngoài', KHAC: 'Khác' };
+// NEW - 3.146: tên gọi anh đặt cho ID người bán (thẻ Gán cửa hàng) — có tên gọi thì hiện tên gọi, ID để dòng phụ
+const tenGoi = (ten, h) => (h ? (ten?.[h] || '@' + h) : 'Không qua người bán');
 
 // cột file Excel Seller Center → khoá ngắn gửi SQL (bỏ hẳn tên, SĐT, địa chỉ, tin nhắn người mua)
 const COT = {
@@ -140,7 +142,7 @@ export default function TikTokShop() {
   const coLoc = !!(q || loc.kenh || loc.dm || loc.tt || loc.nb != null || loc.ch != null);
   const t = bc?.tong || {};
   const tongDon = (t.don || 0) + (t.don_huy || 0);
-  const nbTen = (h) => (h === '' ? 'Không qua người bán' : '@' + h);
+  const nbTen = (h) => (h === '' ? 'Không qua người bán' : bc?.ten_nb?.[h] ? `${bc.ten_nb[h]} (@${h})` : '@' + h);
 
   const KPI = [
     ['', 'Đơn hợp lệ', fmt(t.don), `${fmt(t.so_nb)} người bán · ${fmt(t.so_sp)} mã`],
@@ -241,7 +243,7 @@ export default function TikTokShop() {
           : the === 'nb' ? <BangNguoiBan bc={bc} chon={(nb) => { setLoc((l) => ({ ...l, nb })); baoToast('Đang lọc theo ' + nbTen(nb)); }} moGan={() => setThe('gan')} />
           : the === 'vl' ? <VideoLive bc={bc} chon={(nb) => { setLoc((l) => ({ ...l, nb })); baoToast('Đang lọc theo ' + nbTen(nb)); }} />
           : the === 'ch' ? <BangCuaHang ds={bc.ch} chon={(ch) => { setLoc((l) => ({ ...l, ch })); baoToast('Đang lọc theo cửa hàng'); }} />
-          : the === 'don' ? <DsDon pLoc={pLoc} />
+          : the === 'don' ? <DsDon pLoc={pLoc} tenNb={bc.ten_nb} />
           : the === 'ds' ? <DoiSoat api={api} />
           : <GanNguoiBan xong={tai} />}
 
@@ -328,7 +330,7 @@ function TongQuan({ bc, tongDon, chonNb }) {
       <div className="tts-luoi3">
         <Khung tieu="Người bán dẫn đầu" phu="bấm để lọc">
           {(bc.nb || []).filter((x) => x.don > 0).slice(0, 8).map((x) => (
-            <Dong key={x.nb} ten={<span className="tts-nb">{x.nb ? '@' + x.nb : 'Không qua người bán'}{x.ten_ch && <small>{x.ten_ch}</small>}</span>}
+            <Dong key={x.nb} ten={<span className="tts-nb">{tenGoi(bc.ten_nb, x.nb)}{(x.ten_ch || bc.ten_nb?.[x.nb]) && <small>{x.ten_ch || '@' + x.nb}</small>}</span>}
               so={tien(x.dt)} phu={`${fmt(x.don)} đơn · ${fmt(x.sl)} sp`} ty={pct(x.dt, (bc.nb || [])[0]?.dt || 1)} mau="#3FB6A8" onClick={() => chonNb(x.nb)} />
           ))}
         </Khung>
@@ -453,8 +455,8 @@ function BangNguoiBan({ bc, chon, moGan }) {
           {rows.length === 0 ? <tr><td colSpan={12} className="odn-trong">Không có người bán trong khoảng lọc.</td></tr>
             : rows.map((r) => (
               <tr key={r.nb} onClick={() => chon(r.nb)} title="Bấm để lọc toàn bộ báo cáo theo người bán này">
-                <td><div className="odn-ten">{r.nb ? '@' + r.nb : 'Không qua người bán'}</div>
-                  <div className="odn-phu">{r.nb ? (r.loai ? LOAI[r.loai] || r.loai : 'Chưa gán') : 'đơn mua qua thẻ sản phẩm (không qua LIVE / video)'}</div></td>
+                <td><div className="odn-ten">{tenGoi(bc.ten_nb, r.nb)}</div>
+                  <div className="odn-phu">{r.nb ? (bc.ten_nb?.[r.nb] ? '@' + r.nb + ' · ' : '') + (r.loai ? LOAI[r.loai] || r.loai : 'Chưa gán') : 'đơn mua qua thẻ sản phẩm (không qua LIVE / video)'}</div></td>
                 <td>{r.ten_ch ? <span className="odn-ten nho">{r.ten_ch}</span>
                   : r.nb && !r.loai ? <button className="tts-link" onClick={(e) => { e.stopPropagation(); moGan(); }}>Gán cửa hàng</button> : <span className="odn-phu">—</span>}</td>
                 <td className="so"><b>{r.don ? fmt(r.don) : '—'}</b></td>
@@ -495,7 +497,7 @@ function VideoLive({ bc, chon }) {
             <tbody>{live.length === 0 ? <tr><td colSpan={7} className="odn-trong">Chưa có phiên LIVE trong khoảng này.</td></tr>
               : live.map((r) => (
                 <tr key={r.id} onClick={() => chon(r.username || '')}>
-                  <td><div className="odn-ten">@{r.username}</div><div className="odn-phu">{r.ten_ch || 'chưa gán cửa hàng'}</div></td>
+                  <td><div className="odn-ten">{tenGoi(bc.ten_nb, r.username)}</div><div className="odn-phu">{bc.ten_nb?.[r.username] ? '@' + r.username + ' · ' : ''}{r.ten_ch || 'chưa gán cửa hàng'}</div></td>
                   <td><div className="tts-ten-sp" title={r.tieu_de}>{r.tieu_de || '—'}</div>
                     <div className="odn-phu">{gioNgay(r.bat_dau)} → {r.ket_thuc ? new Date(r.ket_thuc).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : '…'} · {fmt(r.so_sp)} mã</div></td>
                   <td className="so">{fmt(r.don)}</td><td className="so">{fmt(r.sl)}</td><td className="so"><b>{tien(r.dt)}</b></td>
@@ -508,7 +510,7 @@ function VideoLive({ bc, chon }) {
             <tbody>{video.length === 0 ? <tr><td colSpan={7} className="odn-trong">Chưa có video có đơn trong khoảng này.</td></tr>
               : video.map((r) => (
                 <tr key={r.video_id} onClick={() => chon(r.username || '')}>
-                  <td><div className="odn-ten">@{r.username}</div><div className="odn-phu">{r.ten_ch || 'chưa gán cửa hàng'}</div></td>
+                  <td><div className="odn-ten">{tenGoi(bc.ten_nb, r.username)}</div><div className="odn-phu">{bc.ten_nb?.[r.username] ? '@' + r.username + ' · ' : ''}{r.ten_ch || 'chưa gán cửa hàng'}</div></td>
                   <td><div className="tts-ten-sp" title={r.tieu_de}>{r.tieu_de || '—'}</div><div className="odn-phu">đăng {gioNgay(r.dang_luc)}</div></td>
                   <td><div className="tts-ten-sp" title={(r.san_pham || []).map((x) => x.name).join(' · ')}>{(r.san_pham || [])[0]?.name || '—'}</div>
                     {(r.san_pham || []).length > 1 && <div className="odn-phu">+{r.san_pham.length - 1} sản phẩm</div>}</td>
@@ -580,7 +582,7 @@ function BangCuaHang({ ds, chon }) {
 }
 
 /* ================= Đơn hàng ================= */
-function DsDon({ pLoc }) {
+function DsDon({ pLoc, tenNb }) {
   const { user } = useApp();
   const [kq, setKq] = useState(null);
   const [loi, setLoi] = useState('');
@@ -614,7 +616,7 @@ function DsDon({ pLoc }) {
                   <td><div className="tts-ten-sp" title={dong[0]?.ten}>{dong[0]?.sku || '—'}{dong.length > 1 ? ` +${dong.length - 1} mã` : ''}</div>
                     <div className="odn-phu">{fmt(sl)} sản phẩm</div></td>
                   <td className="so"><b>{fmt(d.tong_tien)}</b></td>
-                  <td>{d.kenh && <KenhChip k={d.kenh} />}<div className="odn-phu">{d.creator ? '@' + d.creator : 'không qua người bán'}{d.ten_ch ? ' · ' + d.ten_ch : ''}</div></td>
+                  <td>{d.kenh && <KenhChip k={d.kenh} />}<div className="odn-phu">{d.creator ? tenGoi(tenNb, d.creator) : 'không qua người bán'}{d.ten_ch ? ' · ' + d.ten_ch : ''}</div></td>
                   <td><div className="odn-ten nho">{d.dvvc || '—'}</div><div className="odn-phu">{d.van_don || ''}{d.giao_luc ? ' · giao ' + gioNgay(d.giao_luc) : d.gui_luc ? ' · gửi ' + gioNgay(d.gui_luc) : ''}</div></td>
                   <td>{d.tinh || '—'}</td>
                 </tr>,
@@ -625,7 +627,7 @@ function DsDon({ pLoc }) {
                         <tr key={i}><td><b>{x.sku || '—'}</b></td><td>{x.ten}<div className="odn-phu">{x.pl}</div></td>
                           <td className="so">{fmt(x.sl)}{x.tra > 0 && <div className="odn-phu">trả {x.tra}</div>}</td>
                           <td className="so">{fmt(x.truoc)}</td><td className="so">{fmt(x.shop_giam)}</td><td className="so"><b>{fmt(x.tien)}</b></td>
-                          <td>{x.nb ? '@' + x.nb : '—'}{x.kenh && <div className="odn-phu">{(KENH[x.kenh] || KENH.khac)[0]}</div>}</td></tr>
+                          <td>{x.nb ? tenGoi(tenNb, x.nb) : '—'}{x.kenh && <div className="odn-phu">{(KENH[x.kenh] || KENH.khac)[0]}</div>}</td></tr>
                       ))}</tbody></table>
                     <div className="odn-phu tts-ct-phu">{d.thanh_toan || ''}{d.kieu_giao ? ' · ' + d.kieu_giao : ''}{d.huy_boi ? ' · huỷ bởi ' + ({ User: 'khách', System: 'hệ thống', Operator: 'shop', Seller: 'shop' }[d.huy_boi] || d.huy_boi) : ''}</div>
                   </td></tr>
@@ -654,16 +656,37 @@ function GanNguoiBan({ xong }) {
   useEffect(() => { tai(); }, [tai]);
   const chOpt = useMemo(() => [{ value: '', label: '— Không gắn cửa hàng —' },
     ...(kq?.ch || []).map((c) => ({ value: c.ma, label: c.ten, sub: c.ma + (c.kv ? ' · ' + c.kv : '') }))], [kq]);
+  // NEW - 3.146: lưu xong cập nhật ngay dòng đó (không tải lại cả danh sách); báo cáo chung làm mới sau 2 giây
+  const henLamMoi = useRef(null);
+  const lamMoiBaoCao = () => { clearTimeout(henLamMoi.current); henLamMoi.current = setTimeout(() => xong(), 2000); };
+  useEffect(() => () => clearTimeout(henLamMoi.current), []);
+  const suaDong = (h, moi) => setKq((k) => (k ? { ...k, nb: k.nb.map((x) => (x.handle === h ? { ...x, ...moi } : x)) } : k));
   const gan = async (r, ma, loai) => {
     setLuu(r.handle);
-    const { error } = await sb.rpc('fn_tt_nb_gan', { p_token: user.token, p_handle: r.handle, p_ma_ch: ma || null, p_loai: loai || null, p_ghi_chu: null });
+    const { data, error } = await sb.rpc('fn_tt_nb_gan', { p_token: user.token, p_handle: r.handle, p_ma_ch: ma || null, p_loai: loai || null, p_ghi_chu: null });
     setLuu('');
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
-    baoToast('Đã lưu @' + r.handle);
-    await tai(); xong();
+    if (error) { baoToast('Chưa lưu được @' + r.handle + ': ' + error.message); return; }
+    suaDong(r.handle, { ma_ch: data?.ma_ch ?? null, ten_ch: data?.ten_ch ?? null, loai: data?.loai ?? null, tu_dong: false, nguoi: data?.nguoi ?? user.ma_dang_nhap, goi_y: null });
+    baoToast('Đã lưu ' + (r.ten || '@' + r.handle));
+    lamMoiBaoCao();
+  };
+  // NEW - 3.146: đặt tên gọi (vd kênh công ty) — lưu khi rời ô hoặc bấm Enter
+  const [nhap, setNhap] = useState({});
+  const datTen = async (r) => {
+    const ten = (nhap[r.handle] ?? r.ten ?? '').trim();
+    if (ten === (r.ten || '')) return;
+    setLuu(r.handle);
+    const { data, error } = await sb.rpc('fn_tt_nb_ten', { p_token: user.token, p_handle: r.handle, p_ten: ten });
+    setLuu('');
+    if (error) { baoToast('Chưa lưu được tên gọi: ' + error.message); return; }
+    suaDong(r.handle, { ten: data?.ten ?? null });
+    setNhap((n) => { const m = { ...n }; delete m[r.handle]; return m; });
+    baoToast(ten ? `Đã đặt tên @${r.handle} là "${ten}"` : 'Đã xoá tên gọi @' + r.handle);
+    lamMoiBaoCao();
   };
   const ds = (kq?.nb || []).filter((r) => (loc === 'chua' ? !r.ma_ch && !r.loai : loc === 'da' ? r.ma_ch || r.loai : true))
-    .filter((r) => !tim.trim() || r.handle.includes(tim.trim().toLowerCase()) || (r.ten_ch || '').toLowerCase().includes(tim.trim().toLowerCase()));
+    .filter((r) => !tim.trim() || r.handle.includes(tim.trim().toLowerCase()) || (r.ten_ch || '').toLowerCase().includes(tim.trim().toLowerCase())
+      || (r.ten || '').toLowerCase().includes(tim.trim().toLowerCase()));
   const dem = (kq?.nb || []).reduce((s, r) => ({ chua: s.chua + (!r.ma_ch && !r.loai ? 1 : 0), da: s.da + (r.ma_ch || r.loai ? 1 : 0) }), { chua: 0, da: 0 });
   return (
     <div className="tts-gan">
@@ -673,19 +696,25 @@ function GanNguoiBan({ xong }) {
             <button key={k} className={loc === k ? 'on' : ''} onClick={() => setLoc(k)}>{ten}</button>
           ))}
         </div>
-        <label className="odn-tim tts-gan-tim"><IcSearch /><input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm ID người bán, cửa hàng…" /></label>
-        <span className="odn-phu">ID mới tự khớp cửa hàng khi tên trùng khớp duy nhất. Gán tay ở đây sẽ áp cho mọi đơn cũ lẫn mới.</span>
+        <label className="odn-tim tts-gan-tim"><IcSearch /><input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm ID, tên gọi, cửa hàng…" /></label>
+        <span className="odn-phu">ID mới tự khớp cửa hàng khi tên trùng khớp duy nhất. Gán tay ở đây sẽ áp cho mọi đơn cũ lẫn mới. Tên gọi hiện thay ID trên mọi thẻ báo cáo.</span>
       </div>
       <div className="odn-bang-khung">
         <table className="odn-bang tts-bang tts-gan-bang">
-          <thead><tr><th>ID người bán</th><th className="so">30 ngày</th><th>Loại</th><th>Cửa hàng</th><th>Gợi ý</th></tr></thead>
+          <thead><tr><th>ID người bán</th><th>Tên gọi</th><th className="so">30 ngày</th><th>Loại</th><th>Cửa hàng</th><th>Gợi ý</th></tr></thead>
           <tbody>
-            {kq == null ? <tr><td colSpan={5} className="odn-trong">Đang tải…</td></tr>
-              : ds.length === 0 ? <tr><td colSpan={5} className="odn-trong">{loc === 'chua' ? 'Mọi ID người bán đã được gán.' : 'Không có ID phù hợp.'}</td></tr>
+            {kq == null ? <tr><td colSpan={6} className="odn-trong">Đang tải…</td></tr>
+              : ds.length === 0 ? <tr><td colSpan={6} className="odn-trong">{loc === 'chua' ? 'Mọi ID người bán đã được gán.' : 'Không có ID phù hợp.'}</td></tr>
               : ds.map((r) => (
                 <tr key={r.handle} className={luu === r.handle ? 'tts-dang-luu' : ''}>
                   <td><div className="odn-ten">@{r.handle}</div>
                     <div className="odn-phu">{r.lan_cuoi ? 'bán gần nhất ' + gioNgay(r.lan_cuoi) : 'chưa có đơn'}{r.ma_ch || r.loai ? (r.tu_dong ? ' · tự khớp' : r.nguoi ? ' · gán bởi ' + r.nguoi : '') : ''}</div></td>
+                  <td style={{ minWidth: 190 }}>
+                    <input className="tts-ten-goi" value={nhap[r.handle] ?? r.ten ?? ''} maxLength={60} placeholder="Đặt tên gọi…"
+                      aria-label={'Tên gọi cho @' + r.handle}
+                      onChange={(e) => setNhap((n) => ({ ...n, [r.handle]: e.target.value }))}
+                      onBlur={() => datTen(r)} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { setNhap((n) => { const m = { ...n }; delete m[r.handle]; return m; }); } }} />
+                  </td>
                   <td className="so"><b>{fmt(r.don30)}</b> đơn<div className="odn-phu">{fmt(r.sl30)} sp</div></td>
                   <td style={{ minWidth: 170 }}>
                     <Sel value={r.loai || ''} placeholder="Chọn loại" onChange={(v) => gan(r, v === 'CH' || v === 'DOISALE' ? r.ma_ch : null, v)}
