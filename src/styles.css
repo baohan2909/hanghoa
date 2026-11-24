@@ -6260,3 +6260,105 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .tts-ch-ten.nhom { color: #1E5F63; }
 .tts-ch-ten.the { color: #6B7280; }
 .tts-ch-ten.chua { color: #B0115C; }
+
+/* ================= NEW - 3.150: Theo dõi ★ ================= */
+.tts-nb-o { display: flex; align-items: flex-start; gap: 6px; }
+.tts-sao { flex: none; width: 24px; height: 24px; margin-top: -2px; border-radius: 6px; border: 0; background: transparent; color: #B7BECB; font-size: 16px; line-height: 24px; text-align: center; cursor: pointer; }
+.tts-sao:hover { background: #FBF5E8; color: var(--gold); }
+.tts-sao.on { color: var(--gold); }
+.tts-sao:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.tts-co-ten { margin: 2px 0 6px; font-size: 12.5px; color: var(--ink-2); }
+
+.tts-td { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.tts-td-chon { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.tts-td-chon-ds { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.tts-td-chon-ds > b { margin-right: 4px; }
+.tts-td-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px 0 10px; border-radius: 999px; background: #F3F5F8; border: 1px solid #E3E7EE; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.tts-td-chip > i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.tts-td-chip > button { width: 22px; height: 22px; border-radius: 50%; border: 0; background: transparent; color: #8A94A8; font-size: 11px; cursor: pointer; }
+.tts-td-chip > button:hover { background: #FCE8EA; color: var(--red); }
+.tts-td-them { max-width: 380px; }
+.tts-td-trong { background: #fff; border: 1px dashed #C9D1DD; border-radius: 12px; padding: 22px 18px; display: flex; flex-direction: column; gap: 8px; }
+.tts-td-trong b { font-size: 15px; }
+.tts-td-trong p { margin: 0; color: var(--ink-2); font-size: 13px; max-width: 72ch; }
+.tts-td-goi-y { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.tts-td-tieu { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px 6px; font-size: 13.5px; }
+.tts-td-tieu span { font-size: 11.5px; color: #8A94A8; }
+.tts-td-tieu.ngoai { padding: 4px 2px 0; }
+.tts-td-ten { display: flex; align-items: center; gap: 7px; font-weight: 700; font-size: 15px; color: var(--ink); }
+.tts-td-ten > i { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.tts-td-ten.nho { font-size: 13px; }
+.tts-td-ten.nho > i { width: 9px; height: 9px; }
+.tts-td-bang tbody tr { cursor: pointer; }
+.tts-td-bang tbody tr:not(.tts-dong-tong):hover td { background: #F6F9FC; }
+.tts-td-bang td.so > b { display: block; }
+.tts-td-dt { min-width: 150px; }
+.tts-td-dt > div { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
+.tts-td-vach { display: block; height: 4px; margin-top: 5px; border-radius: 2px; background: #EEF1F5; overflow: hidden; }
+.tts-td-vach > i { display: block; height: 100%; border-radius: 2px; }
+.tts-td-bang tr.tts-dong-tong td { background: #E9EEF5; border-top: 2px solid #14213A; cursor: default; }
+
+.tts-lech { display: inline-block; font-size: 11px; font-weight: 700; white-space: nowrap; padding: 1px 5px; border-radius: 5px; line-height: 1.4; }
+.tts-lech.tang { color: #1B7A4C; background: #E6F4EC; }
+.tts-lech.giam { color: #B3261E; background: #FCEBEA; }
+.tts-lech.bang { color: #5B6678; background: #EEF1F5; }
+.tts-lech.moi { color: #1E5F63; background: #E3F1F0; }
+
+.tts-nhanh.nho > button { height: 26px; padding: 0 10px; font-size: 12px; }
+.tts-bd { position: relative; width: 100%; min-width: 0; overflow: hidden; }
+.tts-bd svg { display: block; }
+.tts-bd-luoi { stroke: #EDF0F4; stroke-width: 1; }
+.tts-bd-truc { fill: #8A94A8; font-size: 11px; font-family: var(--font-body); }
+.tts-bd-ten { fill: #4A5670; font-size: 12px; font-weight: 600; font-family: var(--font-body); }
+.tts-bd-dong { stroke: #9AA4B5; stroke-width: 1; stroke-dasharray: 3 3; }
+.tts-bd-hop { position: absolute; pointer-events: none; width: 218px; background: #fff; border: 1px solid #DCE1E9; border-radius: 10px; box-shadow: var(--shadow); padding: 8px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+.tts-bd-hop > b { font-size: 12px; color: var(--ink); margin-bottom: 2px; }
+.tts-bd-hop > div { display: flex; align-items: center; gap: 6px; }
+.tts-bd-hop > div > i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.tts-bd-hop > div > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.tts-bd-hop > div > b { font-variant-numeric: tabular-nums; }
+.tts-td-chu-giai { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-2); }
+.tts-td-chu-giai > span { display: inline-flex; align-items: center; gap: 6px; }
+.tts-td-chu-giai > span > i { width: 18px; height: 0; border-top-width: 3px; border-top-style: solid; }
+
+.tts-mt th.so, .tts-mt td.so { text-align: center; }
+.tts-mt th.sap { cursor: pointer; white-space: nowrap; }
+.tts-mt th.sap.on { color: var(--teal-deep); box-shadow: inset 0 -2px 0 var(--teal); }
+.tts-mt th .tts-td-ten { justify-content: center; }
+.tts-mt-o { padding: 2px 3px !important; }
+.tts-mt-o > span { display: block; min-width: 52px; padding: 5px 4px; border-radius: 4px; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12.5px; }
+.tts-mt td:first-child { white-space: nowrap; }
+
+.tts-td-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 12px; }
+.tts-td-the { background: #fff; border: 1px solid var(--line); border-top: 3px solid var(--m); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tts-td-the-dau { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.tts-td-nut { display: flex; gap: 12px; flex: none; }
+.tts-link.do { color: var(--red); text-decoration-color: rgba(198,55,60,.35); }
+.tts-td-kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.tts-td-kpi > div { background: #F6F8FB; border-radius: 8px; padding: 7px 9px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tts-td-kpi span { font-size: 11px; color: #8A94A8; }
+.tts-td-kpi b { font-size: 15px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tts-td-kpi .tts-lech { align-self: flex-start; }
+.tts-td-ky { margin-top: -4px; }
+.tts-td-hai { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.tts-td-hai > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tts-td-nho { font-size: 11.5px; font-weight: 700; color: #5B6678; }
+.tts-duong-nho { width: 100%; height: 46px; display: block; }
+.tts-24-cot { display: flex; align-items: flex-end; gap: 1px; height: 46px; }
+.tts-24-cot > i { flex: 1; border-radius: 2px 2px 0 0; min-width: 0; }
+.tts-24-truc { display: flex; justify-content: space-between; font-size: 10px; color: #8A94A8; }
+.tts-td-sp { display: flex; flex-direction: column; gap: 4px; }
+.tts-td-sp-dong { display: grid; grid-template-columns: minmax(96px, 150px) 1fr 56px 70px; gap: 8px; align-items: center; font-size: 12.5px; }
+.tts-td-sp-ma { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.tts-td-sp-ma b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tts-td-sp-ma small { color: #8A94A8; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tts-td-sp-thanh { height: 8px; background: #EEF1F5; border-radius: 4px; overflow: hidden; }
+.tts-td-sp-thanh > i { display: block; height: 100%; border-radius: 4px; }
+.tts-td-sp-dong .so { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .tts-td-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tts-td-hai { grid-template-columns: 1fr; }
+  .tts-td-the-dau { flex-direction: column; }
+  .tts-td-sp-dong { grid-template-columns: minmax(80px, 120px) 1fr 44px 60px; }
+}
