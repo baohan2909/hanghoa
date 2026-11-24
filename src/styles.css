@@ -4426,6 +4426,10 @@ body.ch-khoa-cuon { overflow: hidden; }
 .odn-phu { font-size: 11.5px; color: #8A94A8; }
 .odn-trong { text-align: center; padding: 28px 12px !important; color: var(--ink-2); cursor: default; }
 .odn-chan-bang { padding: 8px 12px; border-top: 1px solid #EEF1F4; }
+/* NEW - 3.147: chân bảng hiện thêm dòng / tải thêm đơn */
+.tts-hien-them { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 12.5px; color: var(--ink-2); }
+.tts-hien-them span { flex: 1 1 auto; }
+.tts-hien-them .tts-link:disabled { opacity: .5; cursor: default; }
 .odn-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .odn-chip { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 .odn-chip.do { background: #FCEAF2; color: #B0115C; } .odn-chip.vang { background: #FBF0D9; color: #8A5A00; }

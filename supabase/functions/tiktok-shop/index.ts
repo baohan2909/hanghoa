@@ -258,7 +258,7 @@ async function demTikTok(cfg: J, token: string, duongDan: string, tu: number, de
 async function keoKhung(cfg: J, token: string, loai: 'don' | 'lk' | 'tra', tu: number, den: number, conGio: () => number) {
   const dd = loai === 'don' ? '/order/202309/orders/search' : loai === 'lk' ? '/affiliate_seller/202410/orders/search' : '/return_refund/202309/returns/search';
   let pt = '', trang = 0, so = 0, napId: number | null = null, xong = false;
-  while (conGio() > 10_000 && trang < 60) {
+  while (conGio() > 10_000) {   // NEW - 3.147: bỏ trần 60 trang/ngày — chỉ dừng khi hết giờ
     const ts: Record<string, string> = { shop_cipher: cfg.shop_cipher, page_size: loai === 'tra' ? '50' : '100' };
     if (pt) ts.page_token = pt;
     const j = await goiTikTok(cfg, token, dd, ts, 'POST', { create_time_ge: tu, create_time_lt: den });
@@ -480,7 +480,7 @@ async function thongKe(cfg: J) {
   // NEW - 3.145: kéo lùi xa thì đi từng khúc 20 ngày (mỗi lượt xong 1 khúc rồi ghi mốc), tránh làm lại từ đầu khi hết giờ
   const liveDen = congNgay(liveTu, 20) < congNgay(homNay, 1) ? congNgay(liveTu, 20) : congNgay(homNay, 1);
   let pt = '', trang = 0, xongLive = false;
-  while (trang < 80 && Date.now() - batDau < HET_GIO - 30_000) {
+  while (Date.now() - batDau < HET_GIO - 30_000) {   // NEW - 3.147: bỏ trần 80 trang — chỉ dừng khi hết giờ
     const ts: Record<string, string> = { shop_cipher: cipher, start_date_ge: liveTu, end_date_lt: liveDen, page_size: '100' };
     if (pt) ts.page_token = pt;
     const j = await goiTikTok(cfg, token, '/analytics/202508/shop_lives/performance', ts);
@@ -502,7 +502,7 @@ async function thongKe(cfg: J) {
   let moiNhat = homNay;
   while (ngay <= moiNhat && Date.now() - batDau < HET_GIO) {
     let pv = '', tv = 0, hetNgay = false;
-    while (tv < 60 && Date.now() - batDau < HET_GIO) {
+    while (Date.now() - batDau < HET_GIO) {   // NEW - 3.147: bỏ trần 60 trang/ngày
       const ts: Record<string, string> = { shop_cipher: cipher, start_date_ge: ngay, end_date_lt: congNgay(ngay, 1), page_size: '100',
         sort_field: 'gmv', sort_order: 'DESC' };
       if (pv) ts.page_token = pv;

@@ -385,8 +385,23 @@ function useSap(ds, mac) {
   return [rows, th];
 }
 
+// NEW - 3.147: số liệu trả đủ, không cắt — bảng dài chỉ VẼ dần từng 300 dòng cho app mượt, bấm để hiện thêm / hiện tất cả
+function useHienDan(ds, buoc = 300) {
+  const [n, setN] = useState(buoc);
+  useEffect(() => { setN(buoc); }, [ds, buoc]);
+  const hien = ds.length > n ? ds.slice(0, n) : ds;
+  const chan = ds.length > n ? (
+    <div className="odn-chan-bang tts-hien-them">
+      <span>Đang hiện {fmt(n)}/{fmt(ds.length)} dòng — sắp xếp và tổng đã tính trên đủ {fmt(ds.length)} dòng</span>
+      <button className="tts-link" onClick={() => setN((x) => x + buoc)}>Hiện thêm {fmt(Math.min(buoc, ds.length - n))}</button>
+      <button className="tts-link" onClick={() => setN(ds.length)}>Hiện tất cả</button>
+    </div>) : null;
+  return [hien, chan];
+}
+
 function BangSanPham({ ds }) {
-  const [rows, th] = useSap(ds, { k: 'sl', d: -1 });
+  const [rowsDu, th] = useSap(ds, { k: 'sl', d: -1 });
+  const [rows, chan] = useHienDan(rowsDu);
   const [mo, setMo] = useState(null);
   return (
     <div className="odn-bang-khung">
@@ -416,6 +431,7 @@ function BangSanPham({ ds }) {
             ])}
         </tbody>
       </table>
+      {chan}
     </div>
   );
 }
@@ -481,6 +497,8 @@ function BangNguoiBan({ bc, chon, moGan }) {
 function VideoLive({ bc, chon }) {
   const [xem, setXem] = useState('live');
   const live = bc.live_top || [], video = bc.video_top || [];
+  const [liveHien, liveChan] = useHienDan(live);
+  const [videoHien, videoChan] = useHienDan(video);
   return (
     <div className="tts-gan">
       <div className="tts-gan-dau">
@@ -488,14 +506,14 @@ function VideoLive({ bc, chon }) {
           <button className={xem === 'live' ? 'on' : ''} onClick={() => setXem('live')}>Phiên LIVE ({fmt(live.length)})</button>
           <button className={xem === 'video' ? 'on' : ''} onClick={() => setXem('video')}>Video có đơn ({fmt(video.length)})</button>
         </div>
-        <span className="odn-phu">Top 100 theo doanh số trong khoảng ngày đang lọc · TikTok chốt số liệu chậm 1–2 ngày · bấm dòng để lọc theo người bán.</span>
+        <span className="odn-phu">Đủ mọi phiên LIVE / video có đơn trong khoảng ngày đang lọc, xếp theo doanh số · TikTok chốt số liệu chậm 1–2 ngày · bấm dòng để lọc theo người bán.</span>
       </div>
       <div className="odn-bang-khung">
         {xem === 'live' ? (
           <table className="odn-bang tts-bang">
             <thead><tr><th>Người bán</th><th>Phiên LIVE</th><th className="so">Đơn</th><th className="so">SL</th><th className="so">Doanh số</th><th className="so">Khách</th><th className="so">Người xem</th></tr></thead>
             <tbody>{live.length === 0 ? <tr><td colSpan={7} className="odn-trong">Chưa có phiên LIVE trong khoảng này.</td></tr>
-              : live.map((r) => (
+              : liveHien.map((r) => (
                 <tr key={r.id} onClick={() => chon(r.username || '')}>
                   <td><div className="odn-ten">{tenGoi(bc.ten_nb, r.username)}</div><div className="odn-phu">{bc.ten_nb?.[r.username] ? '@' + r.username + ' · ' : ''}{r.ten_ch || 'chưa gán cửa hàng'}</div></td>
                   <td><div className="tts-ten-sp" title={r.tieu_de}>{r.tieu_de || '—'}</div>
@@ -508,7 +526,7 @@ function VideoLive({ bc, chon }) {
           <table className="odn-bang tts-bang">
             <thead><tr><th>Người bán</th><th>Video</th><th>Sản phẩm</th><th className="so">Đơn</th><th className="so">SL</th><th className="so">Doanh số</th><th className="so">Lượt xem</th></tr></thead>
             <tbody>{video.length === 0 ? <tr><td colSpan={7} className="odn-trong">Chưa có video có đơn trong khoảng này.</td></tr>
-              : video.map((r) => (
+              : videoHien.map((r) => (
                 <tr key={r.video_id} onClick={() => chon(r.username || '')}>
                   <td><div className="odn-ten">{tenGoi(bc.ten_nb, r.username)}</div><div className="odn-phu">{bc.ten_nb?.[r.username] ? '@' + r.username + ' · ' : ''}{r.ten_ch || 'chưa gán cửa hàng'}</div></td>
                   <td><div className="tts-ten-sp" title={r.tieu_de}>{r.tieu_de || '—'}</div><div className="odn-phu">đăng {gioNgay(r.dang_luc)}</div></td>
@@ -518,6 +536,7 @@ function VideoLive({ bc, chon }) {
                 </tr>))}</tbody>
           </table>
         )}
+        {xem === 'live' ? liveChan : videoChan}
       </div>
     </div>
   );
@@ -583,7 +602,8 @@ function BangCuaHang({ ds, chon }) {
 
 /* ================= Đơn hàng ================= */
 function DsDon({ pLoc, tenNb }) {
-  const { user } = useApp();
+  const { user, baoToast } = useApp();
+  const [dangThem, setDangThem] = useState(false);
   const [kq, setKq] = useState(null);
   const [loi, setLoi] = useState('');
   const [mo, setMo] = useState(null);
@@ -599,6 +619,13 @@ function DsDon({ pLoc, tenNb }) {
   }, [pLoc, user.token]);
   if (loi) return <div className="odn-bao do"><IcAlert /> Không tải được: {loi}</div>;
   const ds = kq?.ds || [];
+  const taiThem = async () => {
+    setDangThem(true);
+    const { data, error } = await sb.rpc('fn_tt_don_ds', { p_token: user.token, p_loc: { ...pLoc, bo_qua: ds.length }, p_gioi_han: 300 });
+    setDangThem(false);
+    if (error) { baoToast('Chưa tải thêm được: ' + error.message); return; }
+    setKq((k) => ({ ...k, ds: [...(k?.ds || []), ...(data?.ds || [])] }));
+  };
   return (
     <div className="odn-bang-khung">
       <table className="odn-bang tts-bang">
@@ -636,7 +663,12 @@ function DsDon({ pLoc, tenNb }) {
             })}
         </tbody>
       </table>
-      {kq && kq.tong > ds.length && <div className="odn-phu odn-chan-bang">Đang hiện {ds.length}/{fmt(kq.tong)} đơn mới nhất — thu hẹp bộ lọc để xem đơn cũ hơn.</div>}
+      {/* NEW - 3.147: không chặn trần — tải tiếp từng 300 đơn tới hết */}
+      {kq && kq.tong > ds.length && (
+        <div className="odn-chan-bang tts-hien-them">
+          <span>Đang hiện {fmt(ds.length)}/{fmt(kq.tong)} đơn, mới nhất trước</span>
+          <button className="tts-link" disabled={dangThem} onClick={taiThem}>{dangThem ? 'Đang tải…' : `Xem thêm ${fmt(Math.min(300, kq.tong - ds.length))} đơn`}</button>
+        </div>)}
     </div>
   );
 }
