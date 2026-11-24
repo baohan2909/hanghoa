@@ -191,6 +191,9 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
   const locDs = useMemo(() => sapTheo(LOC_MAC_DINH, tc.loc), [tc.loc]);
   const cfgLT = useLamTron();
   const [hoiGhiChu, hopGhiChu, chonOdoo] = useHoiGhiChu();
+  // NEW - 3.155: chia vượt tồn kho sale (hàng đã về nhưng chưa xác nhận nhập) — bảng cảnh báo, bấm "Vẫn đẩy" mới gửi
+  const [hoiVuot, setHoiVuot] = useState(null);
+  const xinVuot = (ds) => new Promise((resolve) => setHoiVuot({ ds, resolve }));
   const odooCfg = useOdooCfg(user);   // NEW - 3.126: nút "Gửi Odoo" ngay trên thanh đã xuất
   const [thayThe, setThayThe] = useState(null);   // barcode đang xem mã thay thế
   // THU GỌN đầu bàn: gộp đội + số liệu + tham số + thùng vào 1 hàng, dòng bảng thấp hơn -> thêm chỗ chia
@@ -470,7 +473,14 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
     const dongGui = dong.filter((x) => x.them > 0).map((x) => (x.pk ? { ma_ch: doi, barcode: x.bc, sl_pk: x.them } : { ma_ch: doi, barcode: x.bc, sl_sa: x.them }));
     const thungHopLe = thung.filter((t) => thungCt[t] && !thungCt[t].khong_co && !thungCt[t].da_giao && !thungCt[t].kiem);
     if (!dongGui.length && !thungHopLe.length) { baoToast('Chưa có số nào'); return tuDong ? { ok: false, loi: 'Chưa có số nào' } : undefined; }
-    if (tong.vuot) { const m = `Còn ${tong.vuot} mã chia thêm vượt kho (SA / phụ kiện) — sửa trước khi xác nhận (lọc theo dòng hồng)`; baoToast(m); return tuDong ? { ok: false, loi: m } : undefined; }
+    // NEW - 3.155: đội sale được đẩy VƯỢT tồn kho sale sau khi xem bảng cảnh báo (trợ lý tự động vẫn chặn)
+    let choVuot = false;
+    if (tong.vuot) {
+      if (tuDong) { const m = `Còn ${tong.vuot} mã chia thêm vượt kho (SA / phụ kiện) — sửa trước khi xác nhận (lọc theo dòng hồng)`; baoToast(m); return { ok: false, loi: m }; }
+      const dsVuot = dong.filter((x) => x.them > 0 && x.khoCon < 0).map((x) => ({ bc: x.bc, ma: x.mtc, them: x.them, kd: x.kd, vuot: -x.khoCon, pk: x.pk }));
+      if (!(await xinVuot(dsVuot))) return undefined;
+      choVuot = true;
+    }
     const ghiChu = tuDong ? (mo.ghiChu ?? ghiChuMacDinh(doi, tenDoi)) : await hoiGhiChu({ odoo: true, macDinh: ghiChuMacDinh(doi, tenDoi), tieuDe: `Ghi chú file xuất — ${tenNgan(tenDoi)}`,
       nutXong: `Xác nhận & xuất ${tong.soPhieu} file`,
       phu: <>{fmtN(tong.nhan)} cái · {[tong.sa > 0 && 'Sale', tong.pk > 0 && 'Phụ kiện', tong.th > 0 && 'Thùng'].filter(Boolean).join(' + ')}
@@ -478,7 +488,8 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
     if (ghiChu === null) return;
     nhoGhiChu(doi, ghiChu);
     setGui(true);
-    const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'doi', nguoi, khoa_nhap: khoa, ghi_chu: ghiChu || null, dong: dongGui, thung: thungHopLe.map((t) => ({ ma_thung: t, ma_ch: doi })) } });
+    const { data, error } = await sb.rpc('fn_ds_xac_nhan', { p: { loai: 'doi', nguoi, khoa_nhap: khoa, ghi_chu: ghiChu || null, dong: dongGui, thung: thungHopLe.map((t) => ({ ma_thung: t, ma_ch: doi })),
+      ...(choVuot ? { cho_vuot: true, token: user?.token } : {}) } });
     setGui(false);
     if (error) { baoToast('Lỗi: ' + error.message); return tuDong ? { ok: false, loi: error.message } : undefined; }
     if (!data?.ok) { baoLoiXacNhan(data, baoToast); tai(); return tuDong ? { ok: false, loi: data?.loi || data?.thong_bao || 'Máy chủ từ chối xác nhận', chi_tiet: data } : undefined; }
@@ -488,7 +499,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
     lsDel(khoa); await xoaNhap();
     setThungCt({});
     setPhieuMoi({ ...data, doi, sl: tong.nhan, ma: tong.ma, sa: tong.sa, pk: tong.pk, th: tong.th, ghiChu, odoo: daOdoo });
-    baoToast(`Đã xác nhận ${tenPhieu(data)}: ${fmtN(tong.nhan)} cái — ${soFile(data)} file`);
+    baoToast(`Đã xác nhận ${tenPhieu(data)}: ${fmtN(tong.nhan)} cái — ${soFile(data)} file` + ((data.vuot || []).length ? ` · ${data.vuot.length} mã chia vượt tồn — kho cần xác nhận phiếu nhập trên Odoo trước khi xuất` : ''));
     tai(); taiNhapDs();
     return { ok: true, phieu: tenPhieu(data), sl: tong.nhan, sale: tong.sa, phu_kien: tong.pk, thung: tong.th, so_file: soFile(data), odoo: daOdoo, ghi_chu: ghiChu };
   };
@@ -792,6 +803,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
           onThem={(bc, sl) => datSo(bc, sl)} onDong={() => setThayThe(null)} baoToast={baoToast} />
       )}
       {hopGhiChu}
+      {hoiVuot && <HopVuot ds={hoiVuot.ds} tenDoi={tenNgan(kq?.ten || doi)} onXong={(v) => { hoiVuot.resolve(v); setHoiVuot(null); }} />}
 
       {/* ===== Lọc nhanh + thao tác ===== */}
       <div className="ch-cong">
@@ -991,6 +1003,36 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
 // Ô số tham số đầu bàn (v3.112.2): gõ tự do (xoá trắng, gõ 1, 2… không bị nhảy số),
 // chốt khi Enter / rời ô / ngừng gõ 0,6 giây nếu số nằm trong khoảng cho phép
 // NEW - 212: ô "+ số đội" — đội chưa có trong danh sách (chưa có tồn / chưa bán) vẫn chia được
+// NEW - 3.155: BẢNG CẢNH BÁO chia vượt tồn kho sale — chỉ ở Chia từng đội; Điều phối đã nắm lượng hàng (hàng về nhưng chưa xác nhận nhập)
+function HopVuot({ ds, tenDoi, onXong }) {
+  const tong = ds.reduce((a, x) => a + x.vuot, 0);
+  useEffect(() => { const k = (e) => { if (e.key === 'Escape') onXong(false); }; document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onXong]);
+  return (
+    <div className="kt-modal gc-nen" onMouseDown={(e) => { if (e.target === e.currentTarget) onXong(false); }}>
+      <div className="gc-hop vuot-hop" role="alertdialog" aria-label="Cảnh báo chia vượt tồn kho">
+        <div className="gc-dau vuot-dau">
+          <div><b><IcAlert /> Chia vượt tồn kho sale · {ds.length} mã</b>
+            <small>{tenDoi}: chia nhiều hơn tồn trên app {fmtN(tong)} cái. Nếu hàng đã về kho nhưng phiếu nhập chưa xác nhận trên Odoo thì vẫn đẩy được.</small></div>
+          <button className="kt-dong" onClick={() => onXong(false)}>×</button>
+        </div>
+        <div className="vuot-bang">
+          <table>
+            <thead><tr><th>Mã</th><th className="so">Chia</th><th className="so">Tồn khả dụng</th><th className="so">Vượt</th></tr></thead>
+            <tbody>{ds.map((x) => (
+              <tr key={x.bc}><td><b>{x.ma}</b>{x.pk && <small> · kho phụ kiện</small>}</td><td className="so">{fmtN(x.them)}</td>
+                <td className="so">{x.kd ? fmtN(x.kd) : '0'}</td><td className="so vuot-so">+{fmtN(x.vuot)}</td></tr>))}</tbody>
+          </table>
+        </div>
+        <div className="gc-phu vuot-ghi">Phiếu vẫn ghi xuất từ kho sale (phần vượt vào kho chính của mã). Kho cần xác nhận phiếu nhập trên Odoo trước khi xuất hàng cho đội.</div>
+        <div className="gc-chan">
+          <button className="btn btn-ghost" onClick={() => onXong(false)} autoFocus>Quay lại sửa</button>
+          <button className="btn vuot-nut" onClick={() => onXong(true)}>Vẫn đẩy {ds.length} mã vượt</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ThemDoi({ onThem, lon }) {
   const [mo, setMo] = useState(false);
   const [v, setV] = useState('');

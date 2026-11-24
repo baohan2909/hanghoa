@@ -6521,3 +6521,18 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .odn-nut-icon { width: 34px; padding: 0; justify-content: center; }
 .odn-nut-icon svg { width: 16px; height: 16px; }
 .odn-api i[title] { cursor: help; }
+/* NEW - 3.155 Cảnh báo chia vượt tồn kho sale (Chia từng đội) */
+.vuot-hop { width: min(600px, 100%); }
+.gc-dau.vuot-dau { background: linear-gradient(135deg, #6B4A12 0%, #A8822F 60%, #CBA45A 100%); }
+.vuot-dau b { display: inline-flex !important; align-items: center; gap: 7px; }
+.vuot-dau b svg { width: 17px; height: 17px; }
+.vuot-bang { margin: 14px 18px 4px; max-height: min(46vh, 360px); overflow: auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.vuot-bang table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.vuot-bang th { position: sticky; top: 0; background: #F6F4EE; text-align: left; font-size: 11.5px; font-weight: 700; color: var(--ink-2); padding: 7px 10px; }
+.vuot-bang td { padding: 7px 10px; border-top: 1px solid #F0EDE5; }
+.vuot-bang .so { text-align: right; font-variant-numeric: tabular-nums; }
+.vuot-bang small { color: #8A94A8; font-weight: 600; }
+.vuot-so { color: #8A5A00; font-weight: 800; }
+.vuot-ghi { line-height: 1.5; }
+.btn.vuot-nut { background: linear-gradient(135deg, #8A5A00, #CBA45A); color: #fff; box-shadow: 0 0 10px rgba(203,164,90,.35); }
+.btn.vuot-nut:hover { filter: brightness(1.06); }
