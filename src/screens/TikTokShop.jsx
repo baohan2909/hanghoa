@@ -83,16 +83,27 @@ function ThanhKenh({ r }) {
   );
 }
 
+// NEW - 3.148: NHỚ TRONG PHIÊN — kết quả đã tải theo từng bộ lọc + bộ lọc / thẻ đang xem.
+//   Mở lại màn, đổi thẻ, quay lại khoảng ngày cũ → hiện ngay, KHÔNG tải lại; chỉ tải lại khi TikTok có dữ liệu mới
+//   (fn_tt_api_tt.phien_ban đổi — hỏi 60 giây/lần, rất nhẹ), và tải ngầm trong lúc vẫn hiện số cũ.
+const boNho = new Map();
+const nhoMan = { loc: null, the: 'tq' };
+const khoaNho = (loai, p) => loai + '|' + JSON.stringify(p || {});
+
 export default function TikTokShop() {
   const { user, baoToast } = useApp();
-  const [loc, setLoc] = useState(() => ({ tu: truNgay(6), den: isoVN(), kenh: '', dm: '', tt: '', nb: null, ch: null }));
+  const [loc, setLoc] = useState(() => nhoMan.loc || ({ tu: truNgay(6), den: isoVN(), kenh: '', dm: '', tt: '', nb: null, ch: null }));
+  useEffect(() => { nhoMan.loc = loc; }, [loc]);
   const [q, setQ] = useState('');
   const [qTre, setQTre] = useState('');
   const [bc, setBc] = useState(null);
   const [loi, setLoi] = useState('');
   const [dang, setDang] = useState(false);
-  const [api, setApi] = useState(null);
-  const [the, setThe] = useState('tq');
+  const [api, setApi] = useState(() => boNho.get('api')?.data || null);
+  const [apiXong, setApiXong] = useState(false);   // đã hỏi phiên bản dữ liệu lần đầu
+  const phienBan = api?.phien_ban || '';
+  const [the, setThe] = useState(nhoMan.the);
+  useEffect(() => { nhoMan.the = the; }, [the]);
   const [nap, setNap] = useState(false);
   const hen = useRef(null);
   useEffect(() => { clearTimeout(hen.current); hen.current = setTimeout(() => setQTre(q.trim()), 350); return () => clearTimeout(hen.current); }, [q]);
@@ -108,28 +119,52 @@ export default function TikTokShop() {
     return p;
   }, [loc, qTre]);
 
-  const tai = useCallback(async () => {
+  const khoaHienTai = useRef('');
+  const dangTaiKhoa = useRef('');
+  const tai = useCallback(async (pb) => {
+    const k = khoaNho('bc', pLoc);
+    if (dangTaiKhoa.current === k) return;      // đang tải đúng bộ lọc này rồi
+    dangTaiKhoa.current = k;
     setDang(true);
     const { data, error } = await sb.rpc('fn_tt_bao_cao', { p_token: user.token, p_loc: pLoc });
+    if (dangTaiKhoa.current === k) dangTaiKhoa.current = '';
     setDang(false);
+    if (khoaHienTai.current !== k) return;       // anh đã đổi bộ lọc trong lúc chờ
     if (error) { setLoi(error.message); return; }
+    boNho.set(k, { data, pb });
     setLoi(''); setBc(data);
   }, [user.token, pLoc]);
-  useEffect(() => { tai(); }, [tai]);
+  useEffect(() => {
+    const k = khoaNho('bc', pLoc);
+    khoaHienTai.current = k;
+    const c = boNho.get(k);
+    if (c) { setBc(c.data); setLoi(''); }
+    if (!apiXong) return;                        // chờ biết phiên bản dữ liệu (rất nhanh) rồi mới quyết định
+    if (c && c.pb === phienBan) return;          // đã có và TikTok chưa có gì mới → không tải lại
+    tai(phienBan);
+  }, [pLoc, phienBan, apiXong, tai]);
 
   const taiApi = useCallback(async () => {
     const { data } = await sb.rpc('fn_tt_api_tt', { p_token: user.token });
-    if (data) setApi(data);
+    if (data) { setApi(data); boNho.set('api', { data }); }
+    setApiXong(true);
   }, [user.token]);
   useEffect(() => { taiApi(); }, [taiApi]);
+  // NEW - 3.148: hỏi phiên bản dữ liệu 60 giây/lần (và khi quay lại cửa sổ) — có dữ liệu mới thì tự tải ngầm
+  useEffect(() => {
+    const hoi = () => { if (document.visibilityState === 'visible') taiApi(); };
+    const t = setInterval(hoi, 60000);
+    document.addEventListener('visibilitychange', hoi);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', hoi); };
+  }, [taiApi]);
   // đang kéo đơn → hỏi lại mỗi 8 giây, xong thì tải lại báo cáo
   const dangKeoTruoc = useRef(false);
   useEffect(() => {
-    if (!api?.dang_keo) { if (dangKeoTruoc.current) { dangKeoTruoc.current = false; tai(); } return; }
+    if (!api?.dang_keo) { dangKeoTruoc.current = false; return; }   // kéo xong → phiên bản dữ liệu đổi → tự tải ngầm
     dangKeoTruoc.current = true;
     const t = setTimeout(taiApi, 8000);
     return () => clearTimeout(t);
-  }, [api, taiApi, tai]);
+  }, [api, taiApi]);
 
   const keoNgay = async () => {
     const { data, error } = await sb.rpc('fn_tt_api_keo', { p_token: user.token });
@@ -210,10 +245,10 @@ export default function TikTokShop() {
           })}
           {loc.nb != null && <span className="tts-loc-chip">Người bán: <b>{nbTen(loc.nb)}</b><button onClick={() => setLoc((l) => ({ ...l, nb: null }))} aria-label="Bỏ lọc người bán">✕</button></span>}
           {loc.ch != null && <span className="tts-loc-chip">Cửa hàng: <b>{(bc?.ch || []).find((c) => c.ma_ch === loc.ch)?.ten || loc.ch || 'Chưa gán'}</b><button onClick={() => setLoc((l) => ({ ...l, ch: null }))} aria-label="Bỏ lọc cửa hàng">✕</button></span>}
-          {dang && <span className="odn-phu">Đang tải…</span>}
+          {dang && <span className="odn-phu">{bc ? 'Đang cập nhật số mới…' : 'Đang tải…'}</span>}
         </div>
 
-        {loi && <div className="odn-bao do"><IcAlert /> Không tải được: {loi} <button onClick={tai}>Thử lại</button></div>}
+        {loi && <div className="odn-bao do"><IcAlert /> Không tải được: {loi} <button onClick={() => tai(phienBan)}>Thử lại</button></div>}
 
         {/* Chỉ số */}
         <div className="odn-kpi">
@@ -243,9 +278,9 @@ export default function TikTokShop() {
           : the === 'nb' ? <BangNguoiBan bc={bc} chon={(nb) => { setLoc((l) => ({ ...l, nb })); baoToast('Đang lọc theo ' + nbTen(nb)); }} moGan={() => setThe('gan')} />
           : the === 'vl' ? <VideoLive bc={bc} chon={(nb) => { setLoc((l) => ({ ...l, nb })); baoToast('Đang lọc theo ' + nbTen(nb)); }} />
           : the === 'ch' ? <BangCuaHang ds={bc.ch} chon={(ch) => { setLoc((l) => ({ ...l, ch })); baoToast('Đang lọc theo cửa hàng'); }} />
-          : the === 'don' ? <DsDon pLoc={pLoc} tenNb={bc.ten_nb} />
+          : the === 'don' ? <DsDon pLoc={pLoc} tenNb={bc.ten_nb} phienBan={phienBan} apiXong={apiXong} />
           : the === 'ds' ? <DoiSoat api={api} />
-          : <GanNguoiBan xong={tai} />}
+          : <GanNguoiBan xong={taiApi} phienBan={phienBan} apiXong={apiXong} />}
 
         {tongDon === 0 && bc && !dang && (kho?.tong_don || 0) === 0 && (
           <div className="tts-trong">
@@ -254,7 +289,7 @@ export default function TikTokShop() {
           </div>
         )}
       </div>
-      {nap && <HopNap dong={() => setNap(false)} xong={() => { tai(); taiApi(); }} />}
+      {nap && <HopNap dong={() => setNap(false)} xong={taiApi} />}
     </>
   );
 }
@@ -601,22 +636,27 @@ function BangCuaHang({ ds, chon }) {
 }
 
 /* ================= Đơn hàng ================= */
-function DsDon({ pLoc, tenNb }) {
+function DsDon({ pLoc, tenNb, phienBan, apiXong }) {
   const { user, baoToast } = useApp();
   const [dangThem, setDangThem] = useState(false);
   const [kq, setKq] = useState(null);
   const [loi, setLoi] = useState('');
   const [mo, setMo] = useState(null);
+  // NEW - 3.148: nhớ trong phiên — chỉ tải lại khi có dữ liệu mới (giữ nguyên số trang anh đã xem thêm)
+  const khoa = khoaNho('don', pLoc);
   useEffect(() => {
+    const c = boNho.get(khoa);
+    if (c) { setKq(c.data); setLoi(''); } else setKq(null);
+    if (!apiXong || (c && c.pb === phienBan)) return;
     let huy = false;
-    setKq(null);
-    sb.rpc('fn_tt_don_ds', { p_token: user.token, p_loc: pLoc, p_gioi_han: 300 }).then(({ data, error }) => {
+    sb.rpc('fn_tt_don_ds', { p_token: user.token, p_loc: pLoc, p_gioi_han: Math.max(300, c?.data?.ds?.length || 0) }).then(({ data, error }) => {
       if (huy) return;
-      if (error) { setLoi(error.message); return; }
+      if (error) { if (!c) setLoi(error.message); return; }
+      boNho.set(khoa, { data, pb: phienBan });
       setLoi(''); setKq(data);
     });
     return () => { huy = true; };
-  }, [pLoc, user.token]);
+  }, [khoa, pLoc, phienBan, apiXong, user.token]);
   if (loi) return <div className="odn-bao do"><IcAlert /> Không tải được: {loi}</div>;
   const ds = kq?.ds || [];
   const taiThem = async () => {
@@ -624,7 +664,12 @@ function DsDon({ pLoc, tenNb }) {
     const { data, error } = await sb.rpc('fn_tt_don_ds', { p_token: user.token, p_loc: { ...pLoc, bo_qua: ds.length }, p_gioi_han: 300 });
     setDangThem(false);
     if (error) { baoToast('Chưa tải thêm được: ' + error.message); return; }
-    setKq((k) => ({ ...k, ds: [...(k?.ds || []), ...(data?.ds || [])] }));
+    setKq((k) => {
+      const moi = { ...k, ds: [...(k?.ds || []), ...(data?.ds || [])] };
+      const c = boNho.get(khoa);
+      if (c) boNho.set(khoa, { ...c, data: moi });
+      return moi;
+    });
   };
   return (
     <div className="odn-bang-khung">
@@ -674,9 +719,9 @@ function DsDon({ pLoc, tenNb }) {
 }
 
 /* ================= Gán ID người bán ↔ cửa hàng ================= */
-function GanNguoiBan({ xong }) {
+function GanNguoiBan({ xong, phienBan, apiXong }) {
   const { user, baoToast } = useApp();
-  const [kq, setKq] = useState(null);
+  const [kq, setKq] = useState(() => boNho.get('nb')?.data || null);   // NEW - 3.148: nhớ trong phiên
   const [loc, setLoc] = useState('chua');
   const [tim, setTim] = useState('');
   const [luu, setLuu] = useState('');
@@ -685,19 +730,30 @@ function GanNguoiBan({ xong }) {
   const danhDau = (h) => setVuaSua((x) => new Set(x).add(h));
   // chọn cửa hàng: loại Kênh công ty / Nhà sáng tạo ngoài / Khác thì giữ nguyên; Cửa hàng / Đội sale (hoặc chưa có) thì tự theo mã cửa hàng
   const giuLoai = (r, ma) => (['KENH', 'KOL', 'KHAC'].includes(r.loai) ? r.loai : ma ? null : r.loai);
-  const tai = useCallback(async () => {
+  const tai = useCallback(async (pb) => {
     const { data, error } = await sb.rpc('fn_tt_nb_ds', { p_token: user.token });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
+    boNho.set('nb', { data, pb });
     setKq(data);
   }, [user.token, baoToast]);
-  useEffect(() => { tai(); }, [tai]);
+  useEffect(() => {
+    const c = boNho.get('nb');
+    if (!apiXong || (c && c.pb === phienBan)) return;
+    tai(phienBan);
+  }, [apiXong, phienBan, tai]);
   const chOpt = useMemo(() => [{ value: '', label: '— Không gắn cửa hàng —' },
     ...(kq?.ch || []).map((c) => ({ value: c.ma, label: c.ten, sub: c.ma + (c.kv ? ' · ' + c.kv : '') }))], [kq]);
   // NEW - 3.146: lưu xong cập nhật ngay dòng đó (không tải lại cả danh sách); báo cáo chung làm mới sau 2 giây
   const henLamMoi = useRef(null);
   const lamMoiBaoCao = () => { clearTimeout(henLamMoi.current); henLamMoi.current = setTimeout(() => xong(), 2000); };
   useEffect(() => () => clearTimeout(henLamMoi.current), []);
-  const suaDong = (h, moi) => setKq((k) => (k ? { ...k, nb: k.nb.map((x) => (x.handle === h ? { ...x, ...moi } : x)) } : k));
+  const suaDong = (h, moi) => setKq((k) => {
+    if (!k) return k;
+    const kq2 = { ...k, nb: k.nb.map((x) => (x.handle === h ? { ...x, ...moi } : x)) };
+    const c = boNho.get('nb');
+    if (c) boNho.set('nb', { ...c, data: kq2 });
+    return kq2;
+  });
   const gan = async (r, ma, loai) => {
     setLuu(r.handle);
     const { data, error } = await sb.rpc('fn_tt_nb_gan', { p_token: user.token, p_handle: r.handle, p_ma_ch: ma || null, p_loai: loai || null, p_ghi_chu: null });
