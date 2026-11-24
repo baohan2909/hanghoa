@@ -1,12 +1,12 @@
-// NS FLOW — Edge Function: nhanh   (NEW - 3.153 Bán online · SQL 262/263)
+// NS FLOW — Edge Function: nhanh   (NEW - 3.153 Bán online · SQL 262/263/264)
 // Nhanh.vn Open API v3 (https://apidocs.nhanh.vn/v3) — lấy TOÀN BỘ đơn online (TikTok, Shopee, Lazada, Facebook, Zalo OA, Website, Admin…)
 //
-//   GET  ?accessCode=...        → Nhanh chuyển về sau khi anh bấm "Cho phép" → đổi accessToken (hạn 1 năm) → lưu nh_api → về app
+//   GET  ?accessCode=&verifyCode= → Nhanh chuyển về sau khi anh bấm "Cho phép" → đổi accessToken (hạn 1 năm) → lưu nh_api → về app
 //   POST {viec:'tu_dong'}       → (lịch 5 phút/lần qua fn_tq_lam_moi) 1) đơn mới/đơn đổi trạng thái theo updatedAt
 //                                  2) kéo bù lịch sử theo ngày tạo, từ ds_tu (01/10/2026) tới hôm nay — dở trang thì cất con trỏ
 //   POST {viec:'keo_ngay', ngay:['2026-11-03', …]} → kéo lại đúng các ngày chọn (nút trong app)
 //   POST {viec:'dia_diem'}      → danh sách tỉnh/thành (id → tên)
-//   POST {viec:'thu', duong_dan, body} → gọi thử 1 API, trả NGUYÊN VĂN phản hồi (để đối chiếu tên trường)
+//   POST {viec:'thu', duong_dan, body} → gọi thử 1 API đọc, trả NGUYÊN VĂN phản hồi (để đối chiếu tên trường)
 //   POST bắt buộc header x-nh-khoa = nh_api.khoa_noi_bo (SQL tự gửi qua pg_net).
 // Mọi đơn lưu kèm JSON gốc (nh_don.raw) → phân tích lại bằng SQL được, không phải kéo lại.
 
@@ -140,14 +140,18 @@ Deno.serve(async (req) => {
   // ===== 1) Ủy quyền: Nhanh chuyển hướng về đây kèm ?accessCode =====
   if (req.method === 'GET') {
     const code = url.searchParams.get('accessCode') || '';
+    const xm = url.searchParams.get('verifyCode') || '';
     if (!code) return veApp(false, { ly_do: 'Thiếu accessCode — bấm "Kết nối Nhanh.vn" trong app để bắt đầu' });
     try {
       const cfg = await rpc('fn_nh_cfg_sv', {});
       if (!cfg?.app_id) return veApp(false, { ly_do: 'Chưa lưu App ID trong app' });
       if (!cfg?.secret_key) return veApp(false, { ly_do: 'Chưa lưu Secret Key trong app' });
+      // verifyCode phải đúng mã app đã gửi đi (chống mã ủy quyền lạ)
+      if (!xm || xm !== cfg.ma_xac_minh) return veApp(false, { ly_do: 'Mã xác minh không khớp — bấm lại "Kết nối Nhanh.vn" trong app' });
+      // v3: secretKey đặt ở header Authorization; body gồm accessCode + verifyCode
       const r = await fetch(`${POS}/v3.0/app/getaccesstoken?appId=${encodeURIComponent(cfg.app_id)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessCode: code, secretKey: cfg.secret_key }) });
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: cfg.secret_key },
+        body: JSON.stringify({ accessCode: code, verifyCode: xm }) });
       const j: J = await r.json().catch(() => ({}));
       const d: J = j?.data && typeof j.data === 'object' ? j.data : j;
       if (j?.code !== 1 || !d?.accessToken) return veApp(false, { ly_do: 'Nhanh từ chối: ' + loiNhanh(j) });
