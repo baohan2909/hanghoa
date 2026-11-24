@@ -7,6 +7,7 @@
 //   POST {viec:'lien_ket'}    → NEW - 3.142: API liên kết — ID người bán từng đơn; bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'tra_hang'}    → NEW - 3.143: trả hàng / hoàn tiền (returns/search); bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'doi_soat'}    → NEW - 3.143: đối soát từng ngày với TikTok (đơn, đơn liên kết, trả hàng) + tự kéo bù — lịch 3 giờ/lần
+//   POST {viec:'ai_report'}   → NEW - 3.144: báo cáo phân tích cấp từng đơn — ID người bán mọi tài khoản (chính thức, marketing, nhà sáng tạo) — lịch 20 phút/lần
 //   POST {viec:'san_pham'}    → NEW - 3.141: đồng bộ sản phẩm + ngành (loại hàng); bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'thu', duong_dan, tham_so, method, body}  → gọi thử 1 API, trả NGUYÊN VĂN phản hồi (để đối chiếu tên trường)
 //   POST bắt buộc header x-tt-khoa = tt_api.khoa_noi_bo (SQL tự gửi qua pg_net).
@@ -328,6 +329,64 @@ async function doiSoat(cfg: J) {
   return kq;
 }
 
+// ---- NEW - 3.144: BÁO CÁO PHÂN TÍCH CẤP TỪNG ĐƠN (AI Report 202611, nhóm trd_skuord) ----
+//   Mỗi dòng mã đơn + SKU: loại tài khoản (chính thức / marketing / nhà sáng tạo), loại nội dung (LIVE / video / thẻ sản phẩm),
+//   ghi nhận trực tiếp / gián tiếp, mã video, mã phiên LIVE, creator_open_id → ID người bán cho MỌI đơn như Seller Center.
+//   Lần đầu lùi 'lui_ngay' ngày (mỗi ngày 1 lượt truy vấn, dở trang thì cất token), sau đó luôn làm lại 3 ngày gần nhất.
+const AR_THAN = (ngay: string) => ({
+  start_date: ngay, end_date: ngay, time_granularity: 'DAY',
+  group_dimensions: ['account_type', 'content_type', 'main_order_id', 'product_id', 'sku_id'],
+  metric_codes: ['pay_sku_order_cnt', 'pay_amt'],
+  detail_fields: ['author_id', 'item_id', 'room_id', 'attributed_type', 'order_source'],
+  filters: [], sort_rules: [],
+});
+async function keoAiReport(cfg: J) {
+  const batDau = Date.now();
+  const HET = 120_000;
+  const conGio = () => HET - (Date.now() - batDau);
+  if (!cfg.app_secret) throw new Error('THIEU_APP_SECRET');
+  const token = await damBaoToken(cfg);
+  if (!cfg.shop_cipher) await layShop(cfg, token);
+  const homNay = ngayVN(new Date());
+  const ganNhat = congNgay(homNay, -2);
+  const moc = cfg.ar_moc ? String(cfg.ar_moc).slice(0, 10) : '';
+  const ngays: string[] = [];
+  for (let d = moc ? congNgay(moc, 1) : congNgay(homNay, -(Number(cfg.lui_ngay) || 30)); d < ganNhat; d = congNgay(d, 1)) ngays.push(d);
+  ngays.push(ganNhat, congNgay(homNay, -1), homNay);
+  const kq: J = { ngay: [] as string[], trang: 0, dong: 0, gan: 0 };
+  let dung = false;
+  for (const ngay of ngays) {
+    let pt = (cfg.ar_ngay && String(cfg.ar_ngay).slice(0, 10) === ngay && cfg.ar_token) ? String(cfg.ar_token) : '';
+    let xongNgay = false;
+    while (true) {
+      if (conGio() < 12_000) { await rpc('fn_tt_ar_nap', { p: { ngay, token: pt } }); dung = true; break; }
+      const ts: Record<string, string> = { shop_cipher: cfg.shop_cipher, page_size: '100' };
+      if (pt) ts.page_token = pt;
+      const j = await goiTikTok(cfg, token, '/analytics/202611/ai_report/data/query', ts, 'POST', AR_THAN(ngay));
+      if (j?.code !== 0) {
+        kq.loi = `${ngay} ${j?.code}: ${j?.message || ''}`.slice(0, 300);
+        await rpc('fn_tt_ar_nap', { p: { ngay, token: '' } });   // token hỏng → lượt sau làm lại ngày này từ đầu
+        dung = true; break;
+      }
+      const rows: J[] = j?.data?.rows || [];
+      pt = j?.data?.next_page_token || '';
+      kq.trang++;
+      const r = await rpc('fn_tt_ar_nap', { p: { ds: rows, ngay, token: pt } });
+      kq.dong += r?.dong || 0; kq.gan += r?.gan || 0;
+      if (!pt || !rows.length) { xongNgay = true; break; }
+    }
+    if (dung) break;
+    if (xongNgay) {
+      kq.ngay.push(ngay);
+      if (ngay < ganNhat) await rpc('fn_tt_ar_nap', { p: { moc: ngay } });
+    }
+  }
+  if (!dung && kq.ngay.length) await rpc('fn_tt_ar_nap', { p: { moc: congNgay(ganNhat, -1) } });
+  Object.assign(kq, { giay: Math.round((Date.now() - batDau) / 1000), luc: new Date().toISOString() });
+  await rpc('fn_tt_ar_nap', { p: { xong: true, kq } });
+  return kq;
+}
+
 // ---- NEW - 3.141: loại hàng (ngành sản phẩm) — chạy ké sau mỗi lượt kéo đơn, dùng phần thời gian còn lại ----
 //   1) liệt kê sản phẩm + SKU (lần đầu toàn bộ, sau đó chỉ sản phẩm sửa từ mốc sp_moc; dở trang thì lượt sau đi tiếp)
 //   2) lấy ngành lá cho sản phẩm chưa có (ưu tiên sản phẩm đang có đơn thiếu loại hàng), 5 lệnh song song
@@ -535,6 +594,7 @@ Deno.serve(async (req) => {
     if (body.viec === 'lien_ket') return json(await keoLienKet(cfg, Date.now()));
     if (body.viec === 'tra_hang') return json(await keoTraHang(cfg, Date.now()));
     if (body.viec === 'doi_soat') return json(await doiSoat(cfg));
+    if (body.viec === 'ai_report') return json(await keoAiReport(cfg));
     const batDau = Date.now();
     const kq: J = await keoDon(cfg);
     // NEW - 3.142: ID người bán từng đơn (API liên kết), rồi loại hàng — dùng thời gian còn lại; lỗi ở 2 bước này không làm hỏng lượt kéo đơn
@@ -548,6 +608,7 @@ Deno.serve(async (req) => {
     try {
       // thống kê lỗi vẫn ghi giờ chạy để lịch quay lại kéo đơn, không kẹt mãi ở bước thống kê
       if (body.viec === 'thong_ke') await rpc('fn_tt_api_tk', { p: { xong: true, loi } });
+      else if (body.viec === 'ai_report') await rpc('fn_tt_ar_nap', { p: { xong: true, kq: { loi, luc: new Date().toISOString() } } });
       else if (body.viec === 'doi_soat') await rpc('fn_tt_doi_soat_nap', { p: { xong: true, kq: { loi, luc: new Date().toISOString() }, lui_phut: 150 } });
       else await rpc('fn_tt_api_ghi', { p: { xong: true, loi } });
     } catch { /* bỏ qua */ }
