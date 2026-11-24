@@ -23,6 +23,8 @@ const tien = (n) => {
   return Math.round(v).toLocaleString('vi');
 };
 const gioNgay = (s) => (s ? new Date(s).toLocaleString('vi', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '—');
+// hôm nay chỉ hiện giờ, ngày khác thì kèm ngày (NEW - 3.154.2)
+const gioGon = (s) => { if (!s) return '—'; const d = new Date(s); return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : gioNgay(s); };
 const ngayVN = (s) => (s ? String(s).slice(8, 10) + '/' + String(s).slice(5, 7) + '/' + String(s).slice(0, 4) : '—');
 const truNgay = (n, tu = new Date()) => { const d = new Date(tu); d.setDate(d.getDate() - n); return isoVN(d); };
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
@@ -288,25 +290,26 @@ export default function TikTokShop() {
       </div>
       <div className="odn tts">
         {/* Nguồn dữ liệu */}
+        {/* NEW - 3.154.2: thanh trạng thái gọn — 1 chip "Cập nhật", chỉ báo thêm khi có việc cần để ý; chi tiết rê chuột vào chip */}
         <div className="odn-dong-bo">
-          <span className="odn-db-i"><IcClock /> Dữ liệu có từ <b>{kho?.tu ? ngayVN(kho.tu) : '—'}</b> đến <b>{kho?.den ? ngayVN(kho.den) : '—'}</b>
-            <em>· {fmt(kho?.tong_don || 0)} đơn{napCuoi ? ` · lần nạp cuối ${gioNgay(napCuoi.luc)} (${napCuoi.nguon === 'api' ? 'API' : 'Excel'})` : ''}</em></span>
+          <span className="odn-db-i"><IcClock /> Dữ liệu <b>{kho?.tu ? ngayVN(kho.tu) : '—'}</b> – <b>{kho?.den ? ngayVN(kho.den) : '—'}</b>
+            <em>· {fmt(kho?.tong_don || 0)} đơn</em></span>
           <span className="odn-api">
             {api?.ket_noi
-              ? <i className="ok" title={api.keo_luc ? 'Lần lấy cuối ' + gioNgay(api.keo_luc) : ''}>API đã kết nối{api.shop_ten ? ' · ' + api.shop_ten : ''}{api.keo_luc ? ' · lấy lúc ' + gioNgay(api.keo_luc) : ''}</i>
-              : <i className="cho">API chưa kết nối — đang dùng file Excel</i>}
-            {api?.dang_keo && <i className="ok">Đang lấy đơn…</i>}
-            {/* NEW - 3.145: lệch mà hệ thống đang tự kéo bù → vàng; chỉ báo đỏ khi kéo bù 3 lần vẫn chưa khớp */}
+              ? <i className="ok" title={[api.shop_ten ? 'API đã kết nối · ' + api.shop_ten : 'API đã kết nối',
+                  api.keo_luc ? 'Lấy đơn lúc ' + gioNgay(api.keo_luc) + ' (5 phút/lần)' : '',
+                  api.ds_luc ? `Đối soát: ${soLech(api) ? 'đang kéo bù ' + soLech(api) + ' ngày' : 'khớp ' + (api.doi_soat || []).length + ' ngày'}` : '',
+                  (api.ar_kq?.luc || api.lk_kq?.luc) ? 'ID người bán từng đơn lúc ' + gioNgay(api.ar_kq?.luc || api.lk_kq.luc) : '',
+                  api.tk_luc ? 'Thống kê LIVE / video lúc ' + gioNgay(api.tk_luc) : '',
+                  napCuoi ? `Lần nạp cuối ${gioNgay(napCuoi.luc)} (${napCuoi.nguon === 'api' ? 'API' : 'Excel'})` : ''].filter(Boolean).join('\n')}>
+                  {api.dang_keo ? 'Đang lấy đơn…' : 'Cập nhật ' + gioGon(api.keo_luc)}</i>
+              : <i className="cho">Chưa nối API — đang dùng file Excel</i>}
             {api?.ds_luc && (soKet(api) > 0
-              ? <i className="do" title="Có ngày đã tự kéo bù 3 lần vẫn chưa khớp TikTok — xem thẻ Đối soát">Đối soát: lệch {fmt(soKet(api))} ngày</i>
-              : soLech(api) > 0
-                ? <i className="lech" title="Có ngày app còn ít đơn hơn TikTok — hệ thống đang tự kéo bù, 15 phút kiểm lại một lần">Đang kéo bù {fmt(soLech(api))} ngày</i>
-                : <i className="ok" title="Số đơn, đơn liên kết, trả hàng từng ngày khớp TikTok — tự đối soát 3 giờ/lần">Đối soát khớp {fmt((api.doi_soat || []).length)} ngày</i>)}
-            {(api?.ar_kq?.luc || api?.lk_kq?.luc) && <i className="ok" title="ID người bán theo từng mã đơn (báo cáo phân tích TikTok 20 phút/lần + API liên kết 5 phút/lần)">ID từng đơn lúc {gioNgay(api.ar_kq?.luc || api.lk_kq.luc)}</i>}
-            {api?.tk_luc && <i className="ok" title="Phiên LIVE + video có ID người bán (TikTok thống kê), chạy mỗi 60 phút">Thống kê LIVE/video lúc {gioNgay(api.tk_luc)}</i>}
-            {api?.loi && <i className="do" title={api.loi}>Lỗi API: {String(api.loi).slice(0, 60)}</i>}
+              ? <i className="do" title="Có ngày đã tự kéo bù 3 lần vẫn chưa khớp TikTok — xem thẻ Đối soát">Lệch {fmt(soKet(api))} ngày</i>
+              : soLech(api) > 0 ? <i className="lech" title="Có ngày app còn ít đơn hơn TikTok — hệ thống đang tự kéo bù, 15 phút kiểm lại một lần">Đang kéo bù {fmt(soLech(api))} ngày</i> : null)}
+            {api?.loi && <i className="do" title={api.loi}>Lỗi API</i>}
           </span>
-          {api?.ket_noi && <button className="odn-nut-phu" onClick={keoNgay} disabled={api?.dang_keo}><IcRefresh /> Lấy ngay từ TikTok</button>}
+          {api?.ket_noi && <button className="odn-nut-phu odn-nut-icon" onClick={keoNgay} disabled={api?.dang_keo} title="Lấy ngay từ TikTok" aria-label="Lấy ngay từ TikTok"><IcRefresh /></button>}
           <NutXuat sanSang={!!bc && !dang} taoBaoCao={taoBaoCao} taoDuLieu={taoDuLieu} ghiChu="Theo đúng khoảng ngày + bộ lọc đang xem" />
           <button className="btn btn-ai odn-nut-chinh" onClick={() => setNap(true)}><IcGuiLen /> Nạp file Excel</button>
         </div>

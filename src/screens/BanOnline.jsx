@@ -13,6 +13,7 @@ import NutXuat from '../lib/bao-cao/NutXuat.jsx';   // NEW - 3.154
 // NEW - 3.154: hằng số + định dạng dùng chung với file xuất (lib/bao-cao/hangSo.js)
 import { fmt, tien, pct, pctTxt, ngayVN, tyLe, THU_TU_KENH, kenhTen, kenhMau, NHOM_KENH, TTN, NGANH, CS, LY_DO } from '../lib/bao-cao/hangSo.js';
 const gioNgay = (s) => (s ? new Date(s).toLocaleString('vi', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '—');
+const gioGon = (s) => { if (!s) return '—'; const d = new Date(s); return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : gioNgay(s); };
 const truNgay = (n, tu = new Date()) => { const d = new Date(tu); d.setDate(d.getDate() - n); return isoVN(d); };
 
 const NHANH = [
@@ -216,13 +217,13 @@ export default function BanOnline() {
       </div>
       <div className="odn tts bo">
         <div className="odn-dong-bo">
-          <span className="odn-db-i"><IcClock /> Dữ liệu từ <b>{api?.tong?.tu ? ngayVN(api.tong.tu) : '—'}</b> đến <b>{api?.tong?.den ? ngayVN(api.tong.den) : '—'}</b>
+          <span className="odn-db-i"><IcClock /> Dữ liệu <b>{api?.tong?.tu ? ngayVN(api.tong.tu) : '—'}</b> – <b>{api?.tong?.den ? ngayVN(api.tong.den) : '—'}</b>
             <em>· {fmt(api?.tong?.don || 0)} đơn</em></span>
           <span className="odn-api">
             {api?.ket_noi
-              ? <i className="ok">Cập nhật {api.keo_luc ? gioNgay(api.keo_luc) : '—'}</i>
+              ? <i className="ok" title={'Nhanh.vn đã kết nối · tự cập nhật 5 phút/lần' + (api.keo_luc ? '\nLấy đơn lúc ' + gioNgay(api.keo_luc) : '')}>{api.dang_keo ? 'Đang lấy đơn…' : 'Cập nhật ' + gioGon(api.keo_luc)}</i>
               : <i className="cho">Chưa kết nối Nhanh.vn</i>}
-            {api?.ket_noi && !api.bf_xong && <i className="lech">Đang lấy đơn cũ — tới {ngayVN(api.bf_ngay || api.ds_tu)}</i>}
+            {api?.ket_noi && !api.bf_xong && <i className="lech">Đang lấy đơn cũ tới {ngayVN(api.bf_ngay || api.ds_tu).slice(0, 5)}</i>}
             {api?.loi && <i className="do" title={api.loi}>Lỗi kết nối</i>}
           </span>
           {!api?.ket_noi && <button className="odn-nut-phu" onClick={() => setThe('kn')}>Kết nối Nhanh.vn</button>}
