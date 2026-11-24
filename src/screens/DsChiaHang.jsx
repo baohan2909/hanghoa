@@ -1012,7 +1012,7 @@ function HopVuot({ ds, tenDoi, onXong }) {
       <div className="gc-hop vuot-hop" role="alertdialog" aria-label="Cảnh báo chia vượt tồn kho">
         <div className="gc-dau vuot-dau">
           <div><b><IcAlert /> Chia vượt tồn kho sale · {ds.length} mã</b>
-            <small>{tenDoi}: chia nhiều hơn tồn trên app {fmtN(tong)} cái. Nếu hàng đã về kho nhưng phiếu nhập chưa xác nhận trên Odoo thì vẫn đẩy được.</small></div>
+            <small>{tenDoi} · chia hơn tồn trên app {fmtN(tong)} cái. Chỉ đẩy khi hàng đã về kho mà phiếu nhập chưa xác nhận trên Odoo.</small></div>
           <button className="kt-dong" onClick={() => onXong(false)}>×</button>
         </div>
         <div className="vuot-bang">
@@ -1023,7 +1023,7 @@ function HopVuot({ ds, tenDoi, onXong }) {
                 <td className="so">{x.kd ? fmtN(x.kd) : '0'}</td><td className="so vuot-so">+{fmtN(x.vuot)}</td></tr>))}</tbody>
           </table>
         </div>
-        <div className="gc-phu vuot-ghi">Phiếu vẫn ghi xuất từ kho sale (phần vượt vào kho chính của mã). Kho cần xác nhận phiếu nhập trên Odoo trước khi xuất hàng cho đội.</div>
+        <div className="gc-phu vuot-ghi">Phiếu xuất từ kho sale như bình thường. Kho nhớ xác nhận phiếu nhập trên Odoo trước, rồi mới xuất hàng cho đội.</div>
         <div className="gc-chan">
           <button className="btn btn-ghost" onClick={() => onXong(false)} autoFocus>Quay lại sửa</button>
           <button className="btn vuot-nut" onClick={() => onXong(true)}>Vẫn đẩy {ds.length} mã vượt</button>
