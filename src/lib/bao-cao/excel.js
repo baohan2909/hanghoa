@@ -1,6 +1,6 @@
 // NEW - 3.154: XUẤT DỮ LIỆU EXCEL — nhiều sheet, mỗi sheet: dòng tiêu đề + ghi chú bộ lọc, hàng tên cột có bộ lọc (autofilter),
 // độ rộng cột hợp lý, số để dạng số thật (cộng / lọc / pivot được), tiền có dấu phân cách nghìn.
-// sheet = { ten, tieuDe?, ghiChu?, cot:[{ ten, k | f(row), w, kieu:'so'|'tien'|'pt'|'chu'|'ngay' }], dong:[...] }
+// sheet = { ten, tieuDe?, ghiChu?, cot:[{ ten, k | f(row), w, kieu:'so'|'tien'|'pt'|'chu'|'ngay' }], dong:[...], tong?: hàng tổng (nằm dưới, ngoài vùng lọc) }
 
 const DANG = { so: '#,##0', tien: '#,##0', pt: '0.0%', thap: '#,##0.0' };
 
@@ -15,14 +15,15 @@ export async function excelBlob(sheets) {
     if (aoa.length) aoa.push([]);
     const hDau = aoa.length;
     aoa.push(sh.cot.map((c) => c.ten));
-    for (const r of sh.dong) {
-      aoa.push(sh.cot.map((c, i) => {
-        let v = c.f ? c.f(r) : Array.isArray(r) ? r[c.k ?? i] : r[c.k];
-        if (v === undefined || v === '') v = null;
-        if (v != null && (c.kieu === 'so' || c.kieu === 'tien' || c.kieu === 'thap' || c.kieu === 'pt')) { const n = Number(v); v = Number.isFinite(n) ? n : v; }
-        return v;
-      }));
-    }
+    const hang = (r) => sh.cot.map((c, i) => {
+      let v = c.f ? c.f(r) : Array.isArray(r) ? r[c.k ?? i] : r[c.k];
+      if (v === undefined || v === '') v = null;
+      if (v != null && (c.kieu === 'so' || c.kieu === 'tien' || c.kieu === 'thap' || c.kieu === 'pt')) { const n = Number(v); v = Number.isFinite(n) ? n : v; }
+      return v;
+    });
+    for (const r of sh.dong) aoa.push(hang(r));
+    const cuoiLoc = aoa.length - 1;
+    if (sh.tong) aoa.push(hang(sh.tong));   // NEW - 3.156: hàng tổng ngay dưới dữ liệu, không nằm trong vùng lọc
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = sh.cot.map((c) => ({ wch: c.w || 12 }));
     sh.cot.forEach((c, j) => {
@@ -33,7 +34,7 @@ export async function excelBlob(sheets) {
         if (o && o.t === 'n') o.z = z;
       }
     });
-    if (sh.dong.length) ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: hDau, c: 0 }, e: { r: aoa.length - 1, c: sh.cot.length - 1 } }) };
+    if (sh.dong.length) ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: hDau, c: 0 }, e: { r: cuoiLoc, c: sh.cot.length - 1 } }) };
     let ten = String(sh.ten).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Sheet';
     while (daDung.has(ten)) ten = ten.slice(0, 28) + ' ' + (daDung.size + 1);
     daDung.add(ten);

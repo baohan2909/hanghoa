@@ -6,8 +6,6 @@ const W_TIEN = 64;
 const cat = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s || '');
 const soNgay = (tu, den) => Math.round((new Date(den + 'T00:00:00') - new Date(tu + 'T00:00:00')) / 864e5) + 1;
 const tenNb = (bc, h) => (h ? (bc.ten_nb?.[h] || '@' + h) : 'Không qua người bán');
-const NHOM_LOAI = { KENH: 'Kênh công ty', DOISALE: 'Đội sale', KOL: 'Nhà sáng tạo ngoài', KHAC: 'Khác', CH: 'Cửa hàng — chưa chọn' };
-const nhomCh = (r) => (r.nb === '' ? 'Thẻ sản phẩm' : r.ten_ch || (r.loai && NHOM_LOAI[r.loai]) || 'Chưa gán');
 const KTH = ['live', 'video', 'the', 'khac'];
 
 // gộp người bán từ 3 nguồn (đơn + thống kê LIVE + thống kê video) — giống bảng Người bán trên màn hình
@@ -20,9 +18,49 @@ function dsNguoiBan(bc) {
   for (const r of m.values()) {
     const tt = bc.nb_tt?.[r.nb];
     if (tt) { r.loai = r.loai || tt.loai; r.ma_ch = r.ma_ch || tt.ma_ch; r.ten_ch = r.ten_ch || tt.ten_ch; }
-    r.nhom = nhomCh(r); r.ten = tenNb(bc, r.nb);
+    r.ten = tenNb(bc, r.nb);
   }
   return [...m.values()].sort((a, b) => (b.dt || 0) - (a.dt || 0) || (b.lv_dt || 0) - (a.lv_dt || 0));
+}
+
+// NEW - 3.156: chia người bán thành 3 nhóm — mỗi ID thuộc ĐÚNG 1 nhóm, mỗi đơn tính cho 1 ID (SQL 269) → cộng 3 nhóm = tổng shop
+const NHOM_LON = { cty: 'Công ty', ch: 'Cửa hàng', khac: 'Tài khoản khác' };
+const MAU_NHOM = { cty: MAU.tealDam, ch: MAU.teal, khac: MAU.vang };
+const NHOM_CON = { kenh: 'Kênh công ty', doi: 'Đội sale', the: 'Mua qua thẻ sản phẩm', ch: 'Cửa hàng', kol: 'Nhà sáng tạo ngoài', ch_chua: 'ID cửa hàng chưa chọn cửa hàng', khac: 'Khác', chua: 'Chưa phân loại' };
+const THU_TU_CON = ['kenh', 'doi', 'the', 'ch', 'kol', 'ch_chua', 'khac', 'chua'];
+const tenDoi = (ma) => { const m = /^DOISALE0*(\d+)$/i.exec(ma || ''); return m ? 'Đội Sale ' + m[1].padStart(2, '0') : ''; };
+function phanNhom(r) {
+  const ma = r.ma_ch || '';
+  if (r.nb === '') return ['cty', 'the'];
+  if (r.loai === 'KENH') return ['cty', 'kenh'];
+  if (r.loai === 'DOISALE' || /^DOISALE/i.test(ma)) return ['cty', 'doi'];
+  if (ma && (r.loai === 'CH' || !r.loai)) return ['ch', 'ch'];
+  if (r.loai === 'KOL') return ['khac', 'kol'];
+  if (r.loai === 'CH') return ['khac', 'ch_chua'];
+  if (r.loai === 'KHAC') return ['khac', 'khac'];
+  return ['khac', 'chua'];
+}
+const TRUONG = ['don', 'huy', 'sl', 'dt', 'lv_phien', 'lv_dt', 'vd_so', 'vd_dt'];
+const cong = (ds) => Object.fromEntries(TRUONG.map((f) => [f, ds.reduce((s, r) => s + (Number(r[f]) || 0), 0)]));
+const coDon = (r) => (r.don || 0) > 0;
+function chiaNhom(bc, nb) {
+  for (const r of nb) { [r.nl, r.nc] = phanNhom(r); r.thuoc = r.nc === 'doi' ? tenDoi(r.ma_ch) || 'Đội sale' : r.nc === 'the' ? 'Shop' : NHOM_CON[r.nc]; }
+  const ds = nb.filter((r) => (r.don || 0) + (r.huy || 0) + (r.lv_phien || 0) + (r.vd_so || 0) > 0 || (r.dt || 0) > 0);
+  const chMa = new Map((bc.ch || []).map((c) => [c.ma_ch, c]));
+  const m = new Map();
+  for (const r of ds.filter((x) => x.nl === 'ch')) {
+    if (!m.has(r.ma_ch)) { const c = chMa.get(r.ma_ch) || {}; m.set(r.ma_ch, { ma_ch: r.ma_ch, ten: c.ten || r.ten_ch || r.ma_ch, kv: c.kv || '', ids: [] }); }
+    m.get(r.ma_ch).ids.push(r);
+  }
+  const cuaHang = [...m.values()].map((c) => ({ ...c, ...cong(c.ids), so_id: c.ids.filter(coDon).length || c.ids.length }))
+    .sort((a, b) => b.dt - a.dt || b.don - a.don);
+  const nhom = {};
+  for (const k of Object.keys(NHOM_LON)) {
+    const ids = ds.filter((r) => r.nl === k).sort((a, b) => (b.dt || 0) - (a.dt || 0) || (b.lv_dt || 0) - (a.lv_dt || 0));
+    const con = THU_TU_CON.map((c) => { const z = ids.filter((r) => r.nc === c); return z.length ? { k: c, ten: NHOM_CON[c], ...cong(z), so_id: z.filter((r) => r.nb && coDon(r)).length } : null; }).filter(Boolean);
+    nhom[k] = { k, ten: NHOM_LON[k], ids, con, ...cong(ids), so_id: ids.filter((r) => r.nb && coDon(r)).length };
+  }
+  return { nhom, cuaHang, tong: { ...cong(ds), so_id: ds.filter((r) => r.nb && coDon(r)).length } };
 }
 
 function cotTheo(bc) {
@@ -47,20 +85,22 @@ function cotTheo(bc) {
   return { cot, kieu: 'tuần' };
 }
 
-function cauNhanXet(bc, nb) {
+function cauNhanXet(bc, nb, cn) {
   const t = bc.tong || {};
   const c = [];
   const tongDon = (t.don || 0) + (t.don_huy || 0);
   c.push(`Doanh thu shop ${tien(t.dt)} từ ${so(t.don)} đơn hợp lệ, ${so(t.sl)} sản phẩm` + (t.don ? ` — trung bình ${tien(t.dt / t.don)} / đơn.` : '.') + (t.khach_tra ? ` Khách trả ${tien(t.khach_tra)}, sàn hỗ trợ ${tien(t.san_ho_tro)}.` : ''));
   const kenh = bc.kenh || []; const tongSl = kenh.reduce((s, x) => s + (x.sl || 0), 0);
   if (tongSl > 0) c.push('Theo kênh (số sản phẩm): ' + KTH.map((k) => kenh.find((x) => x.k === k)).filter((x) => x && x.sl > 0).map((x) => `${(TT_KENH[x.k] || TT_KENH.khac)[0]} ${tyTrong(x.sl, tongSl)}`).join(', ') + '.');
-  const coDon = nb.filter((r) => r.nb && r.dt > 0);
-  if (coDon.length) {
-    const top5 = coDon.slice(0, 5).reduce((s, r) => s + r.dt, 0);
-    c.push(`Người bán dẫn đầu ${coDon[0].ten}${coDon[0].ten_ch ? ' (' + coDon[0].ten_ch + ')' : ''}: ${tien(coDon[0].dt)}, ${so(coDon[0].don)} đơn; 5 ID đầu chiếm ${tyTrong(top5, t.dt)} doanh thu trên ${so(coDon.length)} ID có đơn.`);
+  // NEW - 3.156: theo 3 nhóm người bán
+  const g = cn.nhom;
+  if (cn.tong.dt > 0) c.push('Theo nhóm người bán: ' + ['cty', 'ch', 'khac'].map((k) => `${g[k].ten} ${tien(g[k].dt)} (${tyTrong(g[k].dt, cn.tong.dt)})`).join(', ') + '.');
+  const ch = cn.cuaHang;
+  if (ch[0]?.dt > 0) {
+    const top5 = ch.slice(0, 5).reduce((a, x) => a + x.dt, 0);
+    c.push(`Cửa hàng dẫn đầu ${ch[0].ten}: ${tien(ch[0].dt)}, ${so(ch[0].don)} đơn; 5 cửa hàng đầu chiếm ${tyTrong(top5, g.ch.dt)} doanh thu nhóm Cửa hàng (${so(ch.filter(coDon).length)} cửa hàng có đơn).`);
   }
-  const ch = [...(bc.ch || [])].sort((a, b) => b.dt - a.dt);
-  if (ch[0]?.dt > 0) c.push(`Cửa hàng dẫn đầu ${ch[0].ten || ch[0].ma_ch}: ${tien(ch[0].dt)} (${so(ch[0].don)} đơn, ${so(ch[0].so_nb)} ID).`);
+
   const ngay = (bc.theo || []).filter((x) => /^\d{4}-/.test(x.k)).sort((a, b) => b.dt - a.dt);
   if (ngay.length > 1) c.push(`Ngày cao nhất ${ngayVN(ngay[0].k)}: ${tien(ngay[0].dt)}, ${so(ngay[0].sl)} sản phẩm; trung bình ${tien(t.dt / soNgay(bc.tu, bc.den))} / ngày.`);
   const sp = [...(bc.sp || [])].sort((a, b) => b.sl - a.sl);
@@ -75,9 +115,11 @@ function cauNhanXet(bc, nb) {
     const ai = huy.reduce((s, x) => ({ kh: s.kh + (x.kh || 0), ht: s.ht + (x.ht || 0), shop: s.shop + (x.shop || 0) }), { kh: 0, ht: 0, shop: 0 });
     c.push(`Huỷ ${so(t.don_huy)} đơn — ${tyTrong(t.don_huy, tongDon)} tổng đơn (khách ${so(ai.kh)}, hệ thống ${so(ai.ht)}, shop ${so(ai.shop)})` + (huy[0] ? `; lý do nhiều nhất: ${huy[0].k}.` : '.'));
   }
+  const tinh = (bc.tinh || []).filter((x) => x.k && x.don > 0);
+  if (tinh.length) c.push(`Tỉnh nhiều đơn nhất ${tinh[0].k}: ${tyTrong(tinh[0].don, t.don)} đơn; 5 tỉnh đầu chiếm ${tyTrong(tinh.slice(0, 5).reduce((a, x) => a + x.don, 0), t.don)} đơn.`);
+  if (bc.chua_gan > 0) c.push(`Còn ${so(bc.chua_gan)} ID người bán chưa gán cửa hàng — gán ở thẻ "Gán cửa hàng" để số theo cửa hàng đủ.`);
   const live = bc.live_top || [];
   if (live.length) c.push(`${so(live.length)} phiên LIVE có đơn, TikTok thống kê ${tien(live.reduce((s, x) => s + (x.dt || 0), 0))} doanh số gộp; ${so((bc.video_top || []).length)} video có đơn.`);
-  if (bc.chua_gan > 0) c.push(`Còn ${so(bc.chua_gan)} ID người bán chưa gán cửa hàng — gán ở thẻ "Gán cửa hàng" để số theo cửa hàng đủ.`);
   return c;
 }
 
@@ -125,38 +167,68 @@ export function docTikTok(bc, meta = {}) {
     { ten: 'Shop', rong: 26, canh: 'right', f: (r) => so(r.shop) },
   ], huy, { rongTrong: 'Không có đơn huỷ' });
 
-  // ----- người bán -----
-  const nbTop = nb.filter((r) => (r.don || 0) + (r.lv_phien || 0) + (r.vd_so || 0) > 0).slice(0, 30);
-  const maxNb = Math.max(1, ...nbTop.map((r) => r.dt || 0));
-  const cong = (k) => nb.reduce((s, r) => s + (Number(r[k]) || 0), 0);
-  const bangNb = bang([
-    { ten: 'Cửa hàng / nhóm', rong: 84, f: (r) => ({ text: cat(r.nhom, 22), color: r.nhom === 'Chưa gán' ? MAU.do : MAU.ink }) },
-    { ten: 'Người bán', rong: '*', f: (r) => ({ stack: [{ text: cat(r.ten, 26), bold: true }, r.nb ? { text: '@' + cat(r.nb, 26) + (r.loai ? ' · ' + (TT_LOAI[r.loai] || r.loai) : ''), color: MAU.mo, fontSize: 6.2 } : { text: 'mua qua thẻ sản phẩm', color: MAU.mo, fontSize: 6.2 }] }) },
+  // ----- người bán theo 3 nhóm (NEW - 3.156) -----
+  const cn = chiaNhom(bc, nb);
+  const tongDt = cn.tong.dt;
+  const pt = (v) => tyTrong(v || 0, tongDt);
+  const hangNhom = [];
+  for (const k of ['cty', 'ch', 'khac']) {
+    const g = cn.nhom[k];
+    hangNhom.push({ ...g, cap: 0, phu: k === 'ch' ? `${so(cn.cuaHang.filter(coDon).length)} cửa hàng` : '' });
+    if (k !== 'ch') for (const c of g.con) if (c.don || c.huy || c.dt) hangNhom.push({ ...c, cap: 1, nl: k });
+  }
+  const bangNhom = bang([
+    { ten: 'Nhóm người bán', rong: '*', f: (r) => (r.cap ? { text: r.ten, color: MAU.ink2, margin: [12, 0, 0, 0] }
+      : { text: [{ text: '• ', color: MAU_NHOM[r.k], fontSize: 10 }, { text: r.ten, bold: true, fontSize: 8.2 }, r.phu ? { text: '   ' + r.phu, color: MAU.mo, fontSize: 6.6 } : ''] }) },
+    { ten: 'ID có đơn', rong: 36, canh: 'right', f: (r) => (r.k === 'the' ? '—' : { text: so(r.so_id), bold: !r.cap }) },
+    { ten: 'Đơn', rong: 40, canh: 'right', f: (r) => ({ text: so(r.don), bold: !r.cap }) },
+    { ten: 'SL', rong: 40, canh: 'right', f: (r) => ({ text: so(r.sl), bold: !r.cap }) },
+    { ten: 'Doanh thu', rong: 64, canh: 'right', f: (r) => ({ text: so(r.dt), bold: !r.cap }) },
+    { ten: 'Tỷ trọng', rong: 76, f: (r) => ({ columns: [{ width: 30, text: pt(r.dt), alignment: 'right', bold: !r.cap }, { width: 40, margin: [4, 1, 0, 0], ...thanhO(r.dt, tongDt, r.cap ? '#B9C7D3' : MAU_NHOM[r.k], 40) }] }) },
+    { ten: 'Huỷ', rong: 34, canh: 'right', f: (r) => (r.huy ? { text: so(r.huy), color: MAU.do } : '—') },
+  ], hangNhom, { coChu: 7.4, nenDong: (r) => (r.cap ? null : '#F6F8FA'),
+    tong: { cap: 0, ten: 'Tổng cộng', so_id: cn.tong.so_id, don: cn.tong.don, sl: cn.tong.sl, dt: cn.tong.dt, huy: cn.tong.huy, k: 'tong' } });
+  bangNhom.table.body[bangNhom.table.body.length - 1][0] = { text: 'Tổng cộng', bold: true };
+  bangNhom.table.body[bangNhom.table.body.length - 1][5] = { text: '100%', bold: true, alignment: 'right', margin: [0, 0, 44, 0] };
+
+  // bảng từng ID của 1 nhóm (Công ty / Tài khoản khác)
+  const tenId = (r) => (r.nb ? { stack: [{ text: cat(r.ten, 24), bold: true }, r.ten !== '@' + r.nb ? { text: '@' + cat(r.nb, 28), color: MAU.mo, fontSize: 6.2 } : ''] }
+    : { stack: [{ text: 'Mua qua thẻ sản phẩm', bold: true }, { text: 'khách mua thẳng trên shop, không qua ID', color: MAU.mo, fontSize: 6.2 }] });
+  const cotSo = (max, mau) => [
     { ten: 'Đơn', rong: 34, canh: 'right', f: (r) => so(r.don) },
     { ten: 'SL', rong: 34, canh: 'right', f: (r) => so(r.sl) },
-    { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => ({ stack: [{ text: so(r.dt), bold: true }, thanhO(r.dt || 0, maxNb, MAU.teal, 56)] }) },
-    { ten: 'Huỷ', rong: 26, canh: 'right', f: (r) => (r.huy ? { text: so(r.huy), color: MAU.do } : '—') },
-    { ten: 'LIVE · phiên', rong: 34, canh: 'right', f: (r) => (r.lv_phien ? so(r.lv_phien) : '—') },
-    { ten: 'LIVE · DS', rong: 52, canh: 'right', f: (r) => (r.lv_dt ? tien(r.lv_dt) : '—') },
-    { ten: 'Video · DS', rong: 44, canh: 'right', f: (r) => (r.vd_dt ? tien(r.vd_dt) : '—') },
-  ], nbTop, { coChu: 7.2, tong: { nhom: 'Tổng cộng', ten: `${so(nb.filter((r) => r.nb !== '').length)} người bán`, nb: '', don: t.don, sl: t.sl, dt: t.dt, huy: t.don_huy, lv_phien: cong('lv_phien'), lv_dt: cong('lv_dt'), vd_dt: cong('vd_dt') } });
-  bangNb.table.body[bangNb.table.body.length - 1][1] = { text: `${so(nb.filter((r) => r.nb !== '').length)} người bán`, bold: true };
-  bangNb.table.body[bangNb.table.body.length - 1][4] = { text: so(t.dt), bold: true, alignment: 'right' };
+    { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => (r.la_tong ? { text: so(r.dt), bold: true } : { stack: [{ text: so(r.dt), bold: true }, thanhO(r.dt || 0, max, mau, 56)] }) },
+    { ten: '% shop', rong: 32, canh: 'right', f: (r) => pt(r.dt) },
+    { ten: 'Huỷ', rong: 26, canh: 'right', f: (r) => (r.huy ? { text: so(r.huy), color: r.la_tong ? MAU.ink : MAU.do } : '—') },
+    { ten: 'LIVE · DS', rong: 50, canh: 'right', f: (r) => (r.lv_dt ? tien(r.lv_dt) : '—') },
+    { ten: 'Video · DS', rong: 46, canh: 'right', f: (r) => (r.vd_dt ? tien(r.vd_dt) : '—') },
+  ];
+  const conLai = (ds, n, ten) => (ds.length > n ? [{ ...cong(ds.slice(n)), la_con: true, ten: `${ten} ${so(ds.length - n)}` }] : []);
+  const bangId = (g, n = 30) => {
+    const ds = g.ids;
+    const max = Math.max(1, ...ds.map((r) => r.dt || 0));
+    const dong = [...ds.slice(0, n), ...conLai(ds, n, 'Còn lại')];
+    const b = bang([
+      { ten: 'Người bán', rong: '*', f: (r) => (r.la_con ? { text: r.ten + ' ID', italics: true, color: MAU.ink2 } : r.la_tong ? { text: r.ten, bold: true } : tenId(r)) },
+      { ten: 'Thuộc', rong: 72, f: (r) => (r.la_con || r.la_tong ? { text: '' } : { text: cat(r.thuoc, 22), color: MAU.ink2 }) },
+      ...cotSo(max, MAU_NHOM[g.k]),
+    ], dong, { coChu: 7.2, rongTrong: 'Không có người bán trong nhóm này', tong: ds.length ? { ...cong(ds), la_tong: true, ten: `Tổng ${g.ten}` } : null });
+    return b;
+  };
+  const bangCty = bangId(cn.nhom.cty);
+  const bangKhac = bangId(cn.nhom.khac);
 
-  // ----- cửa hàng -----
-  const ch = [...(bc.ch || [])].sort((a, b) => b.dt - a.dt);
+  // cửa hàng: cộng các ID gán cho cùng cửa hàng (mỗi ID chỉ ở 1 cửa hàng)
+  const ch = cn.cuaHang;
   const maxCh = Math.max(1, ...ch.map((x) => x.dt));
+  const N_CH = 40;
   const bangCh = bang([
-    { ten: '#', rong: 14, canh: 'right', f: (r) => ({ text: String(ch.indexOf(r) + 1), color: MAU.mo }) },
-    { ten: 'Cửa hàng', rong: '*', f: (r) => ({ stack: [{ text: cat(r.ten || r.ma_ch, 34), bold: true }, { text: r.ma_ch || '', color: MAU.mo, fontSize: 6.2 }] }) },
-    { ten: 'Khu vực', rong: 70, f: (r) => cat(r.kv || '—', 18) },
-    { ten: 'ID', rong: 26, canh: 'right', f: (r) => so(r.so_nb) },
-    { ten: 'Đơn', rong: 36, canh: 'right', f: (r) => so(r.don) },
-    { ten: 'SL', rong: 36, canh: 'right', f: (r) => so(r.sl) },
-    { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => ({ text: so(r.dt), bold: true }) },
-    { ten: '', rong: 50, f: (r) => thanhO(r.dt, maxCh, MAU.tealDam, 48) },
-    { ten: 'Huỷ', rong: 26, canh: 'right', f: (r) => so(r.huy) },
-  ], ch.slice(0, 30), { rongTrong: 'Chưa gán ID người bán với cửa hàng' });
+    { ten: '#', rong: 14, canh: 'right', f: (r) => (r.la_con || r.la_tong ? { text: '' } : { text: String(ch.indexOf(r) + 1), color: MAU.mo }) },
+    { ten: 'Cửa hàng', rong: '*', f: (r) => (r.la_con ? { text: r.ten + ' cửa hàng', italics: true, color: MAU.ink2 } : r.la_tong ? { text: r.ten, bold: true }
+      : { stack: [{ text: cat(r.ten, 34), bold: true }, { text: (r.ids.length > 1 ? `${r.ids.length} ID: ` : '') + r.ids.map((x) => '@' + x.nb).join(' · '), color: MAU.mo, fontSize: 6.2 }] }) },
+    ...cotSo(maxCh, MAU_NHOM.ch),
+  ], [...ch.slice(0, N_CH), ...conLai(ch, N_CH, 'Còn lại')], { coChu: 7.2, rongTrong: 'Chưa gán ID người bán với cửa hàng',
+    tong: ch.length ? { ...cong(ch), la_tong: true, ten: `Tổng ${so(ch.filter(coDon).length)} cửa hàng` } : null });
 
   // ----- sản phẩm -----
   const sp = [...(bc.sp || [])].sort((a, b) => b.sl - a.sl || b.dt - a.dt);
@@ -202,37 +274,50 @@ export function docTikTok(bc, meta = {}) {
     { ten: 'Lượt xem', rong: 44, canh: 'right', f: (r) => so(r.xem) },
   ], video, { coChu: 7.2, rongTrong: 'Chưa có video có đơn trong khoảng này' });
 
-  // ----- tỉnh + vận chuyển / thanh toán -----
-  const tinh = (bc.tinh || []).slice(0, 14);
-  const maxTinh = Math.max(1, ...tinh.map((x) => x.don));
+  // ----- tỉnh + vận chuyển / thanh toán (NEW - 3.156: 34 tỉnh mới, có tỷ lệ + dòng tổng) -----
+  const tinh = [...(bc.tinh || [])].filter((x) => x.don > 0).sort((a, b) => (!a.k) - (!b.k) || b.don - a.don);
+  const tTinh = { don: tinh.reduce((a, x) => a + x.don, 0), dt: tinh.reduce((a, x) => a + x.dt, 0) };
+  const maxTinh = Math.max(1, ...tinh.map((x) => x.dt));
   const bangTinh = bang([
-    { ten: 'Tỉnh / thành', rong: '*', f: (r) => cat(r.k || 'Chưa rõ', 20) },
-    { ten: 'Đơn', rong: 36, canh: 'right', f: (r) => so(r.don) },
+    { ten: '#', rong: 14, canh: 'right', f: (r) => (r.la_tong || !r.k ? { text: '' } : { text: String(tinh.indexOf(r) + 1), color: MAU.mo }) },
+    { ten: 'Tỉnh / thành', rong: '*', f: (r) => (r.la_tong ? { text: r.ten, bold: true } : r.k ? { text: r.k, bold: tinh.indexOf(r) < 5 } : { text: 'Chưa có địa chỉ', color: MAU.mo, italics: true }) },
+    { ten: 'Đơn', rong: 40, canh: 'right', f: (r) => so(r.don) },
+    { ten: '% đơn', rong: 36, canh: 'right', f: (r) => tyTrong(r.don, tTinh.don) },
     { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => so(r.dt) },
-    { ten: '', rong: 30, f: (r) => thanhO(r.don, maxTinh, MAU.ink, 28) },
-  ], tinh);
-  const vc = [...(bc.dvvc || []).filter((x) => x.don > 0).map((x) => ({ ...x, nhom: 'Vận chuyển' })), ...(bc.thanh_toan || []).filter((x) => x.don > 0).map((x) => ({ ...x, nhom: 'Thanh toán' }))];
-  const bangVc = bang([
-    { ten: 'Vận chuyển / thanh toán', rong: '*', f: (r) => cat(r.k || 'Chưa rõ', 26) },
-    { ten: 'Loại', rong: 50, f: (r) => ({ text: r.nhom, color: MAU.ink2 }) },
-    { ten: 'Đơn', rong: 36, canh: 'right', f: (r) => so(r.don) },
-    { ten: 'Tỷ lệ', rong: 34, canh: 'right', f: (r) => tyTrong(r.don, t.don || 0) },
-  ], vc);
+    { ten: '% doanh thu', rong: 44, canh: 'right', f: (r) => ({ text: tyTrong(r.dt, tTinh.dt), bold: !r.la_tong }) },
+    { ten: 'TB / đơn', rong: 50, canh: 'right', f: (r) => (r.don ? tien(r.dt / r.don) : '—') },
+    { ten: '', rong: 100, f: (r) => (r.la_tong ? { text: '' } : thanhO(r.dt, maxTinh, MAU.ink, 98)) },
+  ], tinh, { coChu: 7.2, tong: { ...tTinh, la_tong: true, ten: `Tổng ${so(tinh.filter((x) => x.k).length)} tỉnh / thành` } });
+  const bangTt = (ds, ten) => {
+    const d = ds.filter((x) => x.don > 0); const tg = d.reduce((a, x) => a + x.don, 0);
+    return bang([
+      { ten, rong: '*', f: (r) => (r.la_tong ? { text: 'Tổng cộng', bold: true } : cat(r.k || 'Chưa rõ', 30)) },
+      { ten: 'Đơn', rong: 40, canh: 'right', f: (r) => so(r.don) },
+      { ten: 'Tỷ lệ', rong: 36, canh: 'right', f: (r) => tyTrong(r.don, tg) },
+    ], d, { tong: d.length ? { don: tg, la_tong: true } : null });
+  };
+  const bangVc = bangTt(bc.dvvc || [], 'Đơn vị vận chuyển');
+  const bangTtoan = bangTt(bc.thanh_toan || [], 'Hình thức thanh toán');
 
   const tk = bc.tk || {};
   const noiDung = [
     dauTrang({ tieuDe: 'Báo cáo TikTok Shop', ky: `${ngayVN(bc.tu)} – ${ngayVN(bc.den)} (${n} ngày)`, loc: meta.loc }),
     luoiKpi(kpi),
-    diemChinh(cauNhanXet(bc, nb).slice(0, 9)),
+    diemChinh(cauNhanXet(bc, nb, cn).slice(0, 10)),
     muc(`Sản phẩm bán theo ${td.kieu}`, 'chia theo kênh: LIVE · Video · Thẻ sản phẩm'),
     bieuDoCot(td.cot, { cao: 115, dinhDang: (v) => so(v) + ' sp', chuThich: KTH.map((k) => ({ ten: TT_KENH[k][0], mau: TT_KENH[k][1] })) }),
     khoi({ text: 'Tỷ trọng sản phẩm bán cả kỳ', fontSize: 7.5, bold: true, italics: true, color: MAU.ink2, margin: [0, 12, 0, 4] }, thanhTyTrong(KTH.map((k) => kenh.find((x) => x.k === k)).filter(Boolean).map((x) => ({ ten: TT_KENH[x.k][0], v: x.sl, mau: TT_KENH[x.k][1] })))),
 
-    muc('Người bán', `${nbTop.length < nb.length ? `${so(nbTop.length)} / ${so(nb.length)} ID doanh thu cao nhất` : `${so(nb.length)} ID`} · LIVE / Video = TikTok thống kê${tk.live_den ? ', có tới ' + ngayVN(tk.live_den) : ''}`, { truocTrang: true }),
-    bangNb,
-    muc('Cửa hàng', `${ch.length > 30 ? `30 / ${so(ch.length)} cửa hàng` : `${so(ch.length)} cửa hàng`} · cộng các ID đã gán cho từng cửa hàng`),
-    { text: 'Cùng số đơn với bảng Người bán ở trên, chỉ gom theo cửa hàng — không cộng hai bảng với nhau. ID đội sale, kênh công ty, nhà sáng tạo ngoài và đơn qua thẻ sản phẩm không thuộc cửa hàng nào nên không có ở đây.', fontSize: 6.8, color: MAU.mo, margin: [0, -2, 0, 6] },
+    // NEW - 3.156: 3 nhóm người bán — mỗi ID ở đúng 1 nhóm, cộng 3 nhóm = tổng shop
+    muc('Người bán theo nhóm', `${so(cn.tong.so_id)} ID có đơn · cộng 3 nhóm = tổng doanh thu shop`, { truocTrang: true }),
+    khoi(thanhTyTrong(['cty', 'ch', 'khac'].map((k) => ({ ten: NHOM_LON[k], v: cn.nhom[k].dt, mau: MAU_NHOM[k] }))), { text: '', margin: [0, 0, 0, 6] }, bangNhom),
+    { text: 'Công ty = kênh công ty, đội sale và khách mua thẳng qua thẻ sản phẩm. Cửa hàng = các ID đã gán cửa hàng. Tài khoản khác = nhà sáng tạo ngoài và ID chưa phân loại. Mỗi đơn chỉ tính cho một ID.', fontSize: 6.8, color: MAU.mo, margin: [0, 4, 0, 0] },
+    muc('Công ty', `${so(cn.nhom.cty.so_id)} ID có đơn · ${pt(cn.nhom.cty.dt)} doanh thu shop · LIVE / Video = TikTok thống kê${tk.live_den ? ', có tới ' + ngayVN(tk.live_den) : ''}`),
+    bangCty,
+    muc('Cửa hàng', `${ch.length > N_CH ? `${N_CH} / ${so(ch.length)} cửa hàng doanh thu cao nhất` : `${so(ch.length)} cửa hàng`} · ${pt(cn.nhom.ch.dt)} doanh thu shop · cửa hàng nhiều ID thì cộng các ID lại`, { truocTrang: true }),
     bangCh,
+    muc('Tài khoản khác', `${so(cn.nhom.khac.so_id)} ID có đơn · ${pt(cn.nhom.khac.dt)} doanh thu shop`),
+    bangKhac,
     muc('Sản phẩm bán chạy', sp.length > 40 ? `40 / ${so(sp.length)} mã nhiều sản phẩm nhất` : `${so(sp.length)} mã`, { truocTrang: true }),
     bangSp,
     chuThichKenh(),
@@ -241,12 +326,15 @@ export function docTikTok(bc, meta = {}) {
     bangLive,
     muc('Video có đơn', `${video.length < (bc.video_top || []).length ? `12 / ${so((bc.video_top || []).length)} video doanh số cao nhất · ` : ''}TikTok thống kê`),
     bangVideo,
-    haiCot([muc('Tỉnh / thành nhiều đơn', null, { rong: NUA }), bangTinh], [muc('Vận chuyển & thanh toán', null, { rong: NUA }), bangVc]),
+    muc('Tỉnh / thành', `${so(tinh.filter((x) => x.k).length)} / 34 tỉnh thành có đơn · gộp tên tỉnh cũ về tỉnh mới (sáp nhập 2025)`, { truocTrang: true }),
+    bangTinh,
+    haiCot([muc('Vận chuyển', null, { rong: NUA }), bangVc], [muc('Thanh toán', null, { rong: NUA }), bangTtoan]),
     { margin: [0, 18, 0, 0], unbreakable: true, stack: [
       { text: 'Cách tính', bold: true, fontSize: 8, color: MAU.ink2, margin: [0, 0, 0, 3] },
       { ul: [
         'Doanh thu shop = giá niêm yết − shop giảm, chỉ tính đơn hợp lệ (không huỷ). Khách trả = số tiền khách thanh toán (đã trừ cả sàn hỗ trợ).',
-        'Đơn của người bán = đơn khách mua trực tiếp từ LIVE / video của ID đó (đúng cách Seller Center ghi nhận); đơn mua qua thẻ sản phẩm tính "Không qua người bán".',
+        'Đơn của người bán = đơn khách mua trực tiếp từ LIVE / video của ID đó (đúng cách Seller Center ghi nhận); đơn mua qua thẻ sản phẩm tính "Mua qua thẻ sản phẩm" (nhóm Công ty). Đơn có hàng của 2 ID tính cho ID có doanh thu lớn hơn; doanh thu, SL vẫn chia theo từng dòng hàng.',
+        'Tỉnh / thành theo địa chỉ nhận hàng, gộp về 34 tỉnh thành mới; đơn chưa thanh toán chưa có địa chỉ ghi "Chưa có địa chỉ".',
         'LIVE / Video (TikTok thống kê) là doanh số gộp TikTok tự tính theo phiên / video, có cả đơn chưa thanh toán hoặc sẽ huỷ — dùng xem hiệu quả nội dung, không cộng với doanh thu đơn.',
         `Dữ liệu đơn trong app: ${so(bc.kho?.tong_don)} đơn từ ${ngayVN(bc.kho?.tu)} đến ${ngayVN(bc.kho?.den)}.`,
       ], fontSize: 6.8, color: MAU.mo },
@@ -272,6 +360,12 @@ export function sheetsTikTok(bc, dong, meta = {}) {
   const t = bc.tong || {};
   const ghi = `Kỳ ${ngayVN(bc.tu)} – ${ngayVN(bc.den)} · ${meta.loc || 'không lọc'} · xuất lúc ${meta.luc || ''}`;
   const nb = dsNguoiBan(bc);
+  const cn = chiaNhom(bc, nb);   // NEW - 3.156
+  const tdt = cn.tong.dt || 0;
+  const tl = (v, tong) => (tong > 0 ? (v || 0) / tong : null);
+  const hangNhom = ['cty', 'ch', 'khac'].flatMap((k) => [{ ...cn.nhom[k], chi: '' }, ...(k === 'ch' ? [] : cn.nhom[k].con.filter((c) => c.don || c.huy || c.dt).map((c) => ({ ...c, ten: NHOM_LON[k], chi: c.ten })))]);
+  const tinh = [...(bc.tinh || [])].filter((x) => x.don > 0);
+  const tTinh = { don: tinh.reduce((a, x) => a + x.don, 0), dt: tinh.reduce((a, x) => a + x.dt, 0) };
   const sp = [...(bc.sp || [])].sort((a, b) => b.sl - a.sl);
   const sku = sp.flatMap((r) => (r.co || []).map((c) => ({ ma: r.ma, ten: r.ten, dm: r.dm, ...c })));
   const chiSo = [
@@ -285,14 +379,24 @@ export function sheetsTikTok(bc, dong, meta = {}) {
       { ten: 'SL', k: 'sl', kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'SL LIVE', k: 'live', kieu: 'so' }, { ten: 'SL Video', k: 'video', kieu: 'so' }, { ten: 'SL Thẻ SP', k: 'the', kieu: 'so' }],
       dong: [...(bc.theo || [])].sort((a, b) => (a.k < b.k ? -1 : 1)) },
     { ten: 'Kênh', ghiChu: ghi, cot: [{ ten: 'Kênh', f: (r) => (TT_KENH[r.k] || TT_KENH.khac)[0], w: 20 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'SL', k: 'sl', kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }], dong: bc.kenh || [] },
-    { ten: 'Người bán', ghiChu: ghi + ' · LIVE / Video = TikTok thống kê', cot: [{ ten: 'Cửa hàng / nhóm', k: 'nhom', w: 24 }, { ten: 'Mã cửa hàng', k: 'ma_ch', w: 12 }, { ten: 'ID người bán', k: 'nb', w: 24 },
+    { ten: 'Theo nhóm', ghiChu: ghi + ' · mỗi ID thuộc đúng 1 nhóm, mỗi đơn tính cho 1 ID → cộng các nhóm = tổng shop',
+      cot: [{ ten: 'Nhóm', k: 'ten', w: 18 }, { ten: 'Chi tiết', k: 'chi', w: 30 }, { ten: 'ID có đơn', f: (r) => (r.k === 'the' ? null : r.so_id), kieu: 'so' }, { ten: 'Đơn', k: 'don', kieu: 'so' },
+        { ten: 'SL', k: 'sl', kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 16, kieu: 'tien' }, { ten: 'Tỷ trọng', f: (r) => tl(r.dt, tdt), kieu: 'pt' }, { ten: 'Đơn huỷ', k: 'huy', kieu: 'so' },
+        { ten: 'LIVE · doanh số', k: 'lv_dt', w: 15, kieu: 'tien' }, { ten: 'Video · doanh số', k: 'vd_dt', w: 15, kieu: 'tien' }],
+      dong: hangNhom, tong: { ten: 'Tổng cộng', chi: '', ...cn.tong } },
+    { ten: 'Người bán', ghiChu: ghi + ' · LIVE / Video = TikTok thống kê', cot: [{ ten: 'Nhóm', f: (r) => NHOM_LON[r.nl] || '', w: 15 }, { ten: 'Thuộc', k: 'thuoc', w: 22 },
+      { ten: 'Mã cửa hàng', k: 'ma_ch', w: 12 }, { ten: 'Cửa hàng', k: 'ten_ch', w: 24 }, { ten: 'ID người bán', f: (r) => r.nb || '(mua qua thẻ sản phẩm)', w: 24 },
       { ten: 'Tên gọi', k: 'ten', w: 22 }, { ten: 'Loại', f: (r) => TT_LOAI[r.loai] || r.loai || '', w: 16 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'SL', k: 'sl', kieu: 'so' },
       { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'Đơn huỷ', k: 'huy', kieu: 'so' }, { ten: 'SL qua LIVE', k: 'live', kieu: 'so' }, { ten: 'SL qua Video', k: 'video', kieu: 'so' },
       { ten: 'Phiên LIVE', k: 'lv_phien', kieu: 'so' }, { ten: 'LIVE · đơn', k: 'lv_don', kieu: 'so' }, { ten: 'LIVE · SL', k: 'lv_sl', kieu: 'so' }, { ten: 'LIVE · doanh số', k: 'lv_dt', w: 15, kieu: 'tien' },
       { ten: 'LIVE · người xem', k: 'lv_xem', w: 14, kieu: 'so' }, { ten: 'Số video', k: 'vd_so', kieu: 'so' }, { ten: 'Video · đơn', k: 'vd_don', kieu: 'so' }, { ten: 'Video · SL', k: 'vd_sl', kieu: 'so' },
       { ten: 'Video · doanh số', k: 'vd_dt', w: 15, kieu: 'tien' }, { ten: 'Video · lượt xem', k: 'vd_xem', w: 14, kieu: 'so' }], dong: nb },
-    { ten: 'Cửa hàng', ghiChu: ghi, cot: [{ ten: 'Mã cửa hàng', k: 'ma_ch', w: 12 }, { ten: 'Cửa hàng', k: 'ten', w: 30 }, { ten: 'Khu vực', k: 'kv', w: 16 }, { ten: 'Số ID', k: 'so_nb', kieu: 'so' },
-      { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'SL', k: 'sl', kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'Đơn huỷ', k: 'huy', kieu: 'so' }], dong: [...(bc.ch || [])].sort((a, b) => b.dt - a.dt) },
+    { ten: 'Cửa hàng', ghiChu: ghi + ' · cộng các ID đã gán cho từng cửa hàng (không gồm đội sale, kênh công ty)',
+      cot: [{ ten: 'Mã cửa hàng', k: 'ma_ch', w: 12 }, { ten: 'Cửa hàng', k: 'ten', w: 30 }, { ten: 'Khu vực', k: 'kv', w: 20 }, { ten: 'Số ID', f: (r) => (r.ids ? r.ids.length : null), kieu: 'so' },
+        { ten: 'ID người bán', f: (r) => (r.ids ? r.ids.map((x) => x.nb).join(', ') : ''), w: 34 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'SL', k: 'sl', kieu: 'so' },
+        { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: '% doanh thu shop', f: (r) => tl(r.dt, tdt), w: 14, kieu: 'pt' }, { ten: 'Đơn huỷ', k: 'huy', kieu: 'so' },
+        { ten: 'LIVE · doanh số', k: 'lv_dt', w: 15, kieu: 'tien' }, { ten: 'Video · doanh số', k: 'vd_dt', w: 15, kieu: 'tien' }],
+      dong: cn.cuaHang, tong: { ma_ch: 'Tổng', ten: `${cn.cuaHang.filter(coDon).length} cửa hàng có đơn`, ...cong(cn.cuaHang) } },
     { ten: 'Sản phẩm', ghiChu: ghi + ' · gộp theo mã mẹ', cot: [{ ten: 'Mã mẹ', k: 'ma', w: 16 }, { ten: 'Tên sản phẩm', k: 'ten', w: 48 }, { ten: 'Loại hàng', k: 'dm', w: 16 },
       { ten: 'SL bán', k: 'sl', kieu: 'so' }, { ten: 'SL đặt', k: 'dat', kieu: 'so' }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' },
       { ten: 'Đơn huỷ', k: 'huy', kieu: 'so' }, { ten: 'SL trả', k: 'tra', kieu: 'so' }, { ten: 'SL LIVE', k: 'live', kieu: 'so' }, { ten: 'SL Video', k: 'video', kieu: 'so' },
@@ -301,7 +405,10 @@ export function sheetsTikTok(bc, dong, meta = {}) {
       { ten: 'SL bán', k: 'sl', kieu: 'so' }, { ten: 'SL đặt', k: 'dat', kieu: 'so' }], dong: sku },
     { ten: 'Loại hàng', ghiChu: ghi, cot: [{ ten: 'Loại hàng', f: (r) => r.k || 'Chưa rõ', w: 22 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'SL', k: 'sl', kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }], dong: bc.dm || [] },
     { ten: 'Lý do huỷ', ghiChu: ghi, cot: [{ ten: 'Lý do', k: 'k', w: 36 }, { ten: 'Đơn', k: 'n', kieu: 'so' }, { ten: 'Khách huỷ', k: 'kh', kieu: 'so' }, { ten: 'Hệ thống huỷ', k: 'ht', kieu: 'so' }, { ten: 'Shop huỷ', k: 'shop', kieu: 'so' }], dong: bc.huy || [] },
-    { ten: 'Tỉnh thành', ghiChu: ghi, cot: [{ ten: 'Tỉnh / thành', f: (r) => r.k || 'Chưa rõ', w: 22 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }], dong: bc.tinh || [] },
+    { ten: 'Tỉnh thành', ghiChu: ghi + ' · 34 tỉnh thành mới (tên tỉnh cũ đã gộp về tỉnh mới)',
+      cot: [{ ten: 'Tỉnh / thành', f: (r) => r.ten || r.k || 'Chưa có địa chỉ', w: 22 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: '% đơn', f: (r) => tl(r.don, tTinh.don), kieu: 'pt' },
+        { ten: 'Doanh thu', k: 'dt', w: 16, kieu: 'tien' }, { ten: '% doanh thu', f: (r) => tl(r.dt, tTinh.dt), kieu: 'pt' }, { ten: 'TB / đơn', f: (r) => (r.don ? Math.round(r.dt / r.don) : null), w: 12, kieu: 'tien' }],
+      dong: tinh, tong: { ten: 'Tổng cộng', ...tTinh } },
     { ten: 'Phiên LIVE', ghiChu: ghi + ' · TikTok thống kê', cot: [{ ten: 'ID người bán', k: 'username', w: 22 }, { ten: 'Tên gọi', f: (r) => bc.ten_nb?.[r.username] || '', w: 20 }, { ten: 'Cửa hàng', k: 'ten_ch', w: 24 },
       { ten: 'Tiêu đề', k: 'tieu_de', w: 40 }, { ten: 'Bắt đầu', f: (r) => (r.bat_dau ? String(r.bat_dau).slice(0, 16).replace('T', ' ') : ''), w: 16 }, { ten: 'Kết thúc', f: (r) => (r.ket_thuc ? String(r.ket_thuc).slice(0, 16).replace('T', ' ') : ''), w: 16 },
       { ten: 'Số mã', k: 'so_sp', kieu: 'so' }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'SL', k: 'sl', kieu: 'so' }, { ten: 'Doanh số', k: 'dt', w: 15, kieu: 'tien' },

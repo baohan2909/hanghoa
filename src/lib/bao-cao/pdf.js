@@ -11,7 +11,7 @@ export const RONG = KHO.rong - KHO.le * 2;          // bề rộng vùng nội d
 
 /* ---------- định dạng ---------- */
 export const so = (n) => (n == null || n === '' || Number.isNaN(Number(n)) ? '—' : Math.round(Number(n)).toLocaleString('vi'));
-export const tyTrong = (a, b) => (b > 0 ? ((a / b) * 100).toLocaleString('vi', { maximumFractionDigits: 1 }) + '%' : '—');
+export const tyTrong = (a, b) => (b > 0 ? (a > 0 && a / b < 0.0005 ? '<0,1%' : ((a / b) * 100).toLocaleString('vi', { maximumFractionDigits: 1 }) + '%') : '—');   // NEW - 3.156: số rất nhỏ ghi <0,1% thay vì 0%
 export const tienGon = tien;
 export { fmt };
 // chênh lệch so kỳ trước: +12,4% (xanh) / −3,1% (đỏ); "nguoc" = số tăng là xấu (huỷ, hoàn)
@@ -153,7 +153,8 @@ export function thanhO(v, max, mau = MAU.teal, rong = 54) {
 }
 
 // Bảng số liệu: cot = [{ ten, rong, canh:'left'|'right'|'center', k | f(row) }], dong = mảng hàng, tong = hàng tổng (tuỳ chọn)
-export function bang(cot, dong, { tong = null, coChu = 7.5, rongTrong = 'Không có dữ liệu' } = {}) {
+// NEW - 3.156: nenDong(r) = màu nền riêng cho từng hàng (vd hàng nhóm), tong có thể là mảng nhiều hàng tổng
+export function bang(cot, dong, { tong = null, coChu = 7.5, rongTrong = 'Không có dữ liệu', nenDong = null } = {}) {
   const dau = cot.map((c) => ({ text: c.ten, style: 'bangDau', alignment: c.canh || 'left' }));
   const o = (c, r) => {
     const v = c.f ? c.f(r) : r[c.k];
@@ -171,7 +172,7 @@ export function bang(cot, dong, { tong = null, coChu = 7.5, rongTrong = 'Không 
       hLineWidth: (i) => (i === 1 ? 0.8 : tong && i === nDong - 1 ? 0.8 : i === 0 || i === nDong ? 0 : 0.4),
       vLineWidth: () => 0,
       hLineColor: (i) => (i === 1 || (tong && i === nDong - 1) ? MAU.ink : MAU.vien),
-      fillColor: (i) => (i === 0 ? MAU.nen : tong && i === nDong - 1 ? '#EEF6F5' : null),
+      fillColor: (i) => (i === 0 ? MAU.nen : tong && i === nDong - 1 ? '#EEF6F5' : nenDong && i <= dong.length ? nenDong(dong[i - 1]) || null : null),
       paddingLeft: () => 4, paddingRight: () => 4, paddingTop: () => 3.2, paddingBottom: () => 3.2,
     },
   };
