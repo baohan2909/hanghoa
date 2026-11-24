@@ -680,6 +680,11 @@ function GanNguoiBan({ xong }) {
   const [loc, setLoc] = useState('chua');
   const [tim, setTim] = useState('');
   const [luu, setLuu] = useState('');
+  // NEW - 3.147.1: dòng vừa sửa vẫn ở lại bộ lọc hiện tại (để chọn tiếp loại / cửa hàng / tên gọi) tới khi đổi bộ lọc
+  const [vuaSua, setVuaSua] = useState(() => new Set());
+  const danhDau = (h) => setVuaSua((x) => new Set(x).add(h));
+  // chọn cửa hàng: loại Kênh công ty / Nhà sáng tạo ngoài / Khác thì giữ nguyên; Cửa hàng / Đội sale (hoặc chưa có) thì tự theo mã cửa hàng
+  const giuLoai = (r, ma) => (['KENH', 'KOL', 'KHAC'].includes(r.loai) ? r.loai : ma ? null : r.loai);
   const tai = useCallback(async () => {
     const { data, error } = await sb.rpc('fn_tt_nb_ds', { p_token: user.token });
     if (error) { baoToast('Lỗi: ' + error.message); return; }
@@ -699,6 +704,7 @@ function GanNguoiBan({ xong }) {
     setLuu('');
     if (error) { baoToast('Chưa lưu được @' + r.handle + ': ' + error.message); return; }
     suaDong(r.handle, { ma_ch: data?.ma_ch ?? null, ten_ch: data?.ten_ch ?? null, loai: data?.loai ?? null, tu_dong: false, nguoi: data?.nguoi ?? user.ma_dang_nhap, goi_y: null });
+    danhDau(r.handle);
     baoToast('Đã lưu ' + (r.ten || '@' + r.handle));
     lamMoiBaoCao();
   };
@@ -712,11 +718,12 @@ function GanNguoiBan({ xong }) {
     setLuu('');
     if (error) { baoToast('Chưa lưu được tên gọi: ' + error.message); return; }
     suaDong(r.handle, { ten: data?.ten ?? null });
+    danhDau(r.handle);
     setNhap((n) => { const m = { ...n }; delete m[r.handle]; return m; });
     baoToast(ten ? `Đã đặt tên @${r.handle} là "${ten}"` : 'Đã xoá tên gọi @' + r.handle);
     lamMoiBaoCao();
   };
-  const ds = (kq?.nb || []).filter((r) => (loc === 'chua' ? !r.ma_ch && !r.loai : loc === 'da' ? r.ma_ch || r.loai : true))
+  const ds = (kq?.nb || []).filter((r) => vuaSua.has(r.handle) || (loc === 'chua' ? !r.ma_ch && !r.loai : loc === 'da' ? r.ma_ch || r.loai : true))
     .filter((r) => !tim.trim() || r.handle.includes(tim.trim().toLowerCase()) || (r.ten_ch || '').toLowerCase().includes(tim.trim().toLowerCase())
       || (r.ten || '').toLowerCase().includes(tim.trim().toLowerCase()));
   const dem = (kq?.nb || []).reduce((s, r) => ({ chua: s.chua + (!r.ma_ch && !r.loai ? 1 : 0), da: s.da + (r.ma_ch || r.loai ? 1 : 0) }), { chua: 0, da: 0 });
@@ -725,7 +732,7 @@ function GanNguoiBan({ xong }) {
       <div className="tts-gan-dau">
         <div className="tts-nhanh">
           {[['chua', `Chưa gán (${dem.chua})`], ['da', `Đã gán (${dem.da})`], ['tat', 'Tất cả']].map(([k, ten]) => (
-            <button key={k} className={loc === k ? 'on' : ''} onClick={() => setLoc(k)}>{ten}</button>
+            <button key={k} className={loc === k ? 'on' : ''} onClick={() => { setLoc(k); setVuaSua(new Set()); }}>{ten}</button>
           ))}
         </div>
         <label className="odn-tim tts-gan-tim"><IcSearch /><input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm ID, tên gọi, cửa hàng…" /></label>
@@ -740,7 +747,8 @@ function GanNguoiBan({ xong }) {
               : ds.map((r) => (
                 <tr key={r.handle} className={luu === r.handle ? 'tts-dang-luu' : ''}>
                   <td><div className="odn-ten">@{r.handle}</div>
-                    <div className="odn-phu">{r.lan_cuoi ? 'bán gần nhất ' + gioNgay(r.lan_cuoi) : 'chưa có đơn'}{r.ma_ch || r.loai ? (r.tu_dong ? ' · tự khớp' : r.nguoi ? ' · gán bởi ' + r.nguoi : '') : ''}</div></td>
+                    <div className="odn-phu">{r.lan_cuoi ? 'bán gần nhất ' + gioNgay(r.lan_cuoi) : 'chưa có đơn'}{r.ma_ch || r.loai ? (r.tu_dong ? ' · tự khớp' : r.nguoi ? ' · gán bởi ' + r.nguoi : '') : ''}</div>
+                    {vuaSua.has(r.handle) && <span className="tts-da-luu"><IcCheck /> Đã lưu{loc === 'chua' && (r.ma_ch || r.loai) ? ' — chọn tiếp được, đổi bộ lọc mới chuyển sang Đã gán' : ''}</span>}</td>
                   <td style={{ minWidth: 190 }}>
                     <input className="tts-ten-goi" value={nhap[r.handle] ?? r.ten ?? ''} maxLength={60} placeholder="Đặt tên gọi…"
                       aria-label={'Tên gọi cho @' + r.handle}
@@ -749,14 +757,14 @@ function GanNguoiBan({ xong }) {
                   </td>
                   <td className="so"><b>{fmt(r.don30)}</b> đơn<div className="odn-phu">{fmt(r.sl30)} sp</div></td>
                   <td style={{ minWidth: 170 }}>
-                    <Sel value={r.loai || ''} placeholder="Chọn loại" onChange={(v) => gan(r, v === 'CH' || v === 'DOISALE' ? r.ma_ch : null, v)}
+                    <Sel value={r.loai || ''} placeholder="Chọn loại" onChange={(v) => gan(r, r.ma_ch, v)}
                       options={[{ value: '', label: '— Chưa gán —', disabled: true }, ...Object.entries(LOAI).map(([k, ten]) => ({ value: k, label: ten }))]} />
                   </td>
                   <td style={{ minWidth: 230 }}>
-                    <Sel value={r.ma_ch || ''} placeholder="Chọn cửa hàng" timKiem onChange={(v) => gan(r, v, v ? null : r.loai)} options={chOpt} />
+                    <Sel value={r.ma_ch || ''} placeholder="Chọn cửa hàng" timKiem onChange={(v) => gan(r, v, giuLoai(r, v))} options={chOpt} />
                   </td>
                   <td>{(r.goi_y || []).length ? <div className="odn-chips">{r.goi_y.map((g) => (
-                    <button key={g.ma} className="tts-goi-y" onClick={() => gan(r, g.ma, null)} title={'Gán vào ' + g.ten}>{g.ten}</button>
+                    <button key={g.ma} className="tts-goi-y" onClick={() => gan(r, g.ma, giuLoai(r, g.ma))} title={'Gán vào ' + g.ten}>{g.ten}</button>
                   ))}</div> : <span className="odn-phu">—</span>}</td>
                 </tr>
               ))}
