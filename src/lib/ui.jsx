@@ -21,6 +21,7 @@ export function Sel({ value, onChange, options, style, placeholder = 'Chọn…'
   const [pos, setPos] = useState(null);
   const [q, setQ] = useState('');
   const ref = useRef(null);
+  const popRef = useRef(null);
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setMo(false); };
     document.addEventListener('mousedown', h);
@@ -28,12 +29,32 @@ export function Sel({ value, onChange, options, style, placeholder = 'Chọn…'
   }, []);
   // bật ô tìm nếu prop timKiem, hoặc tự động khi >8 lựa chọn
   const coTim = timKiem ?? options.length > 8;
+  // NEW - 3.148.1: sát mép dưới màn hình thì xổ LÊN TRÊN, luôn giới hạn chiều cao cho vừa màn hình (không bị khuất mất)
+  const viTri = () => {
+    const r = ref.current.getBoundingClientRect();
+    const rong = Math.max(r.width, 160);
+    const duoi = window.innerHeight - r.bottom - 12, tren = r.top - 12;
+    const can = Math.min(320, options.length * 42 + (coTim ? 52 : 0) + 10);
+    const lenTren = duoi < can && tren > duoi;
+    return { left: Math.max(8, Math.min(r.left, window.innerWidth - rong - 8)), width: rong, ngoai: r.bottom < 0 || r.top > window.innerHeight,
+      ...(lenTren ? { bottom: window.innerHeight - r.top + 6, maxH: Math.min(320, tren) }
+        : { top: r.bottom + 6, maxH: Math.min(320, Math.max(duoi, 120)) }) };
+  };
+  // NEW - 3.148.1: cuộn trang / đổi cỡ cửa sổ khi đang mở → danh sách đi theo ô chọn; ô chọn trôi khỏi màn hình thì đóng
+  useEffect(() => {
+    if (!mo) return;
+    const theo = (e) => {
+      if (popRef.current && e?.target instanceof Node && popRef.current.contains(e.target)) return;   // cuộn trong danh sách
+      if (!ref.current) return;
+      const p = viTri();
+      if (p.ngoai) setMo(false); else setPos(p);
+    };
+    window.addEventListener('scroll', theo, true);
+    window.addEventListener('resize', theo);
+    return () => { window.removeEventListener('scroll', theo, true); window.removeEventListener('resize', theo); };
+  });
   const toggle = () => {
-    if (!mo && ref.current) {
-      const r = ref.current.getBoundingClientRect();
-      setPos({ left: r.left, top: r.bottom + 6, width: Math.max(r.width, 160) });
-      setQ('');
-    }
+    if (!mo && ref.current) { setPos(viTri()); setQ(''); }
     setMo((v) => !v);
   };
   const chon = options.find((o) => o.value === value);
@@ -47,7 +68,7 @@ export function Sel({ value, onChange, options, style, placeholder = 'Chọn…'
         <IcDown style={{ flexShrink: 0, opacity: .5 }} />
       </button>
       {mo && pos && (
-        <div className="sel-pop-fixed" style={{ left: pos.left, top: pos.top, minWidth: pos.width }}>
+        <div ref={popRef} className="sel-pop-fixed" style={{ left: pos.left, top: pos.top, bottom: pos.bottom, minWidth: pos.width, maxHeight: pos.maxH }}>
           {coTim && (
             <input className="sel-search" autoFocus placeholder="Gõ để tìm…"
               value={q} onChange={(e) => setQ(e.target.value)}
