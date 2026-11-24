@@ -1023,7 +1023,6 @@ function HopVuot({ ds, tenDoi, onXong }) {
                 <td className="so">{x.kd ? fmtN(x.kd) : '0'}</td><td className="so vuot-so">+{fmtN(x.vuot)}</td></tr>))}</tbody>
           </table>
         </div>
-        <div className="gc-phu vuot-ghi">Phiếu xuất từ kho sale như bình thường. Kho nhớ xác nhận phiếu nhập trên Odoo trước, rồi mới xuất hàng cho đội.</div>
         <div className="gc-chan">
           <button className="btn btn-ghost" onClick={() => onXong(false)} autoFocus>Quay lại sửa</button>
           <button className="btn vuot-nut" onClick={() => onXong(true)}>Vẫn đẩy {ds.length} mã vượt</button>
