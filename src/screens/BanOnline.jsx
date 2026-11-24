@@ -188,7 +188,7 @@ export default function BanOnline() {
   // NEW - 3.154: XUẤT — báo cáo PDF / dữ liệu Excel theo đúng bộ lọc đang xem
   const moTaLoc = () => [loc.kenh ? 'Kênh ' + kenhTen(Number(loc.kenh)) : '', loc.shop ? 'Gian hàng ' + loc.shop : '', loc.nganh ? 'Ngành ' + (NGANH[loc.nganh] || loc.nganh) : '',
     loc.cs ? 'Hàng ' + (CS[loc.cs] || loc.cs).toLowerCase() : '', loc.tt ? 'Trạng thái ' + (TTN[loc.tt]?.[0] || loc.tt).toLowerCase() : '', qTre ? `Tìm "${qTre}"` : '']
-    .filter(Boolean).join(' · ') || 'Mọi kênh, gian hàng, ngành, trạng thái — không lọc';
+    .filter(Boolean).join('  ·  ') || 'Toàn bộ kênh bán online';
   const meta = () => ({ loc: moTaLoc(), nguoi: [user.ten, user.ma_dang_nhap].filter(Boolean).join(' · '),
     luc: new Date().toLocaleString('vi', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) });
   const taoBaoCao = async (bao) => {

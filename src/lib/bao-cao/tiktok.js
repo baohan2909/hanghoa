@@ -221,7 +221,7 @@ export function docTikTok(bc, meta = {}) {
 
   const tk = bc.tk || {};
   const noiDung = [
-    dauTrang({ tieuDe: 'Báo cáo TikTok Shop', ky: `${ngayVN(bc.tu)} – ${ngayVN(bc.den)} (${n} ngày)`, loc: meta.loc, nguon: 'Nguồn: TikTok Shop API · Seller Center' }),
+    dauTrang({ tieuDe: 'Báo cáo TikTok Shop', ky: `${ngayVN(bc.tu)} – ${ngayVN(bc.den)} (${n} ngày)`, loc: meta.loc }),
     luoiKpi(kpi),
     diemChinh(cauNhanXet(bc, nb).slice(0, 9)),
     muc(`Sản phẩm bán theo ${td.kieu}`, 'chia theo kênh: LIVE · Video · Thẻ sản phẩm'),
@@ -230,9 +230,10 @@ export function docTikTok(bc, meta = {}) {
 
     muc('Người bán', `${nbTop.length < nb.length ? `${so(nbTop.length)} / ${so(nb.length)} ID doanh thu cao nhất` : `${so(nb.length)} ID`} · LIVE / Video = TikTok thống kê${tk.live_den ? ', có tới ' + ngayVN(tk.live_den) : ''}`, { truocTrang: true }),
     bangNb,
-    muc('Cửa hàng', ch.length > 30 ? `30 / ${so(ch.length)} cửa hàng doanh thu cao nhất` : `${so(ch.length)} cửa hàng có ID gán`),
+    muc('Cửa hàng', `${ch.length > 30 ? `30 / ${so(ch.length)} cửa hàng` : `${so(ch.length)} cửa hàng`} · cộng các ID đã gán cho từng cửa hàng`),
+    { text: 'Cùng số đơn với bảng Người bán ở trên, chỉ gom theo cửa hàng — không cộng hai bảng với nhau. ID đội sale, kênh công ty, nhà sáng tạo ngoài và đơn qua thẻ sản phẩm không thuộc cửa hàng nào nên không có ở đây.', fontSize: 6.8, color: MAU.mo, margin: [0, -2, 0, 6] },
     bangCh,
-    muc('Sản phẩm bán chạy', sp.length > 40 ? `40 / ${so(sp.length)} mã nhiều sản phẩm nhất` : `${so(sp.length)} mã`),
+    muc('Sản phẩm bán chạy', sp.length > 40 ? `40 / ${so(sp.length)} mã nhiều sản phẩm nhất` : `${so(sp.length)} mã`, { truocTrang: true }),
     bangSp,
     chuThichKenh(),
     haiCot([muc('Kênh bán', null, { rong: NUA }), bangKenh, muc('Loại hàng', null, { rong: NUA }), bangDm], [muc('Lý do huỷ', null, { rong: NUA }), bangHuy]),

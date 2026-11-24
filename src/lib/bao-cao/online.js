@@ -221,7 +221,7 @@ export function docOnline(bc, meta = {}) {
   const tkNb = [...(tk.nb || [])].sort((a, b) => b.dt - a.dt).slice(0, 15);
 
   const noiDung = [
-    dauTrang({ tieuDe: 'Báo cáo bán hàng online', ky: `${ngayVN(bc.tu)} – ${ngayVN(bc.den)} (${n} ngày)`, soSanh: bc.tu_truoc ? `${ngayVN(bc.tu_truoc)} – ${ngayVN(bc.den_truoc)}` : '', loc: meta.loc, nguon: 'Nguồn: Nhanh.vn · TikTok · Shopee · Lazada · Facebook · Zalo · Website · Admin' }),
+    dauTrang({ tieuDe: 'Báo cáo bán hàng online', ky: `${ngayVN(bc.tu)} – ${ngayVN(bc.den)} (${n} ngày)`, soSanh: bc.tu_truoc ? `${ngayVN(bc.tu_truoc)} – ${ngayVN(bc.den_truoc)}` : '', loc: meta.loc }),
     luoiKpi(kpi),
     diemChinh(cauNhanXet(bc).slice(0, 9)),
     muc(motNgay ? 'Đơn theo giờ' : td.theoTuan ? 'Doanh số theo tuần' : 'Doanh số theo ngày', 'chia theo kênh bán'),
@@ -236,7 +236,7 @@ export function docOnline(bc, meta = {}) {
     bangShop,
     haiCot([muc('Trạng thái đơn', null, { rong: NUA }), bangTt], [muc('Giờ chốt đơn', 'số đơn theo giờ đặt', { rong: NUA }), bdGio]),
 
-    muc('Sản phẩm bán chạy', sp.length > 40 ? `40 / ${so(sp.length)} mã doanh số cao nhất · gộp theo mã mẹ` : `${so(sp.length)} mã · gộp theo mã mẹ`),
+    muc('Sản phẩm bán chạy', sp.length > 40 ? `40 / ${so(sp.length)} mã doanh số cao nhất · gộp theo mã mẹ` : `${so(sp.length)} mã · gộp theo mã mẹ`, { truocTrang: true }),
     bangSp,
     khoi(muc('Ngành hàng × Chính / Sale', 'SL = số sản phẩm · DS = doanh số'), bangNc),
 

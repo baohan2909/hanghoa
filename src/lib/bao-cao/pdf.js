@@ -47,16 +47,13 @@ export function nenTrangDau(cao = 150) {
 }
 
 // Nội dung đầu trang 1: thương hiệu · tiêu đề lớn · kỳ báo cáo · bộ lọc
-export function dauTrang({ tieuDe, ky, soSanh, loc, nguon }) {
+export function dauTrang({ tieuDe, ky, soSanh, loc }) {
   return {
-    margin: [0, -18, 0, 26], stack: [
-      { columns: [
-        { text: 'NÓN SƠN', color: MAU.teal, bold: true, fontSize: 8.5, characterSpacing: 2, width: '*' },
-        { text: nguon || '', color: '#B9C2D3', fontSize: 7.5, alignment: 'right', width: 'auto' },
-      ] },
+    margin: [0, -18, 0, 0], stack: [
+      { text: 'NÓN SƠN', color: MAU.teal, bold: true, fontSize: 8.5, characterSpacing: 2 },
       { text: tieuDe, color: '#FFFFFF', bold: true, fontSize: 24, margin: [0, 6, 0, 2] },
       { text: [{ text: ky, color: '#FFFFFF', bold: true, italics: true }, soSanh ? { text: '   ·   so với ' + soSanh, color: '#B9C2D3' } : ''], fontSize: 10 },
-      { text: loc || 'Toàn bộ — không lọc', color: '#B9C2D3', fontSize: 7.5, margin: [0, 5, 0, 0] },
+      { margin: [0, 7, 0, 0], fontSize: 7.8, text: [{ text: 'Phạm vi   ', color: MAU.teal, bold: true, italics: true }, { text: loc || 'Toàn bộ', color: '#DCE3EE' }] },
     ],
   };
 }
@@ -78,8 +75,10 @@ export function luoiKpi(o, soCot = 4) {
   }
   return {
     table: { widths: Array(soCot).fill('*'), body: hang },
-    layout: { hLineWidth: () => 4, vLineWidth: () => 4, hLineColor: () => '#FFFFFF', vLineColor: () => '#FFFFFF', paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
-    margin: [-4, 0, -4, 0],
+    // khe trắng 4pt giữa các ô; không kẻ viền ngoài (khỏi đè lên dải đầu trang)
+    layout: { hLineWidth: (i, n) => (i === 0 || i === n.table.body.length ? 0 : 4), vLineWidth: (i, n) => (i === 0 || i === n.table.widths.length ? 0 : 4),
+      hLineColor: () => '#FFFFFF', vLineColor: () => '#FFFFFF', paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
+    margin: [0, 30, 0, 0],
   };
 }
 
@@ -195,7 +194,7 @@ export const NUA = (RONG - 16) / 2;   // bề rộng 1 cột khi đặt 2 khối
 export const haiCot = (a, b, khoang = 16) => ({ unbreakable: true, columns: [{ width: '*', stack: [a].flat().filter(Boolean) }, { width: '*', stack: [b].flat().filter(Boolean) }], columnGap: khoang });
 
 /* ---------- tài liệu ---------- */
-export function taiLieu({ tieuDeTrang, nguoi, luc, noiDung, caoDau = 150 }) {
+export function taiLieu({ tieuDeTrang, nguoi, luc, noiDung, caoDau = 134 }) {
   return {
     pageSize: 'A4', pageOrientation: 'portrait', pageMargins: [KHO.le, 46, KHO.le, 40],
     info: { title: tieuDeTrang, author: 'Nón Sơn — NS FLOW', creator: 'NS FLOW' },

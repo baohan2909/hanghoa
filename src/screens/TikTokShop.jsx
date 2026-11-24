@@ -261,7 +261,7 @@ export default function TikTokShop() {
   const TT_TEN = { cho: 'chờ gửi hàng', dang_giao: 'đang giao', giao: 'đã giao', huy: 'đã huỷ', tra_hang: 'trả hàng' };
   const moTaLoc = () => [loc.kenh ? 'Kênh ' + (KENH[loc.kenh]?.[0] || loc.kenh) : '', loc.dm ? 'Loại hàng ' + loc.dm : '', loc.tt ? 'Đơn ' + (TT_TEN[loc.tt] || loc.tt) : '',
     loc.nb != null ? 'Người bán ' + nbTen(loc.nb) : '', loc.ch != null ? 'Cửa hàng ' + ((bc?.ch || []).find((c) => c.ma_ch === loc.ch)?.ten || loc.ch || 'chưa gán') : '',
-    qTre ? `Tìm "${qTre}"` : ''].filter(Boolean).join(' · ') || 'Mọi kênh, loại hàng, người bán — không lọc';
+    qTre ? `Tìm "${qTre}"` : ''].filter(Boolean).join('  ·  ') || 'Toàn bộ đơn của shop';
   const meta = () => ({ loc: moTaLoc(), nguoi: [user.ten, user.ma_dang_nhap].filter(Boolean).join(' · '),
     luc: new Date().toLocaleString('vi', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) });
   const taoBaoCao = async (bao) => {
