@@ -5,6 +5,8 @@
 //   POST {viec:'keo'}         → kéo đơn theo update_time (lịch tq_lam_moi 5 phút/lần, hoặc nút "Lấy ngay" trong app)
 //   POST {viec:'thong_ke'}    → NEW - 3.141: kéo phiên LIVE + thống kê video (có ID người bán), mỗi 60 phút
 //   POST {viec:'lien_ket'}    → NEW - 3.142: API liên kết — ID người bán từng đơn; bình thường chạy ké sau mỗi lượt 'keo'
+//   POST {viec:'tra_hang'}    → NEW - 3.143: trả hàng / hoàn tiền (returns/search); bình thường chạy ké sau mỗi lượt 'keo'
+//   POST {viec:'doi_soat'}    → NEW - 3.143: đối soát từng ngày với TikTok (đơn, đơn liên kết, trả hàng) + tự kéo bù — lịch 3 giờ/lần
 //   POST {viec:'san_pham'}    → NEW - 3.141: đồng bộ sản phẩm + ngành (loại hàng); bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'thu', duong_dan, tham_so, method, body}  → gọi thử 1 API, trả NGUYÊN VĂN phản hồi (để đối chiếu tên trường)
 //   POST bắt buộc header x-tt-khoa = tt_api.khoa_noi_bo (SQL tự gửi qua pg_net).
@@ -105,6 +107,8 @@ function dongTuDon(o: J): J[] {
     tinh: dc.tinh, phuong: dc.phuong, ttoan: o.payment_method_name, goi: o.packages?.[0]?.id,
     tong: p.total_amount, ps: p.shipping_fee, pg: p.original_shipping_fee, pssh: p.shipping_fee_seller_discount,
     pss: p.shipping_fee_platform_discount, thue: p.tax, ban: o.update_time,
+    // NEW - 3.143: đơn gửi mẫu / đơn đổi hàng — không tính là bán
+    mau: !!o.is_sample_order, doi: !!o.is_replacement_order,
   };
   const items: J[] = Array.isArray(o.line_items) ? o.line_items : [];
   return items.map((li) => {
@@ -114,6 +118,9 @@ function dongTuDon(o: J): J[] {
       ...chung, sk: li.sku_id, ss: li.seller_sku, ten: li.product_name, pl: li.sku_name, sl,
       // NEW - 3.141: đơn LIVE có room_id = mã phiên LIVE → SQL tra ra ID người bán
       room: li.room_id || undefined, kenh: li.room_id ? 'LIVE' : undefined,
+      // NEW - 3.143: dòng bị hủy riêng trong đơn còn hiệu lực (hủy một phần) + quà tặng kèm
+      huy: String(o.status || '').toUpperCase() !== 'CANCELLED' && String(li.display_status || '').toUpperCase() === 'CANCELLED' ? sl : 0,
+      qua: li.is_gift ? sl : 0,
       gg, tg: gg * sl, gs: Number(li.platform_discount ?? 0),
       gsh: Number(li.seller_discount ?? 0), ts: Number(li.sale_price ?? 0),
     };
@@ -202,6 +209,116 @@ async function keoLienKet(cfg: J, batDau: number, hetGio = 115_000) {
   }
   Object.assign(kq, { xong, tu, den, giay: Math.round((Date.now() - batDau) / 1000), luc: new Date().toISOString() });
   await rpc('fn_tt_lk_nap', { p: { kq } });
+  return kq;
+}
+
+// ---- NEW - 3.143: TRẢ HÀNG / HOÀN TIỀN — returns/search theo update_time tăng dần, cất mốc sau mỗi trang ----
+async function keoTraHang(cfg: J, batDau: number, hetGio = 118_000) {
+  const kq: J = { trang: 0, tra: 0, gan: 0 };
+  const conGio = () => hetGio - (Date.now() - batDau);
+  if (conGio() < 12_000) return { ...kq, bo_qua: 'het_gio' };
+  const token = await damBaoToken(cfg);
+  const bayGio = Math.floor(Date.now() / 1000) - 60;
+  const moc = Number(cfg.tra_moc) || bayGio - ((Number(cfg.lui_ngay) || 30) + 30) * 86400;
+  let pt = '', xong = false, mocMoi = moc;
+  while (conGio() > 8_000 && kq.trang < 60) {
+    const ts: Record<string, string> = { shop_cipher: cfg.shop_cipher, page_size: '50', sort_field: 'update_time', sort_order: 'ASC' };
+    if (pt) ts.page_token = pt;
+    const j = await goiTikTok(cfg, token, '/return_refund/202309/returns/search', ts, 'POST', { update_time_ge: moc, update_time_lt: bayGio });
+    if (j?.code !== 0) { kq.loi = `${j?.code}: ${j?.message || ''}`.slice(0, 200); break; }
+    const ds: J[] = j?.data?.return_orders || [];
+    pt = j?.data?.next_page_token || '';
+    kq.trang++;
+    xong = !pt || !ds.length;
+    const maxSua = Math.max(0, ...ds.map((r) => Number(r.update_time) || 0));
+    mocMoi = xong ? bayGio : Math.max(mocMoi, maxSua);
+    const r = await rpc('fn_tt_tra_nap', { p: { ds, moc: mocMoi } });
+    kq.tra += r?.tra || 0; kq.gan += r?.gan || 0;
+    if (xong) break;
+  }
+  Object.assign(kq, { xong, giay: Math.round((Date.now() - batDau) / 1000), luc: new Date().toISOString() });
+  await rpc('fn_tt_tra_nap', { p: { xong, kq } });
+  return kq;
+}
+
+// ---- NEW - 3.143: ĐỐI SOÁT từng ngày với TikTok (đơn · đơn liên kết · trả hàng) + tự kéo bù ngày còn thiếu ----
+const mocNgay = (ngay: string) => Math.floor(Date.parse(ngay + 'T00:00:00+07:00') / 1000);
+async function demTikTok(cfg: J, token: string, duongDan: string, tu: number, den: number, kichTrang = '1') {
+  const j = await goiTikTok(cfg, token, duongDan, { shop_cipher: cfg.shop_cipher, page_size: kichTrang }, 'POST', { create_time_ge: tu, create_time_lt: den });
+  return j?.code === 0 ? Number(j?.data?.total_count ?? NaN) : NaN;
+}
+async function keoKhung(cfg: J, token: string, loai: 'don' | 'lk' | 'tra', tu: number, den: number, conGio: () => number) {
+  const dd = loai === 'don' ? '/order/202309/orders/search' : loai === 'lk' ? '/affiliate_seller/202410/orders/search' : '/return_refund/202309/returns/search';
+  let pt = '', trang = 0, so = 0, napId: number | null = null, xong = false;
+  while (conGio() > 10_000 && trang < 60) {
+    const ts: Record<string, string> = { shop_cipher: cfg.shop_cipher, page_size: loai === 'tra' ? '50' : '100' };
+    if (pt) ts.page_token = pt;
+    const j = await goiTikTok(cfg, token, dd, ts, 'POST', { create_time_ge: tu, create_time_lt: den });
+    if (j?.code !== 0) return { loi: `${loai} ${j?.code}: ${j?.message || ''}`.slice(0, 200), trang, so };
+    const ds: J[] = loai === 'tra' ? (j?.data?.return_orders || []) : (j?.data?.orders || []);
+    if (ds.length) {
+      if (loai === 'don') {
+        const r = await rpc('fn_tt_nap_api', { p_ds: ds.flatMap(dongTuDon), p_meta: { nap_id: napId, ten_file: 'API TikTok Shop — đối soát kéo bù' } });
+        napId = r?.nap_id ?? napId;
+      } else if (loai === 'lk') await rpc('fn_tt_lk_nap', { p: { ds } });
+      else await rpc('fn_tt_tra_nap', { p: { ds } });
+    }
+    so += ds.length; trang++;
+    pt = j?.data?.next_page_token || '';
+    if (!pt || !ds.length) { xong = true; break; }
+  }
+  return { trang, so, xong };
+}
+async function doiSoat(cfg: J) {
+  const batDau = Date.now();
+  const HET = 130_000;
+  const conGio = () => HET - (Date.now() - batDau);
+  if (!cfg.app_secret) throw new Error('THIEU_APP_SECRET');
+  const token = await damBaoToken(cfg);
+  if (!cfg.shop_cipher) await layShop(cfg, token);
+  const soNgay = Math.min(45, (Number(cfg.lui_ngay) || 30) + 1);
+  const homNay = ngayVN(new Date());
+  const cuoi = Math.floor(Date.now() / 1000) - 15 * 60;   // bỏ 15 phút gần nhất (đơn mới chưa kịp kéo)
+  const khung = Array.from({ length: soNgay }, (_, i) => {
+    const ngay = congNgay(homNay, -i);
+    return { ngay, tu: mocNgay(ngay), den: Math.min(mocNgay(congNgay(ngay, 1)), cuoi) };
+  }).filter((k) => k.den > k.tu);
+  const dem: J[] = [];
+  let i = 0;
+  const tho = async () => {
+    while (i < khung.length) {
+      const k = khung[i++];
+      const [don, lk, tra] = await Promise.all([
+        demTikTok(cfg, token, '/order/202309/orders/search', k.tu, k.den),
+        demTikTok(cfg, token, '/affiliate_seller/202410/orders/search', k.tu, k.den),
+        demTikTok(cfg, token, '/return_refund/202309/returns/search', k.tu, k.den),
+      ]);
+      dem.push({ ...k, don: Number.isFinite(don) ? don : null, lk: Number.isFinite(lk) ? lk : null, tra: Number.isFinite(tra) ? tra : null });
+    }
+  };
+  await Promise.all([tho(), tho(), tho()]);
+  const r0 = await rpc('fn_tt_doi_soat_nap', { p: { ds: dem } });
+  const can: J[] = r0?.can_sua || [];
+  const sua: string[] = [], chiTiet: J[] = [];
+  for (const c of can) {   // mới nhất trước
+    if (conGio() < 25_000) break;
+    const k = khung.find((x) => x.ngay === String(c.ngay).slice(0, 10));
+    if (!k) continue;
+    const ct: J = { ngay: k.ngay };
+    if (c.don) ct.don = await keoKhung(cfg, token, 'don', k.tu, k.den, conGio);
+    if (c.lk && conGio() > 20_000) ct.lk = await keoKhung(cfg, token, 'lk', k.tu, k.den, conGio);
+    if (c.tra && conGio() > 20_000) ct.tra = await keoKhung(cfg, token, 'tra', k.tu, k.den, conGio);
+    sua.push(k.ngay); chiTiet.push(ct);
+  }
+  let conLech = can.length;
+  if (sua.length) {
+    const r1 = await rpc('fn_tt_doi_soat_nap', { p: { ds: dem.filter((d) => sua.includes(d.ngay)), sua } });
+    conLech = (r1?.can_sua || []).length;
+  }
+  const kq = { ngay: dem.length, lech_truoc: can.length, da_sua: chiTiet, con_lech: conLech,
+    giay: Math.round((Date.now() - batDau) / 1000), luc: new Date().toISOString() };
+  // còn lệch → 15 phút sau đối soát lại; khớp hết → 3 giờ sau
+  await rpc('fn_tt_doi_soat_nap', { p: { xong: true, kq, lui_phut: conLech > 0 ? 165 : 0 } });
   return kq;
 }
 
@@ -410,10 +527,14 @@ Deno.serve(async (req) => {
     if (body.viec === 'thong_ke') return json(await thongKe(cfg));
     if (body.viec === 'san_pham') return json(await dongBoSanPham(cfg, Date.now()));
     if (body.viec === 'lien_ket') return json(await keoLienKet(cfg, Date.now()));
+    if (body.viec === 'tra_hang') return json(await keoTraHang(cfg, Date.now()));
+    if (body.viec === 'doi_soat') return json(await doiSoat(cfg));
     const batDau = Date.now();
     const kq: J = await keoDon(cfg);
     // NEW - 3.142: ID người bán từng đơn (API liên kết), rồi loại hàng — dùng thời gian còn lại; lỗi ở 2 bước này không làm hỏng lượt kéo đơn
-    try { kq.lien_ket = await keoLienKet(cfg, batDau); } catch (e) { kq.lien_ket = { loi: String((e as Error)?.message || e).slice(0, 200) }; }
+    try { kq.lien_ket = await keoLienKet(cfg, batDau, 105_000); } catch (e) { kq.lien_ket = { loi: String((e as Error)?.message || e).slice(0, 200) }; }
+    // NEW - 3.143: trả hàng / hoàn tiền
+    try { kq.tra_hang = await keoTraHang(cfg, batDau, 118_000); } catch (e) { kq.tra_hang = { loi: String((e as Error)?.message || e).slice(0, 200) }; }
     try { kq.san_pham = await dongBoSanPham(cfg, batDau, 130_000); } catch (e) { kq.san_pham = { loi: String((e as Error)?.message || e).slice(0, 200) }; }
     return json(kq);
   } catch (e) {
@@ -421,6 +542,7 @@ Deno.serve(async (req) => {
     try {
       // thống kê lỗi vẫn ghi giờ chạy để lịch quay lại kéo đơn, không kẹt mãi ở bước thống kê
       if (body.viec === 'thong_ke') await rpc('fn_tt_api_tk', { p: { xong: true, loi } });
+      else if (body.viec === 'doi_soat') await rpc('fn_tt_doi_soat_nap', { p: { xong: true, kq: { loi, luc: new Date().toISOString() }, lui_phut: 150 } });
       else await rpc('fn_tt_api_ghi', { p: { xong: true, loi } });
     } catch { /* bỏ qua */ }
     return json({ ok: false, loi }, 200);
