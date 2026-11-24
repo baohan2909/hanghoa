@@ -6245,3 +6245,18 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .tts-bang tr.tts-dong-lech td { background: #FFF8E6; }
 .tts-khop { color: #2E9E6A; font-weight: 600; }
 .odn-api i.do { cursor: help; }
+
+/* NEW - 3.149: bảng Người bán — cột Cửa hàng đứng đầu, vùng "Tổng theo đơn" tô xám nhạt, dòng Tổng cộng ngay dưới tiêu đề */
+.tts-bang th.tts-dn, .tts-bang td.tts-dn { background: #F3F5F8; }
+.tts-bang tr.tts-nhom th.tts-dn { color: #14213A; font-weight: 700; }
+.tts-bang td.tts-dt b { font-size: 14px; color: #14213A; }
+.tts-bang-nb thead tr.tts-dong-tong td { background: #E9EEF5; border-bottom: 2px solid #14213A; padding-top: 10px; padding-bottom: 10px; }
+.tts-bang-nb thead tr.tts-dong-tong td.tts-dn { background: #E2E7EF; }
+.tts-bang-nb thead tr.tts-dong-tong td.tts-lv { background: #F8DDEA; }
+.tts-bang-nb thead tr.tts-dong-tong td.tts-vd { background: #D6EFE7; }
+.tts-bang-nb thead tr.tts-dong-tong .odn-ten { font-size: 14px; }
+.tts-bang-nb td.tts-o-ch { min-width: 170px; }
+.tts-ch-ten { font-weight: 700; color: #14213A; font-size: 13.5px; }
+.tts-ch-ten.nhom { color: #1E5F63; }
+.tts-ch-ten.the { color: #6B7280; }
+.tts-ch-ten.chua { color: #B0115C; }
