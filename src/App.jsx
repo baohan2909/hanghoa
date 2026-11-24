@@ -98,6 +98,16 @@ export default function App() {
   const [choXuLy, setChoXuLy] = useState(0);
   const [moMenu, setMoMenu] = useState(false);
   const [caiApp, setCaiApp] = useState(null);       // sự kiện cài PWA (nếu trình duyệt hỗ trợ)
+  // NEW - 3.145: đang mở bằng ứng dụng đã cài (cửa sổ riêng / màn hình chính) → không hiện nút "Tải ứng dụng"
+  const [daCai, setDaCai] = useState(() => {
+    try {
+      return ['standalone', 'window-controls-overlay', 'minimal-ui', 'fullscreen'].some((m) => window.matchMedia(`(display-mode: ${m})`).matches)
+        || window.navigator.standalone === true;
+    } catch { return false; }
+  });
+  // iPhone/iPad không có hộp cài tự động → vẫn hiện nút để hướng dẫn "Thêm vào màn hình chính" khi mở bằng Safari
+  const laIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const hienCai = !daCai && (!!caiApp || laIOS);
   const [banMoi, setBanMoi] = useState(null);       // {ban, bat_buoc, ghi_chu} — bản phát hành mới
   const [dem, setDem] = useState(null);            // đếm ngược tự cập nhật (giây), null = không đếm
   const banRef = useRef(new Set());                // các màn đang có thao tác dở
@@ -114,13 +124,17 @@ export default function App() {
   useEffect(() => {
     const h = (e) => { e.preventDefault(); setCaiApp(e); };
     window.addEventListener('beforeinstallprompt', h);
-    return () => window.removeEventListener('beforeinstallprompt', h);
+    // NEW - 3.145: cài xong thì ẩn nút "Tải ứng dụng"
+    const xong = () => { setCaiApp(null); setDaCai(true); };
+    window.addEventListener('appinstalled', xong);
+    return () => { window.removeEventListener('beforeinstallprompt', h); window.removeEventListener('appinstalled', xong); };
   }, []);
   const taiApp = async () => {
-    if (!caiApp) { baoToast('Mở menu trình duyệt → "Thêm vào màn hình chính" để cài'); return; }
+    if (!caiApp) { baoToast('Bấm nút Chia sẻ → "Thêm vào MH chính" để cài'); return; }
     caiApp.prompt();
-    await caiApp.userChoice;
+    const kq = await caiApp.userChoice;
     setCaiApp(null);
+    if (kq?.outcome === 'accepted') setDaCai(true);
   };
 
   const baoToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
@@ -270,12 +284,12 @@ export default function App() {
       <div className="side-user">
         {!gon && <><div className="n">{user.ten}</div>
         <div className="r mono">{user.ma_dang_nhap} · {VAI_TRO_TEN[user.vai_tro] || user.vai_tro}</div></>}
-        <button className="side-install" onClick={taiApp} title={gon ? 'Tải ứng dụng' : undefined}>
+        {hienCai && <button className="side-install" onClick={taiApp} title={gon ? 'Tải ứng dụng' : undefined}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: -3, flexShrink: 0 }}>
             <path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
           {!gon && ' Tải ứng dụng'}
-        </button>
+        </button>}
         <button className="side-out" onClick={dangXuat} title={gon ? 'Đăng xuất' : undefined}>
           <IcOut style={{ verticalAlign: -3 }} />{!gon && ' Đăng xuất'}</button>
       </div>

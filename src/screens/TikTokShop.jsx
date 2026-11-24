@@ -172,9 +172,12 @@ export default function TikTokShop() {
               ? <i className="ok" title={api.keo_luc ? 'Lần lấy cuối ' + gioNgay(api.keo_luc) : ''}>API đã kết nối{api.shop_ten ? ' · ' + api.shop_ten : ''}{api.keo_luc ? ' · lấy lúc ' + gioNgay(api.keo_luc) : ''}</i>
               : <i className="cho">API chưa kết nối — đang dùng file Excel</i>}
             {api?.dang_keo && <i className="ok">Đang lấy đơn…</i>}
-            {api?.ds_luc && (soLech(api) > 0
-              ? <i className="do" title="Có ngày số đơn trên app ít hơn TikTok — hệ thống đang tự kéo bù, xem thẻ Đối soát">Đối soát: lệch {fmt(soLech(api))} ngày</i>
-              : <i className="ok" title="Số đơn, đơn liên kết, trả hàng từng ngày khớp TikTok — tự đối soát 3 giờ/lần">Đối soát khớp {fmt((api.doi_soat || []).length)} ngày</i>)}
+            {/* NEW - 3.145: lệch mà hệ thống đang tự kéo bù → vàng; chỉ báo đỏ khi kéo bù 3 lần vẫn chưa khớp */}
+            {api?.ds_luc && (soKet(api) > 0
+              ? <i className="do" title="Có ngày đã tự kéo bù 3 lần vẫn chưa khớp TikTok — xem thẻ Đối soát">Đối soát: lệch {fmt(soKet(api))} ngày</i>
+              : soLech(api) > 0
+                ? <i className="lech" title="Có ngày app còn ít đơn hơn TikTok — hệ thống đang tự kéo bù, 15 phút kiểm lại một lần">Đang kéo bù {fmt(soLech(api))} ngày</i>
+                : <i className="ok" title="Số đơn, đơn liên kết, trả hàng từng ngày khớp TikTok — tự đối soát 3 giờ/lần">Đối soát khớp {fmt((api.doi_soat || []).length)} ngày</i>)}
             {(api?.ar_kq?.luc || api?.lk_kq?.luc) && <i className="ok" title="ID người bán theo từng mã đơn (báo cáo phân tích TikTok 20 phút/lần + API liên kết 5 phút/lần)">ID từng đơn lúc {gioNgay(api.ar_kq?.luc || api.lk_kq.luc)}</i>}
             {api?.tk_luc && <i className="ok" title="Phiên LIVE + video có ID người bán (TikTok thống kê), chạy mỗi 60 phút">Thống kê LIVE/video lúc {gioNgay(api.tk_luc)}</i>}
             {api?.loi && <i className="do" title={api.loi}>Lỗi API: {String(api.loi).slice(0, 60)}</i>}
@@ -521,6 +524,8 @@ function VideoLive({ bc, chon }) {
 // NEW - 3.143: đối soát từng ngày app ↔ TikTok
 const lechNgay = (r) => (r.app_don ?? 0) < (r.tiktok_don ?? 0) || (r.app_lk ?? 0) < (r.tiktok_lk ?? 0) || (r.app_tra ?? 0) < (r.tiktok_tra ?? 0);
 const soLech = (api) => (api?.doi_soat || []).filter(lechNgay).length;
+// NEW - 3.145: ngày đã tự kéo bù từ 3 lần trở lên mà vẫn lệch → cần xem
+const soKet = (api) => (api?.doi_soat || []).filter((r) => lechNgay(r) && (r.sua_lan || 0) >= 3).length;
 function DoiSoat({ api }) {
   const ds = api?.doi_soat || [];
   const kq = api?.ds_kq || {};

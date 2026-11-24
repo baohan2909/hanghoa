@@ -7,6 +7,7 @@
 //   POST {viec:'lien_ket'}    → NEW - 3.142: API liên kết — ID người bán từng đơn; bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'tra_hang'}    → NEW - 3.143: trả hàng / hoàn tiền (returns/search); bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'doi_soat'}    → NEW - 3.143: đối soát từng ngày với TikTok (đơn, đơn liên kết, trả hàng) + tự kéo bù — lịch 3 giờ/lần
+//                              NEW - 3.145: đối soát + kéo bù đủ từ ngày tt_api.ds_tu (anh chốt 01/10/2026), tối đa 62 ngày gần nhất
 //   POST {viec:'ai_report'}   → NEW - 3.144: báo cáo phân tích cấp từng đơn — ID người bán mọi tài khoản (chính thức, marketing, nhà sáng tạo) — lịch 20 phút/lần
 //   POST {viec:'san_pham'}    → NEW - 3.141: đồng bộ sản phẩm + ngành (loại hàng); bình thường chạy ké sau mỗi lượt 'keo'
 //   POST {viec:'thu', duong_dan, tham_so, method, body}  → gọi thử 1 API, trả NGUYÊN VĂN phản hồi (để đối chiếu tên trường)
@@ -283,8 +284,10 @@ async function doiSoat(cfg: J) {
   if (!cfg.app_secret) throw new Error('THIEU_APP_SECRET');
   const token = await damBaoToken(cfg);
   if (!cfg.shop_cipher) await layShop(cfg, token);
-  const soNgay = Math.min(45, (Number(cfg.lui_ngay) || 30) + 1);
   const homNay = ngayVN(new Date());
+  // NEW - 3.145: lấy dữ liệu từ ngày anh chốt (ds_tu, vd 2026-10-01) — đối soát + kéo bù đủ từ ngày đó, tối đa 62 ngày gần nhất
+  const tuNgay = cfg.ds_tu ? Math.round((Date.parse(homNay) - Date.parse(String(cfg.ds_tu).slice(0, 10))) / 86400e3) + 1 : 0;
+  const soNgay = Math.min(62, Math.max(Math.min(45, (Number(cfg.lui_ngay) || 30) + 1), tuNgay));
   const cuoi = Math.floor(Date.now() / 1000) - 15 * 60;   // bỏ 15 phút gần nhất (đơn mới chưa kịp kéo)
   const khung = Array.from({ length: soNgay }, (_, i) => {
     const ngay = congNgay(homNay, -i);
@@ -474,9 +477,11 @@ async function thongKe(cfg: J) {
 
   // 1) Phiên LIVE: lần đầu lùi 'lui_ngay' ngày, sau đó làm lại 2 ngày gần nhất (số liệu TikTok chốt chậm 1–2 ngày)
   const liveTu = cfg.live_moc ? congNgay(String(cfg.live_moc).slice(0, 10), -2) : congNgay(homNay, -lui - 1);
+  // NEW - 3.145: kéo lùi xa thì đi từng khúc 20 ngày (mỗi lượt xong 1 khúc rồi ghi mốc), tránh làm lại từ đầu khi hết giờ
+  const liveDen = congNgay(liveTu, 20) < congNgay(homNay, 1) ? congNgay(liveTu, 20) : congNgay(homNay, 1);
   let pt = '', trang = 0, xongLive = false;
   while (trang < 80 && Date.now() - batDau < HET_GIO - 30_000) {
-    const ts: Record<string, string> = { shop_cipher: cipher, start_date_ge: liveTu, end_date_lt: congNgay(homNay, 1), page_size: '100' };
+    const ts: Record<string, string> = { shop_cipher: cipher, start_date_ge: liveTu, end_date_lt: liveDen, page_size: '100' };
     if (pt) ts.page_token = pt;
     const j = await goiTikTok(cfg, token, '/analytics/202508/shop_lives/performance', ts);
     if (j?.code !== 0) { kq.loi_live = `${j?.code}: ${j?.message || ''}`.slice(0, 300); break; }
@@ -489,7 +494,7 @@ async function thongKe(cfg: J) {
     pt = j?.data?.next_page_token || '';
     if (!pt || !ds.length) { xongLive = true; break; }
   }
-  if (xongLive) await rpc('fn_tt_api_tk', { p: { live_moc: homNay } });
+  if (xongLive) await rpc('fn_tt_api_tk', { p: { live_moc: liveDen === congNgay(homNay, 1) ? homNay : congNgay(liveDen, -1) } });
 
   // 2) Video theo từng ngày: lần đầu lùi 'lui_ngay' ngày, sau đó làm lại từ ngày đã chốt − 1 tới ngày TikTok có số liệu mới nhất.
   //    Xếp theo doanh số giảm dần, dừng khi cả trang không còn video có đơn.

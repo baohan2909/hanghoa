@@ -6117,6 +6117,8 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .tts .odn-k em { font-style: normal; font-size: 11.5px; color: #8A94A8; line-height: 1.35; }
 .tts .odn-k.on em { color: rgba(255,255,255,.82); }
 .odn-api i.do { background: #FCEAF2; color: #B0115C; }
+/* NEW - 3.145: đối soát đang tự kéo bù (chưa phải lỗi) */
+.odn-api i.lech { background: #FBF1DC; color: #8A6A1F; cursor: help; }
 .odn-the button i.canh { background: #FBF0D9; color: #8A5A00; }
 .tts-nhanh { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .tts-nhanh > button { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink-2);
