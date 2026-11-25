@@ -1,7 +1,8 @@
 // ============================================================================
 // NEW - 3.139 BẤM SỐ "ĐANG VỀ" -> XEM TỪNG PHIẾU (SQL 229 · fn_dang_ve_ct)
 //   Dùng chung cho Chia từng đội (đội sale) và Đề nghị hàng (cửa hàng).
-//   Đang về = số lớn hơn giữa (phiếu chưa nhận + đơn app chưa lên Odoo) và (tồn dự tính − tồn hiện tại);
+//   Đang về = số lớn hơn giữa (phiếu Odoo chưa nhận) và (tồn dự tính − tồn hiện tại);
+//   NEW - 3.156.3 (SQL 272): phiếu nháp trên app chưa đẩy Odoo KHÔNG cộng vào đang về — chỉ liệt kê để biết
 //   đơn vị đang trả hàng đi thì trừ.
 // ============================================================================
 import { useEffect, useState } from 'react';
@@ -48,7 +49,6 @@ export default function DangVeCt({ maCh, barcode, onDong }) {
             <>
               <div className="dvc-cach">
                 <span>Phiếu Odoo chưa nhận <b>{fmt(tongPhieu)}</b></span>
-                <span>Đơn app chưa lên Odoo <b>{fmt(tongApp)}</b></span>
                 <span>Odoo: dự tính − hiện tại <b>{fmt(t.lech)}</b></span>
                 <span className="dvc-kq">Lấy số lớn hơn{(t.lech ?? 0) < 0 ? ', trừ phần trả đi' : ''} = <b>{fmt(t.ve)}</b></span>
               </div>
@@ -73,7 +73,7 @@ export default function DangVeCt({ maCh, barcode, onDong }) {
 
               {(d.chua_len_odoo || []).length > 0 && (
                 <>
-                  <div className="dvc-tit">Đơn app đã chốt, chưa có phiếu trên Odoo</div>
+                  <div className="dvc-tit">Phiếu nháp trên app chưa đẩy Odoo — không tính vào Về / đi ({fmt(tongApp)})</div>
                   <ul className="dvc-ds">
                     {d.chua_len_odoo.map((p) => <li key={p.ma_phieu}><span className="mono">{p.ma_phieu}</span> <b>{fmt(p.sl)}</b></li>)}
                   </ul>

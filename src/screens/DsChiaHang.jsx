@@ -143,7 +143,7 @@ const COT_MAC_DINH = [
   { k: 'ban', ten: 'Bán (cửa sổ)', mo: 'Số bán trong cửa sổ sức bán', w: 70 },
   { k: 'v', ten: '/ngày', mo: 'Bán trung bình mỗi ngày', w: 62, an: true },
   { k: 'ton', ten: 'Tồn', mo: 'Tồn hiện tại của đội', w: 64 },
-  { k: 've', ten: 'Về / đi', mo: 'Đang về: phiếu Odoo chưa nhận + đơn app chưa lên Odoo, so với tồn dự tính Odoo lấy số lớn hơn. ↩ = đang trả đi. Bấm số để xem từng phiếu', w: 70 },   // NEW - 3.139
+  { k: 've', ten: 'Về / đi', mo: 'Đang về: phiếu Odoo chưa nhận, so với tồn dự tính Odoo lấy số lớn hơn (phiếu nháp chưa đẩy Odoo không tính). ↩ = đang trả đi. Bấm số để xem từng phiếu', w: 70 },   // NEW - 3.139 · 3.156.3
   { k: 'nd', ten: 'Đủ (ngày)', mo: 'Số ngày đủ bán với hàng đang có', w: 70, an: true },
   { k: 'th', ten: 'Thùng', mo: 'Số trong các thùng đã chọn', w: 66 },
   { k: 'kd', ten: 'Tồn kho sale', mo: 'Kho SA (phụ kiện: PK05001) còn khả dụng; dòng nhỏ = còn lại sau khi chia', w: 96 },
