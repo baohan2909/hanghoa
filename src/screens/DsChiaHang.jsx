@@ -131,6 +131,7 @@ function khopLoc(l, x, sapHet, tonLau) {
 // Ô lọc dưới tiêu đề cột: giá trị đúng như đang hiện trên bảng
 const r1 = (n) => Math.round(n * 10) / 10;
 const COT_SO = {
+  gia: (x) => (x.pk || !x.gia ? null : Math.round(x.gia / 100) / 10),   // NEW - 3.156.2 giá sale theo nghìn đồng
   ban: (x) => x.ban, v: (x) => (x.v ? r1(x.v) : 0), ton: (x) => x.ton, ve: (x) => x.ve,
   nd: (x) => (x.nd == null ? null : r1(x.nd)), th: (x) => x.th, them: (x) => x.them, goiY: (x) => x.goiY,
   nhan: (x) => x.nhan, ndSau: (x) => (x.nhan && x.ndSau != null ? r1(x.ndSau) : null), khoCon: (x) => x.khoCon, kd: (x) => x.kd,
@@ -138,6 +139,7 @@ const COT_SO = {
 // Cột bảng (v3.112.0): "Tồn kho sale" đứng ngay trước "Chia thêm"; /ngày, Đủ ngày, Tổng nhận ẩn mặc định —
 // bật lại ở Tùy chỉnh Bàn làm việc (chỉ ẩn khỏi màn hình, số liệu và cách tính giữ nguyên)
 const COT_MAC_DINH = [
+  { k: 'gia', ten: 'Giá sale', mo: 'Giá sale (nghìn đồng). Lọc theo số nghìn: 250 · >200 · 200-300 · 199;250 — bấm tiêu đề để sắp xếp. Viền nét đứt = giá ước tính (DATA SẢN PHẨM chưa có)', w: 72 },   // NEW - 3.156.2
   { k: 'ban', ten: 'Bán (cửa sổ)', mo: 'Số bán trong cửa sổ sức bán', w: 70 },
   { k: 'v', ten: '/ngày', mo: 'Bán trung bình mỗi ngày', w: 62, an: true },
   { k: 'ton', ten: 'Tồn', mo: 'Tồn hiện tại của đội', w: 64 },
@@ -556,6 +558,11 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
   };
   const oCot = (k, x, i) => {
     switch (k) {
+      case 'gia': return (   // NEW - 3.156.2 cột giá sale riêng để lọc / sắp xếp
+        <td key={k} className={!x.pk && x.gia ? 'c-gia' : 'mo'}>{!x.pk && x.gia
+          ? <i className={'ch-gia' + (x.nguonGia && x.nguonGia !== 'sp' ? ' uoc' : '')}
+              title={x.nguonGia === 'sp' ? `Giá sale ${kGia(x.gia)} (DATA SẢN PHẨM)` : `Giá sale ${kGia(x.gia)} — lấy theo ${x.nguonGia === 'ban' ? 'giá bán nhiều nhất 90 ngày' : 'giá chung của mẫu'} (DATA SẢN PHẨM chưa có)`}>{kGia(x.gia)}</i>
+          : '·'}</td>);
       case 'ban': return <td key={k} className={x.ban ? 'dam' : 'mo'}>{x.ban || '·'}</td>;
       case 'v': return <td key={k} className={x.v ? 'phu' : 'mo'}>{x.v ? x.v.toFixed(1) : '·'}</td>;
       case 'ton': return <td key={k} className={x.ton ? '' : 'mo'}>{x.ton || '·'}</td>;
@@ -901,7 +908,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
                     <b>{x.mtc}{x.chay && <i className="ch-chay" title="Bán chạy (top 15%)">●</i>}{x.moi && <i className="ch-moi">mới</i>}
                       {x.pk && <i className="ch-pk" title="Phụ kiện — chia từ kho PK05001, phiếu riêng">PK</i>}
                       {x.thuHoi && <i className="ch-th-hoi" title="Mã thu hồi đội sale (Hàng đặc biệt) — AI không đề nghị, thùng có mã này sẽ rút ra khi giao">Thu hồi</i>}
-                      {!x.pk && x.gia ? <i className={'ch-gia' + (x.nguonGia && x.nguonGia !== 'sp' ? ' uoc' : '')}
+                      {!x.pk && x.gia && !cotHien.some((c) => c.k === 'gia') ? <i className={'ch-gia' + (x.nguonGia && x.nguonGia !== 'sp' ? ' uoc' : '')}
                         title={x.nguonGia === 'sp' ? `Giá sale ${kGia(x.gia)} (DATA SẢN PHẨM)` : `Giá sale ${kGia(x.gia)} — lấy theo ${x.nguonGia === 'ban' ? 'giá bán nhiều nhất 90 ngày' : 'giá chung của mẫu'} (DATA SẢN PHẨM chưa có)`}>{kGia(x.gia)}</i> : null}
                       {x.canh.length > 0 && !cotHien.some((c) => c.k === 'kd') && <IcAlert className="ch-i-canh" />}</b>
                     <small>{dauNhom && x.soNhom > 1 ? <span className="ch-nhom-tong" title={`Nhóm ${x.nhomMa}: cộng bán ${x.soNhom} size`}>Σ {x.nhomMa} bán {fmtN(x.banNhom)} · {x.soNhom} size · </span> : null}{x.n3 || x.n1}</small>

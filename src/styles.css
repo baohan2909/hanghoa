@@ -3968,6 +3968,8 @@ body.ch-khoa-cuon { overflow: hidden; }
 .ch-tab-nho { font-style: normal; font-size: 10.5px; font-weight: 800; margin-left: 2px; padding: 1px 7px; border-radius: 8px; background: rgba(255,255,255,.2); }
 .ch-gia { font-style: normal; font-size: 9.5px; font-weight: 800; color: #1E5F63; background: rgba(63,182,168,.12); padding: 0 5px; border-radius: 6px; flex: none; }
 .ch-gia.uoc { background: transparent; border: 1px dashed rgba(30,95,99,.45); }
+.ch-tbl td.c-gia { text-align: center; }   /* NEW - 3.156.2 */
+.ch-tbl td.c-gia .ch-gia { font-size: 11px; padding: 1px 7px; }
 .ch-pk { flex: none; }
 .ch-tbl th.c-kd { background: #EAF3F7; color: #24506A; }
 .ch-tbl td.c-kd { background: rgba(36,80,106,.035); }
