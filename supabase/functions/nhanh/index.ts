@@ -6,6 +6,8 @@
 //                                  2) kéo bù lịch sử theo ngày tạo, từ ds_tu (01/10/2026) tới hôm nay — dở trang thì cất con trỏ
 //   POST {viec:'keo_ngay', ngay:['2026-11-03', …]} → kéo lại đúng các ngày chọn (nút trong app)
 //   POST {viec:'dia_diem'}      → danh sách tỉnh/thành (id → tên)
+//   POST {viec:'ton'}           → (NEW - 3.157 Chia hàng Online) tồn kho online của kho Nhanh (nh_api.ton_kho_id) — toàn bộ sản phẩm.
+//                                  'tu_dong' cũng tự làm mỗi 20 phút (dở trang thì cất con trỏ ton_next, lượt sau đi tiếp)
 //   POST {viec:'thu', duong_dan, body} → gọi thử 1 API đọc, trả NGUYÊN VĂN phản hồi (để đối chiếu tên trường)
 //   POST bắt buộc header x-nh-khoa = nh_api.khoa_noi_bo (SQL tự gửi qua pg_net).
 // Mọi đơn lưu kèm JSON gốc (nh_don.raw) → phân tích lại bằng SQL được, không phải kéo lại.
@@ -128,6 +130,52 @@ async function diaDiem(cfg: J) {
   return { tinh: ds.length };
 }
 
+// NEW - 3.157 Chia hàng Online: tồn kho online (kho Nhanh giao đơn online) — 100 sản phẩm / trang, nạp ngay từng trang.
+//   Hết giờ giữa chừng → cất con trỏ (ton_next), lượt sau đi tiếp. Xong vòng → máy chủ xoá sản phẩm không còn trong danh sách.
+const dsTon = (j: J): J[] => Array.isArray(j?.data) ? j.data : Array.isArray(j?.data?.products) ? j.data.products
+  : j?.data && typeof j.data === 'object' ? Object.values(j.data).filter((x) => x && typeof x === 'object') as J[] : [];
+async function keoTon(cfg: J, conGio: () => number) {
+  let next: unknown = cfg.ton_next ?? null;
+  const kq: J = { trang: 0, sp: 0, xong: false, loi: '' };
+  const kho = Number(cfg.ton_kho_id) || 0;
+  while (conGio() > 12_000) {
+    const paginator: J = { size: 100 };
+    if (next != null) paginator.next = next;
+    const j = await goiNhanh(cfg, '/v3.0/product/inventory', { filters: kho ? { depotIds: [kho] } : {}, paginator });
+    if (j?.code !== 1) { kq.loi = 'Tồn kho: ' + loiNhanh(j); break; }
+    const ds = dsTon(j);
+    await rpc('fn_nh_ton_nap_sv', { p: { ds, dau: next == null } });
+    kq.sp += ds.length; kq.trang++;
+    next = j?.paginator?.next ?? null;
+    if (!ds.length || next == null || (Array.isArray(next) && !next.length)) { kq.xong = true; break; }
+    await rpc('fn_nh_ghi_sv', { p: { ton_next: next } });
+  }
+  // lỗi → bỏ con trỏ, vòng sau làm lại từ đầu (tránh kẹt mãi ở 1 con trỏ hỏng)
+  await rpc('fn_nh_ghi_sv', { p: kq.xong ? { ton_xong: true, ton_kq: kq } : kq.loi ? { ton_kq: kq, ton_next: null } : { ton_kq: kq } });
+  return kq;
+}
+// NEW - 3.157: phiếu NHẬP kho Nhanh (type 1) — mô tả có mã phiếu Odoo (PDCK…) → biết phiếu Odoo nào đã thật sự vào kho online.
+//   Mới nhất trước (id giảm dần). Lần đầu lấy 35 ngày, các lần sau 3 ngày gần nhất (đủ bắt phiếu sửa muộn).
+async function keoNhap(cfg: J, conGio: () => number) {
+  const han = congNgay(ngayVN(new Date()), cfg.nhap_luc ? -3 : -35);
+  let next: unknown = null;
+  const kq: J = { trang: 0, phieu: 0, xong: false, loi: '' };
+  while (conGio() > 10_000) {
+    const paginator: J = { size: 100 };
+    if (next != null) paginator.next = next;
+    const j = await goiNhanh(cfg, '/v3.0/bill/list', { filters: { type: 1 }, paginator });
+    if (j?.code !== 1) { kq.loi = 'Phiếu nhập: ' + loiNhanh(j); break; }
+    const ds: J[] = Array.isArray(j?.data) ? j.data : [];
+    if (ds.length) await rpc('fn_nh_nhap_nap_sv', { p: { ds } });
+    kq.phieu += ds.length; kq.trang++;
+    next = j?.paginator?.next ?? null;
+    if (!ds.length || next == null || ds.some((b) => String(b?.date || '9') < han)) { kq.xong = true; break; }
+  }
+  await rpc('fn_nh_ghi_sv', { p: kq.xong ? { nhap_xong: true, nhap_kq: kq } : { nhap_kq: kq } });
+  return kq;
+}
+const canTon = (cfg: J) => !!cfg.ton_next || !cfg.ton_luc || Date.now() - Date.parse(cfg.ton_luc) > 20 * 60e3;
+
 function veApp(ok: boolean, thamSo: Record<string, string> = {}) {
   return new Response(null, { status: 302,
     headers: { Location: APP_URL + '?' + new URLSearchParams({ nhanh: ok ? 'ok' : 'loi', ...thamSo }) } });
@@ -179,10 +227,16 @@ Deno.serve(async (req) => {
     if (!cfg.access_token || !cfg.business_id) throw new Error('CHUA_KET_NOI');
     if (body.viec === 'thu') {
       const duong = String(body.duong_dan || '/v3.0/order/list');
-      if (!/^\/v3\.0\/[a-z]+\/(list|detail|location)$/i.test(duong)) throw new Error('CHI_DUOC_GOI_API_DOC');   // chỉ API đọc
+      if (!/^\/v3\.0\/[a-z]+\/(list|detail|location|inventory)$/i.test(duong)) throw new Error('CHI_DUOC_GOI_API_DOC');   // chỉ API đọc (NEW - 3.157: + tồn kho)
       const kq = await goiNhanh(cfg, duong, body.body ?? { paginator: { size: 1 } });
       await rpc('fn_nh_ghi_sv', { p: { xong: true } });
       return json({ ok: true, phan_hoi: kq });
+    }
+    if (body.viec === 'ton') {   // NEW - 3.157
+      const kq: J = await keoTon(cfg, conGio);
+      if (conGio() > 20_000) kq.nhap = await keoNhap(cfg, conGio);
+      await rpc('fn_nh_ghi_sv', { p: { xong: true } });
+      return json(kq);
     }
     if (body.viec === 'dia_diem') {
       const kq: J = await diaDiem(cfg);
@@ -199,13 +253,21 @@ Deno.serve(async (req) => {
     // 'tu_dong': lấy mới trước (nhanh, quan trọng nhất), còn giờ thì kéo bù lịch sử
     const moi = await keoMoi(cfg, conGio);
     await rpc('fn_nh_ghi_sv', { p: { keo_kq: { ...moi, luc: new Date().toISOString(), giay: Math.round((Date.now() - batDau) / 1000) } } });
+    // NEW - 3.157: tồn kho online mỗi 20 phút (cho Chia hàng Online)
+    let ton: J = { bo_qua: 'chua_den_gio' };
+    if (!moi.loi && conGio() > 40_000 && canTon(cfg)) {
+      try {
+        ton = await keoTon(cfg, conGio);
+        if (conGio() > 25_000) ton.nhap = await keoNhap(cfg, conGio);
+      } catch (e) { ton = { loi: String((e as Error)?.message || e).slice(0, 300) }; }
+    }
     let bu: J = { bo_qua: 'het_gio' };
     if (!moi.loi && conGio() > 30_000) {
       bu = await keoBu(cfg, conGio);
       await rpc('fn_nh_ghi_sv', { p: { bf_kq: { ...bu, luc: new Date().toISOString(), giay: Math.round((Date.now() - batDau) / 1000) } } });
     }
     await rpc('fn_nh_ghi_sv', { p: { loi: moi.loi || bu.loi || '', xong: true } });
-    return json({ moi, bu });
+    return json({ moi, ton, bu });
   } catch (e) {
     const loi = String((e as Error)?.message || e).slice(0, 500);
     try { await rpc('fn_nh_ghi_sv', { p: { loi, xong: true } }); } catch { /* bỏ qua */ }

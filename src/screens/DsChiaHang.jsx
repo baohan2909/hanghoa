@@ -837,9 +837,10 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
             </button>
           ))}
           {(loc.length > 0 || locCotFn.co || boLoc) && <button className="bo" onClick={() => { setLoc([]); setLocCot({}); setBoLocDung(null); }}>Bỏ mọi lọc</button>}
+          {/* NEW - 3.157: nút Ẩn / hiện nằm cuối hàng lọc nhanh (hàng lọc giờ có dòng riêng, đủ rộng, không còn ô cuộn bé) */}
+          <button className="ch-loc-an" onClick={() => setMoTc('loc')} title="Ẩn / hiện, sắp lại các nút lọc nhanh — chỉ áp cho tài khoản của anh, người khác không đổi">
+            <IcMat /> Ẩn / hiện{locDs.some((c) => !c.hien) ? <i>{locDs.filter((c) => !c.hien).length}</i> : null}</button>
         </div>
-        <button className="ch-loc-an" onClick={() => setMoTc('loc')} title="Ẩn / hiện, sắp lại các nút lọc nhanh — chỉ áp cho tài khoản của anh, người khác không đổi">
-          <IcMat /><span className="ch-an-hep"> Ẩn / hiện</span>{locDs.some((c) => !c.hien) ? <i>{locDs.filter((c) => !c.hien).length}</i> : null}</button>
         <div className="ch-cong-nut">
           <MenuBoLoc ds={dsBoLoc} dangDung={boLocDung} onDung={setBoLocDung} onTao={() => setSuaBoLoc('moi')} onSua={(b) => setSuaBoLoc(b)}
             an={tc.bo_loc_an || []} laAdmin={laAdmin} onTuyChinh={(t) => setMoTc(t || 'loc')}

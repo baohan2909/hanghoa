@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, lazy, Suspense, createContext, useContext, Component } from 'react';
+import { useEffect, useState, useRef, useCallback, lazy, Suspense, createContext, useContext, Component } from 'react';
 import { sb } from './lib/supabase.js';
 import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy, IcRadar, IcChat2, IcTeam, IcGuiLen, IcTui, IcOnline } from './lib/icons.jsx';
 import Login from './screens/Login.jsx';
@@ -137,7 +137,10 @@ export default function App() {
     if (kq?.outcome === 'accepted') setDaCai(true);
   };
 
-  const baoToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2600); };
+  // NEW - 3.157: baoToast ỔN ĐỊNH (không đổi mỗi lần vẽ lại). Trước đây mỗi lần báo lỗi làm App vẽ lại → hàm mới →
+  //   các màn có useEffect phụ thuộc baoToast gọi lại RPC → lỗi tiếp → vòng lặp dội máy chủ (24/11: 576 lần gọi / giờ).
+  const henToast = useRef(null);
+  const baoToast = useCallback((msg) => { setToast(msg); clearTimeout(henToast.current); henToast.current = setTimeout(() => setToast(''), 2600); }, []);
   // NEW - 3.140.1: quay về từ ủy quyền TikTok Shop (Edge Function tiktok-shop chuyển hướng về ?tiktok=ok|loi)
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);

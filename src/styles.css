@@ -6598,3 +6598,13 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .tts-td-kenh { margin-top: 3px; white-space: nowrap; font-size: 11px; }
 .tts-td-kenh b { color: var(--ink); font-weight: 700; }
 .tts-td-ghi { font-size: 11.5px; color: var(--ink-2); padding: 0 14px 8px; line-height: 1.45; }
+
+/* NEW - 3.157 Chia từng đội: hàng LỌC NHANH luôn có dòng riêng, rộng hết bảng, nút xuống dòng khi thiếu chỗ
+   (trước đây lúc thu gọn, hàng lọc bị ép vào 1 ô cuộn ngang bé tí giữa các nút → không bấm được) */
+.ch-cong, .ch-ban.gon .ch-cong { flex-wrap: wrap; row-gap: 8px; }
+.ch-cong .ch-cong-nut, .ch-ban.gon .ch-cong .ch-cong-nut { margin-left: auto; }
+.ch-cong .ch-loc2, .ch-ban.gon .ch-cong .ch-loc2 { order: 3; flex: 1 1 100%; flex-wrap: wrap; overflow: visible; row-gap: 6px;
+  -webkit-mask-image: none; mask-image: none; padding: 0; }
+.ch-loc2 button.ch-loc-an { padding: 0 10px; border: 1px dashed #C9D2DC; background: #fff; color: var(--ink-2); }
+.ch-loc2 button.ch-loc-an:hover { border-color: var(--teal); border-style: solid; color: var(--teal-deep); }
+.ch-loc2 button.ch-loc-an i { background: #EEF1F4; color: var(--ink-2); }

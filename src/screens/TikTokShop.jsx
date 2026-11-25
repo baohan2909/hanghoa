@@ -1276,7 +1276,8 @@ function GanNguoiBan({ xong, phienBan, apiXong }) {
   const giuLoai = (r, ma) => (['KENH', 'KOL', 'KHAC'].includes(r.loai) ? r.loai : ma ? null : r.loai);
   const tai = useCallback(async (pb) => {
     const { data, error } = await sb.rpc('fn_tt_nb_ds', { p_token: user.token });
-    if (error) { baoToast('Lỗi: ' + error.message); return; }
+    // NEW - 3.157: lỗi thì ghi nhận phiên bản để không gọi lại liên tục (tự thử lại khi có dữ liệu mới)
+    if (error) { boNho.set('nb', { data: boNho.get('nb')?.data || null, pb }); baoToast('Lỗi: ' + error.message); return; }
     boNho.set('nb', { data, pb });
     setKq(data);
   }, [user.token, baoToast]);
