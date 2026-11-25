@@ -452,8 +452,9 @@ async function goiMot(cfg: J, khoa: string, mo_hinh: string, sys: string, tools:
       r = await goi(nho);
       if (nho && r.status === 400) {   // NEW - 3.159.5: cổng không nhận nhớ đệm → gọi lại kiểu thường, nhớ để lần sau khỏi thử
         const t0 = await r.text();
-        if (/cache|system|content/i.test(t0)) { nhoDemTat = true; console.error("nho_dem tat:", t0.slice(0, 200)); r = await goi(false); }
-        else r = new Response(t0, { status: 400 });
+        if (/cache|system|content|block|extra/i.test(t0)) nhoDemTat = true;   // lỗi do nhớ đệm → tắt hẳn trong phiên máy
+        console.error("nho_dem 400 -> goi thuong:", t0.slice(0, 200));
+        r = await goi(false);   // mọi lỗi 400 khi có nhớ đệm: thử lại 1 lần kiểu thường cho chắc
       }
     }
   } catch (e) {
