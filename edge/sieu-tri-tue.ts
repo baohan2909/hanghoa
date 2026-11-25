@@ -1,4 +1,4 @@
-// NS FLOW — Edge Function: sieu-tri-tue  (SIÊU TRÍ TUỆ — trợ lý AI điều hành · v3.159.3 · SQL 215–222, 285)
+// NS FLOW — Edge Function: sieu-tri-tue  (SIÊU TRÍ TUỆ — trợ lý AI điều hành · v3.159.5 · SQL 215–222, 285, 289)
 //
 // Luồng 1 lần giao việc:  app gửi yêu cầu + ngữ cảnh màn hình  ->  AI (FableAI) hiểu & chọn công cụ
 //   -> công cụ MÁY CHỦ (chỉ đọc: tong_quan, lich_de_nghi, dieu_chuyen, ho_so, xep_hang, hoi_so_lieu, danh_muc) chạy ngay tại đây
@@ -15,6 +15,7 @@
 //   { token, hanh_dong:'tiep', viec_id, ket_qua:[{id, ket_qua, buoc?, the?, loi?}] } -> luồng NDJSON
 //   { token, hanh_dong:'dung', viec_id }                                 -> {ok}
 //   { token, hanh_dong:'thu' }  (Quản trị: thử kết nối 2 kiểu API)        -> {ok, models, anthropic, openai}
+//   { token, hanh_dong:'hoc', tay? }  NEW - 289: TỰ HỌC (chạy nền, có trần token/ngày) -> {ok, chay, ly_do?}
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -297,6 +298,12 @@ function khoiSoLieu(s: J | null, them: number[] = []): string {
   if (v.tiktok_cho_gui_hang) vd.push(`${v.tiktok_cho_gui_hang} đơn TikTok chờ gửi hàng`);
   Object.entries(v.loi_dong_bo || {}).forEach(([k, x]) => vd.push(`lỗi đồng bộ ${k}: ${x}`));
   if (vd.length) l.push("Vấn đề hôm nay: " + vd.join(" · "));
+  // NEW - 289: sổ vấn đề toàn app (đỏ = gấp) — AI nắm sẵn, không đợi hỏi
+  const va: J[] = Array.isArray(s.van_de_app) ? s.van_de_app : [];
+  if (va.length) {
+    l.push("APP ISSUES NOW (computed from the app's data; mention the relevant ones proactively when they bear on the question; for 'có vấn đề gì / hôm nay sao' list them, red first):");
+    va.slice(0, 20).forEach((x) => l.push(`- [${x.muc === "do" ? "ĐỎ" : "vàng"}] ${x.nhom}: ${x.tieu_de}${x.chi_tiet ? " — " + String(x.chi_tiet).slice(0, 260) : ""}`));
+  }
   const c2 = s.cap_nhat || cn;
   if (c2 && Object.keys(c2).length) l.push(`Dữ liệu mới nhất: bán cửa hàng ${c2.ban_cua_hang || "—"} · đội sale ${c2.ban_doi_sale || "—"} · đơn TikTok ${c2.tiktok_don || "—"} · đơn Nhanh ${c2.nhanh_don || "—"}`);
   return l.join("\n");
@@ -313,7 +320,7 @@ async function napTriThuc(yeuCau: string): Promise<J[]> {
 function khoiTriThuc(ds: J[]): string {
   if (!ds.length) return "";
   return "\n\nBUSINESS KNOWLEDGE (the company's own definitions — they override your assumptions; if an item names a tool, use it):\n" +
-    ds.map((t) => `- ${t.loai === "sua_sai" ? "[past mistake] " : ""}${t.cum_tu ? "[" + String(t.cum_tu).split(",").slice(0, 4).map((x) => x.trim()).join(", ") + "] " : ""}${t.noi_dung}${t.cong_cu ? " (tool: " + t.cong_cu + ")" : ""}`).join("\n");
+    ds.map((t) => `- ${t.loai === "sua_sai" ? "[past mistake] " : t.loai === "cau_mau" ? "[worked example] " : t.loai === "kien_thuc" ? "[fact] " : ""}${t.cau_mau ? "Q: \"" + String(t.cau_mau).slice(0, 200) + "\" → " : ""}${t.cum_tu ? "[" + String(t.cum_tu).split(",").slice(0, 4).map((x) => x.trim()).join(", ") + "] " : ""}${t.noi_dung}${t.cong_cu ? " (tool: " + t.cong_cu + ")" : ""}`).join("\n");
 }
 async function ghiNho(q: J, i: J) {
   const p: J = { cum_tu: String(i?.cum_tu || "").slice(0, 300), noi_dung: String(i?.noi_dung || "").slice(0, 800), cong_cu: String(i?.cong_cu || "") || null, loai: "tu_ngu" };
@@ -397,6 +404,23 @@ function sangOpenAI(sys: string, msgs: J[]) {
   }
   return out;
 }
+// NEW - 3.159.5: NHỚ ĐỆM (prompt caching) — phần cố định (công cụ + lời dặn) và phần đầu cuộc hỏi đáp được máy AI nhớ 5 phút:
+//   lượt sau đọc lại với giá 1/10 thay vì đọc mới. Tối đa 4 điểm nhớ: cuối danh sách công cụ · cuối lời dặn cố định · cuối lời dặn · cuối tin nhắn.
+let nhoDemTat = false;   // cổng AI không nhận nhớ đệm (lỗi 400) → tắt trong phiên máy này, gọi kiểu thường
+function nhoDem(sys: string, tools: J[], msgs: J[]): J {
+  const dau = sys.startsWith(LOI_DAN) ? LOI_DAN : "";
+  const system: J[] = dau
+    ? [{ type: "text", text: dau, cache_control: { type: "ephemeral" } }, ...(sys.length > dau.length ? [{ type: "text", text: sys.slice(dau.length), cache_control: { type: "ephemeral" } }] : [])]
+    : [{ type: "text", text: sys, cache_control: { type: "ephemeral" } }];
+  const t2 = tools.length ? tools.map((t, i) => (i === tools.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t)) : [];
+  const m2 = msgs.map((m, i) => {
+    if (i !== msgs.length - 1) return m;
+    const c = typeof m.content === "string" ? [{ type: "text", text: m.content }] : Array.isArray(m.content) ? m.content.map((b: J) => ({ ...b })) : m.content;
+    if (Array.isArray(c) && c.length) c[c.length - 1] = { ...c[c.length - 1], cache_control: { type: "ephemeral" } };
+    return { ...m, content: c };
+  });
+  return { system, messages: m2, ...(t2.length ? { tools: t2 } : {}) };
+}
 class LoiAI extends Error { constructor(msg: string, public http = 0, public thuLai = false) { super(msg); } }
 function loiHttp(s: number, t: string): LoiAI {
   const ngan = t.replace(/\s+/g, " ").slice(0, 200);
@@ -418,11 +442,19 @@ async function goiMot(cfg: J, khoa: string, mo_hinh: string, sys: string, tools:
           ...(tools.length ? { tools: tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })), ...(ep ? { tool_choice: "required" } : {}) } : {}) }),
       });
     } else {
-      r = await fetch(url + "/v1/messages", {
+      const goi = (nho: boolean) => fetch(url + "/v1/messages", {
         method: "POST", signal: AbortSignal.timeout(90000),
         headers: { "Content-Type": "application/json", "x-api-key": khoa, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: mo_hinh, max_tokens: maxTok, system: sys, messages: msgs, ...(tools.length ? { tools, ...(ep ? { tool_choice: { type: "any" } } : {}) } : {}) }),
+        body: JSON.stringify({ model: mo_hinh, max_tokens: maxTok, ...(nho ? nhoDem(sys, tools, msgs) : { system: sys, messages: msgs, ...(tools.length ? { tools } : {}) }),
+          ...(tools.length && ep ? { tool_choice: { type: "any" } } : {}) }),
       });
+      const nho = !cfg.khong_nho_dem && !nhoDemTat;
+      r = await goi(nho);
+      if (nho && r.status === 400) {   // NEW - 3.159.5: cổng không nhận nhớ đệm → gọi lại kiểu thường, nhớ để lần sau khỏi thử
+        const t0 = await r.text();
+        if (/cache|system|content/i.test(t0)) { nhoDemTat = true; console.error("nho_dem tat:", t0.slice(0, 200)); r = await goi(false); }
+        else r = new Response(t0, { status: 400 });
+      }
     }
   } catch (e) {
     throw new LoiAI("Không kết nối được FableAI: " + String((e as Error)?.message || e).slice(0, 120), 0, true);
@@ -744,6 +776,72 @@ function luong(fn: (gui: (o: J) => void) => Promise<void>) {
   return new Response(stream, { headers: { ...cors, "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache" } });
 }
 
+// ---------------------------------------------------------------------------
+// NEW - 289: TỰ HỌC — đọc lại các câu đã hỏi + sổ vấn đề → AI rút bài học → "Chờ duyệt" (có bằng chứng, không có bằng chứng thì bỏ)
+// ---------------------------------------------------------------------------
+const HOC_DAN = [
+  "You are the self-review module of SIÊU TRÍ TUỆ, the AI assistant inside the Nón Sơn operations app. Below are the assistant's own system rules and tools, then the questions users asked recently (with the answer given, tools called, errors, the user's NEXT question in the same chat, and 'báo sai' reports), the knowledge it already has, and the current app issues.",
+  "TASK: extract durable LESSONS that will make future answers right the first time. Kinds (field loai):",
+  "- tu_ngu: what a word / nickname / abbreviation / voice-typo the users use means in this app (cum_tu = the words, comma separated).",
+  "- quy_tac: a business rule or a how-to-answer rule the assistant must always follow (only if clearly shown by the evidence).",
+  "- sua_sai: a mistake the assistant made (wrong tool, wrong number, misunderstood question, user corrected or asked again) and the right way next time. cau_mau = the question that went wrong.",
+  "- cau_mau: a worked example of a COMMON question answered well: cau_mau = the question as users phrase it, noi_dung = which tool(s) with which parameters and what to say. Only from questions that clearly succeeded (no correction / no repeat).",
+  "- kien_thuc: a stable fact about the business or the app that users rely on (screens, warehouses, channels, people's roles, how a number is defined). NOT today's numbers — numbers change daily and are re-computed.",
+  "STRICT RULES:",
+  "1. Every lesson must be supported by the evidence below: put the supporting question ids in bang_chung.viec (array of the 'viec' values) and a short reason in bang_chung.ly_do. No evidence → do not write the lesson. Never invent facts, names, numbers or rules.",
+  "2. A sign of a wrong answer: cau_sau repeats / rephrases the same question, says sai / không phải / nhầm / ý anh là / chưa đúng, the answer has ⚠ or an error, or bao_sai is present.",
+  "3. Skip anything already covered by EXISTING KNOWLEDGE (same meaning). Prefer fewer, sharper lessons (max 15).",
+  "4. Write cum_tu / cau_mau / noi_dung in Vietnamese, short and directly usable. cong_cu = exact tool name when the lesson is about a tool.",
+  "5. Do not copy personal data of customers. Do not include secrets.",
+  'OUTPUT: only one JSON object, no markdown: {"tom_tat": "2-4 câu tiếng Việt: người dùng hỏi gì nhiều, AI làm tốt / sai chỗ nào", "bai": [{"loai": "...", "cum_tu": "...", "cau_mau": "...", "noi_dung": "...", "cong_cu": "...", "bang_chung": {"viec": ["..."], "ly_do": "..."}}]}',
+].join("\n");
+function layJson(t: string): J | null {
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b <= a) return null;
+  try { return JSON.parse(t.slice(a, b + 1)); } catch { return null; }
+}
+async function hocNen(cfg: J, bd: J) {
+  const lan = bd.lan;
+  let vao = 0, ra = 0, mo_hinh = String(cfg.mo_hinh_hoc || cfg.mo_hinh || "claude-opus-5-5");
+  try {
+    const khoa = await layKhoa();
+    if (!khoa) throw new Error("Chưa có khoá FableAI");
+    const tl: J = await rpc("fn_ai_hoc_tu_lieu", { p_lan: lan });
+    let cau: J[] = Array.isArray(tl?.cau_hoi) ? tl.cau_hoi : [];
+    const coNoi = (x: J[]) => JSON.stringify(x).length;
+    // giữ trong trần còn lại (ước ~3 ký tự / token, chừa phần lời dặn + trả lời)
+    const congCu = CONG_CU.map((t) => `- ${t.name}: ${String(t.description || "").slice(0, 400)}`).join("\n");
+    const coDinh = (LOI_DAN.length + HOC_DAN.length + congCu.length + JSON.stringify(tl?.tri_thuc_dang_co || []).length + JSON.stringify(tl?.van_de_app || []).length) / 3;
+    const conLai = Math.max(0, Number(bd.con_token || 0) - 8000);
+    while (cau.length > 3 && coDinh + coNoi(cau) / 3 > conLai) cau = cau.slice(Math.ceil(cau.length / 5));
+    if (coDinh + coNoi(cau) / 3 > conLai) throw new Error("Không đủ trần token còn lại hôm nay");
+    const ids = new Set(cau.map((x) => String(x.viec)));
+    const nd = [
+      "=== ASSISTANT SYSTEM RULES ===\n" + LOI_DAN,
+      "=== ASSISTANT TOOLS ===\n" + congCu,
+      "=== EXISTING KNOWLEDGE (do not duplicate) ===\n" + JSON.stringify(tl?.tri_thuc_dang_co || []),
+      "=== APP ISSUES NOW (context only) ===\n" + JSON.stringify(tl?.van_de_app || []),
+      `=== QUESTIONS ${tl?.tu || ""} → ${tl?.den || ""} (${cau.length}) ===\n` + cau.map((x) => JSON.stringify(x)).join("\n"),
+    ].join("\n\n");
+    const kq = await goiAI({ ...cfg, khong_nho_dem: true }, khoa, HOC_DAN, [], [{ role: "user", content: nd }], 6000);
+    vao = kq.vao; ra = kq.ra; mo_hinh = kq.mo_hinh;
+    await rpc("fn_ai_bd_token", { p_nguoi: "AI_TU_HOC", p_mo_hinh: mo_hinh, p_vao: vao, p_ra: ra }).catch(() => {});
+    const text = kq.blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+    const j = layJson(text);
+    if (!j) throw new Error("AI không trả JSON: " + text.slice(0, 160));
+    // chỉ giữ bài học có bằng chứng là câu hỏi THẬT trong tư liệu
+    const bai = (Array.isArray(j.bai) ? j.bai : []).filter((b: J) => {
+      const v = Array.isArray(b?.bang_chung?.viec) ? b.bang_chung.viec.map(String).filter((x: string) => ids.has(x)) : [];
+      if (!v.length) return false;
+      b.bang_chung = { viec: v.slice(0, 8), ly_do: String(b.bang_chung?.ly_do || "").slice(0, 300) };
+      return true;
+    }).slice(0, 20);
+    await rpc("fn_ai_hoc_ket_thuc", { p_lan: lan, p: { bai, tom_tat: String(j.tom_tat || "").slice(0, 1500), vao, ra, mo_hinh } });
+  } catch (e) {
+    await rpc("fn_ai_hoc_ket_thuc", { p_lan: lan, p: { loi: String((e as Error)?.message || e).slice(0, 400), vao, ra, mo_hinh } }).catch(() => {});
+  }
+}
+
 // hàng đợi ghi nhật ký: không chặn luồng, giữ đúng thứ tự
 function taoGhi() {
   let hang: Promise<unknown> = Promise.resolve();
@@ -791,6 +889,19 @@ Deno.serve(async (req) => {
   }
 
   if (!q.ok) return tra({ ok: false, loi: q.loi || "Không có quyền dùng SIÊU TRÍ TUỆ" }, 403);
+
+  // ---- NEW - 289: TỰ HỌC — app gọi khi có người mở (máy chủ tự giới hạn: cách N giờ, trần token/ngày, 1 lượt 1 lúc); Quản trị bấm "Học ngay"
+  if (hd === "hoc") {
+    const tay = !!body.tay;
+    if (tay && !q.admin) return tra({ ok: false, loi: "Chỉ Quản trị bấm Học ngay" }, 403);
+    let bd: J;
+    try { bd = await rpc("fn_ai_hoc_bat_dau", { p_kich_hoat: tay ? "tay" : "mo_app", p_nguoi: q.ma }); } catch (e) { return tra({ ok: false, loi: String((e as Error)?.message || e).slice(0, 200) }); }
+    if (!bd?.chay) return tra({ ok: true, chay: false, ly_do: bd?.ly_do || "" });
+    const viecHoc = hocNen(q.cfg || {}, bd).catch((e) => console.error("hoc", String((e as Error)?.message || e).slice(0, 300)));
+    const er = (globalThis as J).EdgeRuntime;
+    if (er?.waitUntil) er.waitUntil(viecHoc); else await viecHoc;
+    return tra({ ok: true, chay: true, lan: bd.lan, so_cau: bd.so_cau });
+  }
 
   // ---- dừng việc đang chạy
   if (hd === "dung") {
