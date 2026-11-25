@@ -6838,3 +6838,12 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
 .bo-tbn .bo-tbn-nhan small { font-size: 11px; font-weight: 600; opacity: .82; }
 td.bo-tbc, th.bo-tbc { color: var(--teal-deep); background: rgba(63,182,168,.05); font-variant-numeric: tabular-nums; }
 .tts-dong-tong td.bo-tbc b { color: var(--teal-deep); }
+/* NEW - 3.157.1: bước Odoo xuất / Nhanh nhập của từng đơn chuyển online */
+.co-od small.buoc { font-weight: 700 !important; color: #6B7A99 !important; }
+.co-od.nh-du { background: rgba(63,182,168,.12); }
+.co-od.nh-du small.nhanh { color: var(--teal-deep) !important; }
+.co-od.nh-thieu { background: rgba(203,164,90,.16); color: #8A6A1F; }
+.co-od.nh-thieu small.nhanh { color: #8A6A1F !important; }
+.co-od.nh-chua { background: rgba(214,0,108,.07); }
+.co-od.nh-chua small.nhanh { color: var(--magenta) !important; }
+.co-bao > span { flex: 1 1 280px; min-width: 0; line-height: 1.5; }

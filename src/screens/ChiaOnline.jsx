@@ -2,7 +2,10 @@
 // NEW - 3.157 CHIA HÀNG ONLINE
 //   Chuyển hàng từ kho nguồn (Odoo) → kho online, đúng số, đúng kho nguồn, đúng lúc:
 //     Bán online mỗi ngày (Nhanh, mọi kênh)  ·  Tồn online THẬT (Nhanh kho giao online)  ·  Đang về (phiếu Odoo chưa nhập Nhanh)
-//     → dự báo bán (7/14/28 ngày, làm phẳng ngày sale đột biến) × (thời gian về thật + số ngày phủ) + mức an toàn
+//     → dự báo bán (7/14/28 ngày, TÍNH ĐỦ mọi ngày — kể cả ngày sale lớn 11/11, 12/12) × (thời gian về thật + số ngày phủ) + mức an toàn
+//   NEW - 3.157.1: kho KOL05001 / KOL05002 trên Odoo chỉ là kho "bù nhìn" để trừ tồn kho tổng — TỒN THẬT CỦA ONLINE = TỒN NHANH.
+//     Mỗi lần chuyển online làm đồng thời 2 việc: đơn Odoo (trừ kho nguồn) + phiếu NHẬP ở Nhanh (cộng tồn online, ghi mã phiếu PDCK… vào diễn giải).
+//     App theo dõi từng đơn: Odoo đã xuất chưa → Nhanh đã nhập chưa (đủ số chưa).
 //     → trừ tồn có thể bán + đang về → làm tròn → lấy từ kho nguồn quen của mã (còn khả dụng) → đơn Odoo
 //   Số liệu: fn_ol_du_lieu (SQL 277, tính sẵn ở máy chủ, làm mới nền mỗi lượt kéo Nhanh). Máy tính chạy ngay trên máy:
 //   kéo "Số ngày phủ" / "Mức an toàn" là thấy số mới tức thì.
@@ -20,7 +23,7 @@ const TEN_KHO = {
   SA05001: 'Kho Sale Bảo hiểm', TP05006: 'Kho Xuất Nón bảo hiểm', PK05001: 'Kho Phụ kiện',
   TP05002: 'Kho Thành phẩm Nón vải', SA05002: 'Kho Sale Nón vải',
 };
-const AN_TOAN = [['thap', 'Gọn', 0.84, 'Ít hàng nằm kho — chấp nhận hụt khoảng 1/5 số ngày bán đột biến'],
+const AN_TOAN = [['thap', 'Gọn', 0.84, 'Ít hàng nằm kho — chấp nhận hụt hàng khoảng 1/5 số ngày bán cao'],
   ['vua', 'Vừa', 1.28, 'Cân bằng — đủ hàng ~9/10 ngày'], ['cao', 'Chắc', 1.65, 'Hiếm khi hết — kho online giữ nhiều hơn']];
 const TT = {
   het: ['Hết hàng', 'het'], gap: ['Sắp hết', 'gap'], thap: ['Thấp', 'thap'], du: ['Ổn', 'du'],
@@ -35,7 +38,6 @@ const gioNgay = (s) => { if (!s) return '—'; const d = new Date(s); return gio
 const ngayNgan = (s) => (s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '—');
 const kGia = (g) => (g ? (g >= 1e6 ? fmt1(g / 1e6) + 'tr' : Math.round(g / 1000) + 'k') : '');
 const tong = (a) => a.reduce((s, x) => s + x, 0);
-const trungVi = (a) => { if (!a.length) return 0; const b = [...a].sort((x, y) => x - y); const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
 const doLech = (a) => { if (a.length < 2) return 0; const m = tong(a) / a.length; return Math.sqrt(tong(a.map((x) => (x - m) ** 2)) / (a.length - 1)); };
 const soNgay = (tu, den) => Math.round((Date.parse(den + 'T00:00:00') - Date.parse(tu + 'T00:00:00')) / 864e5);
 const boDau = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
@@ -46,7 +48,7 @@ const docTs = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; }
 // ---------------------------------------------------------------------------
 // MÁY TÍNH — 1 mã
 //   v      = 50% TB 7 ngày + 30% TB 14 ngày + 20% TB 28 ngày (mã mới: chia theo số ngày đã bán)
-//            ngày đột biến (sale lớn 11/11, 12/12…) bị chặn trần 2,5 × trung vị, trừ khi bật "Tính cả ngày đột biến"
+//            TÍNH ĐỦ mọi ngày bán, kể cả ngày sale lớn (11/11, 12/12…) — anh chốt 25/11: phải có các ngày đó mới chia chuẩn
 //   L      = thời gian về THẬT của kho nguồn (tạo phiếu Odoo → nhập kho Nhanh, đo 30 ngày)
 //   mục tiêu = v × (L + số ngày phủ) + z × độ lệch × √(L + phủ)
 //   cần    = mục tiêu − có thể bán online − đang về   → làm tròn (bán ≥ 2/ngày: theo bước làm tròn) → bỏ nếu quá nhỏ mà chưa gấp
@@ -58,8 +60,7 @@ function tinhMa(r, p, cfg, lt, homNay, sua) {
   const moi = r.moi && soNgay(r.moi, homNay) < 28;
   const tuoi = moi && r.nd ? Math.max(1, Math.min(28, soNgay(r.nd, homNay))) : 28;
   const ngayCo = d.slice(28 - tuoi);
-  const tran = p.dotBien ? Infinity : Math.max(3, trungVi(ngayCo.filter((x) => x > 0)) * 2.5);
-  const c = ngayCo.map((x) => Math.min(x, tran));
+  const c = ngayCo;   // NEW - 3.157.1: không chặn trần, không bỏ ngày nào
   const a7 = tong(c.slice(-7)) / Math.min(7, c.length);
   const a14 = tong(c.slice(-14)) / Math.min(14, c.length);
   const a28 = tong(c) / c.length;
@@ -67,7 +68,6 @@ function tinhMa(r, p, cfg, lt, homNay, sua) {
   if (v === 0 && r.hn > 0) v = r.hn;   // mã mới bán hôm nay
   const sd = doLech(c);
   const xh = a28 > 0 ? a7 / a28 : a7 > 0 ? 2 : 1;
-  const dotBien = ngayCo.some((x) => x > tran);
 
   const mac = cfg.nguon?.[r.n] || [];
   const ls = r.ls || {};
@@ -106,12 +106,12 @@ function tinhMa(r, p, cfg, lt, homNay, sua) {
     : phuVe > 45 && co > 10 ? 'thua' : 'du';
   const lyDo = v > 0 ? `Bán ${fmt1(v)}/ngày${xh >= 1.25 ? ' ↑' : xh <= 0.75 ? ' ↓' : ''} · online còn ${fmt1(phu === Infinity ? 0 : phu)} ngày`
     + (ve ? ` · đang về ${fmtN(ve)}` : '') + ` → cần đủ ${fmt1(H)} ngày (về ${fmt1(L)} + phủ ${p.phu}) + an toàn ${fmtN(anToan)} = ${fmtN(mucTieu)}` : '';
-  return { r, v, a7, a28, xh, sd, dotBien, tran, L, H, mucTieu, anToan, co, ve, can, deXuat, sl: sl2, chia, thieu: vuot ? 0 : thieu, vuot,
+  return { r, v, a7, a28, xh, sd, L, H, mucTieu, anToan, co, ve, can, deXuat, sl: sl2, chia, thieu: vuot ? 0 : thieu, vuot,
     phu, phuVe, tt, thuTu, den: cfg.kho_dich?.[r.n] || 'KOL05002', lyDo, daSua: sua?.sl != null || !!sua?.nguon };
 }
 
-// Biểu đồ 28 ngày: 7 ngày gần nhất đậm, ngày bị chặn trần (đột biến) màu vàng
-function Song({ d, tran }) {
+// Biểu đồ 28 ngày: 7 ngày gần nhất đậm, ngày bán cao nhất màu vàng (để thấy đỉnh — vẫn tính đủ)
+function Song({ d }) {
   if (!d) return <span className="co-song trong">không bán</span>;
   const max = Math.max(1, ...d);
   return (
@@ -119,7 +119,7 @@ function Song({ d, tran }) {
       {d.map((x, i) => {
         const h = x > 0 ? Math.max(1.5, (x / max) * 22) : 0.8;
         return <rect key={i} x={i * 3} y={24 - h} width="2.2" height={h} rx="0.6"
-          className={x > tran ? 'db' : i >= 21 ? 'gan' : ''} />;
+          className={x === max && x > 0 ? 'db' : i >= 21 ? 'gan' : ''} />;
       })}
     </svg>
   );
@@ -152,7 +152,7 @@ export default function ChiaOnline() {
   const [lamMoi, setLamMoi] = useState(false);
   const [tab, setTab] = useState('chia');
   const ts0 = docTs();
-  const [p, setP] = useState({ phu: ts0.phu ?? null, an: ts0.an ?? null, lamTron: ts0.lamTron ?? null, giuNguon: ts0.giuNguon ?? null, dotBien: !!ts0.dotBien });
+  const [p, setP] = useState({ phu: ts0.phu ?? null, an: ts0.an ?? null, lamTron: ts0.lamTron ?? null, giuNguon: ts0.giuNguon ?? null });
   const [nganh, setNganh] = useState('');
   const [loc, setLoc] = useState('can');
   const [q, setQ] = useState('');
@@ -172,7 +172,7 @@ export default function ChiaOnline() {
   const cfg = kq?.cfg || {};
   const P = useMemo(() => ({
     phu: p.phu ?? cfg.ngay_phu ?? 7, an: p.an ?? cfg.an_toan ?? 'vua', lamTron: p.lamTron ?? cfg.lam_tron ?? 5,
-    giuNguon: p.giuNguon ?? cfg.giu_nguon ?? 0, dotBien: p.dotBien,
+    giuNguon: p.giuNguon ?? cfg.giu_nguon ?? 0,
   }), [p, cfg.ngay_phu, cfg.an_toan, cfg.lam_tron, cfg.giu_nguon]);
   useEffect(() => { try { localStorage.setItem(LS, JSON.stringify(p)); } catch { /* bỏ qua */ } }, [p]);
   useEffect(() => { banRef.current?.('chiaonline', Object.keys(sua).length > 0); }, [sua]);   // đang sửa dở → không tự cập nhật bản mới
@@ -321,13 +321,20 @@ export default function ChiaOnline() {
   };
   const luuNhap = async () => { const ph = await luuPhieu(); if (ph) { baoToast(`Đã lưu nháp ${ph.ma_phieu} — nháp KHÔNG tính vào đang về`); setSua({}); } };
 
-  const xuatExcel = async (ma = 'OL-NHAP', dong = dongChuyen, phan = ds.filter((m) => m.sl > 0)) => {
+  const xuatExcel = async (ma = 'OL-NHAP', dong = dongChuyen, phan = ds.filter((m) => m.sl > 0), dsOdoo = null) => {
     const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     const h1 = ['Kho nguồn', 'Kho đích', 'SKU/ Barcode', 'Số lượng', 'Mã phiếu'];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dong.map((d) => ({
       'Kho nguồn': d.tu, 'Kho đích': d.den, 'SKU/ Barcode': d.sku || d.barcode, 'Số lượng': d.sl, 'Mã phiếu': ma,
     })), { header: h1 }), 'Trang tính1');
+    // NEW - 3.157.1: danh sách để kho online NHẬP vào Nhanh (kho KOL trên Odoo chỉ trừ tồn kho tổng — tồn online thật nằm ở Nhanh).
+    //   Diễn giải phiếu nhập Nhanh ghi đúng mã phiếu Odoo (PDCK…) để app khớp "đã nhập".
+    const maOdoo = (d) => (dsOdoo || []).find((o) => o.tt === 'thanh_cong' && o.tu === d.tu && o.den === d.den)?.name || '';
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dong.map((d) => ({
+      'Mã sản phẩm (Nhanh)': d.ma || '', 'Mã vạch': d.barcode, 'Số lượng nhập': d.sl, 'Kho online': d.den, 'Từ kho': d.tu,
+      'Ghi vào diễn giải phiếu nhập Nhanh': maOdoo(d) || `mã phiếu Odoo của đơn ${d.tu} → ${d.den} (${ma})`,
+    }))), 'Nhập Nhanh');
     if (phan?.length) {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(phan.map((m) => ({
         'Mã': m.r.m, 'Tên': m.r.t || '', 'Ngành': NGANH[m.r.n] || m.r.n, 'Bán/ngày (dự báo)': Math.round(m.v * 10) / 10,
@@ -418,8 +425,8 @@ export default function ChiaOnline() {
             <small>Không lấy hết khả dụng kho nguồn</small>
           </div>
           <div className="co-dk-o hep">
-            <label className="co-hop"><input type="checkbox" checked={P.dotBien} onChange={(e) => setP((x) => ({ ...x, dotBien: e.target.checked }))} /> Tính cả ngày đột biến</label>
-            <small>Mặc định bỏ qua ngày sale lớn (11/11…) để không chuyển thừa</small>
+            <label>Tồn online = tồn Nhanh</label>
+            <small>Kho KOL trên Odoo chỉ để trừ tồn kho tổng. Tính đủ mọi ngày bán, kể cả ngày sale lớn.</small>
             {user.vai_tro === 'ADMIN' && <button className="co-link" onClick={async () => {
               const { error } = await sb.rpc('fn_ol_cau_hinh_luu', { p_token: user.token, p_cfg: { ngay_phu: P.phu, an_toan: P.an, lam_tron: P.lamTron, giu_nguon: P.giuNguon } });
               baoToast(error ? 'Chưa lưu: ' + error.message : 'Đã đặt làm mặc định cho mọi người');
@@ -449,7 +456,7 @@ export default function ChiaOnline() {
             <thead>
               <tr>
                 <th className="l">Sản phẩm <span className="co-dem2">{fmtN(hien.length)}</span></th>
-                <th title="Bán mỗi ngày 28 ngày qua — 7 ngày gần nhất đậm, ngày đột biến màu vàng">Bán 28 ngày</th>
+                <th title="Bán mỗi ngày 28 ngày qua — 7 ngày gần nhất đậm, ngày bán cao nhất màu vàng">Bán 28 ngày</th>
                 <Th k="v" title="Dự báo bán / ngày (50% TB 7 ngày + 30% TB 14 + 20% TB 28)">Bán/ngày</Th>
                 <Th k="co" title="Tồn online có thể bán (Nhanh: đã trừ hàng giữ cho đơn, đang giao…)">Có thể bán</Th>
                 <Th k="phu" title="Đủ bán bao nhiêu ngày · vạch 1 = thời gian hàng về · vạch 2 = mục tiêu (về + số ngày phủ)">Đủ bán</Th>
@@ -471,7 +478,7 @@ export default function ChiaOnline() {
                       </div>
                       {m.tt && <span className={'co-tt ' + TT[m.tt][1]}>{TT[m.tt][0]}</span>}
                     </div></td>
-                    <td><Song d={r.d} tran={P.dotBien ? Infinity : m.tran} /></td>
+                    <td><Song d={r.d} /></td>
                     <td className="so"><b>{fmt1(m.v)}</b>{m.v > 0 && (m.xh >= 1.25 ? <em className="len">↑{Math.round((m.xh - 1) * 100)}%</em> : m.xh <= 0.75 ? <em className="xuong">↓{Math.round((1 - m.xh) * 100)}%</em> : null)}
                       <small title="Trung bình / ngày: 7 ngày gần nhất · 28 ngày">TB 7n {fmt1((r.s7 || 0) / 7)} · 28n {fmt1((r.s28 || 0) / 28)}</small>
                       {r.hn ? <small>hôm nay {r.hn}</small> : null}</td>
@@ -503,8 +510,7 @@ export default function ChiaOnline() {
                   mo && (
                     <tr key={r.b + '-ct'} className="co-ct"><td colSpan={8}>
                       <div className="co-ct-o">
-                        <div><small>Vì sao</small><p>{m.lyDo || 'Không bán trong 28 ngày — không đề xuất chuyển.'}</p>
-                          {m.dotBien && !P.dotBien && <p className="phu">Có ngày bán đột biến — đã chặn trần {fmtN(m.tran)}/ngày khi tính.</p>}</div>
+                        <div><small>Vì sao</small><p>{m.lyDo || 'Không bán trong 28 ngày — không đề xuất chuyển.'}</p></div>
                         <div><small>Số liệu</small><p>Bán 7 ngày {fmtN(r.s7)} · 14 ngày {fmtN(r.s14)} · 28 ngày {fmtN(r.s28)} · độ lệch {fmt1(m.sd)}/ngày<br />
                           Online: thực {fmtN(r.on)} · có thể bán {fmtN(r.cb)} · giữ cho đơn {fmtN(r.gi)}<br />
                           Kho đích {m.den} · thời gian về {fmt1(m.L)} ngày{r.lc ? ` · lần chuyển gần nhất ${ngayNgan(r.lc)}` : ''}</p></div>
@@ -594,7 +600,7 @@ function SucKhoe({ ds, kq, P }) {
 
       <div className="card co-sk-o rong">
         <h3>Phiếu treo <span className="co-dem2">{(kq.treo || []).length}</span></h3>
-        <p className="co-mo">Phiếu Odoo → kho online đã xuất hơn 4 ngày mà Nhanh chưa thấy phiếu nhập (khớp mã PDCK / XKDC). Có thể hàng đã tới nhưng chưa nhập Nhanh, hoặc nhập mà không ghi mã phiếu — kiểm tra với kho online. Máy tính KHÔNG cộng các phiếu này vào đang về.</p>
+        <p className="co-mo">Phiếu Odoo → kho online đã xuất hơn 4 ngày mà Nhanh chưa thấy phiếu nhập (khớp mã PDCK / XKDC ở diễn giải). Kho KOL trên Odoo chỉ để trừ tồn kho tổng — hàng chỉ thành tồn online khi đã NHẬP vào Nhanh. Kiểm tra với kho online: hàng tới chưa nhập Nhanh, hay đã nhập mà không ghi mã phiếu. Máy tính KHÔNG cộng các phiếu này vào đang về.</p>
         {(kq.treo || []).length ? (
           <table className="co-bang nho"><thead><tr><th className="l">Phiếu</th><th>Kho nguồn</th><th>Kho online</th><th>Tạo</th><th>Xuất</th><th>Mã</th><th>Số lượng</th></tr></thead>
             <tbody>{kq.treo.map((x) => <tr key={x.ma_phieu}><td className="l"><b>{x.ma_phieu}</b></td><td>{x.nguon}</td><td>{x.den}</td><td>{ngayNgan(x.ngay_tao)}</td><td>{ngayNgan(x.ngay_xuat)}</td><td>{x.so_ma}</td><td className="so"><b>{fmtN(x.sl)}</b></td></tr>)}</tbody></table>
@@ -650,6 +656,10 @@ function DsPhieu({ ds, user, baoToast, taiLai, odoo, guiOdoo, xuatExcel, moSua }
   if (!ds.length) return <div className="card dsl-trong">Chưa có phiếu chia online nào trong 30 ngày — tạo ở tab Đề xuất chuyển.</div>;
   const TTP = { nhap: ['Nháp', 'nhap'], da_gui: ['Đã lên Odoo', 'ok'], huy: ['Đã huỷ', 'huy'] };
   return (
+    <>
+    <div className="co-bao"><IcAlert />
+      <span>Mỗi lần chuyển online làm <b>đồng thời 2 việc</b>: ① đơn Odoo về KOL05002 / KOL05001 (chỉ để trừ tồn kho tổng) · ② kho online <b>nhập phiếu vào Nhanh</b>, diễn giải ghi mã phiếu Odoo (PDCK…). Tồn Nhanh là tồn thật — app khớp phiếu nhập Nhanh để biết hàng đã vào online.</span>
+    </div>
     <div className="card co-bang-khung">
       <table className="co-bang co-phieu">
         <thead><tr><th className="l">Phiếu</th><th>Trạng thái</th><th>Mã</th><th>Số lượng</th><th className="l">Đơn Odoo</th><th className="l">Người · lúc</th><th></th></tr></thead>
@@ -660,13 +670,23 @@ function DsPhieu({ ds, user, baoToast, taiLai, odoo, guiOdoo, xuatExcel, moSua }
               <td><span className={'co-tt ' + TTP[ph.tt][1]}>{TTP[ph.tt][0]}</span>{ph.n_loi ? <small className="thieu">{ph.n_loi} đơn lỗi</small> : null}</td>
               <td className="so">{fmtN(ph.so_ma)}</td>
               <td className="so"><b>{fmtN(ph.tong_sl)}</b></td>
-              <td className="l odoo">{(ph.ds || []).map((o) => <span key={o.id} className={'co-od ' + o.tt} title={o.loi || o.ct || ''}>{o.name}<small>{o.tu}→{o.den} · {fmtN(o.sl)}</small></span>)}
+              <td className="l odoo">{(ph.ds || []).map((o) => {
+                // NEW - 3.157.1: mỗi đơn chuyển online phải đủ 2 bước — Odoo xuất (trừ kho nguồn) + Nhanh nhập (cộng tồn online)
+                const nh = o.nhap; const xu = o.xuat;
+                const buoc = o.tt !== 'thanh_cong' ? null : nh ? (nh.sl >= (xu?.sl || o.sl) ? 'du' : 'thieu') : 'chua';
+                return (
+                  <span key={o.id} className={'co-od ' + o.tt + (buoc ? ' nh-' + buoc : '')} title={o.loi || o.ct || ''}>
+                    {o.name}<small>{o.tu}→{o.den} · {fmtN(o.sl)}</small>
+                    {o.tt === 'thanh_cong' && <small className="buoc">Odoo: {xu?.tt || 'chờ đồng bộ'}{xu?.sl ? ` ${fmtN(xu.sl)}` : ''}</small>}
+                    {buoc && <small className="buoc nhanh">Nhanh: {buoc === 'chua' ? 'CHƯA nhập' : `đã nhập ${fmtN(nh.sl)}${buoc === 'thieu' ? ' (thiếu)' : ''} · ${ngayNgan(nh.ngay)}`}</small>}
+                  </span>);
+              })}
                 {!(ph.ds || []).length && <span className="nhat">—</span>}</td>
               <td className="l"><small>{ph.nguoi} · {gioNgay(ph.tao_luc)}</small></td>
               <td className="nut">
                 {ph.tt === 'nhap' && odoo && <button className="btn btn-ai" onClick={async () => { const d = await layCt(ph); if (d?.length) guiOdoo(ph, d); }}><IcGuiLen /> Tạo đơn Odoo</button>}
                 {ph.tt === 'nhap' && <button className="btn btn-ghost" onClick={() => moSua(ph)}>Sửa</button>}
-                <button className="btn btn-ghost" onClick={async () => { const d = await layCt(ph); if (d) xuatExcel(ph.ma_phieu, d, null); }}><IcDown /></button>
+                <button className="btn btn-ghost" title="Excel: đơn Odoo + danh sách nhập Nhanh" onClick={async () => { const d = await layCt(ph); if (d) xuatExcel(ph.ma_phieu, d, null, ph.ds); }}><IcDown /></button>
                 {ph.tt === 'nhap' && <button className="btn btn-ghost do" onClick={() => huy(ph)}>Huỷ</button>}
               </td>
             </tr>,
@@ -683,6 +703,7 @@ function DsPhieu({ ds, user, baoToast, taiLai, odoo, guiOdoo, xuatExcel, moSua }
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
