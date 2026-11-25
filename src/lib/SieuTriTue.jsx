@@ -9,7 +9,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { IcBrain, IcCheck, IcAlert, IcClock, IcGear, IcMoRong, IcThuNho, IcRefresh, IcSpark, IcBox } from './icons.jsx';
 import { Sel } from './ui.jsx';
 import { layCau, choCau, datMo } from './sttCau.js';
-import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa, aiDsPhien, aiPhienSua, aiDoiChieu, aiBaoSai, aiDsBaoSai, aiTriThucDs, aiTriThucLuu, aiNguoiDs } from './sttApi.js';
+import { goiLuong, goiJson, aiQuyen, aiLichSu, aiViecCt, aiPhienTin, aiDuyet, aiXong, aiHuy, aiCauHinh, aiCauHinhLuu, aiLuuKhoa, aiDsPhien, aiPhienSua, aiDoiChieu, aiBaoSai, aiDsBaoSai, aiTriThucDs, aiTriThucLuu, aiNguoiDs, aiVanDe, aiHocXem, aiHocCauHinh } from './sttApi.js';
 import { useGiong } from './sttGiong.js';   // NEW - 3.129 giọng nói nói dài, bấm nhiều lần
 
 const fmt = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
@@ -39,6 +39,7 @@ const NGUON = {
   hoi_so_lieu: { ten: 'AI tự tra bằng truy vấn riêng — nên đối chiếu', chuan: false },
 };
 const GOI_Y = [
+  'Hôm nay app có vấn đề gì cần xử lý?',
   'Chia đội 1 tầm 3–5 thùng, chia đủ 15 ngày, tổng tồn sau chia không quá 500',
   'Tình hình đội 3 thế nào? Mã nào sắp hết?',
   'Top 10 cửa hàng bán nhiều nhất tuần này, kèm tồn hiện tại',
@@ -457,6 +458,23 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   }, [nhap, to, mo, view, gi.nghe, banPhim, moSoan]);
 
   useEffect(() => { if (token) aiQuyen(token).then(setQuyen, () => setQuyen(null)); }, [token]);
+  // NEW - 3.159.5 SỔ VẤN ĐỀ TOÀN APP: tải sẵn khi mở app + 15 phút / lần (máy chủ giữ 10 phút, không tốn token) — AI nắm sẵn, không đợi hỏi
+  const [vanDe, setVanDe] = useState(null);
+  const taiVanDe = useCallback((ep = false) => { if (token) aiVanDe(token, ep).then(setVanDe, () => {}); }, [token]);
+  useEffect(() => {
+    if (!quyen?.ok) return undefined;
+    taiVanDe();
+    const t = setInterval(() => { if (document.visibilityState === 'visible') taiVanDe(); }, 15 * 60000);
+    return () => clearInterval(t);
+  }, [quyen?.ok, taiVanDe]);
+  // NEW - 3.159.5 TỰ HỌC: mỗi lần mở app nhắc máy chủ học (máy chủ tự giới hạn: cách N giờ, trần token / ngày, 1 lượt 1 lúc)
+  useEffect(() => {
+    if (!quyen?.ok || !quyen.co_khoa || !token) return;
+    let cuoi = 0; try { cuoi = Number(localStorage.getItem('ns_ai_hoc_goi')) || 0; } catch { /* */ }
+    if (Date.now() - cuoi < 30 * 60000) return;
+    try { localStorage.setItem('ns_ai_hoc_goi', String(Date.now())); } catch { /* */ }
+    goiJson({ token, hanh_dong: 'hoc' }).catch(() => {});
+  }, [quyen?.ok, quyen?.co_khoa, token]);
   useEffect(() => { lsS('phien:' + (user?.ma_dang_nhap || ''), phien); }, [phien, user?.ma_dang_nhap]);
   useEffect(() => { lsS('rong', rong); }, [rong]);
 
@@ -671,6 +689,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
         <button className={'stt-tay' + (jobDang ? ' chay' : '')} onClick={() => setMo(true)} aria-label="Mở SIÊU TRÍ TUỆ" title="SIÊU TRÍ TUỆ — giao việc bằng chữ hoặc giọng nói">
           <IcBrain />
           <span className="stt-tay-chu">{jobDang ? `${Math.floor(jobDang.pt || 0)}%` : 'SIÊU TRÍ TUỆ'}</span>
+          {!jobDang && vanDe?.so_do > 0 && <i className="stt-tay-vd" title={`${vanDe.so_do} vấn đề đỏ đang có trong app`}>{vanDe.so_do}</i>}
           {jobDang && <i className="stt-tay-ray" style={{ height: (jobDang.pt || 0) + '%' }} />}
         </button>
       )}
@@ -709,6 +728,13 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
                     <span className="stt-chao-dau" aria-hidden="true"><IcBrain /></span>
                     <b>Anh giao việc, em làm trên màn hình rồi báo lại.</b>
                     <p>Hỏi gì về đội, cửa hàng, kho, sản phẩm em cũng tra được. Thao tác chia hàng dùng đúng công thức của app; việc ghi dữ liệu luôn chờ anh bấm Duyệt.</p>
+                    <VanDeKhung vd={vanDe} onTai={() => taiVanDe(true)} onHoi={(x) => giao(`Phân tích giúp anh vấn đề này và nên xử lý thế nào: ${x.nhom} — ${x.tieu_de}${x.chi_tiet ? ' (' + x.chi_tiet + ')' : ''}`)}
+                      onMo={async (x) => {
+                        if (x.man === 'sieu_tri_tue') { setView('ls'); return; }
+                        const t = { tong_quan: 'dashboard', lich_de_nghi: 'lich', dieu_chuyen: 'odoo', chia_online: 'chiaonline', tiktok: 'tiktok', tham_so: 'thamso' }[x.man];
+                        const r = t ? await moMan(t) : { ok: false, loi: 'Chưa gắn màn' };
+                        if (!r.ok) baoToast?.(r.loi); else if (laDt()) setMo(false);
+                      }} choDung={choDung} />
                     <div className="stt-goi-y">{GOI_Y.map((g) => <button key={g} onClick={() => giao(g)} disabled={choDung}>{g}</button>)}</div>
                   </div>
                 )}
@@ -1017,6 +1043,7 @@ function CaiDat({ token, onDoi, baoToast, onCt }) {
         )}
       </section>
       <XungHo token={token} map={cfg.xung_ho || {}} onLuu={(m) => luu({ xung_ho: m })} />
+      <TuHoc token={token} baoToast={baoToast} />
       <TriThuc token={token} baoToast={baoToast} />
       <BaoSaiDs token={token} onCt={onCt} />
       <section>
@@ -1049,10 +1076,106 @@ function CaiDat({ token, onDoi, baoToast, onCt }) {
   );
 }
 // ---------------------------------------------------------------------------
+// NEW - 3.159.5 VẤN ĐỀ HIỆN TẠI (sổ vấn đề toàn app — máy chủ tính từ dữ liệu, 0 token): hiện ngay khi mở khung, đỏ trước
+// ---------------------------------------------------------------------------
+function VanDeKhung({ vd, onTai, onHoi, onMo, choDung }) {
+  const [het, setHet] = useState(false);
+  if (!vd) return null;
+  const ds = vd.ds || [];
+  const hien = het ? ds : ds.slice(0, 6);
+  return (
+    <div className="stt-vd">
+      <div className="stt-vd-dau">
+        <b>{ds.length ? `Vấn đề hiện tại · ${vd.so_do || 0} đỏ · ${vd.so_vang || 0} vàng` : 'Chưa thấy vấn đề nào trong app'}</b>
+        <button className="stt-lk" onClick={onTai} title="Tính lại ngay">{vd.tuoi_phut != null ? `${vd.tuoi_phut} phút trước` : ''} ↻</button>
+      </div>
+      {hien.map((x, i) => (
+        <div key={i} className={'stt-vd-dong ' + (x.muc === 'do' ? 'do' : 'vang')}>
+          <button className="stt-vd-ten" onClick={() => onMo(x)} title="Mở màn liên quan">
+            <span>{x.nhom}</span><b>{x.tieu_de}</b>{x.chi_tiet && <small>{x.chi_tiet}</small>}</button>
+          <button className="stt-vd-hoi" onClick={() => onHoi(x)} disabled={choDung} title="Hỏi AI phân tích và cách xử lý">Hỏi</button>
+        </div>
+      ))}
+      {ds.length > 6 && <button className="stt-lk" onClick={() => setHet((v) => !v)}>{het ? 'Thu gọn' : `Xem thêm ${ds.length - 6} mục`}</button>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NEW - 3.159.5 TỰ HỌC (Quản trị): token hôm nay (trả lời / tự học / trần), các lượt học, bật tắt, trần, Học ngay
+// ---------------------------------------------------------------------------
+const TT_HOC = { dang_chay: 'Đang học', xong: 'Xong', loi: 'Lỗi', bo: 'Bỏ qua' };
+function TuHoc({ token, baoToast }) {
+  const [d, setD] = useState(null);
+  const [loi, setLoi] = useState('');
+  const [dang, setDang] = useState('');
+  const [tran, setTran] = useState('');
+  const [gio, setGio] = useState('');
+  const tai = useCallback(() => aiHocXem(token).then((x) => { setD(x); setTran(String(x?.cfg?.tran_token_ngay ?? '')); setGio(String(x?.cfg?.cach_gio ?? '')); setLoi(''); }, (e) => setLoi(e.message)), [token]);
+  useEffect(() => { tai(); }, [tai]);
+  useEffect(() => {   // đang học: 8 giây cập nhật 1 lần
+    if (!d?.lan?.some((x) => x.trang_thai === 'dang_chay')) return undefined;
+    const t = setTimeout(tai, 8000); return () => clearTimeout(t);
+  }, [d, tai]);
+  const luu = async (p) => {
+    setDang('luu');
+    try { await aiHocCauHinh(token, p); baoToast?.('Đã lưu thông số tự học'); await tai(); } catch (e) { baoToast?.('Chưa lưu được: ' + e.message); }
+    setDang('');
+  };
+  const hocNgay = async () => {
+    setDang('hoc');
+    const r = await goiJson({ token, hanh_dong: 'hoc', tay: true });
+    setDang('');
+    baoToast?.(r?.chay ? `Đang học ${r.so_cau} câu hỏi — xong sẽ có bài học ở "Chờ duyệt"` : (r?.ly_do || r?.loi || 'Chưa học được'));
+    setTimeout(tai, 1500);
+  };
+  if (loi) return <section><h4>Tự học</h4><p className="stt-loi"><IcAlert />{loi}</p></section>;
+  if (!d) return <section><h4>Tự học</h4><p className="stt-trong"><i className="stt-quay" /> Đang tải…</p></section>;
+  const c = d.cfg || {}, h = d.hom_nay || {};
+  const trLoi = Number(h.tra_loi_vao || 0) + Number(h.tra_loi_ra || 0), tuHoc = Number(h.tu_hoc || 0), tranN = Number(c.tran_token_ngay || 0);
+  return (
+    <section>
+      <h4>Tự học {c.bat === false ? <span className="stt-chip c-loi">đang tắt</span> : <span className="stt-chip c-xong">đang bật</span>}
+        {d.cho_duyet > 0 && <span className="stt-chip c-cho_duyet">{d.cho_duyet} bài chờ duyệt</span>}</h4>
+      <p className="stt-nho">Mỗi lần có người mở app (tối thiểu cách {c.cach_gio || 4} giờ), AI đọc lại các câu đã hỏi, câu bị sửa, báo sai, lỗi và sổ vấn đề → rút bài học (nghĩa từ, quy tắc, lỗi cần tránh, câu mẫu, kiến thức) kèm bằng chứng → nằm ở "Chờ duyệt". Anh duyệt mới dùng. Không có bằng chứng là câu hỏi thật thì bỏ.</p>
+      <div className="stt-hoc-so">
+        <div><small>Hôm nay · trả lời</small><b>{fmt(trLoi)}</b><em>token · {fmt(h.tra_loi_lan)} lượt gọi</em></div>
+        <div><small>Hôm nay · tự học</small><b>{fmt(tuHoc)}</b><em>/ trần {fmt(tranN)} token · {fmt(h.tu_hoc_lan)} lượt</em>
+          <i className="stt-hoc-thanh"><i style={{ width: Math.min(100, tranN ? (tuHoc / tranN) * 100 : 0) + '%' }} /></i></div>
+      </div>
+      <div className="stt-hoc-7">{(d.bay_ngay || []).map((x) => (
+        <span key={x.ngay} title={`${x.ngay}: trả lời ${fmt(x.tra_loi)} · tự học ${fmt(x.tu_hoc)} token`}>
+          <i style={{ height: Math.max(2, Math.min(40, (Number(x.tra_loi) + Number(x.tu_hoc)) / Math.max(1, ...(d.bay_ngay || []).map((y) => Number(y.tra_loi) + Number(y.tu_hoc))) * 40)) }}>
+            <i style={{ height: (Number(x.tu_hoc) / Math.max(1, Number(x.tra_loi) + Number(x.tu_hoc))) * 100 + '%' }} /></i>
+          <small>{String(x.ngay).slice(8, 10)}</small></span>
+      ))}</div>
+      <p className="stt-nho">Cột 7 ngày: phần xanh đậm = tự học, phần còn lại = trả lời.</p>
+      <div className="stt-hang stt-hoc-ts">
+        <label>Trần tự học / ngày<input inputMode="numeric" value={tran} onChange={(e) => setTran(e.target.value.replace(/[^\d]/g, ''))} /><span>token</span></label>
+        <label>Học cách<input inputMode="numeric" value={gio} onChange={(e) => setGio(e.target.value.replace(/[^\d]/g, ''))} /><span>giờ</span></label>
+        <button className="btn btn-ghost" disabled={dang === 'luu' || (tran === String(c.tran_token_ngay ?? '') && gio === String(c.cach_gio ?? ''))}
+          onClick={() => luu({ tran_token_ngay: Number(tran) || 0, cach_gio: Number(gio) || 4 })}>Lưu</button>
+        <button className="btn btn-ghost" disabled={dang === 'luu'} onClick={() => luu({ bat: c.bat === false })}>{c.bat === false ? 'Bật tự học' : 'Tắt tự học'}</button>
+        <button className="btn btn-ai" disabled={dang === 'hoc' || c.bat === false} onClick={hocNgay}><IcSpark /> {dang === 'hoc' ? 'Đang gửi…' : 'Học ngay'}</button>
+      </div>
+      {(d.lan || []).length > 0 && (
+        <ul className="stt-hoc-lan">{d.lan.map((x) => (
+          <li key={x.id} className={x.trang_thai}>
+            <div><b>{x.luc}</b><span className={'stt-chip c-' + (x.trang_thai === 'xong' ? 'xong' : x.trang_thai === 'loi' ? 'loi' : 'cho_duyet')}>{TT_HOC[x.trang_thai] || x.trang_thai}</span>
+              <small>{x.kich_hoat === 'tay' ? 'bấm tay' : 'khi mở app'}{x.so_cau ? ` · ${x.so_cau} câu` : ''}{x.token ? ` · ${fmt(x.token)} token` : ''}{x.trang_thai === 'xong' ? ` · ${x.so_bai} bài mới${x.so_trung ? `, ${x.so_trung} trùng bỏ` : ''}` : ''}{x.giay ? ` · ${x.giay} giây` : ''}</small></div>
+            {(x.tom_tat || x.loi) && <p className={x.loi ? 'stt-loi' : ''}>{x.loi || x.tom_tat}</p>}
+          </li>
+        ))}</ul>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // NEW - 3.133 TRI THỨC (bộ não): nghĩa từ ngữ / quy tắc / bài học sửa sai — xem, thêm, sửa, duyệt, tắt, xoá
 // ---------------------------------------------------------------------------
-const LOAI_TT = { tu_ngu: 'Từ ngữ', quy_tac: 'Quy tắc luôn áp dụng', sua_sai: 'Bài học sửa sai' };
-const NGUON_TT = { he_thong: 'Hệ thống', ai_ghi_nho: 'AI ghi nhớ', quan_tri: 'Quản trị', nguoi_dung: 'Người dùng' };
+const LOAI_TT = { tu_ngu: 'Từ ngữ', quy_tac: 'Quy tắc luôn áp dụng', sua_sai: 'Bài học sửa sai', cau_mau: 'Câu mẫu đã học', kien_thuc: 'Kiến thức' };   // NEW - 3.159.5: + câu mẫu, kiến thức
+const NGUON_TT = { he_thong: 'Hệ thống', ai_ghi_nho: 'AI ghi nhớ', quan_tri: 'Quản trị', nguoi_dung: 'Người dùng', tu_hoc: 'AI tự học' };
 const CC_TT = [['', 'Không chỉ định'], ['lich_de_nghi', 'Lịch đề nghị'], ['tong_quan', 'Tổng quan'], ['ho_so', 'Hồ sơ'], ['xep_hang', 'Xếp hạng'], ['hoi_so_lieu', 'Tự tra số liệu'], ['chia_doi', 'Chia từng đội']];
 function FormTT({ v, onDoi, onLuu, onHuy, dang }) {
   const thieuCum = v.loai === 'tu_ngu' && !String(v.cum_tu || '').trim();
@@ -1063,7 +1186,7 @@ function FormTT({ v, onDoi, onLuu, onHuy, dang }) {
         <label>Công cụ nên dùng<Sel value={v.cong_cu || ''} onChange={(x) => onDoi({ ...v, cong_cu: x })} options={CC_TT.map(([value, label]) => ({ value, label }))} /></label>
       </div>
       <label>Cụm từ (cách nhau dấu phẩy){v.loai === 'tu_ngu' ? '' : ' — không bắt buộc'}<input value={v.cum_tu || ''} onChange={(e) => onDoi({ ...v, cum_tu: e.target.value })} placeholder="vd: đi hàng, chia tồn kho" /></label>
-      {v.loai === 'sua_sai' && <label>Câu hỏi mẫu<input value={v.cau_mau || ''} onChange={(e) => onDoi({ ...v, cau_mau: e.target.value })} placeholder="Câu hỏi từng bị trả lời sai" /></label>}
+      {(v.loai === 'sua_sai' || v.loai === 'cau_mau') && <label>Câu hỏi mẫu<input value={v.cau_mau || ''} onChange={(e) => onDoi({ ...v, cau_mau: e.target.value })} placeholder={v.loai === 'sua_sai' ? 'Câu hỏi từng bị trả lời sai' : 'Câu hỏi hay gặp, đúng cách người dùng nói'} /></label>}
       <label>Nội dung — AI sẽ hiểu thế này<textarea rows={3} value={v.noi_dung || ''} onChange={(e) => onDoi({ ...v, noi_dung: e.target.value })} maxLength={800} /></label>
       <div className="stt-bs-nut">
         <button type="button" className="btn btn-ghost" onClick={onHuy}>Huỷ</button>
@@ -1088,12 +1211,20 @@ function TriThuc({ token, baoToast }) {
     setDang(false);
   };
   const luuForm = () => luu({ ...(sua.id ? { id: sua.id } : {}), loai: sua.loai, cum_tu: String(sua.cum_tu || '').trim(), noi_dung: String(sua.noi_dung || '').trim(),
-    cong_cu: sua.cong_cu || '', cau_mau: sua.loai === 'sua_sai' ? String(sua.cau_mau || '').trim() : '' }, sua.id ? 'Đã sửa tri thức' : 'Đã thêm — AI dùng từ câu sau');
+    cong_cu: sua.cong_cu || '', cau_mau: sua.loai === 'sua_sai' || sua.loai === 'cau_mau' ? String(sua.cau_mau || '').trim() : '' }, sua.id ? 'Đã sửa tri thức' : 'Đã thêm — AI dùng từ câu sau');
   const dem = useMemo(() => {
     const d = ds || [];
-    return { dung: d.filter((x) => x.trang_thai === 'dung').length, cho: d.filter((x) => x.trang_thai === 'cho_duyet').length, tat: d.filter((x) => x.trang_thai === 'tat').length, sua_sai: d.filter((x) => x.loai === 'sua_sai').length };
+    return { dung: d.filter((x) => x.trang_thai === 'dung').length, cho: d.filter((x) => x.trang_thai === 'cho_duyet').length, tat: d.filter((x) => x.trang_thai === 'tat').length, sua_sai: d.filter((x) => x.loai === 'sua_sai').length,
+      tu_hoc: d.filter((x) => x.nguon === 'tu_hoc').length };
   }, [ds]);
-  const hien = (ds || []).filter((x) => !loc || (loc === 'sua_sai' ? x.loai === 'sua_sai' : x.trang_thai === loc));
+  const hien = (ds || []).filter((x) => !loc || (loc === 'sua_sai' ? x.loai === 'sua_sai' : loc === 'tu_hoc' ? x.nguon === 'tu_hoc' : x.trang_thai === loc));
+  // NEW - 3.159.5: duyệt 1 lượt các mục đang hiện mà còn chờ duyệt (đã xem bằng chứng từng mục)
+  const choHien = hien.filter((x) => x.trang_thai === 'cho_duyet');
+  const duyetHet = async () => {
+    setDang(true);
+    let ok = 0; for (const x of choHien) { try { await aiTriThucLuu(token, { id: x.id, trang_thai: 'dung' }); ok += 1; } catch { /* */ } }
+    setDang(false); setXoa(null); baoToast?.(`Đã duyệt ${ok} mục — AI dùng từ câu sau`); tai(tim.trim());
+  };
   const formEl = sua && <FormTT v={sua} onDoi={setSua} onLuu={luuForm} onHuy={() => setSua(null)} dang={dang} />;
   return (
     <section>
@@ -1103,9 +1234,10 @@ function TriThuc({ token, baoToast }) {
         <input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm từ ngữ, nội dung…" />
         <button className="btn btn-ai" onClick={() => setSua({ loai: 'tu_ngu', cum_tu: '', noi_dung: '', cong_cu: '' })} disabled={!!sua && !sua.id}>Thêm</button>
       </div>
-      <div className="stt-cong">{[['', 'Tất cả', ds?.length || 0], ['cho_duyet', 'Chờ duyệt', dem.cho], ['dung', 'Đang dùng', dem.dung], ['tat', 'Đã tắt', dem.tat], ['sua_sai', 'Bài học sửa sai', dem.sua_sai]].map(([k, t, n]) => (
+      <div className="stt-cong">{[['', 'Tất cả', ds?.length || 0], ['cho_duyet', 'Chờ duyệt', dem.cho], ['tu_hoc', 'AI tự học', dem.tu_hoc], ['dung', 'Đang dùng', dem.dung], ['tat', 'Đã tắt', dem.tat], ['sua_sai', 'Bài học sửa sai', dem.sua_sai]].map(([k, t, n]) => (
         <button key={k} className={loc === k ? 'on' : ''} onClick={() => setLoc(k)}>{t} {n}</button>
       ))}</div>
+      {(loc === 'cho_duyet' || loc === 'tu_hoc') && choHien.length > 1 && <button className="btn btn-ghost stt-duyet-het" disabled={dang} onClick={duyetHet}><IcCheck /> Duyệt hết {choHien.length} mục đang chờ</button>}
       {sua && !sua.id && formEl}
       {loi && <p className="stt-loi"><IcAlert />{loi}</p>}
       {!ds ? <p className="stt-trong"><i className="stt-quay" /> Đang tải…</p> : hien.length === 0 ? <p className="stt-trong">Không có mục nào.</p> : (
@@ -1118,6 +1250,7 @@ function TriThuc({ token, baoToast }) {
               <b>{x.cum_tu || (x.cau_mau ? '“' + x.cau_mau + '”' : '—')}</b>
             </div>
             <p>{x.noi_dung}</p>
+            {x.bang_chung && <small className="stt-tt-bc">Bằng chứng: {x.bang_chung.ly_do || '—'}{x.bang_chung.viec?.length ? ` · từ ${x.bang_chung.viec.length} câu hỏi` : ''}</small>}
             <small className="stt-tt-meta">{NGUON_TT[x.nguon] || x.nguon}{x.nguoi ? ' · ' + x.nguoi : ''}{x.cong_cu ? ' · dùng công cụ ' + x.cong_cu : ''} · đã nạp {fmt(x.so_lan_dung)} lần{x.dung_cuoi ? ' · gần nhất ' + ngayGio(x.dung_cuoi) : ''}</small>
             <div className="stt-tt-nut">
               {x.trang_thai === 'cho_duyet' && <button className="stt-lk" disabled={dang} onClick={() => luu({ id: x.id, trang_thai: 'dung' }, 'Đã duyệt — AI dùng từ câu sau')}>Duyệt</button>}
@@ -1195,3 +1328,4 @@ function OChu({ gt, onLuu, so }) {
   return <input inputMode={so ? 'numeric' : undefined} value={v} onChange={(e) => setV(e.target.value)}
     onBlur={() => { if (String(v) !== String(gt ?? '')) onLuu(v); }} onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }} />;
 }
+export { VanDeKhung, TuHoc };   // NEW - 3.159.5 (dùng cho thử giao diện)

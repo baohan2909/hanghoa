@@ -86,3 +86,7 @@ export const aiTriThucDs = (token, tim = null) => rpc('fn_ai_tri_thuc_ds', { p_t
 export const aiTriThucLuu = (token, p) => rpc('fn_ai_tri_thuc_luu', { p_token: token, p });
 // NEW - 3.134 Xưng hô theo tài khoản (SQL 220)
 export const aiNguoiDs = (token, tim = null) => rpc('fn_ai_nguoi_ds', { p_token: token, p_tim: tim || null });
+// NEW - 3.159.5 Sổ vấn đề toàn app + Tự học (SQL 289)
+export const aiVanDe = (token, ep = false) => rpc('fn_ai_van_de_xem', { p_token: token, p_ep: !!ep });
+export const aiHocXem = (token) => rpc('fn_ai_hoc_xem', { p_token: token });
+export const aiHocCauHinh = (token, p) => rpc('fn_ai_hoc_cau_hinh', { p_token: token, p });

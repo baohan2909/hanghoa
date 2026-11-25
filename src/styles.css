@@ -7172,3 +7172,47 @@ body.tts-ct-khoa { overflow: hidden; }
   .tts-ct-chan .btn { flex: 1; }
   .tts-ct-tt-ds { grid-template-columns: 1fr; }
 }
+
+/* ===== NEW - 3.159.5: SIÊU TRÍ TUỆ — Vấn đề hiện tại (sổ vấn đề toàn app) + Tự học ===== */
+.stt-tay-vd { font-style: normal; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--magenta); color: #fff;
+  font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px rgba(255,255,255,.85); }
+.stt-vd { display: grid; gap: 6px; margin: 4px 0 12px; }
+.stt-vd-dau { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.stt-vd-dau b { font-size: 13px !important; display: inline !important; }
+.stt-vd-dau .stt-lk { font-size: 11.5px; color: var(--ink-2); }
+.stt-vd-dong { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; border-radius: 11px; border: 1px solid var(--line); background: #fff; overflow: hidden; }
+.stt-vd-dong.do { border-color: rgba(214,0,108,.35); box-shadow: inset 3px 0 0 var(--magenta); }
+.stt-vd-dong.vang { box-shadow: inset 3px 0 0 var(--gold); }
+.stt-vd-ten { display: grid; gap: 1px; text-align: left; padding: 7px 10px 7px 12px; min-width: 0; font: inherit; }
+.stt-vd-ten:hover { background: #F7FAFA; }
+.stt-vd-ten span { font-size: 10.5px; font-weight: 800; color: var(--ink-2); }
+.stt-vd-dong.do .stt-vd-ten span { color: var(--magenta); }
+.stt-vd-ten b { font-size: 12.5px !important; font-weight: 700; line-height: 1.35 !important; display: block; }
+.stt-vd-ten small { font-size: 11px; color: #8A93A6; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.stt-vd-hoi { padding: 0 12px; font-size: 12px; font-weight: 800; color: var(--teal-deep); border-left: 1px solid var(--line); background: #F7FAFA; }
+.stt-vd-hoi:hover:not(:disabled) { background: #E8F4F2; }
+.stt-hoc-so { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stt-hoc-so > div { display: grid; gap: 1px; padding: 9px 11px; border-radius: 11px; background: var(--bg); }
+.stt-hoc-so small { font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.stt-hoc-so b { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stt-hoc-so em { font-style: normal; font-size: 11px; color: var(--ink-2); }
+.stt-hoc-thanh { display: block; height: 5px; border-radius: 3px; background: #E3E7EC; margin-top: 4px; overflow: hidden; }
+.stt-hoc-thanh > i { display: block; height: 100%; background: linear-gradient(90deg, #1E5F63, #3FB6A8); border-radius: 3px; }
+.stt-hoc-7 { display: flex; align-items: flex-end; gap: 8px; height: 58px; padding: 0 2px; }
+.stt-hoc-7 > span { flex: 1; display: grid; justify-items: center; align-content: end; gap: 3px; }
+.stt-hoc-7 > span > i { display: flex; flex-direction: column; justify-content: flex-end; width: 100%; max-width: 26px; border-radius: 4px 4px 0 0; background: #C9D7E3; overflow: hidden; }
+.stt-hoc-7 > span > i > i { display: block; width: 100%; background: #1E5F63; }
+.stt-hoc-7 small { font-size: 10px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.stt-hoc-ts { flex-wrap: wrap; align-items: center; }
+.stt-hoc-ts label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.stt-cai .stt-hoc-ts input { width: 92px; height: 34px; text-align: right; }
+.stt-hoc-ts label span { font-weight: 600; }
+.stt-hoc-ts .btn { height: 34px; }
+.stt-hoc-lan { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 320px; overflow: auto; }
+.stt-hoc-lan li { display: grid; gap: 3px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: #fff; }
+.stt-hoc-lan li > div { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.stt-hoc-lan li small { font-size: 11px; color: var(--ink-2); }
+.stt-hoc-lan li p { margin: 0; font-size: 12px; line-height: 1.45; color: var(--ink); }
+.stt-hoc-lan li.bo { opacity: .6; }
+.stt-tt-bc { font-size: 11px; color: #1E5F63; background: #EEF7F5; border-radius: 7px; padding: 3px 7px; justify-self: start; }
+.stt-duyet-het { justify-self: start; height: 32px; font-size: 12.5px; }
