@@ -3,6 +3,8 @@
 //   Dùng chung cho Chia từng đội (đội sale) và Đề nghị hàng (cửa hàng).
 //   Đang về = số lớn hơn giữa (phiếu Odoo chưa nhận) và (tồn dự tính − tồn hiện tại);
 //   NEW - 3.156.3 (SQL 272): phiếu nháp trên app chưa đẩy Odoo KHÔNG cộng vào đang về — chỉ liệt kê để biết
+//   NEW - 3.157.3 (SQL 281) QUY TẮC: đơn CHƯA ĐẨY / CHƯA DUYỆT trên Odoo tuyệt đối KHÔNG tính đang về —
+//     yêu cầu nháp trên Odoo ("Chưa chuyển · Yêu cầu điều chuyển") và giữ chỗ trên app chỉ liệt kê để biết.
 //   đơn vị đang trả hàng đi thì trừ.
 // ============================================================================
 import { useEffect, useState } from 'react';
@@ -32,6 +34,7 @@ export default function DangVeCt({ maCh, barcode, onDong }) {
   const t = d?.tong || {};
   const tongPhieu = (d?.phieu || []).reduce((s, p) => s + (p.con_ve || 0), 0);
   const tongApp = (d?.chua_len_odoo || []).reduce((s, p) => s + (p.sl || 0), 0);
+  const tongYc = (d?.yc_odoo || []).reduce((s, p) => s + (p.sl || 0), 0);
   return (
     <div className="modal-nen" onClick={onDong}>
       <div className="modal-hop dvc" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Chi tiết hàng đang về">
@@ -69,6 +72,15 @@ export default function DangVeCt({ maCh, barcode, onDong }) {
                     ))}
                   </tbody>
                 </table>
+              )}
+
+              {(d.yc_odoo || []).length > 0 && (
+                <>
+                  <div className="dvc-tit">Yêu cầu trên Odoo CHƯA DUYỆT — không tính vào đang về ({fmt(tongYc)})</div>
+                  <ul className="dvc-ds">
+                    {d.yc_odoo.map((p) => <li key={p.ma_phieu}><span className="mono">{p.ma_phieu}</span> · từ {p.tu} · {ngay(p.ngay_tao)} <b>{fmt(p.sl)}</b></li>)}
+                  </ul>
+                </>
               )}
 
               {(d.chua_len_odoo || []).length > 0 && (

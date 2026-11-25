@@ -460,7 +460,7 @@ export default function ChiaOnline() {
                 <Th k="v" title="Dự báo bán / ngày (50% TB 7 ngày + 30% TB 14 + 20% TB 28)">Bán/ngày</Th>
                 <Th k="co" title="Tồn online có thể bán (Nhanh: đã trừ hàng giữ cho đơn, đang giao…)">Có thể bán</Th>
                 <Th k="phu" title="Đủ bán bao nhiêu ngày · vạch 1 = thời gian hàng về · vạch 2 = mục tiêu (về + số ngày phủ)">Đủ bán</Th>
-                <Th k="ve" title="Phiếu Odoo → kho online chưa nhập ở Nhanh + đơn app vừa tạo">Đang về</Th>
+                <Th k="ve" title="Chỉ phiếu Odoo ĐÃ DUYỆT → kho online chưa nhập ở Nhanh + đơn app đã tạo thành công trên Odoo. Đơn chưa đẩy / chưa duyệt trên Odoo KHÔNG tính">Đang về</Th>
                 <th title="Kho nguồn: số khả dụng · bấm để lấy từ kho này trước">Kho nguồn</th>
                 <Th k="sl" className="c-sl" title="Số chuyển — gõ để sửa, xoá trống để về số máy tính">Chuyển</Th>
               </tr>
