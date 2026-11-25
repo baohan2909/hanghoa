@@ -6902,6 +6902,59 @@ td.bo-tbc, th.bo-tbc { color: var(--teal-deep); background: rgba(63,182,168,.05)
   .co-bang td.sp small { max-width: 160px; }
 }
 
+/* ===== NEW - 3.159.4: CHIA HÀNG ONLINE làm theo Đội Sale — 3 ô gõ số, ô Chuyển trống tới khi bấm Tự động chia, dòng cuối mỏng ===== */
+.co-bao-gon { padding: 6px 12px; font-size: 12.5px; }
+.co-bao-gon > span { display: inline-flex; align-items: center; gap: 5px; }
+.co-cong { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.co-cong .co-nhom { flex: 1 1 auto; min-width: 0; align-self: center; }
+.co-cong .co-nhom button { height: 34px; padding: 0 7px 0 12px; font-size: 12.5px; }
+.co-cong .co-nhom .ngan { display: none; }
+@media (max-width: 1500px) { .co-cong .co-nhom .dai { display: none; } .co-cong .co-nhom .ngan { display: inline; } }
+.co-ts { margin-left: 0; }
+.co-ts-nut { position: relative; }
+.co-ts-nut .ch-tc-nut.on { border-color: var(--teal); color: var(--teal-deep); }
+.co-ts-hop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 300px; background: #fff; border: 1px solid var(--line);
+  border-radius: 14px; box-shadow: var(--shadow-lg); padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+.co-ts-hop > div { display: flex; flex-direction: column; gap: 5px; }
+.co-ts-hop > div > span { font-size: 12px; font-weight: 800; color: var(--ink); }
+.co-ts-hop small { font-size: 11px; color: #8A93A6; }
+.co-ts-hop .co-seg button { padding: 0 12px; }
+.co-ts-cuoi { flex-direction: row !important; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px !important; border-top: 1px solid #EEF0F3; padding-top: 10px; }
+.co-ts-cuoi .btn { height: 32px; font-size: 12px; }
+.co-loc .co-chip button { height: 30px; font-size: 12px; }
+.co-loc .co-tim { height: 32px; min-width: 180px; flex: 0 1 220px; }
+.co-nut-chia { display: flex; gap: 6px; margin-left: auto; }
+.co-nut-chia .btn { height: 34px; }
+.co-nut-chia .btn svg { width: 15px; height: 15px; }
+.co-nut-chia .btn em { font-style: normal; font-size: 10.5px; font-weight: 800; padding: 1px 6px; margin-left: 4px; border-radius: 6px; background: rgba(255,255,255,.22); }
+.co-bang-khung { max-height: calc(100vh - 300px); }
+.co-cham { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; background: #D5DAE1; }
+.co-cham.het { background: var(--co-het); } .co-cham.gap { background: var(--co-gap); } .co-cham.thap { background: var(--gold); }
+.co-cham.du { background: var(--co-du); } .co-cham.thua { background: var(--co-thua); } .co-cham.cham { background: var(--co-cham); }
+.co-bang td.co-gy button { min-width: 44px; height: 26px; padding: 0 8px; border-radius: 8px; border: 1px dashed rgba(63,182,168,.6); background: rgba(63,182,168,.06);
+  color: var(--teal-deep); font: inherit; font-weight: 800; font-variant-numeric: tabular-nums; cursor: pointer; }
+.co-bang td.co-gy button:hover { background: rgba(63,182,168,.16); }
+.co-bang td.co-gy button.dung { border-style: solid; background: rgba(63,182,168,.14); }
+.co-bang td.co-gy small.thieu { display: block; margin: 2px 0 0; }
+.co-bang td.co-sau small.du { color: var(--teal-deep); font-weight: 800; }
+.co-bang td.co-sau small.thieu { font-weight: 800; }
+.co-bang tr.co-r-xem > td { background: #FFF5F8; }
+.co-bang tr.co-r-xem > td:first-child { box-shadow: inset 3px 0 0 var(--magenta); }
+.co-bang td.c-sl input { width: 64px; text-align: right; }
+.co-tong3 { bottom: 8px; margin-top: 10px; min-height: 52px; }
+.co-tong3 .ch-t3-nguon { padding-bottom: 0 !important; gap: 14px; overflow: hidden; }
+.co-tong3 .ch-t3-o span { font-weight: 700; }
+.co-t3-nd b { font-size: 16px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.co-t3-nd b.du { color: var(--teal-deep); } .co-t3-nd b.thieu { color: var(--magenta); }
+.co-t3-nut { display: flex; align-items: center; gap: 8px; }
+.co-t3-nut .btn { height: 40px; }
+.co-t3-nut .ch-xn3 { height: 42px; }
+@media (max-width: 1280px) {
+  .co-tong3 .ch-t3-nut { flex-basis: auto; padding: 0 0 0 10px !important; }
+  .co-tong3 .ch-xn3 { width: auto; }
+  .co-nut-chia { margin-left: 0; }
+}
+
 /* ===== NEW - 3.159.2: BÀN CHIA ĐỘI SALE TRÊN ĐIỆN THOẠI (DsChiaDoiDt.jsx) — không cuộn ngang, nhìn là biết đúng / sai ===== */
 .ch-ban.dt { max-width: 100%; min-width: 0; overflow-x: hidden; gap: 0; }
 .cdt { --cdt-ok: #1F8A70; --cdt-do: var(--magenta); --cdt-vang: #B7791F; display: flex; flex-direction: column; gap: 10px; min-width: 0;
