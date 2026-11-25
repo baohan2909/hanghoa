@@ -39,4 +39,5 @@ export const IcThuNho  = (p) => <I d="M9 4v5H4 M15 4v5h5 M9 20v-5H4 M15 20v-5h5"
 export const IcLoc     = (p) => <I d="M3 5h18l-7 8v6l-4-2v-4L3 5z" {...p} />;
 export const IcTui     = (p) => <I d="M5 8h14l-1.2 12H6.2L5 8z M9 8V6.5a3 3 0 0 1 6 0V8" {...p} />;   // NEW - 3.140 TikTok Shop
 export const IcOnline  = (p) => <I d="M3 10l1.5-5h15L21 10 M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0 M5 12.5V20h14v-7.5 M10 20v-4h4v4" {...p} />;   // NEW - 3.153 Bán online
+export const IcChiaOnl = (p) => <I d="M3 8.5 10 5l7 3.5v8L10 20l-7-3.5v-8z M3 8.5l7 3.5 7-3.5 M10 12v8 M17.5 3.5a5 5 0 0 1 3.5 3.6 M16.5 6.2a2.4 2.4 0 0 1 1.6 1.7" {...p} />;   // NEW - 3.157 Chia hàng Online
 export const IcGuiLen  = (p) => <I d="M12 16V4 M6.5 9.5 12 4l5.5 5.5 M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" {...p} />;

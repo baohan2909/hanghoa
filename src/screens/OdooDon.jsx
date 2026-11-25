@@ -67,7 +67,7 @@ export const CANH = {
 };
 const TT_PK = { draft: 'Nháp', waiting: 'Chờ hàng', confirmed: 'Chờ hàng', assigned: 'Sẵn sàng', done: 'Xong', cancel: 'Huỷ' };
 const NHOM_VD = { CHO_LAY: 'Chờ lấy', DANG_CHAY: 'Đang giao', GIAO_XONG: 'Đã giao', SU_CO: 'Sự cố', TRA_HANG: 'Trả hàng', HUY: 'Đã huỷ' };
-const MAN = { sua_don: 'Sửa đơn', tao_don: 'Tạo đơn trực tiếp', de_nghi: 'Đề nghị hàng', chia_moi: 'Chia hàng mới', dieu_phoi: 'Yêu cầu ĐP', doi_sale: 'Đội Sale', ds_ban_chia: 'Bàn chia đội' };
+const MAN = { sua_don: 'Sửa đơn', tao_don: 'Tạo đơn trực tiếp', de_nghi: 'Đề nghị hàng', chia_moi: 'Chia hàng mới', dieu_phoi: 'Yêu cầu ĐP', doi_sale: 'Đội Sale', ds_ban_chia: 'Bàn chia đội', chia_online: 'Chia hàng Online' };   // NEW - 3.157
 // NEW - 3.139
 const B7_TEN = ['Tạo đơn', 'Chờ duyệt', 'Chờ sẵn sàng', 'Xuất kho', 'Đang vận chuyển', 'Đã giao', 'Xác nhận nhận'];
 const TRANG = { 1: 'Chờ duyệt', 2: 'Chờ sẵn sàng', 4: 'Đã xuất kho', 5: 'Đang vận chuyển', 6: 'Đã giao – chờ xác nhận', 7: 'Đã nhận' };

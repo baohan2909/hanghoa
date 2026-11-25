@@ -1,7 +1,7 @@
 // NEW - 3.153: BÁN ONLINE — toàn bộ đơn online qua Nhanh.vn (TikTok, Shopee, Lazada, Facebook, Zalo OA, Website, Admin…)
 //   Nguồn: Nhanh.vn Open API v3 (tự lấy 5 phút/lần, kéo bù từ 01/10/2026) + file báo cáo nhân viên để ĐỐI CHIẾU.
 //   SQL 262/263 · Edge Function 'nhanh'.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
@@ -11,7 +11,7 @@ import NutXuat from '../lib/bao-cao/NutXuat.jsx';   // NEW - 3.154
 
 /* ================= tiện ích ================= */
 // NEW - 3.154: hằng số + định dạng dùng chung với file xuất (lib/bao-cao/hangSo.js)
-import { fmt, tien, pct, pctTxt, ngayVN, tyLe, THU_TU_KENH, kenhTen, kenhMau, NHOM_KENH, TTN, NGANH, CS, LY_DO } from '../lib/bao-cao/hangSo.js';
+import { fmt, tien, pct, pctTxt, ngayVN, tyLe, soNgayKy, tbN, tbTien, THU_TU_KENH, kenhTen, kenhMau, NHOM_KENH, TTN, NGANH, CS, LY_DO } from '../lib/bao-cao/hangSo.js';
 const gioNgay = (s) => (s ? new Date(s).toLocaleString('vi', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '—');
 const gioGon = (s) => { if (!s) return '—'; const d = new Date(s); return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : gioNgay(s); };
 const truNgay = (n, tu = new Date()) => { const d = new Date(tu); d.setDate(d.getDate() - n); return isoVN(d); };
@@ -34,6 +34,10 @@ const khoaNho = (loai, p) => loai + '|' + JSON.stringify(p || {});
 const LS_BC = 'nh_bc_nho';
 let daNapLs = '';
 const docLs = (ma) => { try { const m = JSON.parse(localStorage.getItem(LS_BC) || 'null'); return m && m.ma === ma && m.ds ? m.ds : {}; } catch { return {}; } };
+// NEW - 3.157: số ngày của khoảng đang xem → mọi bảng có cột TRUNG BÌNH / NGÀY
+const SoNgay = createContext(1);
+const useN = () => useContext(SoNgay);
+
 function napLs(ma) {
   if (daNapLs === ma) return;
   daNapLs = ma;
@@ -219,14 +223,15 @@ export default function BanOnline() {
   const t = bc?.tong || {}, tr = bc?.truoc || {};
   const laiGop = t.dt_co_gv > 0 && t.gv > 0 ? t.dt_co_gv - t.gv : null;
   const tongKy = (t.don || 0) + (t.don_huy || 0);
+  const nKy = soNgayKy(loc.tu, loc.den);   // NEW - 3.157
   const kenhOpt = [{ value: '', label: 'Mọi kênh' }, ...THU_TU_KENH.filter((k) => (bc?.kenh || []).some((x) => x.k === k) || k === Number(loc.kenh))
     .map((k) => ({ value: String(k), label: kenhTen(k) })),
     ...(bc?.kenh || []).filter((x) => !THU_TU_KENH.includes(x.k)).map((x) => ({ value: String(x.k), label: x.ten }))];
   const shopOpt = [{ value: '', label: 'Mọi gian hàng' }, ...(bc?.shop || []).map((s) => ({ value: s.shop, label: s.shop, sub: s.ten_kenh + ' · ' + tien(s.dt) }))];
 
   const KPI = [
-    ['', 'Doanh số', tien(t.dt), <Lech moi={t.dt} cu={tr.dt} />, `${fmt(t.sl)} sản phẩm · không tính đơn huỷ`],
-    ['', 'Đơn', fmt(t.don), <Lech moi={t.don} cu={tr.don} />, `${fmt(t.so_shop || 0)} gian hàng / kênh`],
+    ['', 'Doanh số', tien(t.dt), <Lech moi={t.dt} cu={tr.dt} />, `TB ${tbTien(t.dt, nKy)}/ngày · ${fmt(t.sl)} sản phẩm`],
+    ['', 'Đơn', fmt(t.don), <Lech moi={t.don} cu={tr.don} />, `TB ${tbN(t.don, nKy)} đơn/ngày · ${fmt(t.so_shop || 0)} gian hàng`],
     ['', 'Giá TB / đơn', t.don ? tien(t.dt / t.don) : '—', <Lech moi={t.don ? t.dt / t.don : 0} cu={tr.don ? tr.dt / tr.don : 0} />, `${t.don ? (t.sl / t.don).toLocaleString('vi', { maximumFractionDigits: 2 }) : 0} sp / đơn`],
     ['tc', 'Thành công', tien(t.dt_tc), <Lech moi={t.dt_tc} cu={tr.dt_tc} />, `${fmt(t.don_tc)} đơn · ${pctTxt(t.don_tc || 0, t.don || 0)}`],
     ['giao', 'Đang giao / xử lý', fmt((t.don_giao || 0) + (t.don_xl || 0)), null, `${tien(t.dt_giao)} chưa chốt`],
@@ -314,6 +319,20 @@ export default function BanOnline() {
           ))}
         </div>
 
+        {/* NEW - 3.157: TRUNG BÌNH / NGÀY của cả khoảng đang xem */}
+        {bc && (
+          <div className="bo-tbn" title={`Tổng của khoảng đang xem ÷ ${nKy} ngày (${ngayVN(loc.tu).slice(0, 5)} – ${ngayVN(loc.den).slice(0, 5)}, tính cả 2 đầu)`}>
+            <span className="bo-tbn-nhan">Trung bình / ngày<small>{nKy} ngày</small></span>
+            <span><b>{tbTien(t.dt, nKy)}</b>doanh số</span>
+            <span><b>{tbN(t.don, nKy)}</b>đơn</span>
+            <span><b>{tbN(t.sl, nKy)}</b>sản phẩm</span>
+            <span><b>{tbTien(t.dt_tc, nKy)}</b>thành công</span>
+            <span><b>{tbN(t.don_hoan, nKy)}</b>đơn hoàn</span>
+            <span><b>{tbN(t.don_huy, nKy)}</b>đơn huỷ</span>
+            {laiGop != null && <span><b>{tbTien(laiGop, nKy)}</b>lãi gộp</span>}
+          </div>
+        )}
+
         <div className="odn-the" role="tablist">
           {[['tq', 'Tổng quan'], ['kenh', 'Kênh & gian hàng', bc?.shop?.length], ['sp', 'Sản phẩm', bc?.sp?.length], ['nganh', 'Ngành · Chính / Sale'],
             ['vc', 'Vận chuyển & hoàn', bc?.hvc?.length], ['nv', 'Nhân viên chốt đơn', bc?.nv?.length], ['tinh', 'Khu vực', bc?.tinh?.length],
@@ -324,6 +343,7 @@ export default function BanOnline() {
           ))}
         </div>
 
+        <SoNgay.Provider value={nKy}>
         {the === 'kn' ? <KetNoi api={api} xong={taiApi} />
           : the === 'ds' ? <DoiSoatFile pLoc={{ tu: loc.tu, den: loc.den }} phienBan={phienBan} apiXong={apiXong} moNap={() => setNap(true)} />
           : the === 'don' ? <DsDon pLoc={pLoc} phienBan={phienBan} apiXong={apiXong} />
@@ -336,6 +356,7 @@ export default function BanOnline() {
           : the === 'nv' ? <BangNv ds={bc.nv} />
           : the === 'tinh' ? <BangTinh ds={bc.tinh} />
           : <TikTokId bc={bc} />}
+        </SoNgay.Provider>
 
         {bc && ds === 0 && !dang && (api?.tong?.don || 0) === 0 && the !== 'kn' && (
           <div className="tts-trong">
@@ -409,6 +430,7 @@ function BieuDoKenh({ bc, chiSo }) {
 }
 
 function TongQuan({ bc, chonKenh }) {
+  const n = useN();
   const [chiSo, setChiSo] = useState('dt');
   const t = bc.tong || {};
   const kenh = bc.kenh || [];
@@ -433,9 +455,9 @@ function TongQuan({ bc, chonKenh }) {
       <div className="tts-luoi3">
         <Khung tieu="Kênh bán" phu="bấm để lọc">
           <div className="bo-nhom">{nhom.map((x) => (
-            <div key={x.g}><span>{NHOM_KENH[x.g]}</span><b>{tien(x.dt)}</b><em>{pctTxt(x.dt, tongDt)} · {fmt(x.don)} đơn</em></div>))}</div>
+            <div key={x.g}><span>{NHOM_KENH[x.g]}</span><b>{tien(x.dt)}</b><em>{pctTxt(x.dt, tongDt)} · {fmt(x.don)} đơn · TB {tbTien(x.dt, n)}/ngày</em></div>))}</div>
           <div className="tts-dong-ds">{kenh.map((x) => (
-            <Dong key={x.k} ten={<KenhChip k={x.k} />} so={tien(x.dt)} phu={`${fmt(x.don)} đơn · ${pctTxt(x.dt, tongDt)} · hoàn ${pctTxt(x.hoan, x.don)}`}
+            <Dong key={x.k} ten={<KenhChip k={x.k} />} so={tien(x.dt)} phu={`${fmt(x.don)} đơn (${tbN(x.don, n)}/ngày) · ${pctTxt(x.dt, tongDt)} · hoàn ${pctTxt(x.hoan, x.don)}`}
               ty={pct(x.dt, Math.max(1, ...kenh.map((y) => y.dt)))} mau={kenhMau(x.k)} onClick={() => chonKenh(x.k)} />))}</div>
         </Khung>
         <Khung tieu="Trạng thái đơn" phu={`${fmt(tongPheu)} đơn đã đặt`}>
@@ -466,7 +488,7 @@ function TongQuan({ bc, chonKenh }) {
               <AnhSp url={x.hinh} ma={x.ma} ten={x.ten} co={34} />
               <span className="bo-top-ma"><b>{x.ma}</b><small>{NGANH[x.nganh]} · {CS[x.cs]}</small></span>
               <span className="tts-td-sp-thanh"><i style={{ width: (x.dt / spMax) * 100 + '%', background: '#1E5F63' }} /></span>
-              <b className="so">{tien(x.dt)}</b><span className="so odn-phu">{fmt(x.sl)} sp</span>
+              <b className="so">{tien(x.dt)}</b><span className="so odn-phu">{fmt(x.sl)} sp · {tbN(x.sl, n)}/ngày</span>
             </div>))}</div>
         </Khung>
       </div>
@@ -476,6 +498,7 @@ function TongQuan({ bc, chonKenh }) {
 
 /* ================= Ngành × Chính / Sale (bảng kê) ================= */
 function NganhCs({ bc, gon, chon }) {
+  const nNgay = useN();
   const ds = bc.nganh_cs || [];
   const v = (n, c, f = 'dt') => ds.filter((x) => (n == null || x.nganh === n) && (c == null || x.cs === c)).reduce((s, x) => s + (x[f] || 0), 0);
   const tong = v(null, null);
@@ -484,17 +507,17 @@ function NganhCs({ bc, gon, chon }) {
   return (
     <Khung tieu="Tỷ trọng hàng chính / sale theo ngành" phu="doanh số · không tính đơn huỷ" cls="bo-bk">
       <table className="odn-bang tts-bang bo-bang-bk">
-        <thead><tr><th>Ngành hàng</th><th className="so">Chính</th><th className="so">Sale</th>{!gon && <th className="so">Chưa rõ</th>}<th className="so">Tổng</th><th className="so">% online</th></tr></thead>
+        <thead><tr><th>Ngành hàng</th><th className="so">Chính</th><th className="so">Sale</th>{!gon && <th className="so">Chưa rõ</th>}<th className="so">Tổng</th><th className="so">TB / ngày</th><th className="so">% online</th></tr></thead>
         <tbody>
           {nganhs.map((n) => (
             <tr key={n}><td><b>{NGANH[n]}</b><div className="odn-phu">{fmt(v(n, null, 'sl'))} sp</div></td>
               <td className="so">{o(n, 'chinh')}<div className="odn-phu">{pctTxt(v(n, 'chinh'), v(n, null))}</div></td>
               <td className="so">{o(n, 'sale')}<div className="odn-phu">{pctTxt(v(n, 'sale'), v(n, null))}</div></td>
               {!gon && <td className="so">{tien(v(n, '?'))}</td>}
-              <td className="so"><b>{tien(v(n, null))}</b></td><td className="so">{pctTxt(v(n, null), tong)}</td></tr>))}
+              <td className="so"><b>{tien(v(n, null))}</b></td><td className="so">{tbTien(v(n, null), nNgay)}<div className="odn-phu">{tbN(v(n, null, 'sl'), nNgay)} sp</div></td><td className="so">{pctTxt(v(n, null), tong)}</td></tr>))}
           <tr className="tts-dong-tong"><td><b>Tổng cộng</b></td><td className="so"><b>{tien(v(null, 'chinh'))}</b><div className="odn-phu">{pctTxt(v(null, 'chinh'), tong)}</div></td>
             <td className="so"><b>{tien(v(null, 'sale'))}</b><div className="odn-phu">{pctTxt(v(null, 'sale'), tong)}</div></td>
-            {!gon && <td className="so">{tien(v(null, '?'))}</td>}<td className="so"><b>{tien(tong)}</b></td><td className="so">100%</td></tr>
+            {!gon && <td className="so">{tien(v(null, '?'))}</td>}<td className="so"><b>{tien(tong)}</b></td><td className="so"><b>{tbTien(tong, nNgay)}</b><div className="odn-phu">{tbN(v(null, null, 'sl'), nNgay)} sp</div></td><td className="so">100%</td></tr>
         </tbody>
       </table>
       {!gon && <div className="bo-bk-thanh">{nganhs.map((n) => ['chinh', 'sale'].map((c) => v(n, c) > 0 && (
@@ -507,20 +530,21 @@ function NganhCs({ bc, gon, chon }) {
 
 /* ================= Kênh & gian hàng ================= */
 function BangKenh({ bc, chonShop }) {
+  const n = useN();
   const [mo, setMo] = useState(null);
   const [rows, th] = useSap(bc.kenh || [], { k: 'dt', d: -1 });
   const tong = (bc.kenh || []).reduce((s, x) => s + x.dt, 0);
   return (
     <div className="odn-bang-khung">
       <table className="odn-bang tts-bang">
-        <thead><tr>{th('ten', 'Kênh')}{th('don', 'Đơn', 'so')}{th('sl', 'SL', 'so')}{th('dt', 'Doanh số', 'so')}<th className="so">Tỷ trọng</th>
+        <thead><tr>{th('ten', 'Kênh')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('sl', 'SL', 'so')}{th('dt', 'Doanh số', 'so')}<th className="so" title="Trung bình mỗi ngày">DS / ngày</th><th className="so">Tỷ trọng</th>
           <th className="so">Giá TB</th>{th('tc', 'Thành công', 'so')}{th('hoan', 'Hoàn', 'so')}{th('huy', 'Huỷ', 'so')}{th('phi_san', 'Phí sàn', 'so')}</tr></thead>
         <tbody>
           {rows.map((r) => [
             <tr key={r.k} className={mo === r.k ? 'on' : ''} onClick={() => setMo(mo === r.k ? null : r.k)}>
               <td><KenhChip k={r.k} /><div className="odn-phu">{NHOM_KENH[r.nhom]} · {fmt(r.so_shop)} gian hàng</div></td>
-              <td className="so"><b>{fmt(r.don)}</b></td><td className="so">{fmt(r.sl)}</td>
-              <td className="so"><b>{tien(r.dt)}</b></td>
+              <td className="so"><b>{fmt(r.don)}</b></td><td className="so bo-tbc">{tbN(r.don, n)}</td><td className="so">{fmt(r.sl)}</td>
+              <td className="so"><b>{tien(r.dt)}</b></td><td className="so bo-tbc">{tbTien(r.dt, n)}</td>
               <td className="so"><span className="bo-ty"><i style={{ width: pct(r.dt, tong) + '%', background: kenhMau(r.k) }} /></span>{pctTxt(r.dt, tong)}</td>
               <td className="so">{r.don ? tien(r.dt / r.don) : '—'}</td>
               <td className="so">{pctTxt(r.tc, r.don)}<div className="odn-phu">{tien(r.dt_tc)}</div></td>
@@ -530,13 +554,13 @@ function BangKenh({ bc, chonShop }) {
             </tr>,
             mo === r.k && (bc.shop || []).filter((s) => s.kenh === r.k).map((s) => (
               <tr key={r.k + s.shop} className="tts-mo bo-shop" onClick={() => chonShop(s.shop)} title="Bấm để lọc theo gian hàng này">
-                <td><span className="bo-thut">↳ {s.shop}</span></td><td className="so">{fmt(s.don)}</td><td className="so">{fmt(s.sl)}</td>
-                <td className="so">{tien(s.dt)}</td><td className="so">{pctTxt(s.dt, tong)}</td><td className="so">{s.don ? tien(s.dt / s.don) : '—'}</td>
+                <td><span className="bo-thut">↳ {s.shop}</span></td><td className="so">{fmt(s.don)}</td><td className="so bo-tbc">{tbN(s.don, n)}</td><td className="so">{fmt(s.sl)}</td>
+                <td className="so">{tien(s.dt)}</td><td className="so bo-tbc">{tbTien(s.dt, n)}</td><td className="so">{pctTxt(s.dt, tong)}</td><td className="so">{s.don ? tien(s.dt / s.don) : '—'}</td>
                 <td className="so">{pctTxt(s.tc, s.don)}</td><td className="so">{pctTxt(s.hoan, s.don)}</td><td className="so">{fmt(s.huy)}</td><td className="so">{s.phi_san ? tien(s.phi_san) : '—'}</td>
               </tr>)),
           ])}
-          <tr className="tts-dong-tong"><td><b>Tổng</b></td><td className="so"><b>{fmt(bc.tong.don)}</b></td><td className="so"><b>{fmt(bc.tong.sl)}</b></td>
-            <td className="so"><b>{tien(bc.tong.dt)}</b></td><td className="so">100%</td><td className="so">{bc.tong.don ? tien(bc.tong.dt / bc.tong.don) : '—'}</td>
+          <tr className="tts-dong-tong"><td><b>Tổng</b></td><td className="so"><b>{fmt(bc.tong.don)}</b></td><td className="so bo-tbc"><b>{tbN(bc.tong.don, n)}</b></td><td className="so"><b>{fmt(bc.tong.sl)}</b></td>
+            <td className="so"><b>{tien(bc.tong.dt)}</b></td><td className="so bo-tbc"><b>{tbTien(bc.tong.dt, n)}</b></td><td className="so">100%</td><td className="so">{bc.tong.don ? tien(bc.tong.dt / bc.tong.don) : '—'}</td>
             <td className="so">{pctTxt(bc.tong.don_tc, bc.tong.don)}</td><td className="so">{pctTxt(bc.tong.don_hoan, bc.tong.don)}</td>
             <td className="so">{fmt(bc.tong.don_huy)}</td><td className="so">{tien(bc.tong.phi_san)}</td></tr>
         </tbody>
@@ -548,6 +572,7 @@ function BangKenh({ bc, chonShop }) {
 
 /* ================= Sản phẩm ================= */
 function BangSp({ ds }) {
+  const n = useN();
   const [mo, setMo] = useState(null);
   const rows0 = useMemo(() => (ds || []).map((r) => ({ ...r, gia_tb: r.sl ? r.dt / r.sl : 0, giam: r.gny && r.sl ? 1 - r.dt / r.sl / r.gny : null })), [ds]);
   const [rows, th] = useSap(rows0, { k: 'dt', d: -1 });
@@ -556,15 +581,15 @@ function BangSp({ ds }) {
   return (
     <div className="odn-bang-khung">
       <table className="odn-bang tts-bang">
-        <thead><tr>{th('ma', 'Mã hàng')}{th('sl', 'SL', 'so')}{th('dt', 'Doanh số', 'so')}{th('don', 'Đơn', 'so')}{th('gia_tb', 'Giá bán TB', 'so')}
+        <thead><tr>{th('ma', 'Mã hàng')}{th('sl', 'SL', 'so')}<th className="so" title="Trung bình mỗi ngày">SL / ngày</th>{th('dt', 'Doanh số', 'so')}<th className="so" title="Trung bình mỗi ngày">DS / ngày</th>{th('don', 'Đơn', 'so')}{th('gia_tb', 'Giá bán TB', 'so')}
           {th('giam', 'Giảm vs niêm yết', 'so')}<th>Sàn / Web</th>{th('sl_hoan', 'Hoàn', 'so')}</tr></thead>
         <tbody>
-          {hien.length === 0 ? <tr><td colSpan={8} className="odn-trong">Không có sản phẩm trong khoảng lọc.</td></tr> : hien.map((r) => [
+          {hien.length === 0 ? <tr><td colSpan={10} className="odn-trong">Không có sản phẩm trong khoảng lọc.</td></tr> : hien.map((r) => [
             <tr key={r.ma} className={mo === r.ma ? 'on' : ''} onClick={() => setMo(mo === r.ma ? null : r.ma)}>
               <td title={r.ten || ''}><div className="tts-ma-o"><AnhSp url={r.hinh} ma={r.ma} ten={r.ten} co={44} />
                 <div><div className="odn-ten">{r.ma}</div><div className="odn-phu"><span className={'bo-nganh ' + (r.nganh === '?' ? 'khac' : r.nganh)}>{NGANH[r.nganh]}</span> <span className={'bo-cs ' + (r.cs === '?' ? 'khac' : r.cs)}>{CS[r.cs]}</span> · {(r.co || []).length} mã con</div></div></div></td>
-              <td className="so"><b>{fmt(r.sl)}</b></td>
-              <td className="so"><b>{tien(r.dt)}</b><div className="odn-phu">{pctTxt(r.dt, tong)}</div></td>
+              <td className="so"><b>{fmt(r.sl)}</b></td><td className="so bo-tbc">{tbN(r.sl, n)}</td>
+              <td className="so"><b>{tien(r.dt)}</b><div className="odn-phu">{pctTxt(r.dt, tong)}</div></td><td className="so bo-tbc">{tbTien(r.dt, n)}</td>
               <td className="so">{fmt(r.don)}</td>
               <td className="so">{tien(r.gia_tb)}{r.gny ? <div className="odn-phu">niêm yết {tien(r.gny)}</div> : null}</td>
               <td className="so">{r.giam != null ? (r.giam * 100).toLocaleString('vi', { maximumFractionDigits: 0 }) + '%' : '—'}</td>
@@ -575,7 +600,7 @@ function BangSp({ ds }) {
               <td className="so">{r.sl_hoan ? <span className="tts-huy">{fmt(r.sl_hoan)}</span> : '—'}</td>
             </tr>,
             mo === r.ma && (
-              <tr key={r.ma + '_co'} className="tts-mo"><td colSpan={8}>{r.ten && <div className="odn-phu tts-co-ten">{r.ten}</div>}
+              <tr key={r.ma + '_co'} className="tts-mo"><td colSpan={10}>{r.ten && <div className="odn-phu tts-co-ten">{r.ten}</div>}
                 <div className="tts-co">{(r.co || []).map((c) => <span key={c.ma} className="tts-co-o"><b>{c.ma}</b><em>{fmt(c.sl)}</em></span>)}</div></td></tr>),
           ])}
         </tbody>
@@ -588,6 +613,7 @@ function BangSp({ ds }) {
 
 /* ================= Vận chuyển & hoàn ================= */
 function VanChuyen({ bc }) {
+  const n = useN();
   const [rows, th] = useSap((bc.hvc || []).map((r) => ({ ...r, ty_tc: r.don ? r.tc / r.don : 0, ty_hoan: r.don ? r.hoan / r.don : 0 })), { k: 'don', d: -1 });
   const ld = bc.ly_do || [];
   const ldTong = ld.reduce((s, x) => s + x.don, 0);
@@ -595,10 +621,10 @@ function VanChuyen({ bc }) {
     <div className="tts-tq">
       <div className="odn-bang-khung">
         <table className="odn-bang tts-bang">
-          <thead><tr>{th('ten', 'Hãng vận chuyển')}{th('don', 'Đơn', 'so')}{th('ty_tc', 'Thành công', 'so')}{th('giao', 'Đang giao', 'so')}
+          <thead><tr>{th('ten', 'Hãng vận chuyển')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('ty_tc', 'Thành công', 'so')}{th('giao', 'Đang giao', 'so')}
             {th('ty_hoan', 'Hoàn', 'so')}{th('tb', 'Thất bại', 'so')}{th('giao_h', 'Thời gian giao TB', 'so')}{th('phi_ship', 'Phí ship TB', 'so')}</tr></thead>
           <tbody>{rows.map((r) => (
-            <tr key={r.ten}><td><b>{r.ten}</b></td><td className="so"><b>{fmt(r.don)}</b></td>
+            <tr key={r.ten}><td><b>{r.ten}</b></td><td className="so"><b>{fmt(r.don)}</b></td><td className="so bo-tbc">{tbN(r.don, n)}</td>
               <td className="so">{pctTxt(r.tc, r.don)}<div className="odn-phu">{fmt(r.tc)} đơn</div></td><td className="so">{fmt(r.giao)}</td>
               <td className="so">{r.hoan ? <span className="tts-huy">{pctTxt(r.hoan, r.don)}</span> : '—'}<div className="odn-phu">{fmt(r.hoan)} đơn</div></td>
               <td className="so">{fmt(r.tb)}</td>
@@ -610,7 +636,7 @@ function VanChuyen({ bc }) {
       <Khung tieu="Lý do huỷ / hoàn / thất bại" phu={`${fmt(ldTong)} đơn có ghi lý do`}>
         {ld.length === 0 ? <div className="odn-phu tts-khung-trong">Chưa có dữ liệu lý do (chỉ có khi lấy qua API)</div>
           : <div className="tts-dong-ds">{ld.map((x) => (
-            <Dong key={x.k + x.ttn} ten={<span>{LY_DO[x.k] || 'Lý do ' + x.k} <TtChip n={x.ttn} /></span>} so={fmt(x.don)} ty={pct(x.don, Math.max(1, ...ld.map((y) => y.don)))} mau={x.ttn === 'hoan' ? '#eda100' : '#e34948'} phu={pctTxt(x.don, ldTong)} />))}</div>}
+            <Dong key={x.k + x.ttn} ten={<span>{LY_DO[x.k] || 'Lý do ' + x.k} <TtChip n={x.ttn} /></span>} so={fmt(x.don)} ty={pct(x.don, Math.max(1, ...ld.map((y) => y.don)))} mau={x.ttn === 'hoan' ? '#eda100' : '#e34948'} phu={`${pctTxt(x.don, ldTong)} · ${tbN(x.don, n)}/ngày`} />))}</div>}
       </Khung>
     </div>
   );
@@ -618,15 +644,16 @@ function VanChuyen({ bc }) {
 
 /* ================= Nhân viên chốt đơn (web + FB + Zalo + Admin) ================= */
 function BangNv({ ds }) {
+  const n = useN();
   const [rows, th] = useSap(ds || [], { k: 'dt', d: -1 });
   const tong = (ds || []).reduce((s, x) => s + x.dt, 0);
   return (
     <div className="odn-bang-khung">
       <table className="odn-bang tts-bang">
-        <thead><tr>{th('ten', 'Nhân viên / người tạo đơn')}{th('don', 'Đơn', 'so')}{th('sl', 'SL', 'so')}{th('dt', 'Doanh số', 'so')}<th className="so">Tỷ trọng</th>
+        <thead><tr>{th('ten', 'Nhân viên / người tạo đơn')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('sl', 'SL', 'so')}{th('dt', 'Doanh số', 'so')}<th className="so" title="Trung bình mỗi ngày">DS / ngày</th><th className="so">Tỷ trọng</th>
           {th('hoan', 'Hoàn', 'so')}{th('huy', 'Huỷ', 'so')}<th>Kênh</th></tr></thead>
-        <tbody>{rows.length === 0 ? <tr><td colSpan={8} className="odn-trong">Không có đơn Web / Facebook / Zalo / Admin trong khoảng lọc.</td></tr> : rows.map((r) => (
-          <tr key={r.ten}><td><b>{r.ten}</b></td><td className="so"><b>{fmt(r.don)}</b></td><td className="so">{fmt(r.sl)}</td><td className="so"><b>{tien(r.dt)}</b></td>
+        <tbody>{rows.length === 0 ? <tr><td colSpan={10} className="odn-trong">Không có đơn Web / Facebook / Zalo / Admin trong khoảng lọc.</td></tr> : rows.map((r) => (
+          <tr key={r.ten}><td><b>{r.ten}</b></td><td className="so"><b>{fmt(r.don)}</b></td><td className="so bo-tbc">{tbN(r.don, n)}</td><td className="so">{fmt(r.sl)}</td><td className="so"><b>{tien(r.dt)}</b></td><td className="so bo-tbc">{tbTien(r.dt, n)}</td>
             <td className="so"><span className="bo-ty"><i style={{ width: pct(r.dt, tong) + '%', background: '#1E5F63' }} /></span>{pctTxt(r.dt, tong)}</td>
             <td className="so">{fmt(r.hoan)}</td><td className="so">{fmt(r.huy)}</td><td className="odn-phu">{r.kenh}</td></tr>))}</tbody>
       </table>
@@ -636,6 +663,7 @@ function BangNv({ ds }) {
 }
 
 function BangTinh({ ds }) {
+  const n = useN();
   const [rows, th] = useSap(ds || [], { k: 'dt', d: -1 });
   const [hien, chan] = useHienDan(rows, 100);
   const max = Math.max(1, ...(ds || []).map((x) => x.dt));
@@ -643,9 +671,9 @@ function BangTinh({ ds }) {
   return (
     <div className="odn-bang-khung">
       <table className="odn-bang tts-bang">
-        <thead><tr>{th('ten', 'Tỉnh / thành')}{th('don', 'Đơn', 'so')}{th('dt', 'Doanh số', 'so')}<th>Tỷ trọng</th>{th('hoan', 'Hoàn', 'so')}</tr></thead>
+        <thead><tr>{th('ten', 'Tỉnh / thành')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('dt', 'Doanh số', 'so')}<th className="so" title="Trung bình mỗi ngày">DS / ngày</th><th>Tỷ trọng</th>{th('hoan', 'Hoàn', 'so')}</tr></thead>
         <tbody>{hien.map((r) => (
-          <tr key={r.ten}><td><b>{r.ten}</b></td><td className="so">{fmt(r.don)}</td><td className="so"><b>{tien(r.dt)}</b></td>
+          <tr key={r.ten}><td><b>{r.ten}</b></td><td className="so">{fmt(r.don)}</td><td className="so bo-tbc">{tbN(r.don, n)}</td><td className="so"><b>{tien(r.dt)}</b></td><td className="so bo-tbc">{tbTien(r.dt, n)}</td>
             <td><span className="bo-ty rong"><i style={{ width: (r.dt / max) * 100 + '%', background: '#1E5F63' }} /></span> <span className="odn-phu">{pctTxt(r.dt, tong)}</span></td>
             <td className="so">{r.hoan ? pctTxt(r.hoan, r.don) : '—'}</td></tr>))}</tbody>
       </table>
@@ -657,6 +685,7 @@ function BangTinh({ ds }) {
 /* ================= TikTok × ID (nối với thẻ TikTok Shop) ================= */
 const LOAI_ID = { CH: 'Cửa hàng', DOISALE: 'Đội sale', KENH: 'Kênh công ty', KOL: 'Nhà sáng tạo ngoài', KHAC: 'Khác', CHUA_GAN: 'ID chưa gán cửa hàng', KHONG: 'Không qua người bán' };
 function TikTokId({ bc }) {
+  const n = useN();
   const tk = bc.tiktok || {};
   const [rows, th] = useSap(tk.nb || [], { k: 'dt', d: -1 });
   const [hien, chan] = useHienDan(rows, 100);
@@ -671,14 +700,14 @@ function TikTokId({ bc }) {
       </div>
       <Khung tieu="Doanh số TikTok theo loại ID" phu="ID người bán lấy từ thẻ TikTok Shop (báo cáo phân tích từng đơn)">
         <div className="tts-dong-ds">{theoLoai.map((x) => (
-          <Dong key={x.loai} ten={LOAI_ID[x.loai] || x.loai} so={tien(x.dt)} phu={`${fmt(x.don)} đơn · ${pctTxt(x.dt, tong)}`} ty={pct(x.dt, Math.max(1, ...theoLoai.map((y) => y.dt || 0)))} mau="#2a78d6" />))}</div>
+          <Dong key={x.loai} ten={LOAI_ID[x.loai] || x.loai} so={tien(x.dt)} phu={`${fmt(x.don)} đơn · ${pctTxt(x.dt, tong)} · TB ${tbTien(x.dt, n)}/ngày`} ty={pct(x.dt, Math.max(1, ...theoLoai.map((y) => y.dt || 0)))} mau="#2a78d6" />))}</div>
       </Khung>
       <div className="odn-bang-khung">
         <table className="odn-bang tts-bang">
-          <thead><tr>{th('nb', 'ID người bán')}{th('ten_ch', 'Cửa hàng')}{th('don', 'Đơn', 'so')}{th('dt', 'Doanh số (Nhanh)', 'so')}</tr></thead>
+          <thead><tr>{th('nb', 'ID người bán')}{th('ten_ch', 'Cửa hàng')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('dt', 'Doanh số (Nhanh)', 'so')}<th className="so" title="Trung bình mỗi ngày">DS / ngày</th></tr></thead>
           <tbody>{hien.map((r) => (
             <tr key={r.nb}><td><b>{r.ten || '@' + r.nb}</b>{r.ten && <div className="odn-phu">@{r.nb}</div>}</td>
-              <td>{r.ten_ch || LOAI_ID[r.loai] || <span className="odn-phu">chưa gán</span>}</td><td className="so">{fmt(r.don)}</td><td className="so"><b>{tien(r.dt)}</b></td></tr>))}</tbody>
+              <td>{r.ten_ch || LOAI_ID[r.loai] || <span className="odn-phu">chưa gán</span>}</td><td className="so">{fmt(r.don)}</td><td className="so bo-tbc">{tbN(r.don, n)}</td><td className="so"><b>{tien(r.dt)}</b></td><td className="so bo-tbc">{tbTien(r.dt, n)}</td></tr>))}</tbody>
         </table>
         {chan}
       </div>

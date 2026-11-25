@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, lazy, Suspense, createContext, useContext, Component } from 'react';
 import { sb } from './lib/supabase.js';
-import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy, IcRadar, IcChat2, IcTeam, IcGuiLen, IcTui, IcOnline } from './lib/icons.jsx';
+import { IcPulse, IcCart, IcCheck, IcSplit, IcTruck, IcGear, IcClock, IcBox, IcAlert, IcSearch, IcOut, IcTrophy, IcRadar, IcChat2, IcTeam, IcGuiLen, IcTui, IcOnline, IcChiaOnl } from './lib/icons.jsx';
 import Login from './screens/Login.jsx';
 import XinHang from './screens/XinHang.jsx';
 import { OdooHost } from './lib/OdooHop.jsx';
@@ -30,30 +30,39 @@ const OdooDon = lazy(() => import('./screens/OdooDon.jsx'));
 const TikTokShop = lazy(() => import('./screens/TikTokShop.jsx'));   // NEW - 3.140
 const BanOnline = lazy(() => import('./screens/BanOnline.jsx'));     // NEW - 3.153 Bán online (Nhanh.vn)
 const TonKho = lazy(() => import('./screens/TonKho.jsx'));
+const ChiaOnline = lazy(() => import('./screens/ChiaOnline.jsx'));   // NEW - 3.157 Chia hàng Online
 const HuongDan = lazy(() => import('./screens/HuongDan.jsx'));
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
 
 // Menu "bàn làm việc": chia nhóm theo tư duy quản lý
+// NEW - 3.157: menu cơ cấu lại theo việc — Tổng quan · Chia hàng · Kho & đơn · Báo cáo · Thi đua · Hỗ trợ · Cấu hình
+//   (giữ nguyên tên "Đề nghị hàng" — cửa hàng đã quen; id màn không đổi nên Siêu trí tuệ / đường dẫn cũ vẫn đúng)
 const MENU = [
-  { nhom: 'VẬN HÀNH', items: [
+  { nhom: 'TỔNG QUAN', items: [
     { id: 'dashboard', ten: 'Tổng quan',      Ic: IcPulse, roles: ['DIEU_PHOI', 'ADMIN'] },
-    { id: 'chatluong', ten: 'Chất lượng ĐN', Ic: IcAlert, roles: ['DIEU_PHOI', 'ADMIN', 'KHO'] },
+    { id: 'dieuhanh',  ten: 'Phòng điều hành', Ic: IcRadar, roles: ['DIEU_PHOI', 'ADMIN'] },
+  ]},
+  { nhom: 'CHIA HÀNG', items: [
     { id: 'xinhang',   ten: 'Đề nghị hàng',   Ic: IcCart,  roles: ['CH', 'DIEU_PHOI', 'ADMIN'] },
     { id: 'duyet',     ten: 'Điều phối',      Ic: IcCheck, roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'ycdp',      ten: 'Yêu cầu ĐP',     Ic: IcCart,  roles: ['DIEU_PHOI', 'KHO', 'ADMIN'] },
+    { id: 'chiamoi',   ten: 'Chia hàng mới',  Ic: IcSplit, roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'doisale',   ten: 'Đội Sale',       Ic: IcTeam,  roles: ['DIEU_PHOI', 'ADMIN'] },
-    { id: 'kho',       ten: 'Kho tổng',       Ic: IcBox,   roles: ['KHO', 'DIEU_PHOI', 'ADMIN'] },
-    { id: 'odoo',      ten: 'Đơn hàng Odoo',  Ic: IcGuiLen, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
-    { id: 'tonkd',     ten: 'Tồn khả dụng',   Ic: IcBox,   roles: ['KHO', 'DIEU_PHOI', 'ADMIN'] },   // v3.118.0: ẩn với cửa hàng
+    { id: 'chiaonline', ten: 'Chia hàng Online', Ic: IcChiaOnl, roles: ['DIEU_PHOI', 'ADMIN'] },   // NEW - 3.157
   ]},
-  { nhom: 'GIÁM SÁT', items: [
-    { id: 'dieuhanh',  ten: 'Phòng điều hành', Ic: IcRadar, roles: ['DIEU_PHOI', 'ADMIN'] },
-    { id: 'giamsat',   ten: 'Thiếu hàng',     Ic: IcAlert, roles: ['CH', 'DIEU_PHOI', 'ADMIN'] },
+  { nhom: 'KHO & ĐƠN', items: [
+    { id: 'kho',       ten: 'Kho tổng',       Ic: IcBox,   roles: ['KHO', 'DIEU_PHOI', 'ADMIN'] },
+    { id: 'tonkd',     ten: 'Tồn khả dụng',   Ic: IcBox,   roles: ['KHO', 'DIEU_PHOI', 'ADMIN'] },   // v3.118.0: ẩn với cửa hàng
+    { id: 'odoo',      ten: 'Đơn hàng Odoo',  Ic: IcGuiLen, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
     { id: 'vandon',    ten: 'Vận đơn',        Ic: IcTruck, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
+  ]},
+  { nhom: 'BÁO CÁO', items: [
     { id: 'banonline', ten: 'Online',         Ic: IcOnline,  roles: ['DIEU_PHOI', 'ADMIN'] },   // NEW - 3.153 Nhanh.vn
     { id: 'tiktok',    ten: 'TikTok Shop',    Ic: IcTui,   roles: ['DIEU_PHOI', 'ADMIN'] },   // NEW - 3.140
+    { id: 'giamsat',   ten: 'Thiếu hàng',     Ic: IcAlert, roles: ['CH', 'DIEU_PHOI', 'ADMIN'] },
+    { id: 'chatluong', ten: 'Chất lượng ĐN', Ic: IcAlert, roles: ['DIEU_PHOI', 'ADMIN', 'KHO'] },
   ]},
   { nhom: 'THI ĐUA', items: [
     { id: 'dautruong', ten: 'Đấu trường',     Ic: IcTrophy, roles: ['CH', 'KHO', 'DIEU_PHOI', 'ADMIN'] },
@@ -63,7 +72,6 @@ const MENU = [
   ]},
   { nhom: 'CẤU HÌNH', items: [
     { id: 'lich',      ten: 'Lịch đề nghị',   Ic: IcClock, roles: ['DIEU_PHOI', 'ADMIN'] },
-    { id: 'chiamoi',   ten: 'Chia hàng mới',  Ic: IcSplit, roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'dacbiet',   ten: 'Hàng đặc biệt', Ic: IcBox,   roles: ['DIEU_PHOI', 'ADMIN'] },
     { id: 'online',    ten: 'Theo dõi online', Ic: IcPulse, roles: ['ADMIN'] },
     { id: 'doisoat',   ten: 'Đối soát',       Ic: IcAlert, roles: ['ADMIN'] },
@@ -258,7 +266,7 @@ export default function App() {
   if (baoTri?.khoa) return <ManBaoTri bt={baoTri} user={user} onKiem={hoiBaoTri} dangXuat={dangXuat} />;
 
   const Screen = { dashboard: Dashboard, xinhang: XinHang, duyet: Duyet, kho: Kho, lich: Lich, dautruong: DauTruong,
-    giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tiktok: TikTokShop, banonline: BanOnline, tonkd: TonKho, huongdan: HuongDan }[tab]
+    giamsat: GiamSat, chiamoi: ChiaHangMoi, doisale: DoiSale, dacbiet: DacBiet, online: TheoDoiOnline, vandon: VanDon, thamso: ThamSo, doisoat: DoiSoat, ycdp: YeuCauDieuPhoi, chatluong: ChatLuongDN, dieuhanh: PhongDieuHanh, baocaotg: BaoCaoTelegram, odoo: OdooDon, tiktok: TikTokShop, banonline: BanOnline, tonkd: TonKho, huongdan: HuongDan, chiaonline: ChiaOnline }[tab]
     || (user.vai_tro === 'KHO' ? Kho : XinHang);
   const tabDem = user.vai_tro === 'KHO' ? 'kho' : 'duyet';
   const chonTab = (id) => { setTab(id); setMoMenu(false); };

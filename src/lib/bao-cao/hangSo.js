@@ -12,6 +12,10 @@ export const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
 export const pctTxt = (a, b) => pct(a, b).toLocaleString('vi') + '%';
 export const ngayVN = (s) => (s ? String(s).slice(8, 10) + '/' + String(s).slice(5, 7) + '/' + String(s).slice(0, 4) : '—');
 export const ngayNgan = (s) => (s ? String(s).slice(8, 10) + '/' + String(s).slice(5, 7) : '');
+// NEW - 3.157: TRUNG BÌNH / NGÀY — số ngày của khoảng xem (tính cả 2 đầu) và số chia theo ngày
+export const soNgayKy = (tu, den) => (tu && den ? Math.max(1, Math.round((Date.parse(String(den).slice(0, 10)) - Date.parse(String(tu).slice(0, 10))) / 864e5) + 1) : 1);
+export const tbN = (x, n) => { const v = (Number(x) || 0) / Math.max(1, n || 1); return Math.abs(v) >= 10 ? Math.round(v).toLocaleString('vi') : v.toLocaleString('vi', { maximumFractionDigits: 1 }); };
+export const tbTien = (x, n) => tien((Number(x) || 0) / Math.max(1, n || 1));
 export const tyLe = (moi, cu) => (cu > 0 ? ((moi - cu) / cu) * 100 : moi > 0 ? null : 0);
 
 // ===== Online (Nhanh.vn) =====
