@@ -115,7 +115,7 @@ function Chart({ data }) {
       })}
       <polyline points={duong} className="tq-tb7" />
       <rect x={PAD} y={H + 26} width={10} height={10} rx={3} className="tq-bar" />
-      <text x={PAD + 15} y={H + 35} className="tq-truc">Mũ bảo hiểm</text>
+      <text x={PAD + 15} y={H + 35} className="tq-truc">Nón bảo hiểm</text>
       <rect x={PAD + 100} y={H + 26} width={10} height={10} rx={3} className="tq-bar-nv" />
       <text x={PAD + 115} y={H + 35} className="tq-truc">Nón vải</text>
       <line x1={PAD + 180} x2={PAD + 200} y1={H + 31} y2={H + 31} className="tq-tb7" />
@@ -591,7 +591,7 @@ export default function Dashboard({ chonTab = () => {} }) {
         {/* FILTER lưới: loại hàng + lọc theo mã/dòng + chỉnh cỡ ảnh */}
         <div className="rt-loc">
           <div className="rt-seg">
-            {[['', 'Tất cả'], ['BH', 'Bảo hiểm'], ['NV', 'Nón vải']].map(([v, t]) => (
+            {[['', 'Tất cả'], ['BH', 'Nón bảo hiểm'], ['NV', 'Nón vải']].map(([v, t]) => (
               <button key={v} className={'rt-seg-nut' + (rtLoai === v ? ' on' : '')}
                 onClick={() => setRtLoai(v)}>{t}</button>
             ))}

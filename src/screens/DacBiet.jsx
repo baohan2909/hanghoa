@@ -20,7 +20,7 @@ const BadgeNganh = ({ n1 }) => {
   const bh = laBH(n1);
   return <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 10, whiteSpace: 'nowrap',
     background: bh ? '#E4F5F0' : '#F7EFDE', color: bh ? 'var(--teal-deep)' : '#8A6D2F' }}>
-    {bh ? 'Mũ bảo hiểm' : 'Nón vải'}</span>;
+    {bh ? 'Nón bảo hiểm' : 'Nón vải'}</span>;
 };
 
 export default function DacBiet() {
@@ -392,7 +392,7 @@ export default function DacBiet() {
             </span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', width: '100%', marginTop: 4 }}>
               <div className="nhom-tabs" style={{ margin: 0 }}>
-                {[['ALL', 'Tất cả'], ['BH', 'Mũ bảo hiểm'], ['NV', 'Nón vải']].map(([k, ten]) => (
+                {[['ALL', 'Tất cả'], ['BH', 'Nón bảo hiểm'], ['NV', 'Nón vải']].map(([k, ten]) => (
                   <button key={k} className={'nhom-tab' + (locNganh === k ? ' on' : '')} onClick={() => setLocNganh(k)}>{ten}</button>
                 ))}
               </div>

@@ -134,7 +134,7 @@ export default function TqHangHoa({ chonTab = () => {} }) {
             ))}
           </div>
           <div className="hh-cc-wrap">
-            <ThanhCC nhan="Mũ bảo hiểm — so định mức" thieu={cc.bh_thieu || 0} dat={cc.bh_dat || 0} vuot={cc.bh_vuot || 0} />
+            <ThanhCC nhan="Nón bảo hiểm — so định mức" thieu={cc.bh_thieu || 0} dat={cc.bh_dat || 0} vuot={cc.bh_vuot || 0} />
             <ThanhCC nhan="Nón vải — so định mức" thieu={cc.nv_thieu || 0} dat={cc.nv_dat || 0} vuot={cc.nv_vuot || 0} />
           </div>
         </div>
@@ -194,7 +194,7 @@ export default function TqHangHoa({ chonTab = () => {} }) {
             <span className="tq-ghi">BH {fmtN(lt.ton_bh)} · NV {fmtN(lt.ton_nv)}</span>
           </div>
           <div className="hh-tabs">
-            {[['all', 'Toàn hệ thống'], ['bh', 'Mũ bảo hiểm'], ['nv', 'Nón vải']].map(([k, t]) => (
+            {[['all', 'Toàn hệ thống'], ['bh', 'Nón bảo hiểm'], ['nv', 'Nón vải']].map(([k, t]) => (
               <button key={k} className={'hh-tab' + (tabLau === k ? ' on' : '')} onClick={() => setTabLau(k)}>{t}</button>
             ))}
           </div>

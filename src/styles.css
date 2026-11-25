@@ -6593,3 +6593,8 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
   .ch-phieu2 td.ph-nut-o { flex: 1 1 100%; width: auto; }
   .ph-nut { display: flex; width: auto; justify-content: flex-start; }
 }
+
+/* NEW - 3.156.4 Theo dõi: doanh thu theo kênh + ghi chú số TikTok đếm */
+.tts-td-kenh { margin-top: 3px; white-space: nowrap; font-size: 11px; }
+.tts-td-kenh b { color: var(--ink); font-weight: 700; }
+.tts-td-ghi { font-size: 11.5px; color: var(--ink-2); padding: 0 14px 8px; line-height: 1.45; }

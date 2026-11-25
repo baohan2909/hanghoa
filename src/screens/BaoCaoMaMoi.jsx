@@ -15,7 +15,7 @@ const BadgeNganh = ({ n1 }) => {
   const bh = laBH(n1);
   return <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 10, whiteSpace: 'nowrap',
     background: bh ? '#E4F5F0' : '#F7EFDE', color: bh ? 'var(--teal-deep)' : '#8A6D2F' }}>
-    {bh ? 'Mũ bảo hiểm' : 'Nón vải'}</span>;
+    {bh ? 'Nón bảo hiểm' : 'Nón vải'}</span>;
 };
 function AnhSP({ url, onZoom, onHover, onLeave }) {
   const [loi, setLoi] = useState(false);
@@ -92,7 +92,7 @@ export default function BaoCaoMaMoi() {
     const head = ['Mã tham chiếu', 'SKU', 'Ngành', 'Ngành cấp 3', 'Giá', 'Ngày tạo mã',
       'Bán ' + thangNay(), 'Tồn', 'Số CH bán'];
     const body = ds.map((r) => [
-      r.ma_tham_chieu || '', r.sku || '', laBH(r.nganh_1) ? 'Mũ bảo hiểm' : 'Nón vải', r.nganh_3 || '',
+      r.ma_tham_chieu || '', r.sku || '', laBH(r.nganh_1) ? 'Nón bảo hiểm' : 'Nón vải', r.nganh_3 || '',
       r.gia_niem_yet || 0, fmtNgay(r.ngay_tao_ma),
       Number(r.ban_thang_nay), Number(r.ton_hien), Number(r.so_ch_ban),
     ]);
@@ -118,7 +118,7 @@ export default function BaoCaoMaMoi() {
           <div>
             <div className="lbl">Ngành hàng</div>
             <div className="nhom-tabs" style={{ margin: 0 }}>
-              {[['ALL', 'Tất cả'], ['BH', 'Mũ bảo hiểm'], ['NV', 'Nón vải']].map(([k, t]) => (
+              {[['ALL', 'Tất cả'], ['BH', 'Nón bảo hiểm'], ['NV', 'Nón vải']].map(([k, t]) => (
                 <button key={k} className={'nhom-tab' + (nganh === k ? ' on' : '')} onClick={() => setNganh(k)}>{t}</button>
               ))}
             </div>

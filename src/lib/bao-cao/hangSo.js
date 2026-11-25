@@ -27,7 +27,7 @@ export const kenhTen = (k) => (KENH[k] ? KENH[k][0] : 'Kênh ' + k);
 export const kenhMau = (k) => (KENH[k] ? KENH[k][1] : '#A7B0BF');
 export const NHOM_KENH = { san: 'Sàn TMĐT', web: 'Web + Facebook + Zalo' };
 export const TTN = { tc: ['Thành công', 'ok'], giao: ['Đang giao', 'duong'], xl: ['Đang xử lý', 'xam'], hoan: ['Hoàn', 'cam'], tb: ['Thất bại', 'do'], huy: ['Huỷ', 'do'] };
-export const NGANH = { BH: 'Bảo hiểm', NV: 'Nón vải', PK: 'Phụ kiện', '?': 'Chưa rõ' };
+export const NGANH = { BH: 'Nón bảo hiểm', NV: 'Nón vải', PK: 'Phụ kiện', '?': 'Chưa rõ' };   // NEW - 3.156.4 thống nhất tên ngành
 export const CS = { chinh: 'Chính', sale: 'Sale', '?': 'Chưa rõ' };
 export const LY_DO = { 1: 'Đặt nhầm sản phẩm', 2: 'Phí ship cao', 3: 'Không muốn chuyển khoản', 4: 'Đơn trùng', 5: 'Không liên lạc được khách',
   6: 'Hết hàng', 8: 'Chờ chuyển khoản', 9: 'Khách không thích sản phẩm', 10: 'Không hài lòng nhân viên giao', 11: 'Giao chậm',

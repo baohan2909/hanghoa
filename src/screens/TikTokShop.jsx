@@ -601,14 +601,15 @@ function BangNguoiBan({ bc, td = [], doiTd, chon, moGan }) {
     <div className="odn-bang-khung">
       <div className="tts-ghi-nguon">
         <span><b>Tổng theo đơn</b> (vùng xám): số chuẩn app tính từ chính các mã đơn — mỗi đơn tính cho ID đã bán nó (mua trực tiếp từ LIVE hoặc video của ID đó, đúng cách Seller Center ghi nhận). Đơn: đơn hợp lệ · SL: sản phẩm bán ra sau trả · Doanh thu: tiền shop thu sau giảm giá của shop · Huỷ: số đơn huỷ. Dùng cột này để so doanh số giữa các ID / cửa hàng.</span>
-        <span><b>LIVE / Video (TikTok thống kê)</b>: số TikTok tự thống kê theo từng phiên LIVE, từng video (doanh số gộp, có cả đơn chưa thanh toán / sẽ huỷ), chốt chậm 1–2 ngày — để xem hiệu quả nội dung, không cộng với vùng xám
+        <span><b>Từ LIVE / Từ video</b> (NEW - 3.156.4): phần doanh thu theo đơn khách mua trực tiếp trong LIVE / từ video của ID — có ngay trong ngày; còn lại là thẻ sản phẩm.</span>
+        <span><b>LIVE / Video (TikTok thống kê)</b>: số TikTok tự đếm theo từng phiên LIVE, từng video — tiền là khách trả (sau mọi giảm giá), tính cả đơn chưa thanh toán / sẽ huỷ; LIVE lấy mỗi giờ, video TikTok trả chậm ~2 ngày — để xem hiệu quả nội dung, không cộng với vùng xám
           {tk.live_den || tk.video_den ? ` (đang có tới ${tk.live_den ? 'LIVE ' + ngayVN(tk.live_den) : ''}${tk.video_den ? ' · video ' + ngayVN(tk.video_den) : ''})` : ''}.</span>
       </div>
       <table className="odn-bang tts-bang tts-bang-nb">
         <thead>
-          <tr className="tts-nhom"><th colSpan={2} /><th colSpan={4} className="so tts-dn">Tổng theo đơn · số chuẩn</th><th colSpan={3} className="so tts-lv">LIVE · TikTok thống kê</th><th colSpan={3} className="so tts-vd">Video · TikTok thống kê</th></tr>
+          <tr className="tts-nhom"><th colSpan={2} /><th colSpan={6} className="so tts-dn">Tổng theo đơn · số chuẩn</th><th colSpan={3} className="so tts-lv">LIVE · TikTok thống kê</th><th colSpan={3} className="so tts-vd">Video · TikTok thống kê</th></tr>
           <tr>{th('nhom_ten', 'Cửa hàng')}{th('ten_nb', 'Người bán')}
-            {th('don', 'Đơn', 'so tts-dn')}{th('sl', 'SL', 'so tts-dn')}{th('dt', 'Doanh thu', 'so tts-dn')}{th('huy', 'Huỷ', 'so tts-dn')}
+            {th('don', 'Đơn', 'so tts-dn')}{th('sl', 'SL', 'so tts-dn')}{th('dt', 'Doanh thu', 'so tts-dn')}{th('dt_live', 'Từ LIVE', 'so tts-dn')}{th('dt_video', 'Từ video', 'so tts-dn')}{th('huy', 'Huỷ', 'so tts-dn')}
             {th('lv_phien', 'Phiên', 'so tts-lv')}{th('lv_sl', 'SL', 'so tts-lv')}{th('lv_dt', 'Doanh số', 'so tts-lv')}
             {th('vd_so', 'Video', 'so tts-vd')}{th('vd_sl', 'SL', 'so tts-vd')}{th('vd_dt', 'Doanh số', 'so tts-vd')}</tr>
           {rows.length > 0 && (
@@ -618,6 +619,8 @@ function BangNguoiBan({ bc, td = [], doiTd, chon, moGan }) {
               <td className="so tts-dn"><b>{fmt(t.don)}</b></td>
               <td className="so tts-dn"><b>{fmt(t.sl)}</b></td>
               <td className="so tts-dn tts-dt"><b>{tien(t.dt)}</b></td>
+              <td className="so tts-dn">{tien(cong('dt_live'))}</td>
+              <td className="so tts-dn">{tien(cong('dt_video'))}</td>
               <td className="so tts-dn">{t.don_huy > 0 ? <span className="tts-huy">{fmt(t.don_huy)}</span> : '—'}</td>
               <td className="so tts-lv"><b>{fmt(cong('lv_phien'))}</b></td>
               <td className="so tts-lv"><b>{fmt(cong('lv_sl'))}</b></td>
@@ -628,7 +631,7 @@ function BangNguoiBan({ bc, td = [], doiTd, chon, moGan }) {
             </tr>)}
         </thead>
         <tbody>
-          {rows.length === 0 ? <tr><td colSpan={12} className="odn-trong">Không có người bán trong khoảng lọc.</td></tr>
+          {rows.length === 0 ? <tr><td colSpan={14} className="odn-trong">Không có người bán trong khoảng lọc.</td></tr>
             : rows.map((r) => (
               <tr key={r.nb} onClick={() => chon(r.nb)} title="Bấm để lọc toàn bộ báo cáo theo người bán này">
                 <td className="tts-o-ch">
@@ -647,6 +650,8 @@ function BangNguoiBan({ bc, td = [], doiTd, chon, moGan }) {
                 <td className="so tts-dn"><b>{r.don ? fmt(r.don) : '—'}</b></td>
                 <td className="so tts-dn">{r.sl ? fmt(r.sl) : '—'}</td>
                 <td className="so tts-dn tts-dt"><b>{r.dt ? tien(r.dt) : '—'}</b></td>
+                <td className="so tts-dn">{r.dt_live ? tien(r.dt_live) : '—'}</td>
+                <td className="so tts-dn">{r.dt_video ? tien(r.dt_video) : '—'}</td>
                 <td className="so tts-dn">{r.huy > 0 ? <span className="tts-huy">{fmt(r.huy)}</span> : '—'}</td>
                 <td className="so tts-lv">{r.lv_phien ? fmt(r.lv_phien) : '—'}</td>
                 <td className="so tts-lv">{r.lv_sl ? fmt(r.lv_sl) : '—'}</td>
@@ -851,6 +856,10 @@ function TheoDoi({ bc, pLoc, phienBan, apiXong, td, doiTd, chonNb }) {
   const tenE = (e) => e.ten || '@' + e.handle;
   const ky = kq ? `kỳ trước ${ngayVN(kq.tu_truoc).slice(0, 5)}–${ngayVN(kq.den_truoc)}` : 'kỳ trước';
   const motNgay = kq && kq.tu === kq.den;
+  // NEW - 3.156.4: số TikTok (LIVE / video) có độ trễ — ghi rõ thay vì để "—"
+  const videoDen = bc.tk?.video_den || null;
+  const thieuVideo = !!(kq && videoDen && kq.den > videoDen);
+  const tkLuc = bc.tk?.tk_luc ? new Date(bc.tk.tk_luc).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : '';
 
   // bảng so sánh
   const hang = useMemo(() => ds.map((e) => {
@@ -916,9 +925,11 @@ function TheoDoi({ bc, pLoc, phienBan, apiXong, td, doiTd, chonNb }) {
       ) : ds.length > 0 && (<>
         <div className="odn-bang-khung">
           <div className="tts-td-tieu"><b>So sánh</b><span>bấm tiêu đề cột để xếp · ▲▼ so với {ky}</span></div>
+          {/* NEW - 3.156.4: vì sao cột TikTok đếm khác Doanh thu */}
+          <div className="tts-td-ghi">Doanh thu, LIVE / Video dưới cột Kênh = <b>tính từ đơn</b> (số chuẩn, chỉ đơn hợp lệ). Hai cột "TikTok đếm" là số TikTok tự thống kê: tiền khách trả sau mọi giảm giá, tính cả đơn chưa thanh toán / sẽ huỷ{tkLuc ? `, LIVE lấy lúc ${tkLuc}` : ''}{videoDen ? `, video TikTok mới trả tới ${ngayVN(videoDen)}` : ''} — nên không bằng nhau.</div>
           <table className="odn-bang tts-bang tts-td-bang">
             <thead><tr>{th('ten', 'ID theo dõi')}{th('dt', 'Doanh thu', 'so')}{th('don', 'Đơn', 'so')}{th('sl', 'SL bán', 'so')}{th('aov', 'Giá TB / đơn', 'so')}
-              {th('huy', 'Huỷ', 'so')}{th('so_sp', 'Số mã', 'so')}<th>Kênh</th>{th('lv_dt', 'LIVE · TikTok', 'so')}{th('vd_dt', 'Video · TikTok', 'so')}</tr></thead>
+              {th('huy', 'Huỷ', 'so')}{th('so_sp', 'Số mã', 'so')}<th>Kênh</th>{th('lv_dt', 'LIVE · TikTok đếm', 'so')}{th('vd_dt', 'Video · TikTok đếm', 'so')}</tr></thead>
             <tbody>
               {hangSap.map((r) => (
                 <tr key={r.handle} onClick={() => chonNb(r.handle)} title="Bấm để lọc toàn bộ báo cáo theo ID này">
@@ -931,9 +942,14 @@ function TheoDoi({ bc, pLoc, phienBan, apiXong, td, doiTd, chonNb }) {
                   <td className="so">{r.aov ? tien(r.aov) : '—'}<div><Lech moi={r.aov} cu={r.tr.don ? r.tr.dt / r.tr.don : 0} /></div></td>
                   <td className="so">{(r.huy * 100).toLocaleString('vi', { maximumFractionDigits: 1 })}%</td>
                   <td className="so">{fmt(r.so_sp)}</td>
-                  <td><ThanhKenh r={{ live: r.e.tong?.live, video: r.e.tong?.video, the: r.e.tong?.the, sl: r.sl }} /></td>
-                  <td className="so">{r.lv_dt ? <><b>{tien(r.lv_dt)}</b><div className="odn-phu">{fmt(r.lv_phien)} phiên</div></> : '—'}</td>
-                  <td className="so">{r.vd_dt ? <><b>{tien(r.vd_dt)}</b><div className="odn-phu">{fmt(r.vd_so)} video</div></> : '—'}</td>
+                  <td><ThanhKenh r={{ live: r.e.tong?.live, video: r.e.tong?.video, the: r.e.tong?.the, sl: r.sl }} />
+                    {/* NEW - 3.156.4: doanh thu theo kênh — tính từ đơn, có ngay trong ngày */}
+                    <div className="odn-phu tts-td-kenh">LIVE <b>{r.e.tong?.dt_live ? tien(r.e.tong.dt_live) : '0'}</b> · Video <b>{r.e.tong?.dt_video ? tien(r.e.tong.dt_video) : '0'}</b>
+                      {r.e.tong?.dt_the ? <> · Thẻ <b>{tien(r.e.tong.dt_the)}</b></> : null}</div></td>
+                  <td className="so" title={'Số TikTok tự đếm theo phiên LIVE — tiền khách trả, có cả đơn chưa thanh toán / huỷ' + (tkLuc ? '. Lấy lúc ' + tkLuc : '')}>
+                    {r.lv_dt ? <><b>{tien(r.lv_dt)}</b><div className="odn-phu">{fmt(r.lv_phien)} phiên</div></> : r.lv_phien ? <span className="odn-phu">{fmt(r.lv_phien)} phiên · chưa có số</span> : '—'}</td>
+                  <td className="so" title={'Số TikTok tự đếm theo video — TikTok trả chậm ~2 ngày' + (videoDen ? ', hiện có tới ' + ngayVN(videoDen) : '')}>
+                    {r.vd_dt ? <><b>{tien(r.vd_dt)}</b><div className="odn-phu">{fmt(r.vd_so)} video</div></> : thieuVideo ? <span className="odn-phu">TikTok chưa trả số</span> : '—'}</td>
                 </tr>
               ))}
               <tr className="tts-dong-tong">
