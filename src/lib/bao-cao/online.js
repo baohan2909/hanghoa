@@ -43,10 +43,10 @@ function cauNhanXet(bc) {
   const tongDt = t.dt || 0;
   const c = [];
   const l = lech(t.dt, tr.dt);
-  c.push(`Doanh số ${tien(t.dt)} từ ${so(t.don)} đơn, ${so(t.sl)} sản phẩm` + (tr.dt > 0 ? ` — ${l.text.startsWith('+') ? 'tăng' : l.text.startsWith('−') ? 'giảm' : 'ngang'} ${l.text.replace(/^[+−]/, '')} so với kỳ trước (${tien(tr.dt)}).` : '.'));
+  c.push(`Doanh thu ${tien(t.dt)} từ ${so(t.don)} đơn, ${so(t.sl)} sản phẩm` + (tr.dt > 0 ? ` — ${l.text.startsWith('+') ? 'tăng' : l.text.startsWith('−') ? 'giảm' : 'ngang'} ${l.text.replace(/^[+−]/, '')} so với kỳ trước (${tien(tr.dt)}).` : '.'));
   if (kenh.length) {
     const san = kenh.filter((k) => k.nhom === 'san').reduce((s, k) => s + k.dt, 0);
-    c.push(`${kenh[0].ten || kenhTen(kenh[0].k)} dẫn đầu với ${tyTrong(kenh[0].dt, tongDt)} doanh số` + (kenh[1] ? `, tiếp theo ${kenh[1].ten || kenhTen(kenh[1].k)} ${tyTrong(kenh[1].dt, tongDt)}` : '') + `. Sàn TMĐT chiếm ${tyTrong(san, tongDt)}, Web + Facebook + Zalo + Admin ${tyTrong(tongDt - san, tongDt)}.`);
+    c.push(`${kenh[0].ten || kenhTen(kenh[0].k)} dẫn đầu với ${tyTrong(kenh[0].dt, tongDt)} doanh thu` + (kenh[1] ? `, tiếp theo ${kenh[1].ten || kenhTen(kenh[1].k)} ${tyTrong(kenh[1].dt, tongDt)}` : '') + `. Sàn TMĐT chiếm ${tyTrong(san, tongDt)}, Web + Facebook + Zalo + Admin ${tyTrong(tongDt - san, tongDt)}.`);
   }
   const ngay = new Map(); for (const x of bc.theo_ngay || []) { const o = ngay.get(x.k) || { dt: 0, don: 0 }; o.dt += Number(x.dt) || 0; o.don += Number(x.don) || 0; ngay.set(x.k, o); }
   const ds = [...ngay.entries()].sort((a, b) => b[1].dt - a[1].dt);
@@ -60,14 +60,14 @@ function cauNhanXet(bc) {
   if (sp.length) {
     const top10 = sp.slice(0, 10).reduce((s, x) => s + x.dt, 0);
     const tongSp = sp.reduce((s, x) => s + x.dt, 0);
-    c.push(`Bán chạy nhất ${sp[0].ma} — ${so(sp[0].sl)} sản phẩm, ${tien(sp[0].dt)}; 10 mã dẫn đầu chiếm ${tyTrong(top10, tongSp)} doanh số trên ${so(sp.length)} mã có bán.`);
+    c.push(`Bán chạy nhất ${sp[0].ma} — ${so(sp[0].sl)} sản phẩm, ${tien(sp[0].dt)}; 10 mã dẫn đầu chiếm ${tyTrong(top10, tongSp)} doanh thu trên ${so(sp.length)} mã có bán.`);
   }
   const nc = bc.nganh_cs || [];
   const tongNc = nc.reduce((s, x) => s + x.dt, 0);
   if (tongNc > 0) {
     const sale = nc.filter((x) => x.cs === 'sale').reduce((s, x) => s + x.dt, 0);
     const ng = Object.entries(nc.reduce((m, x) => ({ ...m, [x.nganh]: (m[x.nganh] || 0) + x.dt }), {})).sort((a, b) => b[1] - a[1]);
-    c.push(`Hàng sale chiếm ${tyTrong(sale, tongNc)} doanh số; ngành ${NGANH[ng[0][0]] || ng[0][0]} lớn nhất (${tyTrong(ng[0][1], tongNc)}).`);
+    c.push(`Hàng sale chiếm ${tyTrong(sale, tongNc)} doanh thu; ngành ${NGANH[ng[0][0]] || ng[0][0]} lớn nhất (${tyTrong(ng[0][1], tongNc)}).`);
   }
   if (t.don > 0) {
     const hvc = (bc.hvc || []).filter((x) => x.don >= 30 && x.ten !== 'Chưa có hãng VC').sort((a, b) => b.hoan / b.don - a.hoan / a.don);
@@ -93,7 +93,7 @@ export function docOnline(bc, meta = {}) {
   const gio = bc.gio || [];
 
   const kpi = [
-    { ten: 'Doanh số', so: tien(t.dt), lech: lech(t.dt, tr.dt), phu: `TB ${tbTien(t.dt, n)} / ngày` },
+    { ten: 'Doanh thu', so: tien(t.dt), lech: lech(t.dt, tr.dt), phu: `TB ${tbTien(t.dt, n)} / ngày` },
     { ten: 'Đơn hàng', so: so(t.don), lech: lech(t.don, tr.don), phu: `TB ${tbN(t.don, n)} đơn / ngày` },
     { ten: 'Giá trị TB / đơn', so: t.don ? tien(t.dt / t.don) : '—', lech: lech(t.don ? t.dt / t.don : 0, tr.don ? tr.dt / tr.don : 0), phu: `${t.don ? (t.sl / t.don).toLocaleString('vi', { maximumFractionDigits: 2 }) : 0} sp / đơn` },
     { ten: 'Sản phẩm bán', so: so(t.sl), lech: lech(t.sl, tr.sl), phu: `TB ${tbN(t.sl, n)} sp / ngày · ${so(t.so_ma)} mã` },
@@ -109,8 +109,8 @@ export function docOnline(bc, meta = {}) {
     { ten: 'Nhóm', rong: 56, f: (r) => ({ text: NHOM_NGAN[r.nhom] || '', color: MAU.ink2 }) },
     { ten: 'Đơn', rong: 38, canh: 'right', f: (r) => so(r.don) },
     { ten: 'SL', rong: 38, canh: 'right', f: (r) => so(r.sl) },
-    { ten: 'Doanh số', rong: W_TIEN, canh: 'right', f: (r) => ({ text: so(r.dt), bold: true }) },
-    { ten: 'DS / ngày', rong: 46, canh: 'right', f: (r) => ({ text: tbTien(r.dt, n), color: MAU.tealDam }) },   // NEW - 3.157
+    { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => ({ text: so(r.dt), bold: true }) },
+    { ten: 'DT / ngày', rong: 46, canh: 'right', f: (r) => ({ text: tbTien(r.dt, n), color: MAU.tealDam }) },   // NEW - 3.157
     { ten: 'Tỷ trọng', rong: 70, f: (r) => ({ columns: [{ ...thanhO(r.dt, maxKenh, kenhMau(r.k), 34), width: 38 }, { text: tyTrong(r.dt, t.dt), width: '*', alignment: 'right' }] }) },
     { ten: 'Thành công', rong: 44, canh: 'right', f: (r) => tyTrong(r.tc, r.don) },
     { ten: 'Hoàn', rong: 30, canh: 'right', f: (r) => so(r.hoan) },
@@ -129,8 +129,8 @@ export function docOnline(bc, meta = {}) {
     { ten: 'Kênh', rong: 62, f: (r) => (r.phu ? { text: '' } : chamChu(kenhMau(r.kenh), r.ten_kenh || kenhTen(r.kenh))) },
     { ten: 'Đơn', rong: 38, canh: 'right', f: (r) => so(r.don) },
     { ten: 'SL', rong: 38, canh: 'right', f: (r) => so(r.sl) },
-    { ten: 'Doanh số', rong: W_TIEN, canh: 'right', f: (r) => ({ text: so(r.dt), bold: true }) },
-    { ten: 'DS / ngày', rong: 46, canh: 'right', f: (r) => ({ text: tbTien(r.dt, n), color: MAU.tealDam }) },   // NEW - 3.157
+    { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => ({ text: so(r.dt), bold: true }) },
+    { ten: 'DT / ngày', rong: 46, canh: 'right', f: (r) => ({ text: tbTien(r.dt, n), color: MAU.tealDam }) },   // NEW - 3.157
     { ten: 'Tỷ trọng', rong: 62, f: (r) => (r.phu ? { text: tyTrong(r.dt, t.dt), alignment: 'right', bold: r.phu === 'tong' } : { columns: [{ ...thanhO(r.dt, maxShop, kenhMau(r.kenh), 26), width: 30 }, { text: tyTrong(r.dt, t.dt), width: '*', alignment: 'right' }] }) },
     { ten: 'Hoàn', rong: 30, canh: 'right', f: (r) => so(r.hoan) },
     { ten: 'Huỷ', rong: 26, canh: 'right', f: (r) => so(r.huy) },
@@ -162,7 +162,7 @@ export function docOnline(bc, meta = {}) {
     { ten: 'Ngành · C/S', rong: 52, f: (r) => (r.phu ? { text: '' } : { text: [{ text: (NGANH[r.nganh] || '—') + '\n', color: MAU.ink2 }, { text: CS[r.cs] || '—', color: r.cs === 'sale' ? MAU.hong : MAU.mo, fontSize: 6.5 }] }) },
     { ten: 'SL', rong: 32, canh: 'right', f: (r) => ({ text: so(r.sl), bold: true }) },
     { ten: 'SL / ngày', rong: 34, canh: 'right', f: (r) => ({ text: tbN(r.sl, n), color: MAU.tealDam }) },   // NEW - 3.157
-    { ten: 'Doanh số', rong: W_TIEN, canh: 'right', f: (r) => so(r.dt) },
+    { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => so(r.dt) },
     { ten: 'Tỷ trọng', rong: 56, f: (r) => (r.phu ? { text: tyTrong(r.dt, tongSp), alignment: 'right', bold: r.phu === 'tong' } : { columns: [{ ...thanhO(r.dt, maxSp, MAU.teal, 28), width: 31 }, { text: tyTrong(r.dt, tongSp), width: '*', alignment: 'right' }] }) },
     { ten: 'Sàn / Web', rong: 44, canh: 'right', f: (r) => ({ text: `${so(r.sl_san)} / ${so(r.sl_web)}`, color: MAU.ink2 }) },
     { ten: 'Size chạy', rong: 56, f: (r) => (r.phu ? { text: '' } : { text: (r.co || []).slice(0, 2).map((c) => (c.ma || '').split('-').pop() + ' ' + so(c.sl)).join('\n'), color: MAU.ink2, fontSize: 6.5 }) },
@@ -177,11 +177,11 @@ export function docOnline(bc, meta = {}) {
   const bangNc = bang([
     { ten: 'Ngành', rong: '*', f: (r) => ({ text: r.ten, bold: !!r.tong }) },
     { ten: 'Chính · SL', rong: 50, canh: 'right', f: (r) => so(r.cSl) },
-    { ten: 'Chính · DS', rong: W_TIEN, canh: 'right', f: (r) => so(r.cDt) },
+    { ten: 'Chính · DT', rong: W_TIEN, canh: 'right', f: (r) => so(r.cDt) },
     { ten: 'Sale · SL', rong: 50, canh: 'right', f: (r) => so(r.sSl) },
-    { ten: 'Sale · DS', rong: W_TIEN, canh: 'right', f: (r) => so(r.sDt) },
-    { ten: 'Tổng DS', rong: W_TIEN, canh: 'right', f: (r) => ({ text: so(r.dt), bold: true }) },
-    { ten: 'DS / ngày', rong: 48, canh: 'right', f: (r) => ({ text: tbTien(r.dt, n), color: MAU.tealDam }) },   // NEW - 3.157
+    { ten: 'Sale · DT', rong: W_TIEN, canh: 'right', f: (r) => so(r.sDt) },
+    { ten: 'Tổng DT', rong: W_TIEN, canh: 'right', f: (r) => ({ text: so(r.dt), bold: true }) },
+    { ten: 'DT / ngày', rong: 48, canh: 'right', f: (r) => ({ text: tbTien(r.dt, n), color: MAU.tealDam }) },   // NEW - 3.157
     { ten: 'Tỷ trọng', rong: 42, canh: 'right', f: (r) => tyTrong(r.dt, tongNc) },
   ], nganhDs.map((g) => ({ ten: NGANH[g], cSl: lay(g, 'chinh', 'sl'), cDt: lay(g, 'chinh', 'dt'), sSl: lay(g, 'sale', 'sl'), sDt: lay(g, 'sale', 'dt'), dt: lay(g, null, 'dt') })),
   { tong: { ten: 'Tổng', tong: true, cSl: lay('BH', 'chinh', 'sl') + lay('NV', 'chinh', 'sl') + lay('PK', 'chinh', 'sl') + lay('?', 'chinh', 'sl'), cDt: nc.filter((x) => x.cs === 'chinh').reduce((s, x) => s + x.dt, 0), sSl: nc.filter((x) => x.cs === 'sale').reduce((s, x) => s + x.sl, 0), sDt: nc.filter((x) => x.cs === 'sale').reduce((s, x) => s + x.dt, 0), dt: tongNc } });
@@ -215,8 +215,8 @@ export function docOnline(bc, meta = {}) {
     { ten: 'Đơn', rong: 40, canh: 'right', f: (r) => so(r.don) },
     { ten: 'Đơn / ngày', rong: 40, canh: 'right', f: (r) => ({ text: tbN(r.don, n), color: MAU.tealDam }) },   // NEW - 3.157
     { ten: '% đơn', rong: 36, canh: 'right', f: (r) => tyTrong(r.don, tTinh.don) },
-    { ten: 'Doanh số', rong: W_TIEN, canh: 'right', f: (r) => so(r.dt) },
-    { ten: '% doanh số', rong: 44, canh: 'right', f: (r) => ({ text: tyTrong(r.dt, tTinh.dt), bold: !r.phu }) },
+    { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => so(r.dt) },
+    { ten: '% doanh thu', rong: 44, canh: 'right', f: (r) => ({ text: tyTrong(r.dt, tTinh.dt), bold: !r.phu }) },
     { ten: 'TB / đơn', rong: 50, canh: 'right', f: (r) => (r.don ? tien(r.dt / r.don) : '—') },
     { ten: 'Hoàn', rong: 34, canh: 'right', f: (r) => so(r.hoan) },
     { ten: '', rong: 60, f: (r) => (r.phu ? { text: '' } : thanhO(r.dt, maxTinh, MAU.ink, 58)) },
@@ -227,8 +227,8 @@ export function docOnline(bc, meta = {}) {
     { ten: 'Nhân viên', rong: '*', f: (r) => (r.phu ? { text: r.ten, bold: r.phu === 'tong', italics: r.phu === 'con', color: r.phu === 'con' ? MAU.ink2 : MAU.ink } : cat(r.ten, 34)) },
     { ten: 'Đơn', rong: 40, canh: 'right', f: (r) => so(r.don) },
     { ten: 'SL', rong: 40, canh: 'right', f: (r) => so(r.sl) },
-    { ten: 'Doanh số', rong: W_TIEN, canh: 'right', f: (r) => ({ text: so(r.dt), bold: true }) },
-    { ten: 'DS / ngày', rong: 46, canh: 'right', f: (r) => ({ text: tbTien(r.dt, n), color: MAU.tealDam }) },   // NEW - 3.157
+    { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => ({ text: so(r.dt), bold: true }) },
+    { ten: 'DT / ngày', rong: 46, canh: 'right', f: (r) => ({ text: tbTien(r.dt, n), color: MAU.tealDam }) },   // NEW - 3.157
     { ten: 'Hoàn', rong: 34, canh: 'right', f: (r) => so(r.hoan) },
     { ten: 'Huỷ', rong: 34, canh: 'right', f: (r) => so(r.huy) },
     { ten: 'Kênh', rong: 100, f: (r) => (r.phu ? { text: '' } : { text: cat(r.kenh || '', 40), color: MAU.ink2, fontSize: 6.8 }) },
@@ -244,21 +244,21 @@ export function docOnline(bc, meta = {}) {
     dauTrang({ tieuDe: 'Báo cáo bán hàng online', ky: `${ngayVN(bc.tu)} – ${ngayVN(bc.den)} (${n} ngày)`, soSanh: bc.tu_truoc ? `${ngayVN(bc.tu_truoc)} – ${ngayVN(bc.den_truoc)}` : '', loc: meta.loc }),
     luoiKpi(kpi),
     diemChinh(cauNhanXet(bc).slice(0, 9)),
-    muc(motNgay ? 'Đơn theo giờ' : td.theoTuan ? 'Doanh số theo tuần' : 'Doanh số theo ngày', 'chia theo kênh bán'),
+    muc(motNgay ? 'Đơn theo giờ' : td.theoTuan ? 'Doanh thu theo tuần' : 'Doanh thu theo ngày', 'chia theo kênh bán'),
     motNgay
       ? bieuDoCot(Array.from({ length: 24 }, (_, g) => { const x = gio.find((z) => z.g === g) || {}; return { nhan: String(g), nhanDu: `${g}h`, phan: [{ v: x.dt || 0, mau: MAU.tealDam }] }; }), { cao: 115 })
       : bieuDoCot(td.cot, { cao: 115, chuThich: td.thuTu.map((k) => ({ ten: kenhTen(k), mau: kenhMau(k) })) }),
-    khoi({ text: 'Tỷ trọng doanh số cả kỳ', fontSize: 7.5, bold: true, italics: true, color: MAU.ink2, margin: [0, 12, 0, 4] }, thanhTyTrong(kenh.map((k) => ({ ten: k.ten || kenhTen(k.k), v: k.dt, mau: kenhMau(k.k) })))),
+    khoi({ text: 'Tỷ trọng doanh thu cả kỳ', fontSize: 7.5, bold: true, italics: true, color: MAU.ink2, margin: [0, 12, 0, 4] }, thanhTyTrong(kenh.map((k) => ({ ten: k.ten || kenhTen(k.k), v: k.dt, mau: kenhMau(k.k) })))),
 
     muc('Kênh bán', `${so(kenh.length)} kênh`, { truocTrang: true }),
     bangKenh,
-    muc('Gian hàng', shop.length > 25 ? `25 / ${so(shop.length)} gian hàng doanh số cao nhất` : `${so(shop.length)} gian hàng`),
+    muc('Gian hàng', shop.length > 25 ? `25 / ${so(shop.length)} gian hàng doanh thu cao nhất` : `${so(shop.length)} gian hàng`),
     bangShop,
     haiCot([muc('Trạng thái đơn', null, { rong: NUA }), bangTt], [muc('Giờ chốt đơn', 'số đơn theo giờ đặt', { rong: NUA }), bdGio]),
 
-    muc('Sản phẩm bán chạy', sp.length > 40 ? `40 / ${so(sp.length)} mã doanh số cao nhất · gộp theo mã mẹ` : `${so(sp.length)} mã · gộp theo mã mẹ`, { truocTrang: true }),
+    muc('Sản phẩm bán chạy', sp.length > 40 ? `40 / ${so(sp.length)} mã doanh thu cao nhất · gộp theo mã mẹ` : `${so(sp.length)} mã · gộp theo mã mẹ`, { truocTrang: true }),
     bangSp,
-    khoi(muc('Ngành hàng × Chính / Sale', 'SL = số sản phẩm · DS = doanh số'), bangNc),
+    khoi(muc('Ngành hàng × Chính / Sale', 'SL = số sản phẩm · DT = doanh thu'), bangNc),
 
     muc('Vận chuyển & hoàn', `${so(hvc.length)} hãng`),
     bangHvc,
@@ -267,14 +267,14 @@ export function docOnline(bc, meta = {}) {
     bangTinh,
     khoi(muc('Nhân viên chốt đơn', 'đơn Web · Facebook · Zalo · Admin'), bangNv),
     coTk ? khoi(muc('TikTok Shop × ID người bán', `${so(tk.khop)} / ${so(tk.don)} đơn TikTok khớp mã đơn · ${so(tk.co_nb)} có ID người bán`), haiCot(
-      bang([{ ten: 'Nhóm người bán', rong: '*', f: (r) => LOAI_TK[r.loai] || r.loai }, { ten: 'Đơn', rong: 36, canh: 'right', f: (r) => so(r.don) }, { ten: 'Doanh số', rong: W_TIEN, canh: 'right', f: (r) => so(r.dt) }],
+      bang([{ ten: 'Nhóm người bán', rong: '*', f: (r) => LOAI_TK[r.loai] || r.loai }, { ten: 'Đơn', rong: 36, canh: 'right', f: (r) => so(r.don) }, { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => so(r.dt) }],
         [...(tk.theo_loai || [])].sort((a, b) => b.dt - a.dt)),
       bang([{ ten: 'ID người bán', rong: '*', f: (r) => ({ text: [{ text: cat(r.ten || '@' + r.nb, 24) }, r.ten_ch ? { text: '\n' + cat(r.ten_ch, 30), color: MAU.mo, fontSize: 6.3 } : ''] }) },
-        { ten: 'Đơn', rong: 32, canh: 'right', f: (r) => so(r.don) }, { ten: 'Doanh số', rong: W_TIEN, canh: 'right', f: (r) => so(r.dt) }], tkNb))) : null,
+        { ten: 'Đơn', rong: 32, canh: 'right', f: (r) => so(r.don) }, { ten: 'Doanh thu', rong: W_TIEN, canh: 'right', f: (r) => so(r.dt) }], tkNb))) : null,
     { margin: [0, 18, 0, 0], unbreakable: true, stack: [
       { text: 'Cách tính', bold: true, fontSize: 8, color: MAU.ink2, margin: [0, 0, 0, 3] },
       { ul: [
-        'Doanh số = tổng thành tiền các dòng hàng (đã trừ chiết khấu), không tính đơn huỷ. Đơn = đơn bán; không gồm đơn khách trả, chuyển kho.',
+        'Doanh thu = tổng thành tiền các dòng hàng (đã trừ chiết khấu), không tính đơn huỷ. Đơn = đơn bán; không gồm đơn khách trả, chuyển kho.',
         `Trung bình / ngày (cột "… / ngày", dòng "TB") = tổng của kỳ ÷ ${n} ngày (tính cả ngày đầu và ngày cuối).`,
         `Kỳ trước = ${n} ngày liền trước (${bc.tu_truoc ? ngayVN(bc.tu_truoc) + ' – ' + ngayVN(bc.den_truoc) : '—'}). Tỷ lệ hoàn tính trên đơn không huỷ; tỷ lệ huỷ tính trên tổng đơn đặt.`,
         'Ngành và Chính / Sale lấy theo danh mục sản phẩm của NS FLOW (khớp mã tham chiếu Nhanh); mã chưa khớp ghi "Chưa rõ".',
@@ -290,7 +290,7 @@ export function docOnline(bc, meta = {}) {
 export const COT_DONG_ONLINE = [
   { ten: 'Ngày giờ đặt', w: 16 }, { ten: 'Mã đơn Nhanh', w: 13 }, { ten: 'Mã đơn sàn', w: 20 }, { ten: 'Kênh', w: 13 }, { ten: 'Gian hàng', w: 26 },
   { ten: 'Trạng thái', w: 14 }, { ten: 'Nhóm trạng thái', w: 13 }, { ten: 'Mã hàng', w: 20 }, { ten: 'Mã mẹ', w: 14 }, { ten: 'Tên sản phẩm', w: 44 },
-  { ten: 'Ngành', w: 10 }, { ten: 'Chính / Sale', w: 10 }, { ten: 'SL', w: 6, kieu: 'so' }, { ten: 'Doanh số dòng', w: 13, kieu: 'tien' },
+  { ten: 'Ngành', w: 10 }, { ten: 'Chính / Sale', w: 10 }, { ten: 'SL', w: 6, kieu: 'so' }, { ten: 'Doanh thu dòng', w: 13, kieu: 'tien' },
   { ten: 'Giá niêm yết', w: 12, kieu: 'tien' }, { ten: 'Hãng vận chuyển', w: 18 }, { ten: 'Mã vận đơn', w: 18 }, { ten: 'Tỉnh / thành', w: 16 },
   { ten: 'Nhân viên', w: 20 }, { ten: 'SĐT khách', w: 13 }, { ten: 'Phí sàn (đơn)', w: 12, kieu: 'tien' }, { ten: 'Phí ship (đơn)', w: 12, kieu: 'tien' }, { ten: 'Nguồn số liệu', w: 10 },
 ];
@@ -302,10 +302,10 @@ export function sheetsOnline(bc, dong, meta = {}) {
   const nX = soNgay(bc.tu, bc.den);   // NEW - 3.157 số ngày → cột TB / ngày
   const ghi = `Kỳ ${ky} (${nX} ngày — TB / ngày = tổng ÷ ${nX}) · so với ${ngayVN(bc.tu_truoc)} – ${ngayVN(bc.den_truoc)} · ${meta.loc || 'không lọc'} · xuất lúc ${meta.luc || ''}`;
   const chiSo = [
-    ['Doanh số (không tính huỷ)', t.dt, tr.dt], ['Đơn hàng', t.don, tr.don], ['Sản phẩm bán', t.sl, tr.sl],
+    ['Doanh thu (không tính huỷ)', t.dt, tr.dt], ['Đơn hàng', t.don, tr.don], ['Sản phẩm bán', t.sl, tr.sl],
     ['Giá trị TB / đơn', t.don ? Math.round(t.dt / t.don) : null, tr.don ? Math.round(tr.dt / tr.don) : null],
-    ['Doanh số thành công', t.dt_tc, tr.dt_tc], ['Đơn thành công', t.don_tc, tr.don_tc], ['Đơn đang giao', t.don_giao, null], ['Đơn đang xử lý', t.don_xl, null],
-    ['Đơn hoàn', t.don_hoan, tr.don_hoan], ['Doanh số hoàn', t.dt_hoan, null], ['Đơn huỷ', t.don_huy, tr.don_huy], ['Doanh số huỷ', t.dt_huy, null],
+    ['Doanh thu thành công', t.dt_tc, tr.dt_tc], ['Đơn thành công', t.don_tc, tr.don_tc], ['Đơn đang giao', t.don_giao, null], ['Đơn đang xử lý', t.don_xl, null],
+    ['Đơn hoàn', t.don_hoan, tr.don_hoan], ['Doanh thu hoàn', t.dt_hoan, null], ['Đơn huỷ', t.don_huy, tr.don_huy], ['Doanh thu huỷ', t.dt_huy, null],
     ['Đơn thất bại', t.don_tb, null], ['Phí sàn', t.phi_san, null], ['Phí ship', t.phi_ship, null], ['Khách (SĐT)', t.khach, null],
     ['Khách mua ≥ 2 đơn', t.khach_lap, null], ['Số mã có bán', t.so_ma, null], ['Số gian hàng / kênh', t.so_shop, null],
   ];
@@ -324,35 +324,35 @@ export function sheetsOnline(bc, dong, meta = {}) {
     { ten: 'Tổng quan', tieuDe: 'BÁO CÁO BÁN HÀNG ONLINE — NÓN SƠN', ghiChu: ghi,
       cot: [{ ten: 'Chỉ số', w: 28 }, { ten: 'Kỳ này', w: 16, kieu: 'tien' }, { ten: 'TB / ngày', w: 14, kieu: 'thap' }, { ten: 'Kỳ trước', w: 16, kieu: 'tien' }, { ten: 'TB / ngày kỳ trước', w: 16, kieu: 'thap' }, { ten: 'Chênh lệch', w: 12, kieu: 'pt' }],
       dong: chiSo.map(([a, b, c]) => [a, b ?? null, /TB \/ đơn|Khách|Số mã|Số gian/.test(a) ? null : tb1(b, nX), c ?? null, /TB \/ đơn|Khách|Số mã|Số gian/.test(a) ? null : tb1(c, nX), c > 0 && b != null ? (b - c) / c : null]) },
-    { ten: 'Theo ngày', ghiChu: ghi, cot: [{ ten: 'Ngày', k: 'k', w: 12 }, { ten: 'Đơn', k: 'don', w: 9, kieu: 'so' }, { ten: 'SL', k: 'sl', w: 9, kieu: 'so' }, { ten: 'Doanh số', k: 'dt', w: 15, kieu: 'tien' },
-      ...kenhCo.map((k) => ({ ten: 'DS ' + kenhTen(k), k: 'k' + k, w: 14, kieu: 'tien' }))], dong: [...ngay.values()].sort((a, b) => (a.k < b.k ? -1 : 1)) },
+    { ten: 'Theo ngày', ghiChu: ghi, cot: [{ ten: 'Ngày', k: 'k', w: 12 }, { ten: 'Đơn', k: 'don', w: 9, kieu: 'so' }, { ten: 'SL', k: 'sl', w: 9, kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' },
+      ...kenhCo.map((k) => ({ ten: 'DT ' + kenhTen(k), k: 'k' + k, w: 14, kieu: 'tien' }))], dong: [...ngay.values()].sort((a, b) => (a.k < b.k ? -1 : 1)) },
     { ten: 'Kênh', ghiChu: ghi, cot: [{ ten: 'Kênh', f: (r) => r.ten || kenhTen(r.k), w: 16 }, { ten: 'Nhóm', f: (r) => NHOM_KENH[r.nhom] || '', w: 20 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Đơn / ngày', f: (r) => tb1(r.don, nX), kieu: 'thap' }, { ten: 'SL', k: 'sl', kieu: 'so' },
-      { ten: 'Doanh số', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DS / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' }, { ten: 'Tỷ trọng', f: (r) => ptSo(r.dt, t.dt), kieu: 'pt' }, { ten: 'DS thành công', k: 'dt_tc', w: 15, kieu: 'tien' }, { ten: 'Đơn thành công', k: 'tc', kieu: 'so' },
+      { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DT / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' }, { ten: 'Tỷ trọng', f: (r) => ptSo(r.dt, t.dt), kieu: 'pt' }, { ten: 'DT thành công', k: 'dt_tc', w: 15, kieu: 'tien' }, { ten: 'Đơn thành công', k: 'tc', kieu: 'so' },
       { ten: 'Đơn hoàn', k: 'hoan', kieu: 'so' }, { ten: 'Đơn huỷ', k: 'huy', kieu: 'so' }, { ten: 'Đơn thất bại', k: 'tb', kieu: 'so' }, { ten: 'Phí sàn', k: 'phi_san', kieu: 'tien' }, { ten: 'Số gian hàng', k: 'so_shop', kieu: 'so' }],
       dong: [...(bc.kenh || [])].sort((a, b) => b.dt - a.dt) },
     { ten: 'Gian hàng', ghiChu: ghi, cot: [{ ten: 'Gian hàng', k: 'shop', w: 36 }, { ten: 'Kênh', f: (r) => r.ten_kenh || kenhTen(r.kenh), w: 14 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Đơn / ngày', f: (r) => tb1(r.don, nX), kieu: 'thap' }, { ten: 'SL', k: 'sl', kieu: 'so' },
-      { ten: 'Doanh số', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DS / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' }, { ten: 'Tỷ trọng', f: (r) => ptSo(r.dt, t.dt), kieu: 'pt' }, { ten: 'Đơn thành công', k: 'tc', kieu: 'so' }, { ten: 'Đơn hoàn', k: 'hoan', kieu: 'so' },
+      { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DT / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' }, { ten: 'Tỷ trọng', f: (r) => ptSo(r.dt, t.dt), kieu: 'pt' }, { ten: 'Đơn thành công', k: 'tc', kieu: 'so' }, { ten: 'Đơn hoàn', k: 'hoan', kieu: 'so' },
       { ten: 'Đơn huỷ', k: 'huy', kieu: 'so' }, { ten: 'Phí sàn', k: 'phi_san', kieu: 'tien' }], dong: [...(bc.shop || [])].sort((a, b) => b.dt - a.dt) },
     { ten: 'Sản phẩm', ghiChu: ghi + ' · gộp theo mã mẹ', cot: [{ ten: 'Mã mẹ', k: 'ma', w: 16 }, { ten: 'Tên sản phẩm', k: 'ten', w: 48 }, { ten: 'Ngành', f: (r) => NGANH[r.nganh] || '', w: 10 },
-      { ten: 'Chính / Sale', f: (r) => CS[r.cs] || '', w: 11 }, { ten: 'SL', k: 'sl', kieu: 'so' }, { ten: 'SL / ngày', f: (r) => tb1(r.sl, nX), kieu: 'thap' }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Doanh số', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DS / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' },
+      { ten: 'Chính / Sale', f: (r) => CS[r.cs] || '', w: 11 }, { ten: 'SL', k: 'sl', kieu: 'so' }, { ten: 'SL / ngày', f: (r) => tb1(r.sl, nX), kieu: 'thap' }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DT / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' },
       { ten: 'Giá niêm yết', k: 'gny', kieu: 'tien' }, { ten: 'SL sàn TMĐT', k: 'sl_san', kieu: 'so' }, { ten: 'SL Web/FB/Zalo', k: 'sl_web', w: 14, kieu: 'so' }, { ten: 'SL hoàn', k: 'sl_hoan', kieu: 'so' },
       { ten: 'Chi tiết mã con (SL)', f: (r) => (r.co || []).map((c) => `${c.ma}: ${c.sl}`).join(' · '), w: 60 }], dong: bc.sp || [] },
     { ten: 'Ngành - Chính Sale', ghiChu: ghi, cot: [{ ten: 'Ngành', f: (r) => NGANH[r.nganh] || r.nganh, w: 12 }, { ten: 'Chính / Sale', f: (r) => CS[r.cs] || r.cs, w: 12 },
-      { ten: 'SL', k: 'sl', kieu: 'so' }, { ten: 'SL / ngày', f: (r) => tb1(r.sl, nX), kieu: 'thap' }, { ten: 'Doanh số', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DS / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' }, { ten: 'Đơn', k: 'don', kieu: 'so' }], dong: bc.nganh_cs || [] },
-    { ten: 'Trạng thái', ghiChu: ghi, cot: [{ ten: 'Trạng thái', k: 'ten', w: 20 }, { ten: 'Nhóm', f: (r) => TT_NHOM[r.nhom] || '', w: 12 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Doanh số', k: 'dt', w: 15, kieu: 'tien' }], dong: bc.tt || [] },
+      { ten: 'SL', k: 'sl', kieu: 'so' }, { ten: 'SL / ngày', f: (r) => tb1(r.sl, nX), kieu: 'thap' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DT / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' }, { ten: 'Đơn', k: 'don', kieu: 'so' }], dong: bc.nganh_cs || [] },
+    { ten: 'Trạng thái', ghiChu: ghi, cot: [{ ten: 'Trạng thái', k: 'ten', w: 20 }, { ten: 'Nhóm', f: (r) => TT_NHOM[r.nhom] || '', w: 12 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }], dong: bc.tt || [] },
     { ten: 'Vận chuyển', ghiChu: ghi, cot: [{ ten: 'Hãng vận chuyển', k: 'ten', w: 26 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Thành công', k: 'tc', kieu: 'so' }, { ten: 'Hoàn', k: 'hoan', kieu: 'so' },
       { ten: 'Tỷ lệ hoàn', f: (r) => ptSo(r.hoan, r.don), kieu: 'pt' }, { ten: 'Thất bại', k: 'tb', kieu: 'so' }, { ten: 'Đang giao', k: 'giao', kieu: 'so' }, { ten: 'Huỷ', k: 'huy', kieu: 'so' },
       { ten: 'Giờ giao TB', k: 'giao_h', kieu: 'thap' }, { ten: 'Phí ship TB', k: 'phi_ship', kieu: 'tien' }], dong: bc.hvc || [] },
     { ten: 'Lý do huỷ - hoàn', ghiChu: ghi, cot: [{ ten: 'Lý do', k: 'ten', w: 36 }, { ten: 'Loại', f: (r) => TT_NHOM[r.ttn] || r.ttn, w: 12 }, { ten: 'Đơn', k: 'don', kieu: 'so' }], dong: lyDo },
     { ten: 'Khu vực', ghiChu: ghi + ' · 34 tỉnh thành mới (tên tỉnh cũ đã gộp về tỉnh mới)', cot: [{ ten: 'Tỉnh / thành', k: 'ten', w: 22 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Đơn / ngày', f: (r) => tb1(r.don, nX), kieu: 'thap' },
-      { ten: '% đơn', f: (r) => (tTinhX.don ? r.don / tTinhX.don : null), kieu: 'pt' }, { ten: 'Doanh số', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DS / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' },
-      { ten: '% doanh số', f: (r) => (tTinhX.dt ? r.dt / tTinhX.dt : null), kieu: 'pt' }, { ten: 'TB / đơn', f: (r) => (r.don ? Math.round(r.dt / r.don) : null), w: 12, kieu: 'tien' },
+      { ten: '% đơn', f: (r) => (tTinhX.don ? r.don / tTinhX.don : null), kieu: 'pt' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DT / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' },
+      { ten: '% doanh thu', f: (r) => (tTinhX.dt ? r.dt / tTinhX.dt : null), kieu: 'pt' }, { ten: 'TB / đơn', f: (r) => (r.don ? Math.round(r.dt / r.don) : null), w: 12, kieu: 'tien' },
       { ten: 'Đơn hoàn', k: 'hoan', kieu: 'so' }], dong: [...(bc.tinh || [])].sort((a, b) => b.don - a.don), tong: { ten: 'Tổng cộng', ...tTinhX } },   // NEW - 3.156.1
     { ten: 'Nhân viên', ghiChu: ghi + ' · đơn Web / Facebook / Zalo / Admin', cot: [{ ten: 'Nhân viên', k: 'ten', w: 26 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Đơn / ngày', f: (r) => tb1(r.don, nX), kieu: 'thap' }, { ten: 'SL', k: 'sl', kieu: 'so' },
-      { ten: 'Doanh số', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DS / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' }, { ten: 'Hoàn', k: 'hoan', kieu: 'so' }, { ten: 'Huỷ', k: 'huy', kieu: 'so' }, { ten: 'Kênh', k: 'kenh', w: 30 }], dong: bc.nv || [] },
-    { ten: 'Theo giờ', ghiChu: ghi, cot: [{ ten: 'Giờ', f: (r) => `${r.g}h–${r.g + 1}h`, w: 10 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Doanh số', k: 'dt', w: 15, kieu: 'tien' }], dong: bc.gio || [] },
+      { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DT / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' }, { ten: 'Hoàn', k: 'hoan', kieu: 'so' }, { ten: 'Huỷ', k: 'huy', kieu: 'so' }, { ten: 'Kênh', k: 'kenh', w: 30 }], dong: bc.nv || [] },
+    { ten: 'Theo giờ', ghiChu: ghi, cot: [{ ten: 'Giờ', f: (r) => `${r.g}h–${r.g + 1}h`, w: 10 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }], dong: bc.gio || [] },
     { ten: 'Đơn hàng', ghiChu: ghi + ' · 1 dòng / đơn', cot: [{ ten: 'Ngày giờ đặt', w: 16 }, { ten: 'Mã đơn Nhanh', w: 13 }, { ten: 'Mã đơn sàn', w: 20 }, { ten: 'Kênh', w: 13 },
-      { ten: 'Gian hàng', w: 26 }, { ten: 'Trạng thái', w: 14 }, { ten: 'Nhóm trạng thái', w: 13 }, { ten: 'Số dòng hàng', w: 8, kieu: 'so' }, { ten: 'SL', w: 6, kieu: 'so' }, { ten: 'Doanh số', w: 13, kieu: 'tien' },
+      { ten: 'Gian hàng', w: 26 }, { ten: 'Trạng thái', w: 14 }, { ten: 'Nhóm trạng thái', w: 13 }, { ten: 'Số dòng hàng', w: 8, kieu: 'so' }, { ten: 'SL', w: 6, kieu: 'so' }, { ten: 'Doanh thu', w: 13, kieu: 'tien' },
       { ten: 'Hãng vận chuyển', w: 18 }, { ten: 'Mã vận đơn', w: 18 }, { ten: 'Tỉnh / thành', w: 16 }, { ten: 'Nhân viên', w: 20 }, { ten: 'SĐT khách', w: 13 }, { ten: 'Phí sàn', w: 11, kieu: 'tien' },
       { ten: 'Phí ship', w: 11, kieu: 'tien' }, { ten: 'Nguồn số liệu', w: 10 }], dong: [...don.values()].map((r) => { r[6] = TT_NHOM[r[6]] || r[6]; return r; }) },
     { ten: 'Chi tiết dòng hàng', ghiChu: ghi + ' · 1 dòng / sản phẩm trong đơn', cot: COT_DONG_ONLINE,

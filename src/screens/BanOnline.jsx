@@ -230,7 +230,7 @@ export default function BanOnline() {
   const shopOpt = [{ value: '', label: 'Mọi gian hàng' }, ...(bc?.shop || []).map((s) => ({ value: s.shop, label: s.shop, sub: s.ten_kenh + ' · ' + tien(s.dt) }))];
 
   const KPI = [
-    ['', 'Doanh số', tien(t.dt), <Lech moi={t.dt} cu={tr.dt} />, `TB ${tbTien(t.dt, nKy)}/ngày · ${fmt(t.sl)} sản phẩm`],
+    ['', 'Doanh thu', tien(t.dt), <Lech moi={t.dt} cu={tr.dt} />, `TB ${tbTien(t.dt, nKy)}/ngày · ${fmt(t.sl)} sản phẩm`],
     ['', 'Đơn', fmt(t.don), <Lech moi={t.don} cu={tr.don} />, `TB ${tbN(t.don, nKy)} đơn/ngày · ${fmt(t.so_shop || 0)} gian hàng`],
     ['', 'Giá TB / đơn', t.don ? tien(t.dt / t.don) : '—', <Lech moi={t.don ? t.dt / t.don : 0} cu={tr.don ? tr.dt / tr.don : 0} />, `${t.don ? (t.sl / t.don).toLocaleString('vi', { maximumFractionDigits: 2 }) : 0} sp / đơn`],
     ['tc', 'Thành công', tien(t.dt_tc), <Lech moi={t.dt_tc} cu={tr.dt_tc} />, `${fmt(t.don_tc)} đơn · ${pctTxt(t.don_tc || 0, t.don || 0)}`],
@@ -238,7 +238,7 @@ export default function BanOnline() {
     ['hoan', 'Hoàn', fmt(t.don_hoan), <Lech moi={t.don_hoan} cu={tr.don_hoan} nguoc />, `${pctTxt(t.don_hoan || 0, t.don || 0)} đơn · ${tien(t.dt_hoan)}`, 'canh'],
     ['huy', 'Huỷ', fmt(t.don_huy), <Lech moi={t.don_huy} cu={tr.don_huy} nguoc />, `${pctTxt(t.don_huy || 0, tongKy)} tổng đơn đặt`, 'do'],
     ['', laiGop != null ? 'Lãi gộp' : 'Phí sàn', laiGop != null ? tien(laiGop) : tien(t.phi_san), null,
-      laiGop != null ? `${pctTxt(laiGop, t.dt_co_gv)} doanh số có giá vốn` : `${pctTxt(t.phi_san || 0, t.dt || 0)} doanh số`],
+      laiGop != null ? `${pctTxt(laiGop, t.dt_co_gv)} doanh thu có giá vốn` : `${pctTxt(t.phi_san || 0, t.dt || 0)} doanh thu`],
   ];
 
   // NEW - 3.154: XUẤT — báo cáo PDF / dữ liệu Excel theo đúng bộ lọc đang xem
@@ -323,7 +323,7 @@ export default function BanOnline() {
         {bc && (
           <div className="bo-tbn" title={`Tổng của khoảng đang xem ÷ ${nKy} ngày (${ngayVN(loc.tu).slice(0, 5)} – ${ngayVN(loc.den).slice(0, 5)}, tính cả 2 đầu)`}>
             <span className="bo-tbn-nhan">Trung bình / ngày<small>{nKy} ngày</small></span>
-            <span><b>{tbTien(t.dt, nKy)}</b>doanh số</span>
+            <span><b>{tbTien(t.dt, nKy)}</b>doanh thu</span>
             <span><b>{tbN(t.don, nKy)}</b>đơn</span>
             <span><b>{tbN(t.sl, nKy)}</b>sản phẩm</span>
             <span><b>{tbTien(t.dt_tc, nKy)}</b>thành công</span>
@@ -401,7 +401,7 @@ function BieuDoKenh({ bc, chiSo }) {
   const dd = (v) => (chiSo === 'dt' ? tien(v) : fmt(Math.round(v)));
   return (
     <div className="tts-bd" ref={ref}>
-      <svg width={rong} height={cao} role="img" aria-label="Doanh số theo ngày, chia theo kênh"
+      <svg width={rong} height={cao} role="img" aria-label="Doanh thu theo ngày, chia theo kênh"
         onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); const i = Math.floor(((e.clientX - r.left - le.l) / w) * n); setTro(i >= 0 && i < n ? i : null); }}
         onMouseLeave={() => setTro(null)}>
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (<g key={f}><line x1={le.l} x2={le.l + w} y1={y(f * max)} y2={y(f * max)} className="tts-bd-luoi" />
@@ -446,8 +446,8 @@ function TongQuan({ bc, chonKenh }) {
   const spMax = Math.max(1, ...top.map((x) => x.dt));
   return (
     <div className="tts-tq">
-      <Khung tieu={{ dt: 'Doanh số', don: 'Số đơn', sl: 'Sản phẩm bán' }[chiSo] + ' theo ngày · theo kênh'} phu="rê chuột xem từng kênh · không tính đơn huỷ"
-        them={<div className="tts-nhanh nho bo-chi-so">{[['dt', 'Doanh số'], ['don', 'Đơn'], ['sl', 'Sản phẩm']].map(([k, ten]) => (
+      <Khung tieu={{ dt: 'Doanh thu', don: 'Số đơn', sl: 'Sản phẩm bán' }[chiSo] + ' theo ngày · theo kênh'} phu="rê chuột xem từng kênh · không tính đơn huỷ"
+        them={<div className="tts-nhanh nho bo-chi-so">{[['dt', 'Doanh thu'], ['don', 'Đơn'], ['sl', 'Sản phẩm']].map(([k, ten]) => (
           <button key={k} className={chiSo === k ? 'on' : ''} onClick={() => setChiSo(k)}>{ten}</button>))}</div>}>
         <BieuDoKenh bc={bc} chiSo={chiSo} />
       </Khung>
@@ -481,7 +481,7 @@ function TongQuan({ bc, chonKenh }) {
 
       <div className="bo-luoi2">
         <NganhCs bc={bc} gon />
-        <Khung tieu="Bán chạy nhất" phu="theo doanh số · xem đủ ở thẻ Sản phẩm">
+        <Khung tieu="Bán chạy nhất" phu="theo doanh thu · xem đủ ở thẻ Sản phẩm">
           <div className="bo-top">{top.map((x, i) => (
             <div key={x.ma} className="bo-top-dong">
               <span className="bo-top-so">{i + 1}</span>
@@ -505,7 +505,7 @@ function NganhCs({ bc, gon, chon }) {
   const nganhs = ['BH', 'NV', 'PK', '?'].filter((n) => v(n, null) > 0 || v(n, null, 'sl') > 0);
   const o = (n, c) => (chon ? <button className="tts-link bo-o" onClick={() => chon(n || '', c || '')}>{tien(v(n, c))}</button> : tien(v(n, c)));
   return (
-    <Khung tieu="Tỷ trọng hàng chính / sale theo ngành" phu="doanh số · không tính đơn huỷ" cls="bo-bk">
+    <Khung tieu="Tỷ trọng hàng chính / sale theo ngành" phu="doanh thu · không tính đơn huỷ" cls="bo-bk">
       <table className="odn-bang tts-bang bo-bang-bk">
         <thead><tr><th>Ngành hàng</th><th className="so">Chính</th><th className="so">Sale</th>{!gon && <th className="so">Chưa rõ</th>}<th className="so">Tổng</th><th className="so">TB / ngày</th><th className="so">% online</th></tr></thead>
         <tbody>
@@ -537,7 +537,7 @@ function BangKenh({ bc, chonShop }) {
   return (
     <div className="odn-bang-khung">
       <table className="odn-bang tts-bang">
-        <thead><tr>{th('ten', 'Kênh')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('sl', 'SL', 'so')}{th('dt', 'Doanh số', 'so')}<th className="so" title="Trung bình mỗi ngày">DS / ngày</th><th className="so">Tỷ trọng</th>
+        <thead><tr>{th('ten', 'Kênh')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('sl', 'SL', 'so')}{th('dt', 'Doanh thu', 'so')}<th className="so" title="Trung bình mỗi ngày">DT / ngày</th><th className="so">Tỷ trọng</th>
           <th className="so">Giá TB</th>{th('tc', 'Thành công', 'so')}{th('hoan', 'Hoàn', 'so')}{th('huy', 'Huỷ', 'so')}{th('phi_san', 'Phí sàn', 'so')}</tr></thead>
         <tbody>
           {rows.map((r) => [
@@ -565,7 +565,7 @@ function BangKenh({ bc, chonShop }) {
             <td className="so">{fmt(bc.tong.don_huy)}</td><td className="so">{tien(bc.tong.phi_san)}</td></tr>
         </tbody>
       </table>
-      <div className="odn-chan-bang">Bấm 1 kênh để xem từng gian hàng · bấm gian hàng để lọc toàn bộ báo cáo. Doanh số = tiền hàng sau giảm giá, không tính đơn huỷ.</div>
+      <div className="odn-chan-bang">Bấm 1 kênh để xem từng gian hàng · bấm gian hàng để lọc toàn bộ báo cáo. Doanh thu = tiền hàng sau giảm giá, không tính đơn huỷ.</div>
     </div>
   );
 }
@@ -581,7 +581,7 @@ function BangSp({ ds }) {
   return (
     <div className="odn-bang-khung">
       <table className="odn-bang tts-bang">
-        <thead><tr>{th('ma', 'Mã hàng')}{th('sl', 'SL', 'so')}<th className="so" title="Trung bình mỗi ngày">SL / ngày</th>{th('dt', 'Doanh số', 'so')}<th className="so" title="Trung bình mỗi ngày">DS / ngày</th>{th('don', 'Đơn', 'so')}{th('gia_tb', 'Giá bán TB', 'so')}
+        <thead><tr>{th('ma', 'Mã hàng')}{th('sl', 'SL', 'so')}<th className="so" title="Trung bình mỗi ngày">SL / ngày</th>{th('dt', 'Doanh thu', 'so')}<th className="so" title="Trung bình mỗi ngày">DT / ngày</th>{th('don', 'Đơn', 'so')}{th('gia_tb', 'Giá bán TB', 'so')}
           {th('giam', 'Giảm vs niêm yết', 'so')}<th>Sàn / Web</th>{th('sl_hoan', 'Hoàn', 'so')}</tr></thead>
         <tbody>
           {hien.length === 0 ? <tr><td colSpan={10} className="odn-trong">Không có sản phẩm trong khoảng lọc.</td></tr> : hien.map((r) => [
@@ -650,7 +650,7 @@ function BangNv({ ds }) {
   return (
     <div className="odn-bang-khung">
       <table className="odn-bang tts-bang">
-        <thead><tr>{th('ten', 'Nhân viên / người tạo đơn')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('sl', 'SL', 'so')}{th('dt', 'Doanh số', 'so')}<th className="so" title="Trung bình mỗi ngày">DS / ngày</th><th className="so">Tỷ trọng</th>
+        <thead><tr>{th('ten', 'Nhân viên / người tạo đơn')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('sl', 'SL', 'so')}{th('dt', 'Doanh thu', 'so')}<th className="so" title="Trung bình mỗi ngày">DT / ngày</th><th className="so">Tỷ trọng</th>
           {th('hoan', 'Hoàn', 'so')}{th('huy', 'Huỷ', 'so')}<th>Kênh</th></tr></thead>
         <tbody>{rows.length === 0 ? <tr><td colSpan={10} className="odn-trong">Không có đơn Web / Facebook / Zalo / Admin trong khoảng lọc.</td></tr> : rows.map((r) => (
           <tr key={r.ten}><td><b>{r.ten}</b></td><td className="so"><b>{fmt(r.don)}</b></td><td className="so bo-tbc">{tbN(r.don, n)}</td><td className="so">{fmt(r.sl)}</td><td className="so"><b>{tien(r.dt)}</b></td><td className="so bo-tbc">{tbTien(r.dt, n)}</td>
@@ -671,7 +671,7 @@ function BangTinh({ ds }) {
   return (
     <div className="odn-bang-khung">
       <table className="odn-bang tts-bang">
-        <thead><tr>{th('ten', 'Tỉnh / thành')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('dt', 'Doanh số', 'so')}<th className="so" title="Trung bình mỗi ngày">DS / ngày</th><th>Tỷ trọng</th>{th('hoan', 'Hoàn', 'so')}</tr></thead>
+        <thead><tr>{th('ten', 'Tỉnh / thành')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('dt', 'Doanh thu', 'so')}<th className="so" title="Trung bình mỗi ngày">DT / ngày</th><th>Tỷ trọng</th>{th('hoan', 'Hoàn', 'so')}</tr></thead>
         <tbody>{hien.map((r) => (
           <tr key={r.ten}><td><b>{r.ten}</b></td><td className="so">{fmt(r.don)}</td><td className="so bo-tbc">{tbN(r.don, n)}</td><td className="so"><b>{tien(r.dt)}</b></td><td className="so bo-tbc">{tbTien(r.dt, n)}</td>
             <td><span className="bo-ty rong"><i style={{ width: (r.dt / max) * 100 + '%', background: '#1E5F63' }} /></span> <span className="odn-phu">{pctTxt(r.dt, tong)}</span></td>
@@ -698,13 +698,13 @@ function TikTokId({ bc }) {
         <div><span>Tìm thấy trong TikTok Shop app</span><b>{fmt(tk.khop)}</b><em>{pctTxt(tk.khop || 0, tk.don || 0)}</em></div>
         <div><span>Có ID người bán</span><b>{fmt(tk.co_nb)}</b><em>{pctTxt(tk.co_nb || 0, tk.don || 0)}</em></div>
       </div>
-      <Khung tieu="Doanh số TikTok theo loại ID" phu="ID người bán lấy từ thẻ TikTok Shop (báo cáo phân tích từng đơn)">
+      <Khung tieu="Doanh thu TikTok theo loại ID" phu="ID người bán lấy từ thẻ TikTok Shop (báo cáo phân tích từng đơn)">
         <div className="tts-dong-ds">{theoLoai.map((x) => (
           <Dong key={x.loai} ten={LOAI_ID[x.loai] || x.loai} so={tien(x.dt)} phu={`${fmt(x.don)} đơn · ${pctTxt(x.dt, tong)} · TB ${tbTien(x.dt, n)}/ngày`} ty={pct(x.dt, Math.max(1, ...theoLoai.map((y) => y.dt || 0)))} mau="#2a78d6" />))}</div>
       </Khung>
       <div className="odn-bang-khung">
         <table className="odn-bang tts-bang">
-          <thead><tr>{th('nb', 'ID người bán')}{th('ten_ch', 'Cửa hàng')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('dt', 'Doanh số (Nhanh)', 'so')}<th className="so" title="Trung bình mỗi ngày">DS / ngày</th></tr></thead>
+          <thead><tr>{th('nb', 'ID người bán')}{th('ten_ch', 'Cửa hàng')}{th('don', 'Đơn', 'so')}<th className="so" title="Trung bình mỗi ngày">Đơn / ngày</th>{th('dt', 'Doanh thu (Nhanh)', 'so')}<th className="so" title="Trung bình mỗi ngày">DT / ngày</th></tr></thead>
           <tbody>{hien.map((r) => (
             <tr key={r.nb}><td><b>{r.ten || '@' + r.nb}</b>{r.ten && <div className="odn-phu">@{r.nb}</div>}</td>
               <td>{r.ten_ch || LOAI_ID[r.loai] || <span className="odn-phu">chưa gán</span>}</td><td className="so">{fmt(r.don)}</td><td className="so bo-tbc">{tbN(r.don, n)}</td><td className="so"><b>{tien(r.dt)}</b></td><td className="so bo-tbc">{tbTien(r.dt, n)}</td></tr>))}</tbody>
