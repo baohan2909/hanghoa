@@ -149,10 +149,113 @@ export function tomBan(s) {
     chia: { sale: tong.sa, phu_kien: tong.pk, thung: tong.th, tong: tong.nhan, so_ma: tong.ma, so_ma_sale: tong.maSa, so_ma_pk: tong.maPk, so_phieu: tong.soPhieu },
     thung: dsThung,
     kiem_tra: {
+      ...kiemPhuongAn(dong, tong.th),   // NEW - 3.159.2
       vuot_kho: tong.vuot, dong_can_xem: tong.canh,
       thu_hoi_rut: trongThung.rut.map((r) => `${r.t}: ${r.m} ×${r.s}`),
       mau_canh_bao: canh.slice(0, 6).map((x) => `${x.mtc}: ${x.canh[0]}`),
     },
     top: dong.filter((x) => x.them > 0).sort((a, b) => b.them - a.them).slice(0, 8).map((x) => [x.mtc, x.them, r1(x.ndSau)]),
   };
+}
+
+// ============================================================================
+// NEW - 3.159.2: CHỐT THAM SỐ TỪ CHÍNH CÂU ANH NÓI — cùng câu thì ra cùng phương án
+//   Lỗi cũ: AI hiểu "đủ bán 5 ngày" thành SỨC BÁN 5 ngày (số ngày lấy trung bình bán) — Chia đủ giữ nguyên 7,
+//   trung bình bán chỉ lấy 3–5 ngày gần nhất -> mỗi lần một kiểu. Giờ đọc số bằng quy tắc cố định (không đoán):
+//     "đủ (bán) N ngày", "bán được N ngày", "chia đủ N ngày"         -> Chia đủ N
+//     "sức bán N ngày", "trung bình N ngày", "bán N ngày gần nhất"     -> Sức bán N   (không nói -> mặc định 28 ngày)
+//     "tỷ lệ N%"                                                      -> Tỷ lệ N     (không nói -> 100%)
+//     "N thùng", "N–M thùng"                                          -> lấy đúng N (N–M) thùng
+//     "không lấy thùng", "bỏ thùng" / câu không nhắc thùng            -> không dùng thùng (không lấy thùng còn sót trên bàn)
+// ============================================================================
+const SO_CHU = { mot: 1, hai: 2, ba: 3, bon: 4, tu: 4, nam: 5, lam: 5, sau: 6, bay: 7, tam: 8, chin: 9, muoi: 10 };
+const SO = '(\\d{1,3}|mot|hai|ba|bon|tu|nam|lam|sau|bay|tam|chin|muoi)';
+const docSo = (x) => (/^\d+$/.test(x) ? parseInt(x, 10) : SO_CHU[x] ?? null);
+const thuong = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/[,.;:!?]/g, ' ').replace(/\s+/g, ' ');
+
+export function docYeuCau(text) {
+  const t = ' ' + thuong(text) + ' ';
+  const r = {};
+  // nhiều đội trong 1 câu với số ngày khác nhau ("đội 1 đủ 5 ngày, đội 2 đủ 7 ngày") -> không ép, để AI gán từng đội
+  const ds1 = [...new Set([...t.matchAll(new RegExp(`\\b(?:chia\\s+)?(?:du|ban\\s+duoc)\\s+(?:ban\\s+)?(?:duoc\\s+)?(?:trong\\s+)?(?:vong\\s+)?(?:khoang\\s+)?(?:tam\\s+)?${SO}\\s*ngay\\b`, 'g'))].map((m) => docSo(m[1])))];
+  if (ds1.length === 1) r.chia_du_ngay = ds1[0];
+  const m2 = new RegExp(`\\b(?:suc\\s+ban|trung\\s+binh|tinh\\s+ban|lay\\s+ban)\\s+(?:theo\\s+)?(?:trong\\s+)?(?:vong\\s+)?(?:cua\\s+)?${SO}\\s*ngay\\b`).exec(t)
+    || new RegExp(`\\bban\\s+${SO}\\s*ngay\\s+(?:gan\\s+(?:day|nhat)|qua|vua\\s+qua)\\b`).exec(t);
+  if (m2) r.suc_ban_ngay = docSo(m2[1]);
+  const m3 = /\bty\s*le\s+(\d{1,3})\b/.exec(t);
+  if (m3) r.ty_le = parseInt(m3[1], 10);
+  r.noi_thung = /\bthung\b/.test(t);
+  r.khong_thung = /\b(?:khong\s+(?:lay\s+|dung\s+|can\s+|chia\s+|lay\s+hang\s+)?thung|bo\s+(?:het\s+)?(?:cac\s+)?thung)\b/.test(t);
+  const m4 = new RegExp(`\\b${SO}\\s*(?:-|den|toi|hoac)\\s*${SO}\\s*thung\\b`).exec(t);
+  const ds5 = [...new Set([...t.matchAll(new RegExp(`\\b${SO}\\s*thung\\b`, 'g'))].map((m) => m[1]))];
+  const m5 = ds5.length === 1 ? new RegExp(`\\b${SO}\\s*thung\\b`).exec(t) : null;
+  if (!r.khong_thung && m4) { const a = docSo(m4[1]), b = docSo(m4[2]); if (a != null && b != null) r.thung = { so_min: Math.min(a, b), so_max: Math.max(a, b) }; }
+  else if (!r.khong_thung && m5) { const a = docSo(m5[1]); if (a != null) r.thung = { so_min: a, so_max: a }; }
+  return r;
+}
+
+// p: tham số AI đưa · text: câu anh nói · mac: { cua_so, ty_le } mặc định · man: { mucTieu } số đang trên bàn
+// -> { p: tham số chốt (luôn đủ 3 số), nguon: { chia_du, suc_ban, ty_le, thung }, sua_ai: [...ghi lại chỗ AI hiểu khác câu nói] }
+export function chotThamSo(p = {}, text = '', mac = {}, man = {}) {
+  const c = docYeuCau(text);
+  const q = { ...p };
+  const nguon = {}, suaAi = [];
+  const kep = (v, a, b) => Math.max(a, Math.min(b, Math.round(+v)));
+  // Chia đủ: câu nói > AI > số đang trên bàn
+  if (c.chia_du_ngay) { if (p.chia_du_ngay && +p.chia_du_ngay !== c.chia_du_ngay) suaAi.push(`Chia đủ ${p.chia_du_ngay} → ${c.chia_du_ngay} ngày`); q.chia_du_ngay = c.chia_du_ngay; nguon.chia_du = 'cau'; }
+  else if (p.chia_du_ngay) nguon.chia_du = 'ai';
+  else { q.chia_du_ngay = man.mucTieu || 21; nguon.chia_du = 'ban'; }
+  // Sức bán: CHỈ khi câu nói có "sức bán / trung bình N ngày"; còn lại luôn = mặc định (không lấy số AI đoán, không lấy số còn sót trên bàn)
+  if (c.suc_ban_ngay) { q.suc_ban_ngay = c.suc_ban_ngay; nguon.suc_ban = 'cau'; }
+  else {
+    if (p.suc_ban_ngay && +p.suc_ban_ngay !== (mac.cua_so || 28)) suaAi.push(`Bỏ "Sức bán ${p.suc_ban_ngay} ngày" (anh không nói sức bán) → dùng mặc định ${mac.cua_so || 28} ngày`);
+    q.suc_ban_ngay = mac.cua_so || 28; nguon.suc_ban = 'mac_dinh';
+  }
+  // Tỷ lệ: câu nói > AI (sửa phương án) > 100%
+  if (c.ty_le) { q.ty_le = c.ty_le; nguon.ty_le = 'cau'; }
+  else if (p.ty_le) nguon.ty_le = 'ai';
+  else { q.ty_le = mac.ty_le || 100; nguon.ty_le = 'mac_dinh'; }
+  q.chia_du_ngay = kep(q.chia_du_ngay, 1, 180); q.suc_ban_ngay = kep(q.suc_ban_ngay, 1, 180); q.ty_le = kep(q.ty_le, 10, 300);
+  // Thùng
+  if (c.khong_thung) { q.bo_thung = true; delete q.thung; delete q.ma_thung; nguon.thung = 'cau'; }
+  else if (c.thung) {
+    if (p.thung && (p.thung.so_min !== c.thung.so_min || p.thung.so_max !== c.thung.so_max)) suaAi.push(`Số thùng ${p.thung.so_min}–${p.thung.so_max} → ${c.thung.so_min}–${c.thung.so_max}`);
+    q.thung = c.thung; delete q.bo_thung; delete q.ma_thung; nguon.thung = 'cau';
+  } else if ((p.ma_thung || []).length || p.thung) { delete q.bo_thung; nguon.thung = 'ai'; }
+  else { q.bo_thung = true; nguon.thung = c.noi_thung ? 'ai' : 'khong_noi'; }
+  return { p: q, nguon, suaAi };
+}
+
+// ============================================================================
+// NEW - 3.159.2: KIỂM TRA PHƯƠNG ÁN — nhìn là biết chia đúng / sai (dùng chung thẻ SIÊU TRÍ TUỆ + màn điện thoại)
+//   Chỉ tính mã ĐANG BÁN (bỏ mã thu hồi, túi): sau chia có đủ "Chia đủ" ngày không.
+//   Thùng: phần nào đúng nhu cầu đội (≤ cần trước khi có thùng), phần nào dư.
+// ============================================================================
+export const laMaBan = (x) => x.ban > 0 && !x.thuHoi && x.qt?.loai !== 'tui';
+export function kiemPhuongAn(dong, thungTong = 0) {
+  const k = { ma_ban: 0, thieu_truoc: 0, dat_sau: 0, thieu_sau: 0, thieu_kho: 0, thieu_chua_chia: 0, cai_thieu: 0,
+    thung_dung: 0, thung_du: 0, nhan_khong_ban: 0, vuot_kho: 0, canh: 0 };
+  dong.forEach((x) => {
+    if (x.khoCon < 0) k.vuot_kho++;
+    if (x.canh?.length) k.canh++;
+    if (x.th > 0) k.thung_dung += Math.min(x.th, Math.max(0, x.muc - x.co));
+    if (laMaBan(x)) {
+      k.ma_ban++;
+      if (x.co < x.muc) k.thieu_truoc++;
+      if (x.co + x.nhan >= x.muc) k.dat_sau++;
+      else { k.thieu_sau++; k.cai_thieu += x.muc - x.co - x.nhan; if (x.thieu > 0) k.thieu_kho++; else k.thieu_chua_chia++; }
+    } else if (x.nhan > 0 && x.ban === 0 && !x.pk) k.nhan_khong_ban++;
+  });
+  k.thung_du = Math.max(0, thungTong - k.thung_dung);
+  return k;
+}
+// đánh giá 1 dòng: ok | thieu | vuot | canh | '' (không bán, không nhận)
+export function danhGiaDong(x) {
+  if (x.khoCon < 0) return 'vuot';
+  if (laMaBan(x)) {
+    if (x.co + x.nhan < x.muc) return 'thieu';
+    return x.canh?.length ? 'canh' : 'ok';
+  }
+  if (x.canh?.length) return 'canh';
+  return x.nhan > 0 ? 'ok' : '';
 }

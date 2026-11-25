@@ -18,6 +18,7 @@ import { boLocSo, boLocChu, ThCot, soSanh } from './DsLocCot.jsx';
 import { useNgheMo } from '../lib/sttCau.js';        // NEW - 3.127 SIÊU TRÍ TUỆ
 import { useCauChiaDoi } from './DsChiaDoiAi.js';    // NEW - 3.127 SIÊU TRÍ TUỆ
 import DangVeCt from '../lib/DangVeCt.jsx';          // NEW - 3.139 bấm Đang về xem từng phiếu
+import BanDt, { useHep } from './DsChiaDoiDt.jsx';   // NEW - 3.159.2 bàn chia trên điện thoại
 
 // ============================================================================
 // CHIA HÀNG ĐỘI SALE (bản làm lại v3.102.0; v3.104.0 Kho thùng; v3.112.0 nâng cấp) — 6 chế độ:
@@ -162,6 +163,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
   const nguoi = user?.ma_dang_nhap || '';
   const [doi, setDoi] = useState(() => lsGet('doi_dang') || null);
   const [dvCt, setDvCt] = useState(null);   // NEW - 3.139 mã đang xem chi tiết Đang về
+  const hep = useHep();   // NEW - 3.159.2: điện thoại -> bàn chia dạng thẻ (DsChiaDoiDt.jsx)
   const [cuaSo, setCuaSo] = useState(() => lsGet('cua_so') || ts.cua_so || 28);
   const [mucTieu, setMucTieu] = useState(() => lsGet('muc_tieu') || ts.muc_tieu || 21);
   const [heSo, setHeSo] = useState(() => lsGet('he_so') || 100);
@@ -541,7 +543,8 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
 
   // NEW - 3.127 SIÊU TRÍ TUỆ: cầu nối — trợ lý điều khiển bàn chia bằng đúng engine của màn này (DsChiaDoiAi.js)
   useCauChiaDoi({ doi, setDoi, kq, dang, dong, tong, thung, thungCt, trongThung, sua, cuaSo, setCuaSo, mucTieu, setMucTieu, heSo, setHeSo,
-    dsDoi, gy, odooCfg, tenDoi: kq?.ten || tenNgan(doiInfo?.ten) || doi, datNhap, napXong, nguoi, user, sapHet: ts.sap_het || 7, xacNhan });
+    dsDoi, gy, odooCfg, tenDoi: kq?.ten || tenNgan(doiInfo?.ten) || doi, datNhap, napXong, nguoi, user, sapHet: ts.sap_het || 7, xacNhan,
+    csMacDinh: ts.cua_so || 28 });   // NEW - 3.159.2: sức bán mặc định khi anh không nói
 
   // ---------- ô theo cột (thứ tự / ẩn hiện theo Tùy chỉnh) ----------
   const giaiThich = (x) => {
@@ -685,18 +688,74 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
     </div>
   );
 
+  const daiDoi = (
+    <div className="ch-dai">
+      {doiSx.map((d) => (
+        <button key={d.ma_ch} className={(d.ma_ch === doi ? 'on ' : '') + (nhapDs['doi:' + d.ma_ch] ? 'co-nhap ' : '') + (d.chua_co_hang ? 'chua-hang' : '')}
+          onClick={() => setDoi(d.ma_ch)} title={tenNgan(d.ten) + (d.chua_co_hang ? ' — chưa có hàng, chưa có lịch sử bán' : '') + (nhapDs['doi:' + d.ma_ch] ? ' — có bản nháp đang dở' : '')}>
+          {tenNgan(d.ten).replace('Đội ', '')}
+        </button>
+      ))}
+    </div>
+  );
+  const hop = (<>
+  {moKho && (
+    <div className="kt-modal" onClick={(e) => { if (e.target === e.currentTarget) setMoKho(false); }}>
+      <div className="kt-modal-in">
+        <div className="kt-modal-dau"><b>Kho thùng — chọn thùng cho {tenDoi}</b>
+          <button className="kt-dong" onClick={() => setMoKho(false)}>×</button></div>
+        <KhoThung dsDoi={dsDoi} chon={{ doi, daChon: thung, diem: gy.kq?.diem, cfg: gy.kq?.cfg,
+          onXong: (ds) => { datNhap((d) => ({ ...d, thung: ds })); baoToast(`Đã đưa ${ds.length} thùng vào bàn chia`); },
+          onDong: () => setMoKho(false) }} />
+      </div>
+    </div>
+  )}
+
+  {moGy && (
+    <GoiYThung gy={gy} doi={doi} tenDoi={tenDoi} cuaSo={cuaSo} onDong={() => setMoGy(false)} onDoiTiep={doiTiep}
+      daChon={thung} onBo={boThung}
+      onThem={(ds) => { datNhap((d) => ({ ...d, thung: [...new Set([...(d.thung || []), ...ds])] }));
+        baoToast(`Đã đưa ${ds.length} thùng vào bàn chia ${tenNgan(tenDoi)} — trạng thái Chờ xác nhận`); }} />
+  )}
+
+  {suaBoLoc && (
+    <HopBoLoc ban={suaBoLoc === 'moi' ? null : suaBoLoc} onDong={() => setSuaBoLoc(null)}
+      onXong={(id, daXoa) => { setSuaBoLoc(null); taiBoLoc(); if (daXoa) { if (boLocDung === suaBoLoc.id) setBoLocDung(null); } else if (id) setBoLocDung(id); }} />
+  )}
+
+  {moTc && (
+    <HopTuyChinh tc={tc} datTc={datTc} mayChu={mayChu} locDs={locDs} cotDs={cotDs} locMacDinh={LOC_MAC_DINH} cotMacDinh={COT_MAC_DINH}
+      dsBoLoc={dsBoLoc} laAdmin={laAdmin} token={user?.token} taiBoLoc={taiBoLoc} hienTai={locHienTai} moTaHienTai={moTaLoc}
+      onSuaBoLoc={(b) => setSuaBoLoc(b)} onDong={() => setMoTc(false)} baoToast={baoToast} tabDau={typeof moTc === 'string' ? moTc : 'loc'} />
+  )}
+
+  {thayThe && dong.find((x) => x.bc === thayThe) && (
+    <HopThayThe x={dong.find((x) => x.bc === thayThe)} dong={dong} cuaSo={cuaSo} tenDoi={tenNgan(tenDoi)}
+      onThem={(bc, sl) => datSo(bc, sl)} onDong={() => setThayThe(null)} baoToast={baoToast} />
+  )}
+  {hopGhiChu}
+  {hoiVuot && <HopVuot ds={hoiVuot.ds} tenDoi={tenNgan(kq?.ten || doi)} onXong={(v) => { hoiVuot.resolve(v); setHoiVuot(null); }} />}
+  </>);
+
+  // NEW - 3.159.2: ĐIỆN THOẠI — bàn chia dạng thẻ, không bảng nhiều cột, không cuộn ngang
+  if (hep) {
+    return (
+      <div className="ch-ban dt">
+        {hop}
+        <BanDt doi={doi} tenDoi={tenNgan(tenDoi)} doiTiep={doiTiep} dsDai={daiDoi} thamSo={thamSo} ttLuu={<TrangThaiLuu tt={ttLuu} />}
+          dong={dong} tong={tong} trongThung={trongThung} mucTieu={mucTieu} cuaSo={cuaSo} kq={kq} dang={dang}
+          datSo={datSo} xacNhan={xacNhan} gui={gui} phieuMoi={phieuMoi} tuDong={tuDong} xoaSo={xoaSo}
+          oThung={oThung} nutKho={nutKho} theThung={theThung} />
+        {dvCt && doi && <DangVeCt maCh={doi} barcode={dvCt} onDong={() => setDvCt(null)} />}
+      </div>
+    );
+  }
+
   return (
     <div className={'ch-ban' + (toan ? ' toan' : '') + (gon ? ' gon' : '')}>
       {/* ===== Dải đội + nút thu gọn / toàn màn hình ===== */}
       <div className="ch-top">
-        <div className="ch-dai">
-          {doiSx.map((d) => (
-            <button key={d.ma_ch} className={(d.ma_ch === doi ? 'on ' : '') + (nhapDs['doi:' + d.ma_ch] ? 'co-nhap ' : '') + (d.chua_co_hang ? 'chua-hang' : '')}
-              onClick={() => setDoi(d.ma_ch)} title={tenNgan(d.ten) + (d.chua_co_hang ? ' — chưa có hàng, chưa có lịch sử bán' : '') + (nhapDs['doi:' + d.ma_ch] ? ' — có bản nháp đang dở' : '')}>
-              {tenNgan(d.ten).replace('Đội ', '')}
-            </button>
-          ))}
-        </div>
+        {daiDoi}
         <ThemDoi onThem={chonSoDoi} />
         <button className="ch-gon-nut" onClick={() => setGon(!gon)} title={gon ? 'Mở rộng đầu bàn (thẻ thùng, số liệu đầy đủ)' : 'Thu gọn đầu bàn để bảng chia rộng hơn'}>
           {gon ? '⌄ Mở rộng' : '⌃ Thu gọn'}
@@ -775,42 +834,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
           <button className="btn btn-ai" onClick={() => moDoiMoi(doi)}>Mở Đội mới · chia trước</button>
         </div>
       )}
-      {moKho && (
-        <div className="kt-modal" onClick={(e) => { if (e.target === e.currentTarget) setMoKho(false); }}>
-          <div className="kt-modal-in">
-            <div className="kt-modal-dau"><b>Kho thùng — chọn thùng cho {tenDoi}</b>
-              <button className="kt-dong" onClick={() => setMoKho(false)}>×</button></div>
-            <KhoThung dsDoi={dsDoi} chon={{ doi, daChon: thung, diem: gy.kq?.diem, cfg: gy.kq?.cfg,
-              onXong: (ds) => { datNhap((d) => ({ ...d, thung: ds })); baoToast(`Đã đưa ${ds.length} thùng vào bàn chia`); },
-              onDong: () => setMoKho(false) }} />
-          </div>
-        </div>
-      )}
-
-      {moGy && (
-        <GoiYThung gy={gy} doi={doi} tenDoi={tenDoi} cuaSo={cuaSo} onDong={() => setMoGy(false)} onDoiTiep={doiTiep}
-          daChon={thung} onBo={boThung}
-          onThem={(ds) => { datNhap((d) => ({ ...d, thung: [...new Set([...(d.thung || []), ...ds])] }));
-            baoToast(`Đã đưa ${ds.length} thùng vào bàn chia ${tenNgan(tenDoi)} — trạng thái Chờ xác nhận`); }} />
-      )}
-
-      {suaBoLoc && (
-        <HopBoLoc ban={suaBoLoc === 'moi' ? null : suaBoLoc} onDong={() => setSuaBoLoc(null)}
-          onXong={(id, daXoa) => { setSuaBoLoc(null); taiBoLoc(); if (daXoa) { if (boLocDung === suaBoLoc.id) setBoLocDung(null); } else if (id) setBoLocDung(id); }} />
-      )}
-
-      {moTc && (
-        <HopTuyChinh tc={tc} datTc={datTc} mayChu={mayChu} locDs={locDs} cotDs={cotDs} locMacDinh={LOC_MAC_DINH} cotMacDinh={COT_MAC_DINH}
-          dsBoLoc={dsBoLoc} laAdmin={laAdmin} token={user?.token} taiBoLoc={taiBoLoc} hienTai={locHienTai} moTaHienTai={moTaLoc}
-          onSuaBoLoc={(b) => setSuaBoLoc(b)} onDong={() => setMoTc(false)} baoToast={baoToast} tabDau={typeof moTc === 'string' ? moTc : 'loc'} />
-      )}
-
-      {thayThe && dong.find((x) => x.bc === thayThe) && (
-        <HopThayThe x={dong.find((x) => x.bc === thayThe)} dong={dong} cuaSo={cuaSo} tenDoi={tenNgan(tenDoi)}
-          onThem={(bc, sl) => datSo(bc, sl)} onDong={() => setThayThe(null)} baoToast={baoToast} />
-      )}
-      {hopGhiChu}
-      {hoiVuot && <HopVuot ds={hoiVuot.ds} tenDoi={tenNgan(kq?.ten || doi)} onXong={(v) => { hoiVuot.resolve(v); setHoiVuot(null); }} />}
+      {hop}
 
       {/* ===== Lọc nhanh + thao tác ===== */}
       <div className="ch-cong">

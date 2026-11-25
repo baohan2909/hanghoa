@@ -149,6 +149,25 @@ function DongBuoc({ b }) {
   );
 }
 
+// NEW - 3.159.2: khối KIỂM TRA — nhìn là biết phương án đúng hay sai
+export function KiemChia({ k, chia, du }) {
+  const n = (v) => fmt(v || 0);
+  const dong = [];
+  dong.push(k.thieu_sau ? ['do', `${n(k.thieu_sau)} mã đang bán vẫn THIẾU sau chia (${n(k.cai_thieu)} cái)${k.thieu_kho ? ` — ${n(k.thieu_kho)} mã do kho hết` : ''}${k.thieu_chua_chia ? ` · ${n(k.thieu_chua_chia)} mã chưa chia` : ''}`]
+    : ['ok', `${n(k.dat_sau)}/${n(k.ma_ban)} mã đang bán đều đủ ${du || '?'} ngày sau chia`]);
+  if (k.thieu_sau) dong.push(['ok', `${n(k.dat_sau)}/${n(k.ma_ban)} mã đang bán đủ ${du || '?'} ngày`]);
+  dong.push(k.vuot_kho ? ['do', `${n(k.vuot_kho)} mã chia vượt kho`] : ['ok', 'Không mã nào vượt kho']);
+  if (chia?.thung > 0) dong.push([k.thung_du > chia.thung * 0.4 ? 'vang' : 'ok', `Thùng ${n(chia.thung)} cái: ${n(k.thung_dung)} đúng nhu cầu đội · ${n(k.thung_du)} dư (đội chưa cần)`]);
+  if (k.nhan_khong_ban) dong.push(['vang', `${n(k.nhan_khong_ban)} mã đội không bán mà vẫn nhận (thường do có trong thùng)`]);
+  const xau = dong.some((d) => d[0] === 'do') ? 'do' : dong.some((d) => d[0] === 'vang') ? 'vang' : 'ok';
+  return (
+    <div className={'stt-kiem k-' + xau}>
+      <div className="stt-kiem-dau"><small>Kiểm tra phương án</small><b>{xau === 'ok' ? 'Đúng' : xau === 'vang' ? 'Cần xem' : 'Có chỗ sai'}</b></div>
+      <ul>{dong.map(([c, t], i) => <li key={i} className={c}>{c === 'ok' ? <IcCheck /> : <IcAlert />}<span>{t}</span></li>)}</ul>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Thẻ phương án chia đội (xem trước + Duyệt & thực hiện)
 // ---------------------------------------------------------------------------
@@ -177,6 +196,14 @@ function TheChiaDoi({ the, tt, onDuyet, onHuy, onXem, gon }) {
           {the.ghep && <p className="stt-nho">Công thức Gợi ý thùng: lấp {fmt(the.ghep.lap)}/{fmt(the.ghep.cai)} cái nhu cầu{the.ghep.noi ? ` · ${the.ghep.noi} thùng nới ngưỡng` : ''}</p>}
         </div>
       )}
+      {/* NEW - 3.159.2: tham số đã dùng (kèm lấy từ đâu) + kiểm tra đúng / sai */}
+      {the.tham?.length > 0 && (
+        <div className="stt-the-hang"><small>Tham số đã dùng</small>
+          <div className="stt-ts">{the.tham.map((t) => <span key={t.ten}><em>{t.ten}</em><b>{t.gt}</b><i>{t.ng}</i></span>)}</div>
+          {the.sua_ai?.length > 0 && <p className="stt-nho stt-sua-ai">Em đã sửa theo đúng câu anh nói: {the.sua_ai.join(' · ')}</p>}
+        </div>
+      )}
+      {the.kiem_tra?.ma_ban != null && <KiemChia k={the.kiem_tra} chia={the.chia} du={the.tham_so?.chia_du_ngay} />}
       {the.rang_buoc?.length > 0 && (
         <div className="stt-the-hang"><small>Yêu cầu đã áp</small>
           <div className="stt-the-chips">{the.rang_buoc.map((r) => <span key={r} className="stt-rb">{r}</span>)}</div></div>
@@ -495,7 +522,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
   };
 
   // ----- chạy công cụ màn hình -----
-  const chayCongCu = async (g, jobId, ptTu, ptDen, viecId) => {
+  const chayCongCu = async (g, jobId, ptTu, ptDen, viecId, yeuCau) => {
     const stt = 'c-' + g.id;
     const buocCon = [];
     const datBuoc = (patch) => capNhat(jobId, (m) => ({ buoc: (m.buoc || []).map((b) => (b.stt === stt ? { ...b, ...patch } : b)) }));
@@ -521,8 +548,8 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
         const c = await moChiaDoi();
         if (!c) r = { loi: 'Không mở được màn Chia từng đội (tài khoản không có màn Đội Sale?)' };
         else {
-          r = await c.chuanBi(g.tham_so || {}, bao, { viec_id: viecId });
-          phuongAn.current = { ...(g.tham_so || {}) }; lsS('pa', phuongAn.current);
+          r = await c.chuanBi(g.tham_so || {}, bao, { viec_id: viecId, yeu_cau: yeuCau || '' });   // NEW - 3.159.2: gửi kèm câu anh nói để chốt tham số
+          phuongAn.current = { ...(r?.p_chot || g.tham_so || {}) }; delete phuongAn.current.lam_tiep; lsS('pa', phuongAn.current);
           if (laDt() && r?.the) { /* điện thoại: giữ khung trợ lý, thẻ kết quả có nút Xem trên màn */ }
         }
       } else if (g.ten === 'doc_man') {
@@ -576,7 +603,7 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
         if (ac.signal.aborted) break;
         const n = res.client.goi.length, k = ketQua.length;
         const tu = res.client.pt_tu + ((res.client.pt_den - res.client.pt_tu) * k) / n, den = res.client.pt_tu + ((res.client.pt_den - res.client.pt_tu) * (k + 1)) / n;
-        ketQua.push(await chayCongCu(g, id, Math.round(tu), Math.round(den), viecId));
+        ketQua.push(await chayCongCu(g, id, Math.round(tu), Math.round(den), viecId, yeuCau));
       }
       if (ac.signal.aborted) break;
       res = await goiLuong({ token, hanh_dong: 'tiep', viec_id: res.viec_id || viecId, ket_qua: ketQua }, onE, ac.signal);
