@@ -6878,3 +6878,26 @@ td.bo-tbc, th.bo-tbc { color: var(--teal-deep); background: rgba(63,182,168,.05)
 .co-bang td.co-ai b { color: var(--ink-2); }
 .co-bang .co-thieu-ngay { color: var(--magenta); }
 .co-bang td small.thieu { color: var(--magenta); }
+
+/* ===== NEW - 3.159.1: Chia hàng Online — vừa 1 màn hình, không cuộn ngang ===== */
+.co-bang td { padding: 7px 8px; }
+.co-bang th { padding-left: 8px; padding-right: 8px; }
+.co-bang td.sp { min-width: 0; max-width: 300px; }
+.co-bang td.sp .co-sp > div { min-width: 0; }
+.co-bang td.sp b { overflow: hidden; text-overflow: ellipsis; }
+.co-bang td.sp small { max-width: 210px; }
+.co-thuoc { display: block; min-width: 0; text-align: right; }
+.co-thuoc b { font-weight: 800; font-variant-numeric: tabular-nums; }
+.co-thuoc b.do { color: var(--magenta); }
+.co-thuoc small { display: block; }
+.co-bang td.co-sau b { font-size: 14px; }
+.co-bang td.co-sau b.nhat2 { color: #8A93A6; font-weight: 700; }
+.co-bang td.co-sau small.thieu { display: block; margin: 0; }
+.co-bang td.c-sl input { width: 64px; }
+@media (max-width: 1500px) {
+  .co-bang .c-song { display: none; }
+}
+@media (max-width: 1250px) {
+  .co-bang td.sp img, .co-bang td.sp .anh { display: none; }
+  .co-bang td.sp small { max-width: 160px; }
+}

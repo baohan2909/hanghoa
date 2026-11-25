@@ -136,18 +136,11 @@ function Song({ d }) {
 
 // Thước "đủ bán": vạch L (về) và L + phủ (mục tiêu)
 function Thuoc({ m, phu }) {
-  const tran = Math.max(m.H * 1.6, 10);
-  const w = (x) => `${Math.max(0, Math.min(100, (x / tran) * 100))}%`;
-  const a = m.phu === Infinity ? tran : m.phu, b = m.phuVe === Infinity ? tran : m.phuVe;
+  const a = m.phu === Infinity ? 999 : m.phu, b = m.phuVe === Infinity ? 999 : m.phuVe;
   return (
+    // NEW - 3.159.1: bỏ thanh ngang — chỉ số ngày (anh: thanh không cần thiết)
     <div className="co-thuoc" title={`Có thể bán đủ ${fmt1(a)} ngày${m.ve ? ` · tính cả đang về: ${fmt1(b)} ngày` : ''} · mục tiêu ${fmt1(m.H)} ngày (về ${fmt1(m.L)} + phủ ${phu})`}>
-      <div className="nen">
-        <i className="ve" style={{ width: w(b) }} />
-        <i className={'co ' + (m.tt || '')} style={{ width: w(a) }} />
-        <b className="moc" style={{ left: w(m.L) }} />
-        <b className="moc dich" style={{ left: w(m.H) }} />
-      </div>
-      <span>{m.v > 0 ? <>{fmt1(a)}<small> ngày</small>{m.ve ? <em> → {fmt1(b)}</em> : null}</> : '—'}</span>
+      {m.v > 0 ? <><b className={m.tt === 'het' || m.tt === 'gap' ? 'do' : ''}>{fmt1(a)}</b><small>{m.ve ? `có về: ${fmt1(b)} ngày` : 'ngày'}</small></> : <span className="nhat">—</span>}
     </div>
   );
 }
@@ -272,7 +265,7 @@ export default function ChiaOnline() {
     const tu = boDau(q.trim());
     let a = theoNganh.filter((m) => f(m) && (!tu || boDau([m.r.m, m.r.t, m.r.b, m.r.sku].join(' ')).includes(tu)));
     const gt = { v: (m) => m.v, phu: (m) => (m.phu === Infinity ? 1e9 : m.phu), sl: (m) => m.sl, co: (m) => m.co + m.ve, ve: (m) => m.ve, xh: (m) => m.xh,
-      kd: (m) => m.kd, de: (m) => m.deXuat, sau: (m) => (m.sau === Infinity ? 1e9 : m.sau), gia: (m) => m.r.gs || m.r.g || 0 };
+      kd: (m) => m.kd, de: (m) => m.deXuat, sau: (m) => m.co + m.ve + (m.sl || 0), gia: (m) => m.r.gs || m.r.g || 0 };
     if (sap.k && gt[sap.k]) a = [...a].sort((x, y) => (gt[sap.k](x) - gt[sap.k](y)) * sap.g);
     else a = [...a].sort((x, y) => (THU_TT[x.tt] ?? 9) - (THU_TT[y.tt] ?? 9) || y.v - x.v);
     return a;
@@ -350,7 +343,7 @@ export default function ChiaOnline() {
         'Bán 7 ngày': m.r.s7 || 0, 'Bán 28 ngày': m.r.s28 || 0, 'Online có thể bán': m.co, 'Đang về': m.ve,
         'Đủ bán (ngày)': m.phu === Infinity ? '' : Math.round(m.phu * 10) / 10, 'Mục tiêu': Math.round(m.mucTieu),
         'Kho tổng': m.kho, 'Kho tổng khả dụng': m.kd, 'Đề xuất': m.deXuat, 'Chuyển': m.sl, 'Còn lại kho tổng': m.con,
-        'Sau nhận (ngày)': m.sau === Infinity ? '' : Math.round(m.sau * 10) / 10, 'Kho đích': m.den, 'Lý do': m.lyDo,
+        'Sau chuyển (cái)': m.co + m.ve + (m.sl || 0), 'Sau chuyển (ngày)': m.sau === Infinity ? '' : Math.round(m.sau * 10) / 10, 'Kho đích': m.den, 'Lý do': m.lyDo,
       }))), 'Phân tích');
     }
     XLSX.writeFile(wb, `CHIA_ONLINE_${ma}_${isoVN()}.xlsx`);
@@ -471,14 +464,14 @@ export default function ChiaOnline() {
               <tr>
                 <th className="l">Sản phẩm <span className="co-dem2">{fmtN(hien.length)}</span></th>
                 <Th k="gia" title="Giá niêm yết · hàng sale: giá sale (đỏ)">Giá</Th>
-                <th title="Bán mỗi ngày 28 ngày qua — 7 ngày gần nhất đậm, ngày bán cao nhất màu vàng">Bán 28 ngày</th>
+                <th className="c-song" title="Bán mỗi ngày 28 ngày qua — 7 ngày gần nhất đậm, ngày bán cao nhất màu vàng">Bán 28 ngày</th>
                 <Th k="v" title="Dự báo bán / ngày (50% TB 7 ngày + 30% TB 14 + 20% TB 28)">Bán/ngày</Th>
                 <Th k="co" title="Tồn online (Nhanh, có thể bán) + đang về = tổng. Đang về chỉ tính phiếu Odoo ĐÃ DUYỆT chưa nhập Nhanh — đơn chưa đẩy / chưa duyệt KHÔNG tính">Tồn online</Th>
                 <Th k="phu" title="Đủ bán bao nhiêu ngày · vạch 1 = thời gian hàng về · vạch 2 = mục tiêu (về + số ngày phủ)">Đủ bán</Th>
-                <Th k="kd" title="Kho tổng của nhóm (BH / NV chính → TP, sale → SA, phụ kiện → PK05001): số khả dụng · dòng nhỏ = còn lại sau khi chia">Kho tổng</Th>
+                <Th k="kd" title="Kho tổng của nhóm đang chọn (BH / NV chính → TP, sale → SA, phụ kiện → PK05001): số còn khả dụng để chuyển">Kho tổng</Th>
                 <Th k="de" title="Máy tính đề xuất (đã làm tròn, chưa trừ giới hạn kho)">AI đề xuất</Th>
                 <Th k="sl" className="c-sl" title="Số chuyển — gõ để sửa, xoá trống để về số máy tính">Chuyển</Th>
-                <Th k="sau" title="Đủ bán bao nhiêu ngày sau khi nhận (tồn + đang về + chuyển) ÷ bán/ngày">Sau nhận</Th>
+                <Th k="sau" title="Tổng hàng online sau khi chuyển = tồn online + đang về + chuyển · dòng nhỏ = đủ bán bao nhiêu ngày">Sau chuyển</Th>
                 <th>Tình trạng</th>
               </tr>
             </thead>
@@ -496,7 +489,7 @@ export default function ChiaOnline() {
                       </div>
                     </div></td>
                     <td className="so co-gia-o">{r.gs ? <><b className="sale">{kGia(r.gs)}</b><s>{kGia(r.g)}</s></> : <b>{kGia(r.g) || '—'}</b>}</td>
-                    <td><Song d={r.d} /></td>
+                    <td className="c-song"><Song d={r.d} /></td>
                     <td className="so"><b>{fmt1(m.v)}</b>{m.v > 0 && (m.xh >= 1.25 ? <em className="len">↑{Math.round((m.xh - 1) * 100)}%</em> : m.xh <= 0.75 ? <em className="xuong">↓{Math.round((1 - m.xh) * 100)}%</em> : null)}
                       <small title="Trung bình / ngày: 7 ngày gần nhất · 28 ngày">TB 7n {fmt1((r.s7 || 0) / 7)} · 28n {fmt1((r.s28 || 0) / 28)}</small>
                       {r.hn ? <small>hôm nay {r.hn}</small> : null}</td>
@@ -504,10 +497,9 @@ export default function ChiaOnline() {
                     <td className="so co-ton" title={(r.vc || []).map((x) => `${x.p} · ${x.k} · ${x.sl} cái · ${x.tt} ${ngayNgan(x.n)}`).join('\n') || undefined}>
                       {m.ve ? <span className="co-ton-cong">{fmtN(m.co)}<b className="ve"> + {fmtN(m.ve)}</b><em> = </em><b>{fmtN(m.co + m.ve)}</b></span> : <b>{fmtN(m.co)}</b>}
                       {r.on > m.co ? <small title="Tồn thực − có thể bán: hàng giữ cho đơn / đang giao">thực {fmtN(r.on)}</small> : m.ve ? <small>{(r.vc || []).length} phiếu đang về</small> : null}</td>
-                    <td><Thuoc m={m} phu={P.phu} /></td>
+                    <td className="so"><Thuoc m={m} phu={P.phu} /></td>
                     <td className={'so co-kho' + (m.thieu > 0 || m.vuot ? ' thieu' : '')} title={`${TEN_KHO[m.kho] || m.kho}: khả dụng ${fmtN(m.kd)}${r.ls?.[m.kho] ? ` · 60 ngày đã chuyển online ${fmtN(r.ls[m.kho])}` : ''}`}>
-                      <b>{fmtN(m.kd)}</b>
-                      <small>{m.kho}{m.sl ? ` · còn ${fmtN(m.con)}` : ''}</small>
+                      <b>{fmtN(m.kd)}</b>{/* NEW - 3.159.1: chỉ 1 số = kho tổng còn khả dụng (mã kho đã có ở tab nhóm) */}
                       {m.thieu > 0 && <small className="thieu">thiếu {fmtN(m.thieu)}</small>}
                       {m.vuot && <small className="thieu">vượt khả dụng</small>}</td>
                     <td className="so co-ai">{m.deXuat ? <b>{fmtN(m.deXuat)}</b> : <span className="nhat">·</span>}</td>
@@ -517,11 +509,13 @@ export default function ChiaOnline() {
                         onChange={(e) => datSo(r.b, e.target.value.replace(/[^\d]/g, ''))} />
                       {sua[r.b]?.sl != null ? <small className="ai" onClick={() => datSo(r.b, '')} title="Về số máy tính">máy: {m.deXuat}</small> : null}
                     </td>
-                    <td className="so">{m.v > 0 ? <b className={m.sl && m.sau < m.H ? 'co-thieu-ngay' : ''}>{fmt1(m.sau)}<small> ngày</small></b> : <span className="nhat">—</span>}</td>
+                    {/* NEW - 3.159.1: tổng sau khi chuyển (cái) — dòng nhỏ: đủ bán bao nhiêu ngày */}
+                    <td className="so co-sau"><b className={m.sl ? '' : 'nhat2'}>{fmtN(m.co + m.ve + (m.sl || 0))}</b>
+                      {m.v > 0 ? <small className={m.sl && m.sau < m.H ? 'thieu' : ''}>{m.sau === Infinity ? '' : `đủ ${fmt1(m.sau)} ngày`}</small> : null}</td>
                     <td>{m.tt ? <span className={'co-tt ' + TT[m.tt][1]}>{TT[m.tt][0]}</span> : <span className="nhat">—</span>}</td>
                   </tr>,
                   mo && (
-                    <tr key={r.b + '-ct'} className="co-ct"><td colSpan={12}>
+                    <tr key={r.b + '-ct'} className="co-ct"><td colSpan={11}>
                       <div className="co-ct-o">
                         <div><small>Vì sao</small><p>{m.lyDo || 'Không bán trong 28 ngày — không đề xuất chuyển.'}</p></div>
                         <div><small>Số liệu</small><p>Bán 7 ngày {fmtN(r.s7)} · 14 ngày {fmtN(r.s14)} · 28 ngày {fmtN(r.s28)} · độ lệch {fmt1(m.sd)}/ngày<br />
@@ -534,7 +528,7 @@ export default function ChiaOnline() {
                   ),
                 ];
               })}
-              {!hien.length && <tr><td colSpan={12} className="co-trong">{loc === 'can' ? 'Không có mã nào cần chuyển với thông số hiện tại 👌' : 'Không có mã nào khớp'}</td></tr>}
+              {!hien.length && <tr><td colSpan={11} className="co-trong">{loc === 'can' ? 'Không có mã nào cần chuyển với thông số hiện tại 👌' : 'Không có mã nào khớp'}</td></tr>}
             </tbody>
           </table>
           {hien.length > soHien && <button className="co-them" onClick={() => setSoHien((n) => n + 250)}>Xem thêm {fmtN(Math.min(250, hien.length - soHien))} mã</button>}
