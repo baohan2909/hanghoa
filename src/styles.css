@@ -5047,6 +5047,9 @@ button.pdh-dc:hover { border-color: #3FB6A8; } .pdh-dc.on { border-color: #1E5F6
 .od-ket span { display: block; }
 .od-ket.ok { background: #E7F4EE; color: #1D6B45; border: 1px solid rgba(46,139,87,.25); }
 .od-ket.loi { background: #FCEAF2; color: #9D1450; border: 1px solid rgba(214,0,108,.2); }
+/* NEW - 3.157.2: cổng báo lỗi, đang kiểm tra lại trên Odoo */
+.od-ket.xem { background: #FFF6E3; color: #7A5000; border: 1px solid rgba(203,164,90,.45); }
+.od-don.xem .od-don-loi { background: #FFF6E3; color: #7A5000; }
 .od-co-dinh { min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 9px; background: #F1F3F6; font-weight: 800; color: var(--ink); font-size: 13.5px; }
 .od-co-dinh small { font-weight: 600; color: var(--ink-2); font-size: 12px; }
 

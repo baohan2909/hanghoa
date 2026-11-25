@@ -4,7 +4,7 @@
 //          -> kết quả từng đơn (✓ Đã tạo · ⚠ Cần xem · ✕ Lỗi) -> [Gửi lại đơn lỗi] (giữ nguyên tên đơn, không tạo trùng)
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb } from './supabase.js';
-import { goiOdoo, layCfgOdoo, thanhRequest, ghiChuGanDay, nhoGhiChu, saleChCuaDoi, nhoSaleCh } from './odoo.js';
+import { goiOdoo, layCfgOdoo, layMoiOdoo, thanhRequest, ghiChuGanDay, nhoGhiChu, saleChCuaDoi, nhoSaleCh } from './odoo.js';
 import { IcAlert, IcCheck, IcDown, IcGuiLen } from './icons.jsx';
 import { Sel } from './ui.jsx';
 
@@ -12,6 +12,7 @@ const fmt = (n) => Number(n || 0).toLocaleString('vi');
 const TT = {
   thanh_cong: ['Đã tạo trên Odoo', 'ok'],
   can_xem: ['Cần xem lại', 'xem'],
+  chua_ro: ['Đang kiểm tra trên Odoo…', 'xem'],   // NEW - 3.157.2: cổng báo 502 / quá giờ — chưa biết Odoo đã tạo chưa
   loi: ['Lỗi', 'loi'],
   dang_gui: ['Đang gửi…', 'gui'],
 };
@@ -61,6 +62,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
   const coDoiSale = don.some((d) => laDoiSale(d.kho_yeu_cau));
   const [phanHoi, setPhanHoi] = useState(null);
   const [mo, setMo] = useState(() => new Set());
+  const [dangKiem, setDangKiem] = useState('');   // NEW - 3.157.2: tiến độ tự kiểm tra lại trên Odoo (đóng hộp vẫn kiểm tra tiếp)
 
   useEffect(() => {
     layCfgOdoo(user.token).then((c) => {
@@ -107,14 +109,50 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
   // NEW - 3.136 GỬI TỪNG LÔ ≤ 8 ĐƠN: cổng Odoo của IT chỉ chờ Odoo 30 giây mỗi lần gọi — gửi dồn 47 đơn (~33 giây) thì cổng báo
   //   "Read timed out" dù Odoo VẪN tạo đủ đơn (23/11, NS00078). Chia lô nhỏ, gửi lần lượt; lô nào gặp đơn trùng / vượt tồn thì dừng hỏi như cũ.
   const LO_GUI = 8;
-  const QUA_GIO = /timed? ?out|quá giờ|hết thời gian/i;
+  // NEW - 3.157.2 CỔNG BÁO LỖI MÀ ODOO VẪN TẠO: 502 / 503 / 504 / quá giờ / mất kết nối giữa cổng IT và Odoo -> không kết luận "Thất bại";
+  //   app tự hỏi lại Odoo theo TÊN đơn (25/11: DSC20261125-SA05001-DOISALE19-01 báo 502 nhưng Odoo đã tạo #294831).
+  const MO_HO = /timed? ?out|quá giờ|hết thời gian|\b50[234]\b|bad gateway|gateway|service unavailable|lỗi kết nối tới odoo/i;
+  const BAO_MO_HO = 'Odoo có thể VẪN đã tạo đơn. App đang tự kiểm tra lại trên Odoo — KHÔNG cần bấm gửi lại.';
+  const nghi = (ms) => new Promise((r) => setTimeout(r, ms));
+  const kiemTraOdoo = async (ds) => {
+    let con = ds.filter((d) => d.name);
+    const okK = [];
+    const MOC = [15000, 40000, 90000];   // ~2,5 phút: 2 lần hỏi thẳng Odoo + 1 lần đọc lại kết quả đối chiếu ngầm
+    for (let lan = 0; lan < MOC.length && con.length; lan++) {
+      setDangKiem(`Đang kiểm tra ${con.length} đơn trên Odoo… (lần ${lan + 1}/${MOC.length})`);
+      await nghi(MOC[lan]);
+      if (lan < 2) await layMoiOdoo(user.token, con.map((d) => d.name));   // máy chủ hỏi Odoo theo tên -> trigger tự chuyển thành công
+      const { data } = await sb.rpc('fn_odoo_tt_ten', { p_token: user.token, p_names: con.map((d) => d.name) });
+      const m = {}; (Array.isArray(data) ? data : []).forEach((x) => { m[x.name] = x; });
+      const kqK = {}; const conLai = []; const okLan = [];
+      con.forEach((d) => {
+        const x = m[d.name];
+        if (x?.trang_thai === 'thanh_cong') {
+          kqK[d._i] = { trang_thai: 'thanh_cong', loi: '', odoo_id: x.odoo_id || null }; okK.push(d); okLan.push(d);
+        } else if (x?.odoo_tt && /hủy|huỷ|xoá|xóa/i.test(x.odoo_ct || '')) {
+          kqK[d._i] = { trang_thai: 'loi', loi: `Odoo CÓ đơn này nhưng đang "${x.odoo_ct}" trên Odoo — hỏi kho trước khi gửi lại.` };
+        } else conLai.push(d);
+      });
+      setKq((mm) => ({ ...mm, ...kqK }));
+      if (okLan.length && opts.onThanhCong) {   // báo màn gọi ngay khi thấy — không đợi hết các lần kiểm tra
+        try { await opts.onThanhCong(okLan); } catch (e) { baoToast('Đã có đơn trên Odoo nhưng bước lưu sau đó lỗi: ' + (e?.message || e)); }
+      }
+      con = conLai;
+    }
+    setDangKiem('');
+    if (con.length) {
+      setKq((mm) => { const n = { ...mm }; con.forEach((d) => { n[d._i] = { trang_thai: 'loi', loi: 'Đã kiểm tra trên Odoo: CHƯA có đơn này — bấm "Gửi lại" (tên đơn giữ nguyên; nếu Odoo đã có thì chỉ báo trùng, không tạo 2 lần).' }; }); return n; });
+    }
+    if (okK.length) baoToast(`Odoo: ✓ ${okK.length} đơn ĐÃ có trên Odoo (cổng báo lỗi lúc gửi, app đã kiểm tra lại)${con.length ? ` · ${con.length} đơn chưa có — bấm Gửi lại` : ''}`);
+    else if (con.length) baoToast(`Odoo: ${con.length} đơn chưa có trên Odoo — bấm Gửi lại`);
+  };
   const gui = async () => {
     const tatCa = conGui;
-    if (!tatCa.length || dangGui) return;
+    if (!tatCa.length || dangGui || dangKiem) return;
     if (!lyDo) { setLoi('Chọn lý do trước khi gửi'); return; }
     setLoi(''); setDangGui(true); setJson(null);
     setKq((m) => { const n = { ...m }; tatCa.forEach((d) => { n[d._i] = { trang_thai: 'dang_gui' }; }); return n; });
-    let donMoi = don; const okMoi = []; let loiCuoi = ''; let dungHoi = false; let daGuiN = 0;
+    let donMoi = don; const okMoi = []; const chuaRo = []; let loiCuoi = ''; let dungHoi = false; let daGuiN = 0;
     for (let lo = 0; lo < tatCa.length; lo += LO_GUI) {
       const ds = tatCa.slice(lo, lo + LO_GUI);
       const sau = tatCa.slice(lo + LO_GUI);
@@ -138,7 +176,14 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
       setTrung(null); setVuot(null);
       if (!Array.isArray(r?.ket_qua)) {
         const l = r?.loi || 'Không gửi được';
-        setKq((m) => { const n = { ...m }; ds.forEach((d) => { n[d._i] = { trang_thai: 'loi', loi: l }; }); sau.forEach((d) => { delete n[d._i]; }); return n; });
+        const moHo = MO_HO.test(l);
+        const dsTen = donMoi.filter((d) => ds.some((x) => x._i === d._i));
+        setKq((m) => {
+          const n = { ...m };
+          dsTen.forEach((d) => { n[d._i] = moHo && d.name ? { trang_thai: 'chua_ro', loi: `Cổng Odoo báo: ${l} — ${BAO_MO_HO}` } : { trang_thai: 'loi', loi: l }; });
+          sau.forEach((d) => { delete n[d._i]; }); return n;
+        });
+        if (moHo) dsTen.forEach((d) => { if (d.name) chuaRo.push(d); });
         loiCuoi = l + (sau.length ? ` — ${sau.length} đơn sau chưa gửi, bấm Gửi lại` : '');
         daGuiN += ds.length;
         break;
@@ -150,9 +195,12 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
         if (!ds.some((x) => x._i === d._i)) return;
         const x = theoTen[d.name];
         const l = x ? (x.loi || '') : (r.loi || 'Không thấy kết quả của đơn này');
-        kqMoi[d._i] = x ? { trang_thai: x.trang_thai, loi: QUA_GIO.test(l) ? l + ' — Odoo có thể VẪN tạo đơn: KHÔNG gửi lại, đợi ~10 phút app đối chiếu' : l, duyet: x.odoo_duyet || '', odoo_id: x.odoo_id || null }
-          : { trang_thai: 'loi', loi: l };
+        const moHo = x && x.trang_thai !== 'thanh_cong' && d.name && (MO_HO.test(l) || [502, 503, 504].includes(Number(x.http)));
+        kqMoi[d._i] = !x ? { trang_thai: 'loi', loi: l }
+          : moHo ? { trang_thai: 'chua_ro', loi: `Cổng Odoo báo: ${l || 'lỗi kết nối'} — ${BAO_MO_HO}` }
+          : { trang_thai: x.trang_thai, loi: l, duyet: x.odoo_duyet || '', odoo_id: x.odoo_id || null };
         if (x?.trang_thai === 'thanh_cong') okMoi.push(d);
+        if (moHo) chuaRo.push(d);
       });
       setKq((m) => ({ ...m, ...kqMoi }));
       if (r.loi) loiCuoi = r.loi;
@@ -160,13 +208,18 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
     }
     setDangGui(false);
     if (loiCuoi) setLoi(loiCuoi);
-    if (dungHoi && !okMoi.length) return;
-    const nLoi = daGuiN - okMoi.length;
-    if (okMoi.length) { nhoGhiChu(ghiChu); okMoi.forEach((d) => { if (d.ghi_chu && !/^Khẩn cấp:/.test(d.ghi_chu)) nhoGhiChu(d.ghi_chu); }); tatCa.forEach((d) => { if (laDoiSale(d.kho_yeu_cau) && d.sale_tai_cua_hang) nhoSaleCh(d.kho_yeu_cau, d.sale_tai_cua_hang); }); }
-    baoToast(`Odoo: ${okMoi.length ? `✓ tạo ${okMoi.length} đơn${laCH ? '' : ' — đã trừ tồn khả dụng kho'}` : ''}${okMoi.length && nLoi ? ' · ' : ''}${nLoi ? `${nLoi} đơn chưa tạo được — xem từng đơn` : ''}`);
+    if (dungHoi && !okMoi.length && !chuaRo.length) return;
+    const nLoi = daGuiN - okMoi.length - chuaRo.length;
+    if (okMoi.length || chuaRo.length) { nhoGhiChu(ghiChu); okMoi.forEach((d) => { if (d.ghi_chu && !/^Khẩn cấp:/.test(d.ghi_chu)) nhoGhiChu(d.ghi_chu); }); tatCa.forEach((d) => { if (laDoiSale(d.kho_yeu_cau) && d.sale_tai_cua_hang) nhoSaleCh(d.kho_yeu_cau, d.sale_tai_cua_hang); }); }
+    const phan = [okMoi.length ? `✓ tạo ${okMoi.length} đơn${laCH ? '' : ' — đã trừ tồn khả dụng kho'}` : '',
+      chuaRo.length ? `${chuaRo.length} đơn cổng báo lỗi — đang kiểm tra lại trên Odoo` : '',
+      nLoi > 0 ? `${nLoi} đơn chưa tạo được — xem từng đơn` : ''].filter(Boolean);
+    baoToast('Odoo: ' + phan.join(' · '));
+    if (chuaRo.length) setDangKiem(`Đang kiểm tra ${chuaRo.length} đơn trên Odoo…`);   // khoá nút gửi ngay, trước khi chờ
     if (okMoi.length && opts.onThanhCong) {
       try { await opts.onThanhCong(okMoi); } catch (e) { baoToast('Đã tạo đơn Odoo nhưng bước lưu sau đó lỗi: ' + (e?.message || e)); }
     }
+    if (chuaRo.length) await kiemTraOdoo(chuaRo);
   };
 
   const xongHet = soOk > 0 && conGui.length === 0;   // không còn đơn nào đang chọn mà chưa tạo
@@ -174,6 +227,7 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
   const daGui = don.filter((d) => kq[d._i] && kq[d._i].trang_thai !== 'dang_gui');
   const guiLoi = daGui.filter((d) => kq[d._i].trang_thai !== 'thanh_cong');
   const guiOk = daGui.filter((d) => kq[d._i].trang_thai === 'thanh_cong');
+  const guiChuaRo = guiLoi.filter((d) => kq[d._i].trang_thai === 'chua_ro');
 
   useEffect(() => {   // NEW - 3.125: tự gửi 1 lần
     if (!tuGuiCon.current || !cfg || !lyDo || dangGui || !conGui.length) return;
@@ -222,7 +276,10 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
           {!dangGui && daGui.length > 0 && (guiLoi.length === 0
             ? <div className="od-ket ok"><IcCheck /><div><b>Thành công — đã tạo {guiOk.length} đơn trên Odoo</b>
                 {guiOk.map((d) => <span key={d._i}>{d.name}{kq[d._i].odoo_id ? ` · mã Odoo #${kq[d._i].odoo_id}` : ''}</span>)}</div></div>
-            : <div className="od-ket loi"><IcAlert /><div><b>Thất bại — {guiLoi.length} đơn chưa tạo được{guiOk.length ? ` (${guiOk.length} đơn đã tạo)` : ''}</b>
+            : guiChuaRo.length === guiLoi.length
+            ? <div className="od-ket xem"><IcAlert /><div><b>Chưa chắc — cổng Odoo báo lỗi {guiChuaRo.length} đơn{guiOk.length ? ` (${guiOk.length} đơn đã tạo)` : ''}</b>
+                <span>{dangKiem || 'Đang kiểm tra trên Odoo…'} Cổng báo lỗi (502 / quá giờ) nhưng Odoo thường VẪN tạo đơn. KHÔNG cần bấm gửi lại — có thể đóng hộp, app tự đối chiếu (xem ở Đơn hàng Odoo).</span></div></div>
+            : <div className="od-ket loi"><IcAlert /><div><b>Thất bại — {guiLoi.length - guiChuaRo.length} đơn chưa tạo được{guiOk.length ? ` (${guiOk.length} đơn đã tạo)` : ''}{guiChuaRo.length ? ` · ${guiChuaRo.length} đơn đang kiểm tra lại` : ''}</b>
                 <span>Lý do ghi dưới từng đơn. Sửa xong bấm "Gửi lại" — tên đơn giữ nguyên nên không tạo trùng.</span></div></div>)}
           {loi && !trung && !vuot && !(daGui.length > 0 && guiLoi.length > 0) && <div className="od-bao loi"><IcAlert /> {loi}</div>}
           {trung && (
@@ -337,8 +394,8 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
               <IcDown /> Xuất Excel thay thế</button>)}
           {xongHet
             ? <button className="btn btn-ai od-gui" onClick={onDong}><IcCheck /> Xong</button>
-            : <button className={'btn btn-ai od-gui' + (dangGui ? ' dang-chay' : '')} disabled={dangGui || !conGui.length || !lyDo} onClick={gui}>
-                <IcGuiLen /> {dangGui ? 'Đang gửi…' : coLoi ? `Gửi lại ${tong.don} đơn` : `Gửi ${tong.don} đơn lên Odoo`}
+            : <button className={'btn btn-ai od-gui' + (dangGui || dangKiem ? ' dang-chay' : '')} disabled={dangGui || !!dangKiem || !conGui.length || !lyDo} onClick={gui}>
+                <IcGuiLen /> {dangGui ? 'Đang gửi…' : dangKiem ? 'Đang kiểm tra Odoo…' : coLoi ? `Gửi lại ${tong.don} đơn` : `Gửi ${tong.don} đơn lên Odoo`}
               </button>}
         </div>
       </div>
