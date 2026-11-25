@@ -7,6 +7,9 @@
 //     Mỗi lần chuyển online làm đồng thời 2 việc: đơn Odoo (trừ kho nguồn) + phiếu NHẬP ở Nhanh (cộng tồn online, ghi mã phiếu PDCK… vào diễn giải).
 //     App theo dõi từng đơn: Odoo đã xuất chưa → Nhanh đã nhập chưa (đủ số chưa).
 //     → trừ tồn có thể bán + đang về → làm tròn → lấy từ kho nguồn quen của mã (còn khả dụng) → đơn Odoo
+//   NEW - 3.159 (SQL 284) CHIA THEO NHÓM KHO giống Đề nghị hàng (cửa hàng) / Chia hàng đội sale: 5 nhóm Bảo hiểm chính / sale ·
+//     Nón vải chính / sale · Phụ kiện — mỗi nhóm lấy từ ĐÚNG 1 kho tổng (kho_tong_ma, dùng chung với cửa hàng); cột tồn như cửa hàng:
+//     Tồn online (có thể bán + đang về = tổng) · Kho tổng (khả dụng kho của nhóm, còn lại sau chia) · AI đề xuất · Chuyển · Sau nhận.
 //   Số liệu: fn_ol_du_lieu (SQL 277, tính sẵn ở máy chủ, làm mới nền mỗi lượt kéo Nhanh). Máy tính chạy ngay trên máy:
 //   kéo "Số ngày phủ" / "Mức an toàn" là thấy số mới tức thì.
 // ============================================================================
@@ -18,6 +21,11 @@ import { useOdooCfg, moOdoo, gomDon } from '../lib/odoo.js';
 import { isoVN } from '../lib/ui.jsx';
 
 const NGANH = { BH: 'Nón bảo hiểm', NV: 'Nón vải', PK: 'Phụ kiện' };
+// NEW - 3.159: nhóm kho giống Đề nghị hàng — mỗi nhóm 1 kho tổng
+const NHOM = [['BH_C', 'Bảo hiểm — chính'], ['BH_S', 'Bảo hiểm — sale'], ['NV_C', 'Nón vải — chính'], ['NV_S', 'Nón vải — sale'], ['PK', 'Phụ kiện']];
+const TEN_NHOM = { BH_C: 'BH chính', BH_S: 'BH sale', NV_C: 'NV chính', NV_S: 'NV sale', PK: 'Phụ kiện' };
+const KHO_NHOM_MD = { BH_C: 'TP05006', BH_S: 'SA05001', NV_C: 'TP05002', NV_S: 'SA05002', PK: 'PK05001' };
+const nhomCua = (r) => (r.n === 'PK' ? 'PK' : (r.n === 'BH' ? 'BH' : 'NV') + '_' + (r.s ? 'S' : 'C'));
 const TEN_KHO = {
   KOL05002: 'Kho Online - Bảo hiểm', KOL05001: 'Kho Online - Nón vải',
   SA05001: 'Kho Sale Bảo hiểm', TP05006: 'Kho Xuất Nón bảo hiểm', PK05001: 'Kho Phụ kiện',
@@ -52,9 +60,10 @@ const docTs = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; }
 //   L      = thời gian về THẬT của kho nguồn (tạo phiếu Odoo → nhập kho Nhanh, đo 30 ngày)
 //   mục tiêu = v × (L + số ngày phủ) + z × độ lệch × √(L + phủ)
 //   cần    = mục tiêu − có thể bán online − đang về   → làm tròn (bán ≥ 2/ngày: theo bước làm tròn) → bỏ nếu quá nhỏ mà chưa gấp
-//   lấy    = kho nguồn quen của mã trước (60 ngày), rồi thứ tự kho nguồn của ngành; không vượt khả dụng (trừ % giữ lại cho cửa hàng)
+//   lấy    = NEW - 3.159: đúng 1 kho tổng của NHÓM mã (BH/NV chính → TP, sale → SA, phụ kiện → PK05001) như cửa hàng;
+//            không vượt khả dụng (trừ % giữ lại cho cửa hàng)
 // ---------------------------------------------------------------------------
-function tinhMa(r, p, cfg, lt, homNay, sua) {
+function tinhMa(r, p, cfg, lt, homNay, sua, khoNhom = KHO_NHOM_MD) {
   const d = r.d || new Array(28).fill(0);
   // mã MỚI (tạo mã < 28 ngày): chia theo số ngày từ lần bán đầu; mã cũ bán lai rai: luôn chia đủ 28 ngày (không thổi phồng)
   const moi = r.moi && soNgay(r.moi, homNay) < 28;
@@ -69,11 +78,9 @@ function tinhMa(r, p, cfg, lt, homNay, sua) {
   const sd = doLech(c);
   const xh = a28 > 0 ? a7 / a28 : a7 > 0 ? 2 : 1;
 
-  const mac = cfg.nguon?.[r.n] || [];
-  const ls = r.ls || {};
-  const thuTu = [...new Set([...(sua?.nguon && mac.includes(sua.nguon) ? [sua.nguon] : []),
-    ...Object.keys(ls).filter((k) => mac.includes(k)).sort((a, b) => ls[b] - ls[a]), ...mac])];
-  const chinh = thuTu.find((k) => (r.ng?.[k] || 0) > 0) || thuTu[0];
+  const nh = nhomCua(r);
+  const chinh = khoNhom?.[nh] || KHO_NHOM_MD[nh];   // NEW - 3.159: 1 nhóm = 1 kho tổng
+  const thuTu = chinh ? [chinh] : [];
   const L = Math.max(1, Number(lt?.[chinh]) || 2);
   const z = (AN_TOAN.find((a) => a[0] === p.an) || AN_TOAN[1])[2];
   const H = L + p.phu;
@@ -106,8 +113,10 @@ function tinhMa(r, p, cfg, lt, homNay, sua) {
     : phuVe > 45 && co > 10 ? 'thua' : 'du';
   const lyDo = v > 0 ? `Bán ${fmt1(v)}/ngày${xh >= 1.25 ? ' ↑' : xh <= 0.75 ? ' ↓' : ''} · online còn ${fmt1(phu === Infinity ? 0 : phu)} ngày`
     + (ve ? ` · đang về ${fmtN(ve)}` : '') + ` → cần đủ ${fmt1(H)} ngày (về ${fmt1(L)} + phủ ${p.phu}) + an toàn ${fmtN(anToan)} = ${fmtN(mucTieu)}` : '';
+  const kd = r.ng?.[chinh] || 0;
+  const sau = v > 0 ? (co + ve + sl2) / v : Infinity;   // NEW - 3.159: đủ bán sau khi nhận
   return { r, v, a7, a28, xh, sd, L, H, mucTieu, anToan, co, ve, can, deXuat, sl: sl2, chia, thieu: vuot ? 0 : thieu, vuot,
-    phu, phuVe, tt, thuTu, den: cfg.kho_dich?.[r.n] || 'KOL05002', lyDo, daSua: sua?.sl != null || !!sua?.nguon };
+    phu, phuVe, tt, thuTu, nh, kho: chinh, kd, con: kd - sl2, sau, den: cfg.kho_dich?.[r.n] || 'KOL05002', lyDo, daSua: sua?.sl != null };
 }
 
 // Biểu đồ 28 ngày: 7 ngày gần nhất đậm, ngày bán cao nhất màu vàng (để thấy đỉnh — vẫn tính đủ)
@@ -153,7 +162,7 @@ export default function ChiaOnline() {
   const [tab, setTab] = useState('chia');
   const ts0 = docTs();
   const [p, setP] = useState({ phu: ts0.phu ?? null, an: ts0.an ?? null, lamTron: ts0.lamTron ?? null, giuNguon: ts0.giuNguon ?? null });
-  const [nganh, setNganh] = useState('');
+  const [nhom, setNhom] = useState('');   // NEW - 3.159: '' = xem tất cả
   const [loc, setLoc] = useState('can');
   const [q, setQ] = useState('');
   const [sap, setSap] = useState({ k: '', g: -1 });
@@ -220,11 +229,11 @@ export default function ChiaOnline() {
   };
 
   const homNay = isoVN();
-  const ds = useMemo(() => (kq?.rows || []).map((r) => tinhMa(r, P, cfg, kq?.lt, homNay, sua[r.b])),
+  const ds = useMemo(() => (kq?.rows || []).map((r) => tinhMa(r, P, cfg, kq?.lt, homNay, sua[r.b], kq?.kho_nhom)),
     [kq, P, sua]);   // eslint-disable-line
 
   // ===== Tổng quan =====
-  const theoNganh = useMemo(() => ds.filter((m) => !nganh || m.r.n === nganh), [ds, nganh]);
+  const theoNganh = useMemo(() => ds.filter((m) => !nhom || m.nh === nhom), [ds, nhom]);
   const tq = useMemo(() => {
     const ban = theoNganh.filter((m) => m.v > 0);
     const v = tong(ban.map((m) => m.v)), co = tong(theoNganh.map((m) => m.co)), ve = tong(theoNganh.map((m) => m.ve));
@@ -240,9 +249,9 @@ export default function ChiaOnline() {
       giaTri: tong(chon.map((m) => m.sl * (m.r.gs || m.r.g || 0))),
     };
   }, [theoNganh]);
-  const demNganh = useMemo(() => {
-    const o = { '': ds.filter((m) => m.v > 0 || m.co > 0).length };
-    Object.keys(NGANH).forEach((k) => { o[k] = ds.filter((m) => m.r.n === k && (m.v > 0 || m.co > 0)).length; });
+  const demNhom = useMemo(() => {   // NEW - 3.159: số mã cần chuyển / số mã đang bán của từng nhóm
+    const o = { '': { can: ds.filter((m) => m.sl > 0).length, ma: ds.filter((m) => m.v > 0 || m.co > 0).length } };
+    NHOM.forEach(([k]) => { o[k] = { can: ds.filter((m) => m.nh === k && m.sl > 0).length, ma: ds.filter((m) => m.nh === k && (m.v > 0 || m.co > 0)).length }; });
     return o;
   }, [ds]);
 
@@ -251,7 +260,7 @@ export default function ChiaOnline() {
     ['het', 'Hết hàng', (m) => m.tt === 'het'],
     ['gap', 'Sắp hết', (m) => m.tt === 'gap'],
     ['thap', 'Thấp', (m) => m.tt === 'thap'],
-    ['thieu', 'Kho nguồn thiếu', (m) => m.thieu > 0],
+    ['thieu', 'Kho tổng thiếu', (m) => m.thieu > 0],
     ['ve', 'Đang về', (m) => m.ve > 0],
     ['sua', 'Đã sửa tay', (m) => m.daSua],
     ['ban', 'Có bán', (m) => m.v > 0],
@@ -262,12 +271,13 @@ export default function ChiaOnline() {
     const f = LOC.find((x) => x[0] === loc)?.[2] || (() => true);
     const tu = boDau(q.trim());
     let a = theoNganh.filter((m) => f(m) && (!tu || boDau([m.r.m, m.r.t, m.r.b, m.r.sku].join(' ')).includes(tu)));
-    const gt = { v: (m) => m.v, phu: (m) => (m.phu === Infinity ? 1e9 : m.phu), sl: (m) => m.sl, co: (m) => m.co, ve: (m) => m.ve, xh: (m) => m.xh };
+    const gt = { v: (m) => m.v, phu: (m) => (m.phu === Infinity ? 1e9 : m.phu), sl: (m) => m.sl, co: (m) => m.co + m.ve, ve: (m) => m.ve, xh: (m) => m.xh,
+      kd: (m) => m.kd, de: (m) => m.deXuat, sau: (m) => (m.sau === Infinity ? 1e9 : m.sau), gia: (m) => m.r.gs || m.r.g || 0 };
     if (sap.k && gt[sap.k]) a = [...a].sort((x, y) => (gt[sap.k](x) - gt[sap.k](y)) * sap.g);
     else a = [...a].sort((x, y) => (THU_TT[x.tt] ?? 9) - (THU_TT[y.tt] ?? 9) || y.v - x.v);
     return a;
   }, [theoNganh, loc, q, sap]);   // eslint-disable-line
-  useEffect(() => { setSoHien(250); }, [loc, nganh, q]);
+  useEffect(() => { setSoHien(250); }, [loc, nhom, q]);
 
   // ===== Phiếu: dòng chuyển (mỗi mã × kho nguồn) =====
   const dongChuyen = useMemo(() => ds.filter((m) => m.sl > 0).flatMap((m) => m.chia.filter((c) => c.sl > 0).map((c) => ({
@@ -289,7 +299,6 @@ export default function ChiaOnline() {
     else n[b] = { ...(n[b] || {}), sl: Math.max(0, Math.floor(Number(v) || 0)) };
     return n;
   });
-  const datNguon = (b, k) => setSua((s) => ({ ...s, [b]: { ...(s[b] || {}), nguon: k } }));
 
   const luuPhieu = async () => {
     if (!dongChuyen.length) { baoToast('Chưa có mã nào cần chuyển'); return null; }
@@ -337,10 +346,11 @@ export default function ChiaOnline() {
     }))), 'Nhập Nhanh');
     if (phan?.length) {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(phan.map((m) => ({
-        'Mã': m.r.m, 'Tên': m.r.t || '', 'Ngành': NGANH[m.r.n] || m.r.n, 'Bán/ngày (dự báo)': Math.round(m.v * 10) / 10,
+        'Mã': m.r.m, 'Tên': m.r.t || '', 'Nhóm': TEN_NHOM[m.nh] || m.nh, 'Giá': m.r.gs || m.r.g || '', 'Bán/ngày (dự báo)': Math.round(m.v * 10) / 10,
         'Bán 7 ngày': m.r.s7 || 0, 'Bán 28 ngày': m.r.s28 || 0, 'Online có thể bán': m.co, 'Đang về': m.ve,
         'Đủ bán (ngày)': m.phu === Infinity ? '' : Math.round(m.phu * 10) / 10, 'Mục tiêu': Math.round(m.mucTieu),
-        'Đề xuất': m.deXuat, 'Chuyển': m.sl, 'Kho nguồn': m.chia.map((c) => `${c.k}: ${c.sl}`).join(', '), 'Kho đích': m.den, 'Lý do': m.lyDo,
+        'Kho tổng': m.kho, 'Kho tổng khả dụng': m.kd, 'Đề xuất': m.deXuat, 'Chuyển': m.sl, 'Còn lại kho tổng': m.con,
+        'Sau nhận (ngày)': m.sau === Infinity ? '' : Math.round(m.sau * 10) / 10, 'Kho đích': m.den, 'Lý do': m.lyDo,
       }))), 'Phân tích');
     }
     XLSX.writeFile(wb, `CHIA_ONLINE_${ma}_${isoVN()}.xlsx`);
@@ -435,10 +445,14 @@ export default function ChiaOnline() {
         </div>
 
         <div className="co-loc">
-          <div className="ch-xem">
-            {[['', 'Tất cả'], ...Object.entries(NGANH)].map(([k, t]) => (
-              <button key={k} className={nganh === k ? 'on' : ''} onClick={() => setNganh(k)}>{t}<i>{fmtN(demNganh[k])}</i></button>
+          {/* NEW - 3.159: nhóm kho như Đề nghị hàng — số trên nút = mã cần chuyển */}
+          <div className="co-nhom">
+            {NHOM.map(([k, t]) => (
+              <button key={k} className={(nhom === k ? 'on ' : '') + (demNhom[k]?.can ? '' : 'rong')} onClick={() => setNhom(k)}
+                title={`Lấy từ kho ${kq?.kho_nhom?.[k] || KHO_NHOM_MD[k]} · ${fmtN(demNhom[k]?.ma)} mã đang bán / có tồn online`}>
+                {t}<small>{kq?.kho_nhom?.[k] || KHO_NHOM_MD[k]}</small>{demNhom[k]?.can ? <i>{fmtN(demNhom[k].can)}</i> : null}</button>
             ))}
+            <button className={nhom === '' ? 'on' : ''} onClick={() => setNhom('')}>Xem tất cả{demNhom['']?.can ? <i>{fmtN(demNhom[''].can)}</i> : null}</button>
           </div>
           <div className="co-chip">
             {LOC.map(([k, t]) => (
@@ -456,13 +470,16 @@ export default function ChiaOnline() {
             <thead>
               <tr>
                 <th className="l">Sản phẩm <span className="co-dem2">{fmtN(hien.length)}</span></th>
+                <Th k="gia" title="Giá niêm yết · hàng sale: giá sale (đỏ)">Giá</Th>
                 <th title="Bán mỗi ngày 28 ngày qua — 7 ngày gần nhất đậm, ngày bán cao nhất màu vàng">Bán 28 ngày</th>
                 <Th k="v" title="Dự báo bán / ngày (50% TB 7 ngày + 30% TB 14 + 20% TB 28)">Bán/ngày</Th>
-                <Th k="co" title="Tồn online có thể bán (Nhanh: đã trừ hàng giữ cho đơn, đang giao…)">Có thể bán</Th>
+                <Th k="co" title="Tồn online (Nhanh, có thể bán) + đang về = tổng. Đang về chỉ tính phiếu Odoo ĐÃ DUYỆT chưa nhập Nhanh — đơn chưa đẩy / chưa duyệt KHÔNG tính">Tồn online</Th>
                 <Th k="phu" title="Đủ bán bao nhiêu ngày · vạch 1 = thời gian hàng về · vạch 2 = mục tiêu (về + số ngày phủ)">Đủ bán</Th>
-                <Th k="ve" title="Chỉ phiếu Odoo ĐÃ DUYỆT → kho online chưa nhập ở Nhanh + đơn app đã tạo thành công trên Odoo. Đơn chưa đẩy / chưa duyệt trên Odoo KHÔNG tính">Đang về</Th>
-                <th title="Kho nguồn: số khả dụng · bấm để lấy từ kho này trước">Kho nguồn</th>
+                <Th k="kd" title="Kho tổng của nhóm (BH / NV chính → TP, sale → SA, phụ kiện → PK05001): số khả dụng · dòng nhỏ = còn lại sau khi chia">Kho tổng</Th>
+                <Th k="de" title="Máy tính đề xuất (đã làm tròn, chưa trừ giới hạn kho)">AI đề xuất</Th>
                 <Th k="sl" className="c-sl" title="Số chuyển — gõ để sửa, xoá trống để về số máy tính">Chuyển</Th>
+                <Th k="sau" title="Đủ bán bao nhiêu ngày sau khi nhận (tồn + đang về + chuyển) ÷ bán/ngày">Sau nhận</Th>
+                <th>Tình trạng</th>
               </tr>
             </thead>
             <tbody>
@@ -473,47 +490,43 @@ export default function ChiaOnline() {
                     <td className="l sp" onClick={() => setMoMa(mo ? null : r.b)}><div className="co-sp">
                       {r.h ? <img src={r.h} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} /> : <span className="anh" />}
                       <div>
-                        <b>{r.m}{r.gs ? <i className="co-gia">{kGia(r.gs)}</i> : null}{r.moi && soNgay(r.moi, homNay) <= 45 ? <i className="co-moi">mới</i> : null}</b>
+                        <b>{r.m}{r.moi && soNgay(r.moi, homNay) <= 45 ? <i className="co-moi">mới</i> : null}
+                          {(!nhom || q.trim()) && <i className={'co-nhom-chip ' + m.nh}>{TEN_NHOM[m.nh]}</i>}</b>
                         <small>{(r.t || '').replace(/-[^-]*$/, '') || r.n3 || ''}</small>
                       </div>
-                      {m.tt && <span className={'co-tt ' + TT[m.tt][1]}>{TT[m.tt][0]}</span>}
                     </div></td>
+                    <td className="so co-gia-o">{r.gs ? <><b className="sale">{kGia(r.gs)}</b><s>{kGia(r.g)}</s></> : <b>{kGia(r.g) || '—'}</b>}</td>
                     <td><Song d={r.d} /></td>
                     <td className="so"><b>{fmt1(m.v)}</b>{m.v > 0 && (m.xh >= 1.25 ? <em className="len">↑{Math.round((m.xh - 1) * 100)}%</em> : m.xh <= 0.75 ? <em className="xuong">↓{Math.round((1 - m.xh) * 100)}%</em> : null)}
                       <small title="Trung bình / ngày: 7 ngày gần nhất · 28 ngày">TB 7n {fmt1((r.s7 || 0) / 7)} · 28n {fmt1((r.s28 || 0) / 28)}</small>
                       {r.hn ? <small>hôm nay {r.hn}</small> : null}</td>
-                    <td className="so"><b>{fmtN(m.co)}</b>{r.on > m.co ? <small title="Tồn thực − có thể bán: hàng giữ cho đơn / đang giao">thực {fmtN(r.on)}</small> : null}</td>
+                    {/* NEW - 3.159: tồn online kiểu cửa hàng — có thể bán + đang về = tổng */}
+                    <td className="so co-ton" title={(r.vc || []).map((x) => `${x.p} · ${x.k} · ${x.sl} cái · ${x.tt} ${ngayNgan(x.n)}`).join('\n') || undefined}>
+                      {m.ve ? <span className="co-ton-cong">{fmtN(m.co)}<b className="ve"> + {fmtN(m.ve)}</b><em> = </em><b>{fmtN(m.co + m.ve)}</b></span> : <b>{fmtN(m.co)}</b>}
+                      {r.on > m.co ? <small title="Tồn thực − có thể bán: hàng giữ cho đơn / đang giao">thực {fmtN(r.on)}</small> : m.ve ? <small>{(r.vc || []).length} phiếu đang về</small> : null}</td>
                     <td><Thuoc m={m} phu={P.phu} /></td>
-                    <td className="so" title={(r.vc || []).map((x) => `${x.p} · ${x.k} · ${x.sl} cái · ${x.tt} ${ngayNgan(x.n)}`).join('\n')}>
-                      {m.ve ? <><b className="ve">+{fmtN(m.ve)}</b><small>{(r.vc || []).length} phiếu</small></> : <span className="nhat">·</span>}</td>
-                    <td className="nguon">
-                      {m.thuTu.length ? m.thuTu.map((k) => {
-                        const c = m.chia.find((x) => x.k === k);
-                        const kd = r.ng?.[k] || 0;
-                        return (
-                          <button key={k} className={(c ? 'lay ' : '') + (kd ? '' : 'het')} onClick={() => datNguon(r.b, k)}
-                            title={`${TEN_KHO[k] || k}: khả dụng ${fmtN(kd)}${r.ls?.[k] ? ` · 60 ngày đã chuyển online ${fmtN(r.ls[k])}` : ''}${c ? ` · lấy ${c.sl}` : ''}`}>
-                            {k}<i>{fmtN(kd)}</i>{c ? <em>−{fmtN(c.sl)}</em> : null}
-                          </button>);
-                      }) : <span className="nhat">chưa đặt kho nguồn</span>}
+                    <td className={'so co-kho' + (m.thieu > 0 || m.vuot ? ' thieu' : '')} title={`${TEN_KHO[m.kho] || m.kho}: khả dụng ${fmtN(m.kd)}${r.ls?.[m.kho] ? ` · 60 ngày đã chuyển online ${fmtN(r.ls[m.kho])}` : ''}`}>
+                      <b>{fmtN(m.kd)}</b>
+                      <small>{m.kho}{m.sl ? ` · còn ${fmtN(m.con)}` : ''}</small>
                       {m.thieu > 0 && <small className="thieu">thiếu {fmtN(m.thieu)}</small>}
-                      {m.vuot && <small className="thieu">vượt khả dụng</small>}
-                    </td>
+                      {m.vuot && <small className="thieu">vượt khả dụng</small>}</td>
+                    <td className="so co-ai">{m.deXuat ? <b>{fmtN(m.deXuat)}</b> : <span className="nhat">·</span>}</td>
                     <td className="c-sl">
                       <input inputMode="numeric" value={sua[r.b]?.sl ?? ''} placeholder={String(m.sl || 0)}
                         className={sua[r.b]?.sl != null ? 'sua' : m.sl ? 'goi-y' : ''} title={m.lyDo}
                         onChange={(e) => datSo(r.b, e.target.value.replace(/[^\d]/g, ''))} />
-                      {sua[r.b]?.sl != null ? <small className="ai" onClick={() => datSo(r.b, '')} title="Về số máy tính">máy: {m.deXuat}</small>
-                        : m.thieu > 0 ? <small className="thieu" title="Máy tính cần nhiều hơn khả dụng kho nguồn">cần {fmtN(m.deXuat)}</small> : null}
+                      {sua[r.b]?.sl != null ? <small className="ai" onClick={() => datSo(r.b, '')} title="Về số máy tính">máy: {m.deXuat}</small> : null}
                     </td>
+                    <td className="so">{m.v > 0 ? <b className={m.sl && m.sau < m.H ? 'co-thieu-ngay' : ''}>{fmt1(m.sau)}<small> ngày</small></b> : <span className="nhat">—</span>}</td>
+                    <td>{m.tt ? <span className={'co-tt ' + TT[m.tt][1]}>{TT[m.tt][0]}</span> : <span className="nhat">—</span>}</td>
                   </tr>,
                   mo && (
-                    <tr key={r.b + '-ct'} className="co-ct"><td colSpan={8}>
+                    <tr key={r.b + '-ct'} className="co-ct"><td colSpan={12}>
                       <div className="co-ct-o">
                         <div><small>Vì sao</small><p>{m.lyDo || 'Không bán trong 28 ngày — không đề xuất chuyển.'}</p></div>
                         <div><small>Số liệu</small><p>Bán 7 ngày {fmtN(r.s7)} · 14 ngày {fmtN(r.s14)} · 28 ngày {fmtN(r.s28)} · độ lệch {fmt1(m.sd)}/ngày<br />
                           Online: thực {fmtN(r.on)} · có thể bán {fmtN(r.cb)} · giữ cho đơn {fmtN(r.gi)}<br />
-                          Kho đích {m.den} · thời gian về {fmt1(m.L)} ngày{r.lc ? ` · lần chuyển gần nhất ${ngayNgan(r.lc)}` : ''}</p></div>
+                          Nhóm {TEN_NHOM[m.nh]} · lấy từ {m.kho} ({TEN_KHO[m.kho] || ''}) khả dụng {fmtN(m.kd)} → {m.den} · thời gian về {fmt1(m.L)} ngày{r.lc ? ` · lần chuyển gần nhất ${ngayNgan(r.lc)}` : ''}</p></div>
                         {(r.vc || []).length > 0 && <div><small>Đang về</small>{r.vc.map((x) => <p key={x.p} className="phu">{x.p} · {x.k} · <b>{x.sl}</b> · {x.tt} {ngayNgan(x.n)}</p>)}</div>}
                         <div><small>Mã</small><p>{r.b}{r.sku ? ' · SKU ' + r.sku : ''}<br />{r.t}</p></div>
                       </div>
@@ -521,7 +534,7 @@ export default function ChiaOnline() {
                   ),
                 ];
               })}
-              {!hien.length && <tr><td colSpan={8} className="co-trong">{loc === 'can' ? 'Không có mã nào cần chuyển với thông số hiện tại 👌' : 'Không có mã nào khớp'}</td></tr>}
+              {!hien.length && <tr><td colSpan={12} className="co-trong">{loc === 'can' ? 'Không có mã nào cần chuyển với thông số hiện tại 👌' : 'Không có mã nào khớp'}</td></tr>}
             </tbody>
           </table>
           {hien.length > soHien && <button className="co-them" onClick={() => setSoHien((n) => n + 250)}>Xem thêm {fmtN(Math.min(250, hien.length - soHien))} mã</button>}
