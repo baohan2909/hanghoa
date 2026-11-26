@@ -717,7 +717,7 @@ export function NganChiTiet({ id, dong, odoo, saiXong, moDon }) {
               {laApp && ct.trang_thai === 'thanh_cong' && ct.buoc >= 6 && <p className="odn-phu">Đơn đã xuất kho trên Odoo — không huỷ / sửa được nữa. Cần trả hàng / điều chỉnh: gửi Yêu cầu điều chỉnh để kho xử lý.</p>}
               {!laApp && <p className="odn-phu">Phiếu tạo thẳng trên Odoo: app chỉ theo dõi, đối soát, ghép vận đơn{ct.nhan_hang?.mo ? ' và nhận hàng' : ''}. Huỷ / sửa thực hiện trên Odoo.</p>}
               {/* NEW - 303: chưa bấm nhận được vì đang chờ Odoo cập nhật / đang gửi */}
-              {ct.nhan_hang?.mo && ct.nhan_hang?.quyen && !ct.nhan_hang?.duoc && /Lấy mới|Đang gửi|Đã báo nhận/.test(ct.nhan_hang?.ly_do || '') &&
+              {ct.nhan_hang?.mo && ct.nhan_hang?.quyen && !ct.nhan_hang?.duoc && /Lấy mới|Đang gửi|Đã báo nhận|đang trên đường/.test(ct.nhan_hang?.ly_do || '') &&
                 <p className="odn-phu">Nhận hàng: {ct.nhan_hang.ly_do}</p>}
               {(ct.nhan_hang?.lan || []).length > 0 && (
                 <div className="odn-nhan-ls">
@@ -998,13 +998,15 @@ function HopNhan({ ct, onDong, onXong }) {
   const [tim, setTim] = useState('');
   const [dang, setDang] = useState(false);
   const [loi, setLoi] = useState('');
+  const [daToi, setDaToi] = useState(false);   // NEW - 305: tick "hàng đã về tới cửa hàng" — chống bấm nhầm khi hàng còn trên đường
+  const vd = ct.nhan_hang?.van_don || {};
 
   const so = (d) => { const s = String(sl[d.barcode] ?? '').trim(); const n = Number(s); return s !== '' && Number.isInteger(n) && n >= 0 ? n : NaN; };
   const tongCon = ds.reduce((a, d) => a + d.con, 0);
   const tong = ds.reduce((a, d) => a + (so(d) || 0), 0);
   const sai = ds.filter((d) => Number.isNaN(so(d)) || so(d) > d.con);
   const thieu = ds.filter((d) => !Number.isNaN(so(d)) && so(d) < d.con);
-  const duoc = !dang && ds.length > 0 && sai.length === 0 && tong > 0 && (thieu.length === 0 || ghi.trim().length >= 3);
+  const duoc = !dang && daToi && ds.length > 0 && sai.length === 0 && tong > 0 && (thieu.length === 0 || ghi.trim().length >= 3);
   const q = tim.trim().toLowerCase();
   const loc = q ? ds.filter((d) => `${d.ma} ${d.ten || ''} ${d.barcode}`.toLowerCase().includes(q)) : ds;
   const dat = (bc, v) => { setSl((s) => ({ ...s, [bc]: v })); setLoi(''); };
@@ -1054,6 +1056,13 @@ function HopNhan({ ct, onDong, onXong }) {
         {thieu.length > 0 && (
           <textarea value={ghi} onChange={(e) => setGhi(e.target.value)} rows={2} maxLength={300} disabled={dang}
             placeholder="Lý do nhận thiếu (bắt buộc) — vd: thùng thiếu 2 cái, 1 cái lỗi…" />)}
+        {/* NEW - 305: GHTK chưa tới bước Đang giao (chỉ Quản trị tới được đây) */}
+        {vd.so > 0 && !vd.toi && <div className="odn-bao do"><IcAlert /><div><b>GHTK chưa báo đang giao / đã giao</b>
+          GHTK báo "{vd.tt || 'chưa giao'}". Chỉ nhận thay khi chắc chắn hàng đã tới cửa hàng.</div></div>}
+        <label className={'nh-toi' + (daToi ? ' on' : '')}>
+          <input type="checkbox" checked={daToi} disabled={dang} onChange={(e) => setDaToi(e.target.checked)} />
+          <span><b>Hàng đã về tới cửa hàng</b> và tôi đã đếm thực tế từng mã{vd.so === 0 ? ' (phiếu này không có vận đơn GHTK để đối chiếu)' : ''}</span>
+        </label>
         {loi && <div className="odn-bao do"><IcAlert /><div>{loi}</div></div>}
         <div className="odn-hop-chan">
           <button className="odn-nut-phu" disabled={dang} onClick={onDong}>Đóng</button>

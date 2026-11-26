@@ -1,9 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON } from '../config.js';
 
+// NEW - 3.163.0: máy chủ bận (lệnh quá giờ — mã 57014) → tự thử lại tối đa 2 lần (sau 1,5 giây rồi 4 giây) trước khi báo lỗi.
+//   Lệnh bị huỷ vì quá giờ thì máy chủ đã huỷ trọn (không ghi dở) nên gửi lại an toàn. Chỉ áp cho gọi dữ liệu (/rest/v1/).
+const CHO_THU_LAI = [1500, 4000];
+async function fetchThuLai(input, init) {
+  for (let lan = 0; ; lan++) {
+    const r = await fetch(input, init);
+    if (r.status < 500 || lan >= CHO_THU_LAI.length) return r;
+    const url = typeof input === 'string' ? input : input?.url || '';
+    if (!url.includes('/rest/v1/') || init?.signal?.aborted) return r;
+    let t = '';
+    try { t = await r.clone().text(); } catch { return r; }
+    if (!/57014|statement timeout/i.test(t)) return r;
+    await new Promise((ok) => setTimeout(ok, CHO_THU_LAI[lan]));
+    if (init?.signal?.aborted) return r;
+  }
+}
+
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON, {
   db: { schema: 'chiahang' },
   auth: { persistSession: false },
+  global: { fetch: fetchThuLai },
 });
 
 export const fmt = (n) => (n ?? 0).toLocaleString('vi-VN');

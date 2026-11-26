@@ -5116,6 +5116,11 @@ button.pdh-dc:hover { border-color: #3FB6A8; } .pdh-dc.on { border-color: #1E5F6
 .nh-du { height: 30px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--teal-d, #1F7F74); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .nh-du[disabled] { opacity: .35; cursor: default; }
 .nh-trong { padding: 10px; }
+/* NEW - 305: tick xác nhận hàng đã tới */
+.nh-toi { display: flex; gap: 9px; align-items: flex-start; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: #FFF8EC; cursor: pointer; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+.nh-toi.on { background: #F1FAF5; border-color: rgba(22,121,74,.3); }
+.nh-toi input { width: 18px; height: 18px; margin: 1px 0 0; flex: none; accent-color: var(--teal); }
+.nh-toi b { color: var(--ink); }
 .sd-tong.nh-tong.thieu b:last-of-type { color: #9A5B00; }
 .odn-nhan-ls { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: #FAFBFD; }
 .odn-nhan-ls > b { font-size: 12.5px; }
