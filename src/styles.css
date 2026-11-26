@@ -7303,3 +7303,27 @@ body.tts-ct-khoa { overflow: hidden; }
   color: var(--ink); font-weight: 800; text-decoration: none; white-space: nowrap; }
 .odn-lien-he a:hover { border-color: var(--gold); }
 .od-ghi a { color: var(--teal-deep); font-weight: 800; white-space: nowrap; }
+
+/* NEW - 3.160.0: TikTok — phần khách xem rồi mua sau (gián tiếp) + thẻ Đội sale */
+.tts-gt { font-size: 10.5px; white-space: nowrap; margin-top: 1px; }
+.tts-doi-them { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tts-doi-them > :first-child { flex: 1 1 260px; max-width: 380px; }
+.tts-doi-them > :nth-child(2) { flex: 0 1 180px; }
+.tts-doi-bang tbody tr { cursor: pointer; }
+.tts-doi-bang tbody tr.on > td { background: #FFF7E6; }
+.tts-doi-bang tr.tts-doi-id { cursor: default; }
+.tts-doi-bang tr.tts-doi-id > td { background: #FBFCFE; font-size: 12.5px; }
+.tts-doi-bang tr.tts-doi-id > td:first-child { padding-left: 26px; border-left: 3px solid var(--gold); }
+.tts-doi-id-ten { display: flex; flex-direction: column; line-height: 1.25; }
+.tts-doi-id-ten span { font-weight: 700; color: var(--ink); }
+.tts-doi-id-ten small { color: #7A8497; font-size: 11px; }
+.tts-doi-id-nut { display: flex; gap: 10px; margin-top: 3px; }
+@media (max-width: 760px) {
+  /* NEW - 3.160.0: bảng Theo dõi / Đội sale trên điện thoại vẫn hiện cột Doanh thu (luật chung .odn-bang ẩn cột 2 / 5 dành cho bảng đơn Odoo) */
+  .odn-bang.tts-td-bang th:nth-child(2), .odn-bang.tts-td-bang td:nth-child(2) { display: table-cell; }
+  .odn-bang.tts-doi-bang th:nth-child(5), .odn-bang.tts-doi-bang td:nth-child(5),
+  .odn-bang.tts-doi-bang th:nth-child(7), .odn-bang.tts-doi-bang td:nth-child(7) { display: table-cell; }
+  .tts-doi-bang .tts-td-dt { min-width: 120px; }
+  .tts-td-bang .tts-td-dt b { white-space: nowrap; }
+  .tts-doi-id-nut { flex-direction: column; gap: 2px; }
+}

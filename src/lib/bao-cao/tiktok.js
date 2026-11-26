@@ -27,7 +27,7 @@ function dsNguoiBan(bc) {
 // NEW - 3.156: chia người bán thành 3 nhóm — mỗi ID thuộc ĐÚNG 1 nhóm, mỗi đơn tính cho 1 ID (SQL 269) → cộng 3 nhóm = tổng shop
 const NHOM_LON = { cty: 'Công ty', ch: 'Cửa hàng', khac: 'Tài khoản khác' };
 const MAU_NHOM = { cty: MAU.tealDam, ch: MAU.teal, khac: MAU.vang };
-const NHOM_CON = { kenh: 'Kênh công ty', doi: 'Đội sale', the: 'Shop – không qua tài khoản', ch: 'Cửa hàng', kol: 'Nhà sáng tạo ngoài', ch_chua: 'ID cửa hàng chưa chọn cửa hàng', khac: 'Khác', chua: 'Chưa phân loại' };
+const NHOM_CON = { kenh: 'Kênh công ty', doi: 'Đội sale', the: 'Chưa rõ nguồn', ch: 'Cửa hàng', kol: 'Nhà sáng tạo ngoài', ch_chua: 'ID cửa hàng chưa chọn cửa hàng', khac: 'Khác', chua: 'Chưa phân loại' };
 const THU_TU_CON = ['kenh', 'doi', 'the', 'ch', 'kol', 'ch_chua', 'khac', 'chua'];
 const tenDoi = (ma) => { const m = /^DOISALE0*(\d+)$/i.exec(ma || ''); return m ? 'Đội Sale ' + m[1].padStart(2, '0') : ''; };
 function phanNhom(r) {
@@ -197,7 +197,7 @@ export function docTikTok(bc, meta = {}) {
 
   // bảng từng ID của 1 nhóm (Công ty / Tài khoản khác)
   const tenId = (r) => (r.nb ? { stack: [{ text: cat(r.ten, 24), bold: true }, r.ten !== '@' + r.nb ? { text: '@' + cat(r.nb, 28), color: MAU.mo, fontSize: 6.2 } : ''] }
-    : { stack: [{ text: 'Shop – không qua tài khoản', bold: true }, { text: 'TikTok không ghi tài khoản nào dẫn khách', color: MAU.mo, fontSize: 6.2 }] });
+    : { stack: [{ text: 'Chưa rõ nguồn', bold: true }, { text: 'đơn chưa có dữ liệu nguồn (thường là chưa thanh toán)', color: MAU.mo, fontSize: 6.2 }] });
   const cotSo = (max, mau) => [
     { ten: 'Đơn', rong: 34, canh: 'right', f: (r) => so(r.don) },
     { ten: 'SL', rong: 34, canh: 'right', f: (r) => so(r.sl) },
@@ -318,7 +318,7 @@ export function docTikTok(bc, meta = {}) {
     // NEW - 3.156: 3 nhóm người bán — mỗi ID ở đúng 1 nhóm, cộng 3 nhóm = tổng shop
     muc('Người bán theo nhóm', `${so(cn.tong.so_id)} ID có đơn · cộng 3 nhóm = tổng doanh thu shop`, { truocTrang: true }),
     khoi(thanhTyTrong(['cty', 'ch', 'khac'].map((k) => ({ ten: NHOM_LON[k], v: cn.nhom[k].dt, mau: MAU_NHOM[k] }))), { text: '', margin: [0, 0, 0, 6] }, bangNhom),
-    { text: 'Công ty = kênh công ty, đội sale và đơn shop không qua tài khoản nào. Cửa hàng = các ID đã gán cửa hàng. Tài khoản khác = nhà sáng tạo ngoài và ID chưa phân loại. Mỗi đơn chỉ tính cho một ID.', fontSize: 6.8, color: MAU.mo, margin: [0, 4, 0, 0] },
+    { text: 'Công ty = kênh công ty (tài khoản chính thoitrangnonson gồm cả đơn khách mua thẳng trên shop) và đội sale. Cửa hàng = các ID đã gán cửa hàng. Tài khoản khác = nhà sáng tạo ngoài và ID chưa phân loại. Mỗi đơn chỉ tính cho một ID.', fontSize: 6.8, color: MAU.mo, margin: [0, 4, 0, 0] },
     muc('Công ty', `${so(cn.nhom.cty.so_id)} ID có đơn · ${pt(cn.nhom.cty.dt)} doanh thu shop · Từ LIVE / Từ video = doanh thu theo đơn`),
     bangCty,
     muc('Cửa hàng', `${ch.length > N_CH ? `${N_CH} / ${so(ch.length)} cửa hàng doanh thu cao nhất` : `${so(ch.length)} cửa hàng`} · ${pt(cn.nhom.ch.dt)} doanh thu shop · cửa hàng nhiều ID thì cộng các ID lại`, { truocTrang: true }),
@@ -341,7 +341,7 @@ export function docTikTok(bc, meta = {}) {
       { ul: [
         'Doanh thu (một cách tính duy nhất cho mọi báo cáo) = giá niêm yết − shop giảm, chỉ tính đơn hợp lệ (không huỷ) — đúng bằng doanh thu đơn TikTok trên Nhanh. Không dùng số TikTok tự đếm (tiền khách trả, có cả đơn huỷ).',
         `Trung bình / ngày (cột "… / ngày", dòng "TB") = tổng của kỳ ÷ ${n} ngày (tính cả ngày đầu và ngày cuối).`,
-        'Đơn của người bán = mọi đơn TikTok ghi nhận cho ID đó: mua ngay trong LIVE / video, mua từ trưng bày của ID, và gián tiếp (xem LIVE / video của ID rồi mua sau). Tài khoản đổi tên / chuyển cửa hàng: đơn trước ngày đổi tính cho tên cũ. Đơn TikTok không ghi tài khoản nào tính "Shop – không qua tài khoản" (nhóm Công ty). Đơn có hàng của 2 ID tính cho ID có doanh thu lớn hơn; doanh thu, SL vẫn chia theo từng dòng hàng.',
+        'Đơn của người bán = mọi đơn TikTok ghi nhận cho ID đó: mua ngay trong LIVE / video, mua từ trưng bày của ID, và gián tiếp (xem LIVE / video của ID rồi mua sau). Tài khoản đổi tên / chuyển cửa hàng: đơn trước ngày đổi tính cho tên cũ. Đơn TikTok không ghi tài khoản nào = khách mua thẳng trên shop, tính cho tài khoản chính thoitrangnonson. Khách xem LIVE / video rồi mua sau vẫn tính vào LIVE / video của ID. Đơn có hàng của 2 ID tính cho ID có doanh thu lớn hơn; doanh thu, SL vẫn chia theo từng dòng hàng.',
         'Tỉnh / thành theo địa chỉ nhận hàng, gộp về 34 tỉnh thành mới; đơn chưa thanh toán chưa có địa chỉ ghi "Chưa có địa chỉ".',
         'Từ LIVE / Từ video, Phiên LIVE, Video có đơn = doanh thu theo đơn khách mua trực tiếp trong LIVE / từ video (cùng cách tính ở trên). Người xem / lượt xem là số hoạt động do TikTok trả.',
         `Dữ liệu đơn trong app: ${so(bc.kho?.tong_don)} đơn từ ${ngayVN(bc.kho?.tu)} đến ${ngayVN(bc.kho?.den)}.`,
@@ -395,7 +395,7 @@ export function sheetsTikTok(bc, dong, meta = {}) {
         { ten: 'Doanh thu từ LIVE', k: 'dt_live', w: 15, kieu: 'tien' }, { ten: 'Doanh thu từ video', k: 'dt_video', w: 15, kieu: 'tien' }],
       dong: hangNhom, tong: { ten: 'Tổng cộng', chi: '', ...cn.tong } },
     { ten: 'Người bán', ghiChu: ghi + ' · doanh thu tính từ đơn; phiên / người xem / lượt xem là số hoạt động của TikTok', cot: [{ ten: 'Nhóm', f: (r) => NHOM_LON[r.nl] || '', w: 15 }, { ten: 'Thuộc', k: 'thuoc', w: 22 },
-      { ten: 'Mã cửa hàng', k: 'ma_ch', w: 12 }, { ten: 'Cửa hàng', k: 'ten_ch', w: 24 }, { ten: 'ID người bán', f: (r) => r.nb || '(shop – không qua tài khoản)', w: 24 },
+      { ten: 'Mã cửa hàng', k: 'ma_ch', w: 12 }, { ten: 'Cửa hàng', k: 'ten_ch', w: 24 }, { ten: 'ID người bán', f: (r) => r.nb || '(chưa rõ nguồn)', w: 24 },
       { ten: 'Tên gọi', k: 'ten', w: 22 }, { ten: 'Loại', f: (r) => TT_LOAI[r.loai] || r.loai || '', w: 16 }, { ten: 'Đơn', k: 'don', kieu: 'so' }, { ten: 'SL', k: 'sl', kieu: 'so' },
       { ten: 'Doanh thu', k: 'dt', w: 15, kieu: 'tien' }, { ten: 'DT / ngày', f: (r) => tb1(r.dt, nX), w: 14, kieu: 'tien' }, { ten: 'Doanh thu từ LIVE', k: 'dt_live', w: 15, kieu: 'tien' }, { ten: 'Doanh thu từ video', k: 'dt_video', w: 15, kieu: 'tien' },
       { ten: 'Đơn huỷ', k: 'huy', kieu: 'so' }, { ten: 'SL qua LIVE', k: 'live', kieu: 'so' }, { ten: 'SL qua Video', k: 'video', kieu: 'so' },

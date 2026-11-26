@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
@@ -295,7 +295,7 @@ export default function TikTokShop() {
     <>
       <div className="cmdbar">
         <h1>TikTok Shop</h1>
-        <div className="sub">Đơn bán trên TikTok Shop — số đơn, số lượng, doanh thu theo sản phẩm, người bán, cửa hàng và kênh LIVE / Video / Trưng bày. Tự lấy qua API mỗi 5 phút; nạp thêm file Excel khi cần.</div>
+        <div className="sub">Đơn bán trên TikTok Shop — số đơn, số lượng, doanh thu theo sản phẩm, người bán, cửa hàng và kênh LIVE / Video / Trưng bày. Tự tải lại mỗi 5 phút.</div>
       </div>
       <div className="odn tts">
         {/* Nguồn dữ liệu */}
@@ -374,7 +374,7 @@ export default function TikTokShop() {
 
         {/* Thẻ */}
         <div className="odn-the" role="tablist">
-          {[['tq', 'Tổng quan'], ['td', 'Theo dõi ★', td.length || null], ['sp', 'Sản phẩm', bc?.sp?.length], ['nb', 'Người bán', bc ? new Set([...(bc.nb || []).map((x) => x.nb).filter(Boolean), ...Object.keys(bc.live_nb || {}), ...Object.keys(bc.video_nb || {})]).size : null],
+          {[['tq', 'Tổng quan'], ['td', 'Theo dõi ★', td.length || null], ['doi', 'Đội sale'], ['sp', 'Sản phẩm', bc?.sp?.length], ['nb', 'Người bán', bc ? new Set([...(bc.nb || []).map((x) => x.nb).filter(Boolean), ...Object.keys(bc.live_nb || {}), ...Object.keys(bc.video_nb || {})]).size : null],
             ['vl', 'Video & LIVE', bc ? (bc.live_top || []).length + (bc.video_top || []).length : null],
             ['ch', 'Cửa hàng', bc?.ch?.length], ['don', 'Đơn hàng', tongDon], ['gan', 'Gán cửa hàng', bc?.chua_gan || null],
             ['ds', 'Đối soát', soLech(api) || null]].map(([k, ten, so]) => (
@@ -389,6 +389,7 @@ export default function TikTokShop() {
           : the === 'tq' ? <TongQuan bc={bc} tongDon={tongDon} chonNb={(nb) => setCtId(nb)} />
           : the === 'td' ? <TheoDoi bc={bc} pLoc={pLoc} phienBan={phienBan} apiXong={apiXong} td={td} doiTd={doiTd}
               chonNb={(nb) => setCtId(nb)} />
+          : the === 'doi' ? <DoiSale pLoc={pLoc} phienBan={phienBan} apiXong={apiXong} chonNb={(nb) => setCtId(nb)} />   // NEW - 3.160.0
           : the === 'sp' ? <BangSanPham ds={bc.sp} />
           : the === 'nb' ? <BangNguoiBan bc={bc} td={td} doiTd={doiTd} chon={(nb) => setCtId(nb)} moGan={() => setThe('gan')} />
           : the === 'vl' ? <VideoLive bc={bc} chon={(nb) => setCtId(nb)} />
@@ -596,10 +597,10 @@ function BangSanPham({ ds }) {
 
 // NEW - 3.141: gộp 3 nguồn theo ID người bán — đơn (LIVE gắn theo mã phòng + Excel), thống kê phiên LIVE, thống kê video
 // NEW - 3.149: cột CỬA HÀNG đứng đầu và luôn có chữ — cửa hàng đã gán, hoặc nhóm theo loại (Kênh công ty, Đội sale,
-//   Nhà sáng tạo ngoài, Khác), đơn TikTok không ghi tài khoản nào → "Shop"; chưa gán → "Chưa gán" + nút Gán
+//   Nhà sáng tạo ngoài, Khác), đơn chưa có dữ liệu nguồn → "Chưa rõ nguồn"; chưa gán → "Chưa gán" + nút Gán
 const NHOM_LOAI = { KENH: 'Kênh công ty', DOISALE: 'Đội sale', KOL: 'Nhà sáng tạo ngoài', KHAC: 'Khác', CH: 'Cửa hàng — chưa chọn' };
 function nhomCuaHang(r) {
-  if (r.nb === '') return { ten: 'Shop', phu: 'không qua tài khoản nào', loai: 'the' };   // NEW - 3.159.9
+  if (r.nb === '') return { ten: 'Chưa rõ nguồn', phu: 'đơn chưa có dữ liệu nguồn', loai: 'the' };   // NEW - 3.160.0
   if (r.ten_ch) return { ten: r.ten_ch, phu: r.ma_ch || '', loai: 'ch' };
   if (r.loai && NHOM_LOAI[r.loai]) return { ten: NHOM_LOAI[r.loai], phu: r.loai === 'CH' ? 'cần chọn cửa hàng' : 'không gắn cửa hàng', loai: r.loai === 'CH' ? 'chua' : 'nhom' };
   return { ten: 'Chưa gán', phu: 'cần gán cửa hàng / loại', loai: 'chua' };
@@ -631,8 +632,8 @@ function BangNguoiBan({ bc, td = [], doiTd, chon, moGan }) {
   return (
     <div className="odn-bang-khung">
       <div className="tts-ghi-nguon">
-        <span><b>Tổng theo đơn</b> (vùng xám): số chuẩn app tính từ chính các mã đơn — mỗi đơn tính cho đúng ID mà TikTok ghi nhận đã dẫn khách: mua ngay trong LIVE / video, mua từ trưng bày của ID, hoặc gián tiếp (xem LIVE / video của ID rồi mua sau) — khớp file kế toán. Tài khoản đổi tên / chuyển cửa hàng: đơn trước ngày đổi tính cho tên cũ. Đơn: đơn hợp lệ · SL: sản phẩm bán ra sau trả · Doanh thu: tiền shop thu sau giảm giá của shop · Huỷ: số đơn huỷ. Dùng cột này để so doanh thu giữa các ID / cửa hàng.</span>
-        <span><b>Từ LIVE / Từ video</b> (NEW - 3.159.9): phần doanh thu đến từ LIVE / video của ID, gồm cả khách xem rồi mua sau (gián tiếp); còn lại là trưng bày của ID.</span>
+        <span><b>Tổng theo đơn</b> (vùng xám): số chuẩn app tính từ chính các mã đơn — mỗi đơn tính cho đúng ID mà TikTok ghi nhận đã dẫn khách: mua ngay trong LIVE / video, mua từ trưng bày của ID, hoặc gián tiếp (xem LIVE / video của ID rồi mua sau) — khớp file kế toán. Đơn TikTok không ghi tài khoản nào = khách mua thẳng trên shop, tính cho tài khoản chính thoitrangnonson. Tài khoản đổi tên / chuyển cửa hàng: đơn trước ngày đổi tính cho tên cũ. Đơn: đơn hợp lệ · SL: sản phẩm bán ra sau trả · Doanh thu: tiền shop thu sau giảm giá của shop · Huỷ: số đơn huỷ. Dùng cột này để so doanh thu giữa các ID / cửa hàng.</span>
+        <span><b>Từ LIVE / Từ video</b> (NEW - 3.160.0): phần doanh thu đến từ LIVE / video của ID. Dòng nhỏ <b>mua sau</b> = khách xem LIVE / video rồi mới mua (gián tiếp) — đã nằm trong số trên, tách riêng để biết khách để giỏ rồi mới mua. Còn lại là trưng bày của ID.</span>
         <span><b>LIVE / Video</b> (NEW - 3.158): số phiên, người xem, số video có đơn, lượt xem — chỉ là số hoạt động. Tiền LIVE / video lấy ở cột Từ LIVE / Từ video (tính từ đơn, cùng một loại doanh thu với mọi nơi)
           {tk.live_den || tk.video_den ? ` (đang có tới ${tk.live_den ? 'LIVE ' + ngayVN(tk.live_den) : ''}${tk.video_den ? ' · video ' + ngayVN(tk.video_den) : ''})` : ''}.</span>
       </div>
@@ -651,8 +652,8 @@ function BangNguoiBan({ bc, td = [], doiTd, chon, moGan }) {
               <td className="so tts-dn"><b>{fmt(t.sl)}</b></td>
               <td className="so tts-dn tts-dt"><b>{tien(t.dt)}</b></td>
               <td className="so tts-dn bo-tbc"><b>{tbTien(t.dt, n)}</b></td>
-              <td className="so tts-dn">{tien(cong('dt_live'))}</td>
-              <td className="so tts-dn">{tien(cong('dt_video'))}</td>
+              <td className="so tts-dn">{tien(cong('dt_live'))}{cong('dt_live_gt') ? <div className="odn-phu tts-gt">mua sau {tien(cong('dt_live_gt'))}</div> : null}</td>
+              <td className="so tts-dn">{tien(cong('dt_video'))}{cong('dt_video_gt') ? <div className="odn-phu tts-gt">mua sau {tien(cong('dt_video_gt'))}</div> : null}</td>
               <td className="so tts-dn">{t.don_huy > 0 ? <span className="tts-huy">{fmt(t.don_huy)}</span> : '—'}</td>
               <td className="so tts-lv"><b>{fmt(cong('lv_phien'))}</b></td>
               <td className="so tts-lv"><b>{fmt(cong('lv_xem'))}</b></td>
@@ -675,14 +676,14 @@ function BangNguoiBan({ bc, td = [], doiTd, chon, moGan }) {
                     title={dangTd.has(r.nb) ? 'Đang theo dõi — bấm để bỏ' : 'Thêm vào Theo dõi ★'}
                     onClick={(e) => { e.stopPropagation(); doiTd(r.nb, !dangTd.has(r.nb)); }}>{dangTd.has(r.nb) ? '★' : '☆'}</button>}
                   <div><div className="odn-ten nho">{tenGoi(bc.ten_nb, r.nb)}</div>
-                  <div className="odn-phu">{r.nb ? (bc.ten_nb?.[r.nb] ? '@' + r.nb + ' · ' : '') + (r.loai ? LOAI[r.loai] || r.loai : 'chưa gán loại') : 'TikTok không ghi tài khoản nào dẫn khách'}</div></div>
+                  <div className="odn-phu">{r.nb ? (bc.ten_nb?.[r.nb] ? '@' + r.nb + ' · ' : '') + (r.loai ? LOAI[r.loai] || r.loai : 'chưa gán loại') : 'chưa có dữ liệu nguồn (thường là đơn chưa thanh toán)'}</div></div>
                 </div></td>
                 <td className="so tts-dn"><b>{r.don ? fmt(r.don) : '—'}</b></td>
                 <td className="so tts-dn">{r.sl ? fmt(r.sl) : '—'}</td>
                 <td className="so tts-dn tts-dt"><b>{r.dt ? tien(r.dt) : '—'}</b></td>
                 <td className="so tts-dn bo-tbc">{r.dt ? tbTien(r.dt, n) : '—'}</td>
-                <td className="so tts-dn">{r.dt_live ? tien(r.dt_live) : '—'}</td>
-                <td className="so tts-dn">{r.dt_video ? tien(r.dt_video) : '—'}</td>
+                <td className="so tts-dn">{r.dt_live ? <>{tien(r.dt_live)}{r.dt_live_gt ? <div className="odn-phu tts-gt">mua sau {tien(r.dt_live_gt)}</div> : null}</> : '—'}</td>{/* NEW - 3.160.0 */}
+                <td className="so tts-dn">{r.dt_video ? <>{tien(r.dt_video)}{r.dt_video_gt ? <div className="odn-phu tts-gt">mua sau {tien(r.dt_video_gt)}</div> : null}</> : '—'}</td>
                 <td className="so tts-dn">{r.huy > 0 ? <span className="tts-huy">{fmt(r.huy)}</span> : '—'}</td>
                 <td className="so tts-lv">{r.lv_phien ? fmt(r.lv_phien) : '—'}</td>
                 <td className="so tts-lv">{r.lv_xem ? fmt(r.lv_xem) : '—'}</td>
@@ -828,8 +829,9 @@ function TheTd({ e, ky, chonNb, doiTd }) {
         <div><div className="tts-td-nho">Kênh (SL bán)</div><ThanhKenh r={{ live: t.live, video: t.video, the: t.the, sl: t.sl }} />
           <div className="odn-phu">LIVE {pctTxt(t.live || 0, t.sl || 0)} · Video {pctTxt(t.video || 0, t.sl || 0)}</div></div>
         <div><div className="tts-td-nho">Doanh thu theo kênh</div>{/* NEW - 3.158: tính từ đơn; TikTok chỉ cho số phiên / người xem */}
-          <div className="odn-phu">LIVE: <b>{tien(t.dt_live || 0)}</b> · {fmt(e.live?.phien || 0)} phiên · {fmt(e.live?.xem || 0)} người xem</div>
-          <div className="odn-phu">Video: <b>{tien(t.dt_video || 0)}</b> · {fmt(e.video?.xem || 0)} lượt xem</div></div>
+          <div className="odn-phu">LIVE: <b>{tien(t.dt_live || 0)}</b>{t.dt_live_gt ? ` (mua sau ${tien(t.dt_live_gt)})` : ''} · {fmt(e.live?.phien || 0)} phiên · {fmt(e.live?.xem || 0)} người xem</div>
+          <div className="odn-phu">Video: <b>{tien(t.dt_video || 0)}</b>{t.dt_video_gt ? ` (mua sau ${tien(t.dt_video_gt)})` : ''} · {fmt(e.video?.xem || 0)} lượt xem</div>
+          {t.dt_the ? <div className="odn-phu">Trưng bày: <b>{tien(t.dt_the)}</b></div> : null}</div>
       </div>
       <div className="tts-td-nho">Sản phẩm bán ({fmt((e.sp || []).length)} mã · {fmt(t.so_sp || 0)} mã có đơn hợp lệ)</div>
       <div className="tts-td-sp">
@@ -970,7 +972,7 @@ function TheoDoi({ bc, pLoc, phienBan, apiXong, td, doiTd, chonNb }) {
                   <td><ThanhKenh r={{ live: r.e.tong?.live, video: r.e.tong?.video, the: r.e.tong?.the, sl: r.sl }} />
                     {/* NEW - 3.156.4: doanh thu theo kênh — tính từ đơn, có ngay trong ngày */}
                     <div className="odn-phu tts-td-kenh">LIVE <b>{r.e.tong?.dt_live ? tien(r.e.tong.dt_live) : '0'}</b> · Video <b>{r.e.tong?.dt_video ? tien(r.e.tong.dt_video) : '0'}</b>
-                      {r.e.tong?.dt_the ? <> · Thẻ <b>{tien(r.e.tong.dt_the)}</b></> : null}{r.lv_phien ? <> · {fmt(r.lv_phien)} phiên LIVE</> : null}</div></td>
+                      {r.e.tong?.dt_the ? <> · Trưng bày <b>{tien(r.e.tong.dt_the)}</b></> : null}{r.e.tong?.dt_live_gt ? <> · mua sau từ LIVE <b>{tien(r.e.tong.dt_live_gt)}</b></> : null}{r.lv_phien ? <> · {fmt(r.lv_phien)} phiên LIVE</> : null}</div></td>
                 </tr>
               ))}
               <tr className="tts-dong-tong">
@@ -1016,6 +1018,161 @@ function TheoDoi({ bc, pLoc, phienBan, apiXong, td, doiTd, chonNb }) {
 
         <div className="tts-td-tieu ngoai"><b>Chi tiết từng ID</b><span>so với {ky}</span></div>
         <div className="tts-td-luoi">{ds.map((e) => <TheTd key={e.handle} e={e} ky={ky} chonNb={chonNb} doiTd={doiTd} />)}</div>
+      </>)}
+    </div>
+  );
+}
+
+// NEW - 3.160.0: THẺ ĐỘI SALE (SQL 297 fn_tt_doi_sale) — theo dõi riêng từng đội như thẻ Theo dõi:
+//   mỗi đội = các ID gán vào đội (DOISALEnn); thêm / bỏ ID ngay tại đây (đổi luôn cửa hàng của ID, như thẻ Gán cửa hàng).
+//   Doanh thu, TRUNG BÌNH / NGÀY, đơn, SL, Từ LIVE / Từ video (kèm phần khách xem rồi mua sau), trưng bày, huỷ, so kỳ trước, theo ngày, từng ID.
+function DoiSale({ pLoc, phienBan, apiXong, chonNb }) {
+  const { user, baoToast } = useApp();
+  const n = useN();
+  const khoa = khoaNho('doi', { ...pLoc, nb: undefined, ch: undefined });
+  const [kq, setKq] = useState(() => boNho.get(khoa)?.data || null);
+  const [loi, setLoi] = useState('');
+  const [dang, setDang] = useState(false);
+  const [lan, setLan] = useState(0);
+  const [mo, setMo] = useState(null);
+  const [chonId, setChonId] = useState('');
+  const [chonDoi, setChonDoi] = useState('');
+  const [hoiBo, setHoiBo] = useState(null);
+  const [luu, setLuu] = useState(false);
+  const [chiSo, setChiSo] = useState('dt');
+  useEffect(() => {
+    const c = boNho.get(khoa);
+    if (c) { setKq(c.data); setLoi(''); }
+    if (!apiXong || (c && c.pb === phienBan && c.lan === lan)) return undefined;
+    let huy = false;
+    setDang(true);
+    sb.rpc('fn_tt_doi_sale', { p_token: user.token, p_loc: pLoc }).then(({ data, error }) => {
+      if (huy) return;
+      setDang(false);
+      if (error) { setLoi(error.message); return; }
+      boNho.set(khoa, { data, pb: phienBan, lan });
+      setLoi(''); setKq(data);
+    });
+    return () => { huy = true; };
+  }, [khoa, pLoc, phienBan, apiXong, user.token, lan]);
+
+  const gan = async (h, ma) => {
+    setLuu(true);
+    const { error } = await sb.rpc('fn_tt_nb_gan', { p_token: user.token, p_handle: h, p_ma_ch: ma || null, p_loai: ma ? 'DOISALE' : null });
+    setLuu(false); setHoiBo(null);
+    if (error) { baoToast('Chưa lưu được: ' + error.message); return; }
+    const tenDoi = (kq?.doi_ds || []).find((d) => d.ma_ch === ma)?.ten || ma;
+    baoToast(ma ? `Đã thêm @${h} vào ${tenDoi}` : `Đã bỏ @${h} khỏi đội`);
+    setChonId(''); setLan((x) => x + 1);
+  };
+
+  const doi = kq?.doi || [];
+  const hang = useMemo(() => doi.map((d) => {
+    const t = d.tong || {};
+    return { d, ma_ch: d.ma_ch, ten: d.ten, so_id: (d.ids || []).length, dt: t.dt || 0, tb: (t.dt || 0) / Math.max(1, n), don: t.don || 0, sl: t.sl || 0,
+      lv: t.dt_live || 0, lv_gt: t.dt_live_gt || 0, vd: t.dt_video || 0, vd_gt: t.dt_video_gt || 0, the: t.dt_the || 0,
+      huy: (t.huy || 0) / Math.max(1, (t.don || 0) + (t.huy || 0)), tr: d.truoc || {} };
+  }), [doi, n]);
+  const [hangSap, th] = useSap(hang, { k: 'dt', d: -1 });
+  const dtMax = Math.max(1, ...hang.map((r) => r.dt));
+  const tong = hang.reduce((a, r) => ({ dt: a.dt + r.dt, don: a.don + r.don, sl: a.sl + r.sl, lv: a.lv + r.lv, lv_gt: a.lv_gt + r.lv_gt, vd: a.vd + r.vd, vd_gt: a.vd_gt + r.vd_gt, the: a.the + r.the, tr: a.tr + (r.tr.dt || 0), so_id: a.so_id + r.so_id }),
+    { dt: 0, don: 0, sl: 0, lv: 0, lv_gt: 0, vd: 0, vd_gt: 0, the: 0, tr: 0, so_id: 0 });
+
+  const daCoDoi = new Set(doi.flatMap((d) => (d.ids || []).map((x) => x.handle)));
+  const chonThem = (kq?.tat_ca || []).filter((x) => !daCoDoi.has(x.handle))
+    .map((x) => ({ value: x.handle, label: x.ten ? `${x.ten} (@${x.handle})` : '@' + x.handle, sub: x.ten_ch || (x.loai ? LOAI[x.loai] : 'chưa gán') }));
+  const chonDoiDs = (kq?.doi_ds || []).map((d) => ({ value: d.ma_ch, label: d.ten }));
+  const ky = kq ? `kỳ trước ${ngayVN(kq.tu_truoc).slice(0, 5)}–${ngayVN(kq.den_truoc)}` : 'kỳ trước';
+  const motNgay = kq && kq.tu === kq.den;
+  const nhan = !kq || motNgay ? [] : cacNgay(kq.tu, kq.den);
+  const chuoi = [...hang].sort((a, b) => b.dt - a.dt).slice(0, 10).map((r, i) => {
+    const m = new Map((r.d.ngay || []).map((x) => [x.k, x]));
+    return { k: r.ma_ch, ten: r.ten, mau: mauTd(i), net: netTd(i), y: nhan.map((x) => Number(m.get(x)?.[chiSo] || 0)) };
+  });
+  const kenhO = (v, gt) => (v ? <>{tien(v)}{gt ? <div className="odn-phu tts-gt">mua sau {tien(gt)}</div> : null}</> : '—');
+
+  return (
+    <div className="tts-td">
+      <div className="tts-td-chon">
+        <div className="tts-td-chon-ds">
+          <b>{fmt(doi.length)} đội sale · {fmt(tong.so_id)} ID</b>
+          {dang && <span className="odn-phu">{kq ? 'đang cập nhật…' : 'Đang tải…'}</span>}
+        </div>
+        <div className="tts-doi-them">
+          <Sel value={chonId} placeholder="Chọn ID cần thêm" timKiem options={chonThem} onChange={setChonId} />
+          <Sel value={chonDoi} placeholder="Vào đội…" options={chonDoiDs} onChange={setChonDoi} />
+          <button className="btn btn-ai" disabled={!chonId || !chonDoi || luu} onClick={() => gan(chonId, chonDoi)}>Thêm vào đội</button>
+        </div>
+        <span className="odn-phu">Mỗi đội = các ID gán vào đội. Thêm / bỏ ID ở đây là đổi luôn cửa hàng của ID (như thẻ Gán cửa hàng). Khoảng ngày + bộ lọc kênh / loại hàng / trạng thái theo thanh lọc phía trên · so với {ky}.</span>
+      </div>
+      {loi && <div className="odn-bao do"><IcAlert /> Không tải được: {loi}</div>}
+
+      {kq && (<>
+        <div className="odn-bang-khung">
+          <div className="tts-td-tieu"><b>So sánh các đội</b><span>bấm 1 đội để xem từng ID · ▲▼ so với {ky}</span></div>
+          <table className="odn-bang tts-bang tts-td-bang tts-doi-bang">
+            <thead><tr>{th('ten', 'Đội')}{th('dt', 'Doanh thu', 'so')}{th('tb', 'TB / ngày', 'so')}{th('don', 'Đơn', 'so')}{th('sl', 'SL bán', 'so')}
+              {th('lv', 'Từ LIVE', 'so')}{th('vd', 'Từ video', 'so')}{th('the', 'Trưng bày', 'so')}{th('huy', 'Huỷ', 'so')}</tr></thead>
+            <tbody>
+              {hangSap.length === 0 && <tr><td colSpan={9} className="odn-trong">Chưa có ID nào gán vào đội sale.</td></tr>}
+              {hangSap.map((r) => (<Fragment key={r.ma_ch}>
+                <tr className={mo === r.ma_ch ? 'on' : ''} onClick={() => setMo(mo === r.ma_ch ? null : r.ma_ch)} title="Bấm xem từng ID của đội">
+                  <td><div className="odn-ten nho">{r.ten}</div><div className="odn-phu">{fmt(r.so_id)} ID · {(r.d.ids || []).map((x) => '@' + x.handle).join(', ')}</div></td>
+                  <td className="so tts-td-dt"><div><b>{tien(r.dt)}</b><Lech moi={r.dt} cu={r.tr.dt} /></div>
+                    <span className="tts-td-vach"><i style={{ width: (r.dt / dtMax) * 100 + '%', background: mauTd(0) }} /></span></td>
+                  <td className="so bo-tbc">{r.dt ? tbTien(r.dt, n) : '—'}</td>
+                  <td className="so"><b>{fmt(r.don)}</b><div><Lech moi={r.don} cu={r.tr.don} /></div></td>
+                  <td className="so">{fmt(r.sl)}</td>
+                  <td className="so">{kenhO(r.lv, r.lv_gt)}</td>
+                  <td className="so">{kenhO(r.vd, r.vd_gt)}</td>
+                  <td className="so">{r.the ? tien(r.the) : '—'}</td>
+                  <td className="so">{(r.huy * 100).toLocaleString('vi', { maximumFractionDigits: 1 })}%</td>
+                </tr>
+                {mo === r.ma_ch && (r.d.ids || []).map((x) => {
+                  const v = (r.d.theo_id || []).find((y) => y.handle === x.handle) || {};
+                  return (
+                    <tr key={x.handle} className="tts-doi-id">
+                      <td><div className="tts-doi-id-ten"><span>{x.ten || '@' + x.handle}</span>{x.ten && <small>@{x.handle}</small>}</div>
+                        <div className="tts-doi-id-nut">
+                          <button className="tts-link" onClick={(e) => { e.stopPropagation(); chonNb(x.handle); }}>Xem đơn</button>
+                          {hoiBo === x.handle
+                            ? <button className="tts-link do" disabled={luu} onClick={(e) => { e.stopPropagation(); gan(x.handle, null); }}>Bấm lần nữa để bỏ</button>
+                            : <button className="tts-link do" onClick={(e) => { e.stopPropagation(); setHoiBo(x.handle); }}>Bỏ khỏi đội</button>}
+                        </div></td>
+                      <td className="so">{v.dt ? tien(v.dt) : '—'}</td>
+                      <td className="so bo-tbc">{v.dt ? tbTien(v.dt, n) : '—'}</td>
+                      <td className="so">{v.don ? fmt(v.don) : '—'}</td>
+                      <td className="so">{v.sl ? fmt(v.sl) : '—'}</td>
+                      <td className="so">{kenhO(v.dt_live, v.dt_live_gt)}</td>
+                      <td className="so">{kenhO(v.dt_video, v.dt_video_gt)}</td>
+                      <td className="so">{v.dt_the ? tien(v.dt_the) : '—'}</td>
+                      <td className="so">{v.huy ? fmt(v.huy) + ' đơn' : '—'}</td>
+                    </tr>);
+                })}
+              </Fragment>))}
+              {hangSap.length > 0 && (
+                <tr className="tts-dong-tong">
+                  <td><div className="odn-ten">Cả các đội</div><div className="odn-phu">kỳ trước {tien(tong.tr)}</div></td>
+                  <td className="so"><b>{tien(tong.dt)}</b><Lech moi={tong.dt} cu={tong.tr} /></td>
+                  <td className="so bo-tbc"><b>{tbTien(tong.dt, n)}</b></td>
+                  <td className="so"><b>{fmt(tong.don)}</b></td><td className="so"><b>{fmt(tong.sl)}</b></td>
+                  <td className="so">{kenhO(tong.lv, tong.lv_gt)}</td><td className="so">{kenhO(tong.vd, tong.vd_gt)}</td>
+                  <td className="so">{tong.the ? tien(tong.the) : '—'}</td><td />
+                </tr>)}
+            </tbody>
+          </table>
+        </div>
+
+        {!motNgay && chuoi.length > 0 && (
+          <div className="tts-khung">
+            <div className="tts-khung-dau"><b>Diễn biến theo ngày{hang.length > 10 ? ' · 10 đội cao nhất' : ''}</b>
+              <div className="tts-nhanh nho">{[['dt', 'Doanh thu'], ['don', 'Đơn'], ['sl', 'SL bán']].map(([k, ten]) => (
+                <button key={k} className={chiSo === k ? 'on' : ''} onClick={() => setChiSo(k)}>{ten}</button>))}</div></div>
+            <BieuDoDuong nhan={nhan} chuoi={chuoi} dinhDang={(v) => (chiSo === 'dt' ? tien(v) : fmt(Math.round(v)))}
+              nhanX={(k, day) => (day ? ngayVN(k) : ngayVN(k).slice(0, 5))} />
+            <div className="tts-td-chu-giai">{chuoi.map((c) => (
+              <span key={c.k}><i style={{ borderTopColor: c.mau, borderTopStyle: c.net ? 'dashed' : 'solid' }} />{c.ten}</span>))}</div>
+          </div>)}
       </>)}
     </div>
   );
