@@ -107,6 +107,23 @@ export async function huyOdoo({ token, id, hanhDong, lyDo }) {
   try { return JSON.parse(t); } catch { return { ok: false, loi: `HTTP ${r.status}: ${t.slice(0, 300)}` }; }
 }
 
+// NEW - 303: NHẬN HÀNG TỪ APP — máy chủ kiểm quyền + số rồi gọi Odoo …/transfer/complete-incoming
+//   dong: [{ barcode, so_luong }] (0 = không nhận mã đó). Trả { ok, loi, thong_bao, tong, tong_con, can_ly_do? }
+export async function nhanOdoo({ token, name, dong, ghiChu = '', xemTruoc = false }) {
+  let r;
+  try {
+    r = await fetch(FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON}`, apikey: SUPABASE_ANON },
+      body: JSON.stringify({ token, hanh_dong: 'nhan', name, dong, ghi_chu: ghiChu, xem_truoc: !!xemTruoc }),
+    });
+  } catch (e) {
+    return { ok: false, loi: 'Không kết nối được máy chủ: ' + (e?.message || e) };
+  }
+  const t = await r.text();
+  try { return JSON.parse(t); } catch { return { ok: false, loi: `HTTP ${r.status}: ${t.slice(0, 300)}` }; }
+}
+
 // Sửa đơn (v3.118.0 — SQL 209): Odoo chưa có API sửa -> máy chủ huỷ đơn cũ rồi tạo đơn mới đã sửa (mã đơn mới)
 //   chiTiet: [{ barcode, sku, nhu_cau }] — số mới từng dòng (0 = bỏ mã). Trả { ok, name_moi, id_moi, odoo_id, loi, vuot?, chan_vuot?, huy_cu? }
 export async function suaOdoo({ token, id, chiTiet, lyDo, choVuot = false, xemTruoc = false }) {
