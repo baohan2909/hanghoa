@@ -7570,3 +7570,9 @@ body.tts-ct-khoa { overflow: hidden; }
 
 /* NEW - 3.166.0: nút Quản trị bật xem đơn huỷ */
 .odn-hien-huy.on { border-color: var(--magenta); color: #B0115C; background: #FDF2F7; }
+
+/* NEW - 3.167.0: Đội Sale › Chia từng đội — tồn âm đỏ, cột Tổng tồn */
+.ch-tbl td.am { color: #D6006C; font-weight: 800; }
+.ch-tbl td.c-tt { font-weight: 800; color: var(--ink); background: rgba(63,182,168,.07); }
+.ch-tbl td.c-tt.am { color: #D6006C; background: #FDF2F7; }
+.ch-tbl td.c-tt.mo { font-weight: 400; }

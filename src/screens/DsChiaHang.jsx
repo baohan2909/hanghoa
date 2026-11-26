@@ -136,6 +136,7 @@ const COT_SO = {
   ban: (x) => x.ban, v: (x) => (x.v ? r1(x.v) : 0), ton: (x) => x.ton, ve: (x) => x.ve,
   nd: (x) => (x.nd == null ? null : r1(x.nd)), th: (x) => x.th, them: (x) => x.them, goiY: (x) => x.goiY,
   nhan: (x) => x.nhan, ndSau: (x) => (x.nhan && x.ndSau != null ? r1(x.ndSau) : null), khoCon: (x) => x.khoCon, kd: (x) => x.kd,
+  tt: (x) => x.tt,   // NEW - 3.167.0 Tổng tồn
 };
 // Cột bảng (v3.112.0): "Tồn kho sale" đứng ngay trước "Chia thêm"; /ngày, Đủ ngày, Tổng nhận ẩn mặc định —
 // bật lại ở Tùy chỉnh Bàn làm việc (chỉ ẩn khỏi màn hình, số liệu và cách tính giữ nguyên)
@@ -149,6 +150,7 @@ const COT_MAC_DINH = [
   { k: 'th', ten: 'Thùng', mo: 'Số trong các thùng đã chọn', w: 66 },
   { k: 'kd', ten: 'Tồn kho sale', mo: 'Kho SA (phụ kiện: PK05001) còn khả dụng; dòng nhỏ = còn lại sau khi chia', w: 96 },
   { k: 'them', ten: 'Chia thêm', mo: 'Số chia thêm từ kho — luôn hiện', w: 92, khoa: true },
+  { k: 'tt', ten: 'Tổng tồn', mo: 'Tồn của đội sau khi chia xong và hàng về đủ = Tồn + Về / đi + Thùng + Chia thêm (âm = đang bán vượt tồn Odoo)', w: 80 },   // NEW - 3.167.0
   { k: 'goiY', ten: 'Gợi ý', mo: 'AI đề nghị: làm tròn theo giá sale, không vượt kho', w: 76 },
   { k: 'nhan', ten: 'Tổng nhận', mo: 'Thùng + chia thêm', w: 74, an: true },
   { k: 'ndSau', ten: 'Sau nhận', mo: 'Số ngày đủ bán sau khi nhận', w: 74 },
@@ -304,6 +306,7 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
       const khoCon = kd - them;   // chỉ phần chia thêm dùng kho (SA hoặc PK05001) — thùng không trừ
       const [nhomMa, size] = tachSize(r[1]);
       return { bc: r[0], mtc: r[1], n1: r[2], n3: r[3], img: r[4], ban, ban7: r[6], banCuoi: r[7], ton: r[8], ve: r[9], kd, v, co, nd, th, muc, goiY, them, nhan, ndSau, khoCon, moi: r[12],
+        tt: co + nhan,   // NEW - 3.167.0: Tổng tồn = tồn (kể cả âm) + về / đi + thùng + chia thêm
         pk, nhomMa, size, gia, nguonGia: r[16] || null, banMang: r[17] || 0, qt, can, len, thieu, tuiMacDinh, hm: pk ? '' : hoMau(r[1]), thuHoi,
         lechMuc: them > 0 && qt.buoc > 1 && lenMuc(them, qt) !== them };
     });
@@ -568,7 +571,9 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
           : '·'}</td>);
       case 'ban': return <td key={k} className={x.ban ? 'dam' : 'mo'}>{x.ban || '·'}</td>;
       case 'v': return <td key={k} className={x.v ? 'phu' : 'mo'}>{x.v ? x.v.toFixed(1) : '·'}</td>;
-      case 'ton': return <td key={k} className={x.ton ? '' : 'mo'}>{x.ton || '·'}</td>;
+      case 'ton': return <td key={k} className={x.ton < 0 ? 'am' : x.ton ? '' : 'mo'}
+        title={x.ton < 0 ? `Odoo đang ghi tồn ${x.ton}: đội đã bán nhiều hơn số Odoo ghi nhận nhập (hàng đã nhận nhưng chưa nhập kho trên Odoo)` : undefined}>
+        {x.ton ? fmtN(x.ton) : '·'}</td>;   // NEW - 3.167.0: tồn âm hiện đỏ
       case 've': return <td key={k} className={x.ve ? (x.ve < 0 ? 've am' : 've') : 'mo'}>{x.ve   // NEW - 3.139 bấm xem từng phiếu; âm = đang trả đi
         ? <button type="button" className="ve-nut" onClick={(e) => { e.stopPropagation(); setDvCt(x.bc); }}
             title={x.ve < 0 ? 'Đang chuyển đi (trả kho) — bấm xem phiếu' : 'Bấm xem từng phiếu đang về'}>{x.ve > 0 ? '+' + x.ve : '↩ ' + Math.abs(x.ve)}</button>
@@ -600,6 +605,10 @@ function ChiaDoi({ dsDoi, ts, taoDoi, moDoiMoi }) {
           {x.thieu > 0 && x.pk && <i className="ch-thieu-pk" title={giaiThich(x)}>−{x.thieu}</i>}
         </td>);
       case 'nhan': return <td key={k} className={x.nhan ? 'dam' : 'mo'}>{x.nhan || '·'}</td>;
+      case 'tt': return (   // NEW - 3.167.0: Tổng tồn sau khi chia + về hàng
+        <td key={k} className={'c-tt' + (x.tt < 0 ? ' am' : x.tt ? '' : ' mo')}
+          title={`Tồn ${fmtN(x.ton)}${x.ve ? ` ${x.ve > 0 ? '+' : '−'} ${fmtN(Math.abs(x.ve))} ${x.ve > 0 ? 'đang về' : 'đang trả đi'}` : ''}${x.th ? ` + ${fmtN(x.th)} thùng` : ''}${x.them ? ` + ${fmtN(x.them)} chia thêm` : ''} = ${fmtN(x.tt)}`}>
+          {x.tt ? fmtN(x.tt) : '·'}</td>);
       case 'ndSau': return <td key={k}><Ngay n={x.nhan ? x.ndSau : null} sapHet={sapHet} mucTieu={mucTieu} tonLau={tonLau} /></td>;
       default: return <td key={k} />;
     }
