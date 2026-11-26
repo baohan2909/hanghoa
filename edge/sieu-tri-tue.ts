@@ -127,7 +127,7 @@ const CONG_CU: J[] = [
   },
   {   // NEW - 285: TikTok Shop y như màn TikTok Shop
     name: "tiktok",
-    description: "TikTok Shop exactly like the 'TikTok Shop' screen: revenue, orders, qty, cancels; LIVE vs Video vs product card; per seller ID / channel account (e.g. 'Vành - Chính', 'Kết - Chính', 'Kết - Sale', store accounts). theo_doi=true = the user's 'Theo dõi ★' list (the special-watch IDs, '3 kênh theo dõi đặc biệt') with previous-period comparison. Without id/theo_doi = whole shop + top sellers. san_pham = products sold (ma, ten, sl, doanh_thu, don, don_huy, sl_huy, ly_do_huy, hinh = product IMAGE link) — ALWAYS use this tool (never hoi_so_lieu) for TikTok products / product images / cancelled products of an ID.",   // NEW - 3.160.1 (SQL 299)
+    description: "TikTok Shop exactly like the 'TikTok Shop' screen: revenue, orders, qty, cancels; LIVE vs Video vs product card; per seller ID / channel account (e.g. 'Vành - Chính', 'Kết - Chính', 'Kết - Sale', store accounts). theo_doi=true = the user's 'Theo dõi ★' list (the special-watch IDs, '3 kênh theo dõi đặc biệt') with previous-period comparison. Without id/theo_doi = whole shop + top sellers. san_pham = products sold (ma, ten, sl, doanh_thu, don, don_huy, sl_huy, ly_do_huy, hinh = product IMAGE link) — ALWAYS use this tool (never hoi_so_lieu) for TikTok products / product images / cancelled products of an ID. To show images write one line per product: ![MÃ · SL cái · doanh thu](MÃ) — put the product CODE (ma) in the parentheses, the app fills in the image.",   // NEW - 3.160.1 (SQL 299)
     input_schema: { type: "object", properties: {
       tu_ngay: { type: "string", description: "YYYY-MM-DD, default today" }, den_ngay: { type: "string", description: "YYYY-MM-DD, default today" },
       id: { type: "array", items: { type: "string" }, description: "seller ID names or @accounts" },
@@ -518,7 +518,7 @@ const LOI_DAN = [
   '- Every report answer must also give the average per day (TB/ngày) when the period is longer than 1 day.',
   '- chia_doi: "tầm 3–5 thùng" → thung {so_min:3, so_max:5}; "đủ 15 ngày" / "đủ bán 15 ngày" → chia_du_ngay 15 (NOT suc_ban_ngay; suc_ban_ngay only when the user says "sức bán N ngày"); "tồn sau không quá 500" → tran_ton_sau 500; "giao / còn 400 sản phẩm" → tran_giao 400; colours → look up colour codes, put them in uu_tien. Revisions → call chia_doi again keeping params from phuong_an_gan_nhat. More work after → lam_tiep:true.',
   "- Need data → CALL A TOOL NOW in this turn; never reply with only a plan.",
-  "- Product images: tool results give image links (hinh). To show images write one line per product exactly: ![MÃ · SL cái · doanh thu](link) — the app renders them as an image grid. Never say you cannot send images.",   // NEW - 3.160.1
+  "- Product images: write one line per product exactly: ![MÃ · SL cái · doanh thu](MÃ) — the product CODE (ma from the tool result) in the parentheses, never the long link; the app puts in the image and shows a grid. Never say you cannot send images.",   // NEW - 3.160.2
   "- A history line saying the previous request ran out of steps only means THAT request stopped. Every new request has full steps — never give step / turn / length limits as a reason; just do the work.",
 ].join("\n");
 function loiDan(q: J, man: string, nguCanh: unknown) {
@@ -652,7 +652,7 @@ async function chayVong(c: Ctx) {
     const kq = await goiAI(cfg, c.khoa, tam.sys, boCC, tam.msgs, dau ? 900 : 2400, ep);   // NEW - 3.160.1: đủ chỗ cho danh sách hình sản phẩm
     const ms = Date.now() - t0;
     tam.pt = ptToi;
-    const text = kq.blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+    let text = kq.blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
     const goi = kq.blocks.filter((b) => b.type === "tool_use");
     tam.stt = (tam.stt || 0) + 1;
     gui({ t: "buoc", stt: tam.stt, noi: "ai", nhan: tenBuoc, trang_thai: "xong", ms });
@@ -692,6 +692,13 @@ async function chayVong(c: Ctx) {
         return;
       }
     }
+    // NEW - 3.160.2 TRẢ LỜI BỊ ĐỨT (cổng AI có lúc cắt giữa chừng: "Xin", "![XH001-84A-KM4") → bảo viết tiếp 1 lần rồi ghép
+    if (!goi.length && text && !tam.da_noi && (/!\[[^\]\n]*$|\]\([^)\n]*$/.test(text) || (kq.ra <= 8 && text.length < 20))) {
+      tam.da_noi = true; tam.phan_dau = text;
+      tam.msgs.push({ role: "user", content: "Câu trả lời vừa rồi bị đứt ở cuối. Viết tiếp ĐÚNG từ chỗ đang dừng, không lặp lại phần đã viết." });
+      continue;
+    }
+    if (!goi.length && tam.phan_dau) { text = tam.phan_dau + text; tam.phan_dau = ""; }
     // NEW - 285 SOÁT SỐ: số tiền / số lớn trong câu trả lời phải có trong kết quả công cụ hoặc sổ số liệu
     if (!goi.length && text) {
       const sai = soChuaCo(tam, text);
@@ -718,6 +725,10 @@ async function chayVong(c: Ctx) {
       let r: J;
       try { r = g.name === "ghi_nho" ? await ghiNho(q, g.input) : CONG_CU_MAY[g.name] ? await CONG_CU_MAY[g.name](g.input, c) : { ok: false, loi: "Không có công cụ " + g.name }; } catch (e) { r = { ok: false, loi: String((e as Error)?.message || e).slice(0, 300) }; }
       if (r.ok !== false) ghiSo(tam, r);   // NEW - 285: số trong kết quả công cụ -> dùng để soát câu trả lời
+      if (r.ok !== false && Array.isArray(r.san_pham)) {   // NEW - 3.160.2: bảng mã → link hình, app tự điền vào ![..](MÃ)
+        tam.hinh = tam.hinh || {};
+        for (const x of r.san_pham) if (x?.ma && x?.hinh) tam.hinh[String(x.ma).toUpperCase()] = String(x.hinh);
+      }
       const ms1 = Date.now() - t1;
       kqMay[g.id] = r;
       if (r.ok !== false && g.name !== "ghi_nho" && g.name !== "danh_muc") tam.da_goi = (tam.da_goi || 0) + 1;   // NEW - 3.135 đếm công cụ lấy số / làm việc chạy thành công
@@ -741,7 +752,19 @@ async function chayVong(c: Ctx) {
   }
 }
 
+// NEW - 3.160.2: ![nhãn](MÃ) → ![nhãn](link hình của mã) theo kết quả công cụ; không có hình thì bỏ cú pháp hình, giữ chữ
+function ganHinh(tam: J, text: string): string {
+  const m: J = tam.hinh || {};
+  return text.replace(/!\[([^\]\n]*)\]\(([^)\s]+)\)/g, (all: string, nhan: string, dich: string) => {
+    if (/^https:\/\//i.test(dich)) return all;
+    const k = String(dich).toUpperCase();
+    const ma0 = String(nhan).split(/[·\s]/)[0].toUpperCase();
+    const url = m[k] || m[ma0];
+    return url ? `![${nhan}](${url})` : `- ${nhan}`;
+  });
+}
 async function ketThuc(c: Ctx, traLoi: string) {
+  traLoi = ganHinh(c.tam || {}, traLoi);   // NEW - 3.160.2: điền link hình sau khi đã soát số
   const the = c.tam.the || null;
   const nguon: string[] = c.tam.nguon || [];
   const cach: J[] = c.tam.cach || [], nho: J[] = c.tam.nho || [], tri: J[] = c.tam.tri || [];   // NEW - 3.133
