@@ -71,9 +71,22 @@ const tinTuMay = (ds) => (ds || []).map((x) => (x.vai === 'nguoi'
 function Chu({ text }) {
   const dong = String(text || '').split('\n');
   const inl = (s, k) => s.split(/(\*\*[^*]+\*\*)/g).map((p, i) => (p.startsWith('**') && p.endsWith('**') ? <b key={k + '-' + i}>{p.slice(2, -2)}</b> : p));
-  const out = []; let ds = [];
+  const out = []; let ds = []; let anh = [];
   const day = () => { if (ds.length) { out.push(<ul key={'u' + out.length}>{ds}</ul>); ds = []; } };
+  // NEW - 3.160.1: dòng "![nhãn](link hình)" (kể cả có gạch đầu dòng) -> lưới hình sản phẩm; bấm hình mở ảnh lớn
+  const dayAnh = () => {
+    if (!anh.length) return;
+    out.push(<div key={'a' + out.length} className="stt-anh-luoi">{anh.map((a, j) => (
+      <a key={j} className="stt-anh" href={a.url} target="_blank" rel="noopener noreferrer" title={a.nhan}>
+        <img src={a.url} alt={a.nhan} loading="lazy" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
+        <span>{inl(a.nhan + (a.them ? ' ' + a.them : ''), 'a' + j)}</span>
+      </a>))}</div>);
+    anh = [];
+  };
   dong.forEach((d, i) => {
+    const h0 = /^\s*(?:[-•*]\s+)?!\[([^\]]*)\]\((https:\/\/[^)\s]+)\)\s*(.*)$/.exec(d);
+    if (h0) { day(); anh.push({ nhan: h0[1], url: h0[2], them: h0[3] }); return; }
+    dayAnh();
     const m = /^\s*[-•*]\s+(.*)$/.exec(d);
     if (m) { ds.push(<li key={i}>{inl(m[1], i)}</li>); return; }
     day();
@@ -83,7 +96,7 @@ function Chu({ text }) {
     if (q) { if (q[1].trim()) out.push(<p key={i} className="stt-chu-ghi">{inl(q[1], i)}</p>); return; }
     if (d.trim()) out.push(<p key={i}>{inl(d, i)}</p>);
   });
-  day();
+  day(); dayAnh();
   return <div className="stt-chu">{out}</div>;
 }
 

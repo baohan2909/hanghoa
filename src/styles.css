@@ -7327,3 +7327,11 @@ body.tts-ct-khoa { overflow: hidden; }
   .tts-td-bang .tts-td-dt b { white-space: nowrap; }
   .tts-doi-id-nut { flex-direction: column; gap: 2px; }
 }
+
+/* NEW - 3.160.1: SIÊU TRÍ TUỆ — lưới hình sản phẩm trong câu trả lời */
+.stt-anh-luoi { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; margin: 6px 0 10px; }
+.stt-anh { display: flex; flex-direction: column; gap: 4px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 6px;
+  text-decoration: none; color: var(--ink); min-width: 0; }
+.stt-anh:hover { border-color: var(--gold); }
+.stt-anh img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 6px; background: #F6F8FB; }
+.stt-anh span { font-size: 11.5px; line-height: 1.3; overflow-wrap: anywhere; }

@@ -127,11 +127,12 @@ const CONG_CU: J[] = [
   },
   {   // NEW - 285: TikTok Shop y như màn TikTok Shop
     name: "tiktok",
-    description: "TikTok Shop exactly like the 'TikTok Shop' screen: revenue, orders, qty, cancels; LIVE vs Video vs product card; per seller ID / channel account (e.g. 'Vành - Chính', 'Kết - Chính', 'Kết - Sale', store accounts). theo_doi=true = the user's 'Theo dõi ★' list (the special-watch IDs, '3 kênh theo dõi đặc biệt') with previous-period comparison. Without id/theo_doi = whole shop + top sellers.",
+    description: "TikTok Shop exactly like the 'TikTok Shop' screen: revenue, orders, qty, cancels; LIVE vs Video vs product card; per seller ID / channel account (e.g. 'Vành - Chính', 'Kết - Chính', 'Kết - Sale', store accounts). theo_doi=true = the user's 'Theo dõi ★' list (the special-watch IDs, '3 kênh theo dõi đặc biệt') with previous-period comparison. Without id/theo_doi = whole shop + top sellers. san_pham = products sold (ma, ten, sl, doanh_thu, don, don_huy, sl_huy, ly_do_huy, hinh = product IMAGE link) — ALWAYS use this tool (never hoi_so_lieu) for TikTok products / product images / cancelled products of an ID.",   // NEW - 3.160.1 (SQL 299)
     input_schema: { type: "object", properties: {
       tu_ngay: { type: "string", description: "YYYY-MM-DD, default today" }, den_ngay: { type: "string", description: "YYYY-MM-DD, default today" },
       id: { type: "array", items: { type: "string" }, description: "seller ID names or @accounts" },
       theo_doi: { type: "boolean", description: "the user's Theo dõi ★ list" },
+      so_sp: { type: "number", description: "how many products in san_pham (default 30 with id, 10 without; max 60)" },
     } },
   },
   {   // NEW - 285: Online (Nhanh) y như màn Online
@@ -143,7 +144,7 @@ const CONG_CU: J[] = [
   },
   {
     name: "hoi_so_lieu",
-    description: "Run ONE read-only SELECT (max 300 rows) only when no other tool covers the question. Never for revenue (use doanh_thu / tiktok / online).\n" + SCHEMA_GON,
+    description: "Run ONE read-only SELECT (max 300 rows) only when no other tool covers the question. Never for revenue (use doanh_thu / tiktok / online). Never for TikTok Shop orders / products / images (use tiktok).\n" + SCHEMA_GON,
     input_schema: { type: "object", properties: {
       cau_hoi: { type: "string", description: "Short question in Vietnamese (shown to the user)" },
       cach_tinh: { type: "string", description: "One honest line in Vietnamese: which data, filters and period the numbers use (shown to the user under 'Cách tính')" },
@@ -476,11 +477,11 @@ async function goiMot(cfg: J, khoa: string, mo_hinh: string, sys: string, tools:
       let input: J = {}; try { input = JSON.parse(c.function?.arguments || "{}"); } catch { /* */ }
       blocks.push({ type: "tool_use", id: c.id, name: c.function?.name, input });
     });
-    return { blocks, vao: j?.usage?.prompt_tokens || 0, ra: j?.usage?.completion_tokens || 0, mo_hinh, u: j?.usage || null };
+    return { blocks, vao: j?.usage?.prompt_tokens || 0, ra: j?.usage?.completion_tokens || 0, mo_hinh, u: { ...(j?.usage || {}), stop: j?.choices?.[0]?.finish_reason ?? null } };
   }
   const blocks = (j?.content || []).filter((b: J) => b.type === "text" || b.type === "tool_use").map((b: J) => (b.type === "text" ? { type: "text", text: b.text } : { type: "tool_use", id: b.id, name: b.name, input: b.input ?? {} }));
   const u = j?.usage || {};
-  return { blocks, vao: (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0), ra: u.output_tokens || 0, mo_hinh, u };
+  return { blocks, vao: (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0), ra: u.output_tokens || 0, mo_hinh, u: { ...u, stop: j?.stop_reason ?? null } };   // NEW - 3.160.1: lý do dừng
 }
 async function goiAI(cfg: J, khoa: string, sys: string, tools: J[], msgs: J[], maxTok = 1400, ep = false): Promise<KqAI> {
   const chinh = String(cfg.mo_hinh || "claude-opus-5-5");
@@ -517,6 +518,8 @@ const LOI_DAN = [
   '- Every report answer must also give the average per day (TB/ngày) when the period is longer than 1 day.',
   '- chia_doi: "tầm 3–5 thùng" → thung {so_min:3, so_max:5}; "đủ 15 ngày" / "đủ bán 15 ngày" → chia_du_ngay 15 (NOT suc_ban_ngay; suc_ban_ngay only when the user says "sức bán N ngày"); "tồn sau không quá 500" → tran_ton_sau 500; "giao / còn 400 sản phẩm" → tran_giao 400; colours → look up colour codes, put them in uu_tien. Revisions → call chia_doi again keeping params from phuong_an_gan_nhat. More work after → lam_tiep:true.',
   "- Need data → CALL A TOOL NOW in this turn; never reply with only a plan.",
+  "- Product images: tool results give image links (hinh). To show images write one line per product exactly: ![MÃ · SL cái · doanh thu](link) — the app renders them as an image grid. Never say you cannot send images.",   // NEW - 3.160.1
+  "- A history line saying the previous request ran out of steps only means THAT request stopped. Every new request has full steps — never give step / turn / length limits as a reason; just do the work.",
 ].join("\n");
 function loiDan(q: J, man: string, nguCanh: unknown) {
   const now = new Date(Date.now() + 7 * 3600000);
@@ -646,7 +649,7 @@ async function chayVong(c: Ctx) {
     // câu hỏi số liệu: lượt đầu BẮT BUỘC gọi công cụ (không trả lời suông / không bịa); bị nhắc lại cũng ép
     const ep = (dau && !!tam.ep) || !!tam.nhac_ep;
     tam.nhac_ep = false;
-    const kq = await goiAI(cfg, c.khoa, tam.sys, boCC, tam.msgs, dau ? 900 : 1500, ep);
+    const kq = await goiAI(cfg, c.khoa, tam.sys, boCC, tam.msgs, dau ? 900 : 2400, ep);   // NEW - 3.160.1: đủ chỗ cho danh sách hình sản phẩm
     const ms = Date.now() - t0;
     tam.pt = ptToi;
     const text = kq.blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
@@ -753,8 +756,9 @@ function lichSu(ls: J[], yeuCau: string): J[] {
   const out: J[] = [];
   for (const m of (ls || []).slice(-6)) {
     const role = m.vai === "ai" ? "assistant" : "user";
-    const text = String(m.noi_dung || "").slice(0, 600);
+    let text = String(m.noi_dung || "").slice(0, 600);
     if (!text) continue;
+    if (role === "assistant" && /dùng hết số lượt xử lý/.test(text)) text = "(Yêu cầu trước dừng giữa chừng, chưa có kết quả — câu này làm lại từ đầu.)";   // NEW - 3.160.1
     if (!out.length && role !== "user") continue;
     if (out.length && out[out.length - 1].role === role) out[out.length - 1].content += "\n" + text;
     else out.push({ role, content: text });
