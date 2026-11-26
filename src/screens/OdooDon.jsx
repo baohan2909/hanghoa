@@ -40,7 +40,7 @@ function ChoNhan({ h }) {
 
 export const TT_GUI = {
   thanh_cong: ['Odoo đã nhận', 'ok'], loi: ['Gửi lỗi', 'do'], can_xem: ['Cần xem phản hồi', 'vang'],
-  dang_gui: ['Đang gửi', 'xanh'], da_bo: ['Đã bỏ', 'xam'],
+  dang_gui: ['Đang gửi', 'xanh'], da_bo: ['Đã huỷ', 'xam'],   // NEW - 3.166.0: đơn bỏ = huỷ
 };
 export const BUOC = {
   2: 'Chưa vào Odoo', 3: 'Odoo đã nhận', 4: 'Chờ duyệt', 5: 'Đã duyệt · chờ xuất', 6: 'Xuất kho · đang giao', 7: 'Cửa hàng đã nhận', '-1': 'Huỷ / từ chối',
@@ -118,7 +118,7 @@ const nhanMat = (d, k, t) => (d === 'canh' && CANH[k] ? CANH[k][0] : NHAN_MAT[d]
 // trạng thái chữ của 1 phiếu
 function trangThai(r) {
   const b = r.b7 || [];
-  if (r.dc === 'huy') return r.odoo_ct && r.odoo_ct !== 'Bị hủy' ? r.odoo_ct : 'Đã huỷ';
+  if (r.dc === 'huy' || r.trang_thai === 'da_bo') return 'Đã huỷ';   // NEW - 3.166.0: huỷ / xoá / bỏ chung một trạng thái
   if (b[1] === 4) return TT_GUI[r.trang_thai]?.[0] || 'Gửi lỗi';
   if (r.nguon === 'APP' && !r.state) return r.trang_thai === 'dang_gui' ? 'Đang gửi Odoo' : 'Chờ Odoo nhận';
   if (r.buoc7 === 7 && b[6] === 1) return 'Nhận một phần';
@@ -130,7 +130,7 @@ export default function OdooDon({ nhung = false, locDau = null }) {
   const odoo = useOdooCfg(user);
   const laCH = user.vai_tro === 'CH';
   const [loc, setLoc] = useState(() => ({
-    tu: truNgay(29), den: isoVN(), nguoi: '', kho: '', man: '', nguon: '', buoc: '', dc: '', vc: '',
+    tu: truNgay(29), den: isoVN(), nguoi: '', kho: '', man: '', nguon: '', buoc: '', dc: '', vc: '', hien_huy: false,
     nhom: typeof locDau === 'string' ? locDau : (!nhung && nhomDau()) || '', ...(locDau && typeof locDau === 'object' ? locDau : {}),
   }));
   // NEW - 304: đang mở màn mà bấm số đỏ "báo thiếu" trên menu -> chuyển sang thẻ Nhận thiếu
@@ -168,13 +168,13 @@ export default function OdooDon({ nhung = false, locDau = null }) {
     setDangTai(true); setLoi('');
     const { data, error } = await sb.rpc('fn_odoo_don_ds', {
       p_token: user.token,
-      p_loc: { ...base, nhom: loc.nhom, q: qTre, buoc: loc.buoc, dc: loc.dc, vc: loc.vc, sap: sap.k === 'cho_gio' ? 'cho' : '', cot: cotGui },
+      p_loc: { ...base, nhom: loc.nhom, q: qTre, buoc: loc.buoc, dc: loc.dc, vc: loc.vc, sap: sap.k === 'cho_gio' ? 'cho' : '', cot: cotGui, hien_huy: !!loc.hien_huy },
     });
     if (lan !== lanTai.current) return;
     setDangTai(false);
     if (error) { setLoi(error.message); return; }
     setDs({ ...data, q: qTre });
-  }, [user.token, base, loc.nhom, loc.buoc, loc.dc, loc.vc, qTre, sap.k, cotGui]);
+  }, [user.token, base, loc.nhom, loc.buoc, loc.dc, loc.vc, loc.hien_huy, qTre, sap.k, cotGui]);
   useEffect(() => { taiTq(); }, [taiTq]);
   useEffect(() => { taiDs(); }, [taiDs]);
   const tai = useCallback(() => { taiTq(); taiDs(); }, [taiTq, taiDs]);
@@ -206,6 +206,7 @@ export default function OdooDon({ nhung = false, locDau = null }) {
   const coLoc = loc.nguoi || loc.kho || loc.man || loc.nhom || loc.nguon || loc.buoc || loc.dc || loc.vc || q || Object.keys(cotGui).length > 0;
   const dongBo = ds?.dong_bo || tq?.dong_bo;
   const dangTim = !!q.trim() && (q.trim() !== qTre || dangTai);   // NEW - 3.165.0
+  const laAdmin = user.vai_tro === 'ADMIN';   // NEW - 3.166.0: chỉ Quản trị bật xem đơn huỷ
   const datLoc = (k) => (v) => setLoc((l) => ({ ...l, [k]: v }));
 
   const noiDung = (
@@ -222,9 +223,9 @@ export default function OdooDon({ nhung = false, locDau = null }) {
       </div>
 
       {/* Ô chỉ số — bấm để lọc */}
-      <div className={'odn-kpi' + (tq?.quyen?.ql ? ' co-bt' : '')}>
-        {KPI.map(([k, t, dac, mau]) => {
-          const so = dac === 'tong' ? tq?.tong : dem[k] || 0;
+      <div className={'odn-kpi' + (tq?.quyen?.ql ? ' co-bt' : '')} style={{ '--odn-k': KPI.length - (laAdmin ? 0 : 1) + (tq?.quyen?.ql ? 1 : 0) }}>
+        {KPI.filter(([k]) => k !== 'huy' || laAdmin).map(([k, t, dac, mau]) => {   // NEW - 3.166.0: ô Huỷ chỉ Quản trị thấy
+          const so = dac === 'tong' ? tq?.tong : k === 'huy' ? tq?.so_huy || 0 : dem[k] || 0;
           return (
             <button key={k || 'tat'} className={'odn-k' + (loc.nhom === k ? ' on' : '') + (mau && so > 0 ? ' ' + mau : '')}
               onClick={() => setLoc((l) => ({ ...l, nhom: l.nhom === k ? '' : k }))}>
@@ -255,6 +256,9 @@ export default function OdooDon({ nhung = false, locDau = null }) {
           <Sel value={loc.man} onChange={datLoc('man')} placeholder="Màn tạo đơn"
             options={[{ value: '', label: 'Mọi màn tạo đơn' }, ...Object.entries(MAN).map(([k, t]) => ({ value: k, label: t }))]} />
         </>}
+        {laAdmin && <button type="button" className={'odn-nut-phu odn-hien-huy' + (loc.hien_huy ? ' on' : '')} aria-pressed={!!loc.hien_huy}
+          title="Đơn huỷ / xoá / bỏ đang ẩn với mọi người — chỉ Quản trị bật xem khi cần"
+          onClick={() => setLoc((l) => ({ ...l, hien_huy: !l.hien_huy }))}>{loc.hien_huy ? 'Đang hiện đơn huỷ' : 'Hiện đơn huỷ'}{tq?.so_huy ? ` · ${fmt(tq.so_huy)}` : ''}</button>}
         {coLoc && <button className="odn-nut-phu" onClick={() => { setQ(''); setCot({}); setLoc((l) => ({ ...l, nguoi: '', kho: '', man: '', nhom: '', nguon: '', buoc: '', dc: '', vc: '' })); }}>Bỏ lọc</button>}
         {!laCH && <button className="btn btn-ai odn-nut-chinh odn-tao" onClick={() => setTao(true)} title={odoo ? 'Tạo đơn điều chuyển mới' : 'Soạn đơn — tài khoản chưa mở gửi Odoo thì xuất Excel'}>
           <IcGuiLen /> Tạo đơn mới</button>}
@@ -433,7 +437,7 @@ function Nguon({ n }) {
 function Buoc7({ r }) {
   const b = r.b7 || [];
   return (
-    <div className={'odn-tt' + (r.dc === 'huy' ? ' huy' : '') + (b[1] === 4 ? ' loi7' : '')}>
+    <div className={'odn-tt' + (r.dc === 'huy' || r.trang_thai === 'da_bo' ? ' huy' : b[1] === 4 ? ' loi7' : '')}>
       <div className="odn-tt-doi">{B7_TEN.map((t, i) => <i key={i} className={'b' + (b[i] ?? 0)} title={t + ({ 2: ': xong', 1: ': đang ở bước này', 3: ': chưa có dữ liệu', 4: ': lỗi', 5: ': huỷ' }[b[i]] || '')} />)}</div>
       <span>{trangThai(r)}</span>
     </div>

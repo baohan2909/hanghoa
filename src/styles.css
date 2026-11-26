@@ -5074,7 +5074,7 @@ button.pdh-dc:hover { border-color: #3FB6A8; } .pdh-dc.on { border-color: #1E5F6
 .sd-tong { font-size: 12.5px; color: var(--ink-2); }
 .sd-cho { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-weight: 700; }
 /* NEW - 304: thẻ lọc "Nhận thiếu" (ô thứ 9, chỉ Quản trị / Điều phối) + khối báo thiếu trong phiếu */
-.odn-kpi.co-bt { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+.odn-kpi, .odn-kpi.co-bt { grid-template-columns: repeat(var(--odn-k, 8), minmax(0, 1fr)); }   /* 3.166.0: số ô theo quyền (ô Huỷ chỉ Quản trị) */
 @media (max-width: 1200px) { .odn-kpi.co-bt { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @media (max-width: 720px) {
   .odn-kpi.co-bt { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -7567,3 +7567,6 @@ body.tts-ct-khoa { overflow: hidden; }
 @keyframes odn-chay { from { left: -35%; } to { left: 100%; } }
 @media (prefers-reduced-motion: reduce) { .odn-xoay, .odn-tai-thanh::after { animation-duration: 2.4s; } }
 .kn-xn-dau > div { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+
+/* NEW - 3.166.0: nút Quản trị bật xem đơn huỷ */
+.odn-hien-huy.on { border-color: var(--magenta); color: #B0115C; background: #FDF2F7; }
