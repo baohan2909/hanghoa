@@ -162,15 +162,18 @@ export default function OdooDon({ nhung = false, locDau = null }) {
     if (error) { setLoi(error.message); return; }
     setTq(data);
   }, [user.token, base]);
+  const lanTai = useRef(0);   // NEW - 3.165.0: gõ nhanh nhiều lần → chỉ nhận kết quả của lần gọi mới nhất
   const taiDs = useCallback(async () => {
+    const lan = ++lanTai.current;
     setDangTai(true); setLoi('');
     const { data, error } = await sb.rpc('fn_odoo_don_ds', {
       p_token: user.token,
       p_loc: { ...base, nhom: loc.nhom, q: qTre, buoc: loc.buoc, dc: loc.dc, vc: loc.vc, sap: sap.k === 'cho_gio' ? 'cho' : '', cot: cotGui },
     });
+    if (lan !== lanTai.current) return;
     setDangTai(false);
     if (error) { setLoi(error.message); return; }
-    setDs(data);
+    setDs({ ...data, q: qTre });
   }, [user.token, base, loc.nhom, loc.buoc, loc.dc, loc.vc, qTre, sap.k, cotGui]);
   useEffect(() => { taiTq(); }, [taiTq]);
   useEffect(() => { taiDs(); }, [taiDs]);
@@ -202,6 +205,7 @@ export default function OdooDon({ nhung = false, locDau = null }) {
   const dem = tq?.dem || {};
   const coLoc = loc.nguoi || loc.kho || loc.man || loc.nhom || loc.nguon || loc.buoc || loc.dc || loc.vc || q || Object.keys(cotGui).length > 0;
   const dongBo = ds?.dong_bo || tq?.dong_bo;
+  const dangTim = !!q.trim() && (q.trim() !== qTre || dangTai);   // NEW - 3.165.0
   const datLoc = (k) => (v) => setLoc((l) => ({ ...l, [k]: v }));
 
   const noiDung = (
@@ -240,13 +244,14 @@ export default function OdooDon({ nhung = false, locDau = null }) {
 
       {/* Bộ lọc */}
       <div className="odn-loc">
-        <label className="odn-tim"><IcSearch />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Mã đơn, mã XKDC / NKDC, mã vận đơn, cửa hàng, mã hàng, ghi chú…" /></label>
+        <label className={'odn-tim' + (dangTim ? ' dang' : '')}>{dangTim ? <i className="odn-xoay" aria-hidden="true" /> : <IcSearch />}
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Mã đơn, cửa hàng (mã hoặc tên, gõ không dấu được), mã hàng, vận đơn, XKDC / NKDC…" />
+          {q && <button type="button" className="odn-tim-xoa" onClick={() => setQ('')} aria-label="Xoá từ khoá">×</button>}</label>
         <DateBox label="Từ" value={loc.tu} onChange={datLoc('tu')} />
         <DateBox label="Đến" value={loc.den} onChange={datLoc('den')} />
         {!laCH && <>
           <Sel value={loc.nguoi} onChange={datLoc('nguoi')} placeholder="Người gửi"
-            options={[{ value: '', label: 'Mọi người gửi' }, ...(tq?.nguoi || []).map((k) => ({ value: k, label: k }))]} />
+            options={[{ value: '', label: 'Mọi người gửi' }, ...(tq?.nguoi || []).map((k) => ({ value: k, label: tq?.nguoi_ten?.[k] && tq.nguoi_ten[k] !== k ? `${k} · ${tq.nguoi_ten[k]}` : k }))]} />
           <Sel value={loc.man} onChange={datLoc('man')} placeholder="Màn tạo đơn"
             options={[{ value: '', label: 'Mọi màn tạo đơn' }, ...Object.entries(MAN).map(([k, t]) => ({ value: k, label: t }))]} />
         </>}
@@ -254,12 +259,17 @@ export default function OdooDon({ nhung = false, locDau = null }) {
         {!laCH && <button className="btn btn-ai odn-nut-chinh odn-tao" onClick={() => setTao(true)} title={odoo ? 'Tạo đơn điều chuyển mới' : 'Soạn đơn — tài khoản chưa mở gửi Odoo thì xuất Excel'}>
           <IcGuiLen /> Tạo đơn mới</button>}
       </div>
-      {ds?.tim_moi_ngay && <div className="odn-phu odn-tim-ghi">Đang tìm trên mọi ngày (bỏ qua khoảng ngày) vì có từ khoá.</div>}
+      {/* NEW - 3.165.0: luôn báo đang tìm / tìm được bao nhiêu */}
+      {q.trim() ? <div className={'odn-phu odn-tim-ghi' + (dangTim ? ' dang' : '')}>
+        {dangTim ? <>Đang tìm “{q.trim()}” trên mọi ngày…</>
+          : <>Tìm thấy <b>{fmt(ds?.tong || 0)}</b> phiếu cho “{ds?.q}” — mọi ngày, không phân biệt dấu (bỏ qua khoảng ngày).</>}
+      </div> : null}
 
       {loi && <div className="odn-bao do"><IcAlert /> Không tải được: {loi} <button onClick={tai}>Thử lại</button></div>}
 
       {/* Danh sách — mỗi dòng 6 thông tin */}
-      <div className="odn-bang-khung">
+      <div className={'odn-bang-khung' + (dangTai && ds ? ' dang' : '')}>
+        {dangTai && ds && <i className="odn-tai-thanh" aria-hidden="true" />}
         <table className="odn-bang">
           <thead><tr>
             {[['don', 'Đơn', 'name'], ['noi', 'Từ → đến', 'kho_yeu_cau'], ['buoc', 'Bước', 'buoc7'], ['vc', 'Vận chuyển', 'vc_luc'], ['sl', 'Xuất / yêu cầu', 'sl', 'so'],

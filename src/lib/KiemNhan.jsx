@@ -337,8 +337,10 @@ export default function KiemNhan({ ct, onDong, onXong }) {
           <div className="kn-xn-hop">
             <div className={'kn-xn-dau' + (thieu.length ? ' thieu' : ' du')}>
               <Vong pt={pt} tong={tong} tongCon={tongCon} />
-              <div><b>{thieu.length ? `Nhận ${fmt(tong)} / ${fmt(tongCon)} cái — thiếu ${fmt(tongCon - tong)}` : `Nhận đủ ${fmt(tong)} cái`}</b>
-                <span>{soDu}/{ds.length} mã đủ{thieu.length ? ` · ${thieu.length} mã thiếu sẽ báo về Quản trị / Điều phối` : ''}</span></div>
+              <div><b>{thieu.length ? `Nhận ${fmt(tong)} / ${fmt(tongCon)} cái` : `Nhận đủ ${fmt(tong)} cái`}</b>
+                <span>{soDu}/{ds.length} mã đủ{thieu.length ? ` · ${thieu.length} mã thiếu sẽ báo về Quản trị / Điều phối` : ''}</span>
+                {thieu.length ? <i className="kn-xn-chip"><IcAlert /> Thiếu {fmt(tongCon - tong)} cái</i>
+                  : <i className="kn-xn-chip du"><IcCheck /> Đủ cả phiếu</i>}</div>
             </div>
             {thieu.length > 0 && (
               <div className="kn-xn-thieu">

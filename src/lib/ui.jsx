@@ -16,6 +16,9 @@ export const isoVN = (d = new Date()) => {
 // - Thẻ/tab đang chọn = gradient chủ đạo + bóng mờ (class .on chuẩn).
 // ============================================================
 
+// NEW - 3.165.0: bỏ dấu tiếng Việt để tìm (hòa / hoà / hoa đều khớp)
+const boDau = (x) => String(x ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+
 export function Sel({ value, onChange, options, style, placeholder = 'Chọn…', timKiem }) {
   const [mo, setMo] = useState(false);
   const [pos, setPos] = useState(null);
@@ -59,7 +62,7 @@ export function Sel({ value, onChange, options, style, placeholder = 'Chọn…'
   };
   const chon = options.find((o) => o.value === value);
   const loc = coTim && q.trim()
-    ? options.filter((o) => (o.label || '').toString().toLowerCase().includes(q.trim().toLowerCase()))
+    ? options.filter((o) => boDau(o.label).includes(boDau(q.trim())))   // NEW - 3.165.0: tìm không dấu ("duc hoa" ra "Đức Hòa")
     : options;
   return (
     <div ref={ref} className="sel" style={style}>
