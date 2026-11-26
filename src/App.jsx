@@ -178,8 +178,14 @@ export default function App() {
   // TUYỆT ĐỐI không tự tải lại khi người dùng đang thao tác dở (dangBan).
   useEffect(() => {
     if (!user) return;
+    // NEW - 3.159.6: chỉ mời cập nhật khi bản phát hành MỚI HƠN bản đang chạy (bản phát hành cũ hơn → không báo, tránh tải lại vòng vòng)
+    const moiHon = (a, b) => {
+      const x = String(a).split('.').map((v) => parseInt(v, 10) || 0), y = String(b).split('.').map((v) => parseInt(v, 10) || 0);
+      for (let i = 0; i < Math.max(x.length, y.length); i += 1) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); }
+      return false;
+    };
     const soanh = (d) => {
-      if (!d || !d.ban || d.ban === __APP_VERSION__) { setBanMoi(null); return; }
+      if (!d || !d.ban || !moiHon(d.ban, __APP_VERSION__)) { setBanMoi(null); return; }
       setBanMoi({ ban: d.ban, bat_buoc: !!d.bat_buoc, ghi_chu: d.ghi_chu || '' });
     };
     const hoi = () => sb.rpc('fn_phien_ban').then(({ data }) => soanh(data), () => {});

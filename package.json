@@ -1,7 +1,7 @@
 {
   "name": "hanghoa",
   "private": true,
-  "version": "3.159.5",
+  "version": "3.159.6",
   "type": "module",
   "scripts": {
     "dev": "vite",

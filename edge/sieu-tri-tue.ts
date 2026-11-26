@@ -1,4 +1,4 @@
-// NS FLOW — Edge Function: sieu-tri-tue  (SIÊU TRÍ TUỆ — trợ lý AI điều hành · v3.159.5 · SQL 215–222, 285, 289)
+// NS FLOW — Edge Function: sieu-tri-tue  (SIÊU TRÍ TUỆ — trợ lý AI điều hành · v3.159.6 · SQL 215–222, 285, 289, 290)
 //
 // Luồng 1 lần giao việc:  app gửi yêu cầu + ngữ cảnh màn hình  ->  AI (FableAI) hiểu & chọn công cụ
 //   -> công cụ MÁY CHỦ (chỉ đọc: tong_quan, lich_de_nghi, dieu_chuyen, ho_so, xep_hang, hoi_so_lieu, danh_muc) chạy ngay tại đây
@@ -794,8 +794,18 @@ const HOC_DAN = [
   "3. Skip anything already covered by EXISTING KNOWLEDGE (same meaning). Prefer fewer, sharper lessons (max 15).",
   "4. Write cum_tu / cau_mau / noi_dung in Vietnamese, short and directly usable. cong_cu = exact tool name when the lesson is about a tool.",
   "5. Do not copy personal data of customers. Do not include secrets.",
-  'OUTPUT: only one JSON object, no markdown: {"tom_tat": "2-4 câu tiếng Việt: người dùng hỏi gì nhiều, AI làm tốt / sai chỗ nào", "bai": [{"loai": "...", "cum_tu": "...", "cau_mau": "...", "noi_dung": "...", "cong_cu": "...", "bang_chung": {"viec": ["..."], "ly_do": "..."}}]}',
+  "OUTPUT: call the tool ghi_bai_hoc exactly once (tom_tat = 2-4 câu tiếng Việt: người dùng hỏi gì, AI làm tốt / sai chỗ nào; bai = the lessons, may be empty).",
 ].join("\n");
+// NEW - 3.159.6: trả bài học qua công cụ bắt buộc → luôn đúng khuôn (không còn lỗi "AI không trả JSON")
+const CC_HOC: J = {
+  name: "ghi_bai_hoc", description: "Ghi kết quả tự học.",
+  input_schema: { type: "object", required: ["tom_tat", "bai"], properties: {
+    tom_tat: { type: "string" },
+    bai: { type: "array", items: { type: "object", required: ["loai", "noi_dung", "bang_chung"], properties: {
+      loai: { type: "string", enum: ["tu_ngu", "quy_tac", "sua_sai", "cau_mau", "kien_thuc"] },
+      cum_tu: { type: "string" }, cau_mau: { type: "string" }, noi_dung: { type: "string" }, cong_cu: { type: "string" },
+      bang_chung: { type: "object", required: ["viec"], properties: { viec: { type: "array", items: { type: "string" } }, ly_do: { type: "string" } } } } } } } },
+};
 function layJson(t: string): J | null {
   const a = t.indexOf("{"), b = t.lastIndexOf("}");
   if (a < 0 || b <= a) return null;
@@ -810,26 +820,26 @@ async function hocNen(cfg: J, bd: J) {
     const tl: J = await rpc("fn_ai_hoc_tu_lieu", { p_lan: lan });
     let cau: J[] = Array.isArray(tl?.cau_hoi) ? tl.cau_hoi : [];
     const coNoi = (x: J[]) => JSON.stringify(x).length;
-    // giữ trong trần còn lại (ước ~3 ký tự / token, chừa phần lời dặn + trả lời)
-    const congCu = CONG_CU.map((t) => `- ${t.name}: ${String(t.description || "").slice(0, 400)}`).join("\n");
-    const coDinh = (LOI_DAN.length + HOC_DAN.length + congCu.length + JSON.stringify(tl?.tri_thuc_dang_co || []).length + JSON.stringify(tl?.van_de_app || []).length) / 3;
+    // NEW - 3.159.6 GỌN: không gửi lại cả lời dặn, công cụ chỉ tên + 1 câu, tri thức đang có rút gọn (máy chủ tự lọc trùng)
+    const congCu = CONG_CU.map((t) => `- ${t.name}: ${String(t.description || "").split(/(?<=[.!?])\s/)[0].slice(0, 140)}`).join("\n");
+    const coDinh = (HOC_DAN.length + congCu.length + JSON.stringify(tl?.tri_thuc_dang_co || []).length + JSON.stringify(tl?.van_de_app || []).length) / 3;
     const conLai = Math.max(0, Number(bd.con_token || 0) - 8000);
     while (cau.length > 3 && coDinh + coNoi(cau) / 3 > conLai) cau = cau.slice(Math.ceil(cau.length / 5));
     if (coDinh + coNoi(cau) / 3 > conLai) throw new Error("Không đủ trần token còn lại hôm nay");
     const ids = new Set(cau.map((x) => String(x.viec)));
     const nd = [
-      "=== ASSISTANT SYSTEM RULES ===\n" + LOI_DAN,
       "=== ASSISTANT TOOLS ===\n" + congCu,
       "=== EXISTING KNOWLEDGE (do not duplicate) ===\n" + JSON.stringify(tl?.tri_thuc_dang_co || []),
       "=== APP ISSUES NOW (context only) ===\n" + JSON.stringify(tl?.van_de_app || []),
       `=== QUESTIONS ${tl?.tu || ""} → ${tl?.den || ""} (${cau.length}) ===\n` + cau.map((x) => JSON.stringify(x)).join("\n"),
     ].join("\n\n");
-    const kq = await goiAI({ ...cfg, khong_nho_dem: true }, khoa, HOC_DAN, [], [{ role: "user", content: nd }], 6000);
+    const kq = await goiAI({ ...cfg, khong_nho_dem: true }, khoa, HOC_DAN, [CC_HOC], [{ role: "user", content: nd }], 6000, true);
     vao = kq.vao; ra = kq.ra; mo_hinh = kq.mo_hinh;
     await rpc("fn_ai_bd_token", { p_nguoi: "AI_TU_HOC", p_mo_hinh: mo_hinh, p_vao: vao, p_ra: ra }).catch(() => {});
+    const tu = kq.blocks.find((b) => b.type === "tool_use" && b.name === "ghi_bai_hoc");
     const text = kq.blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n");
-    const j = layJson(text);
-    if (!j) throw new Error("AI không trả JSON: " + text.slice(0, 160));
+    const j = tu?.input && typeof tu.input === "object" ? tu.input : layJson(text);
+    if (!j) throw new Error("AI không trả kết quả đúng khuôn: " + text.slice(0, 160));
     // chỉ giữ bài học có bằng chứng là câu hỏi THẬT trong tư liệu
     const bai = (Array.isArray(j.bai) ? j.bai : []).filter((b: J) => {
       const v = Array.isArray(b?.bang_chung?.viec) ? b.bang_chung.viec.map(String).filter((x: string) => ids.has(x)) : [];
