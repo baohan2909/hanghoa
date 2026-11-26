@@ -5073,6 +5073,34 @@ button.pdh-dc:hover { border-color: #3FB6A8; } .pdh-dc.on { border-color: #1E5F6
 .sd-bo-nut[disabled] { opacity: .4; cursor: default; }
 .sd-tong { font-size: 12.5px; color: var(--ink-2); }
 .sd-cho { display: flex; gap: 6px; align-items: center; margin-top: 6px; font-weight: 700; }
+/* NEW - 304: thẻ lọc "Nhận thiếu" (ô thứ 9, chỉ Quản trị / Điều phối) + khối báo thiếu trong phiếu */
+.odn-kpi.co-bt { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+@media (max-width: 1200px) { .odn-kpi.co-bt { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (max-width: 720px) {
+  .odn-kpi.co-bt { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .odn-kpi.co-bt > .odn-k:last-child { grid-column: 1 / -1; }
+}
+.odn-bt { grid-column: 1 / -1; margin-top: 4px; padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(214,0,108,.28); background: #FDF2F7;
+  display: flex; flex-direction: column; gap: 5px; }
+.odn-bt.xong, .odn-bt.da_bu { border-color: rgba(22,121,74,.25); background: #F1FAF5; }
+.odn-bt-dau { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.odn-bt-dau b { font-size: 13px; color: #B0115C; }
+.odn-bt.xong .odn-bt-dau b, .odn-bt.da_bu .odn-bt-dau b { color: #16794A; }
+.odn-bt-dau em { font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--ink-2); }
+.odn-bt ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.odn-bt li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; font-size: 12px; }
+.odn-bt li b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.odn-bt li span { color: var(--ink-2); }
+.odn-bt li em { font-style: normal; font-weight: 700; color: #B0115C; }
+.odn-bt.xong li em, .odn-bt.da_bu li em { color: var(--ink-2); }
+.odn-bt small { font-size: 11.5px; color: var(--ink-2); }
+.odn-nhan-lan .odn-bt small { grid-column: auto; color: var(--ink-2); }
+.odn-bt-nut { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.odn-bt-nut .odn-nut-phu.on { border-color: var(--teal); color: var(--ink); box-shadow: 0 0 0 3px rgba(63,182,168,.15); }
+.odn-bt-nut textarea { flex: 1 1 100%; border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 12.5px; resize: vertical; background: #fff; }
+.odn-bt-nut textarea:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(63,182,168,.15); }
+.odn-bt-nut .odn-nut-chinh { flex: 1 1 100%; }
+.side-item .badge-dot[role="button"] { cursor: pointer; }
 /* NEW - 303: hộp Nhận hàng + nhật ký nhận qua app */
 .nh-tim { flex: none; }
 .nh-ds { max-height: min(46vh, 380px); }

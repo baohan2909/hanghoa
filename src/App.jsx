@@ -104,6 +104,7 @@ export default function App() {
   const [tab, setTab] = useState('xinhang');
   const [toast, setToast] = useState('');
   const [choXuLy, setChoXuLy] = useState(0);
+  const [baoThieu, setBaoThieu] = useState(0);      // NEW - 304: số phiếu cửa hàng báo thiếu khi nhận, chờ xử lý
   const [moMenu, setMoMenu] = useState(false);
   const [caiApp, setCaiApp] = useState(null);       // sự kiện cài PWA (nếu trình duyệt hỗ trợ)
   // NEW - 3.145: đang mở bằng ứng dụng đã cài (cửa sổ riêng / màn hình chính) → không hiện nút "Tải ứng dụng"
@@ -247,6 +248,22 @@ export default function App() {
     return () => clearInterval(t);
   }, [user]);
 
+  // NEW - 304: Quản trị / Điều phối — đếm phiếu cửa hàng báo thiếu khi nhận (2 phút / lần khi đang mở app, và ngay khi xử lý xong)
+  useEffect(() => {
+    if (!user || !['ADMIN', 'DIEU_PHOI'].includes(user.vai_tro)) { setBaoThieu(0); return undefined; }
+    let song = true;
+    const dem = async () => {
+      if (document.visibilityState === 'hidden') return;
+      const { data, error } = await sb.rpc('fn_odoo_bao_thieu_dem', { p_token: user.token });
+      if (song && !error) setBaoThieu(data?.so || 0);
+    };
+    dem();
+    const t = setInterval(dem, 120000);
+    document.addEventListener('visibilitychange', dem);
+    window.addEventListener('ns-bao-thieu-doi', dem);
+    return () => { song = false; clearInterval(t); document.removeEventListener('visibilitychange', dem); window.removeEventListener('ns-bao-thieu-doi', dem); };
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     setTab(TAB_MAC_DINH[user.vai_tro] || 'dashboard');
@@ -276,6 +293,13 @@ export default function App() {
     || (user.vai_tro === 'KHO' ? Kho : XinHang);
   const tabDem = user.vai_tro === 'KHO' ? 'kho' : 'duyet';
   const chonTab = (id) => { setTab(id); setMoMenu(false); };
+  // NEW - 304: bấm số đỏ báo thiếu -> mở Đơn hàng Odoo, lọc sẵn thẻ "Nhận thiếu"
+  const moBaoThieu = (e) => {
+    e.stopPropagation();
+    try { sessionStorage.setItem('ns_odoo_nhom', 'bao_thieu'); } catch { /* bỏ qua */ }
+    window.dispatchEvent(new CustomEvent('ns-odoo-nhom', { detail: 'bao_thieu' }));
+    chonTab('odoo');
+  };
 
   const sidebar = (
     <aside className={'sidebar' + (moMenu ? ' open' : '') + (gon ? ' gon' : '')} aria-label="Menu">
@@ -303,6 +327,8 @@ export default function App() {
                 onClick={() => chonTab(id)} title={gon ? ten : undefined}>
                 <Ic /><span className="side-txt">{ten}</span>
                 {id === tabDem && choXuLy > 0 && <span className="badge-dot">{choXuLy}</span>}
+                {id === 'odoo' && baoThieu > 0 && (
+                  <span className="badge-dot" role="button" title="Cửa hàng báo thiếu khi nhận — bấm để xem" onClick={moBaoThieu}>{baoThieu}</span>)}
               </button>
             ))}
           </div>
