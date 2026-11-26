@@ -5654,7 +5654,7 @@ body.ch-khoa-cuon .stt-tay .stt-tay-chu { font-size: 9.5px; }
   .stt-tay.chay .stt-tay-ray { background: linear-gradient(90deg, #3FB6A8, var(--gold)); }
   body.ch-khoa-cuon .stt-tay { top: calc(100dvh - 150px); bottom: auto; left: 100vw; width: 30px; height: auto; padding: 10px 0; flex-direction: column; border-radius: 12px 0 0 12px; z-index: 270; }
   body.ch-khoa-cuon .stt-tay .stt-tay-chu { display: none; }
-  .stt-ngan, .stt-ngan.rong { left: 0; top: var(--stt-vt, 0px); right: auto; bottom: auto; width: 100vw; height: 100vh; height: var(--stt-vh, 100dvh); box-shadow: none; animation: none; }
+  .stt-ngan, .stt-ngan.rong { left: 0; top: var(--stt-vt, 0px); right: auto; bottom: auto; width: 100vw; height: 100vh; height: var(--stt-vh, 100dvh); box-shadow: 0 0 0 100vh var(--bg);   /* NEW - 3.160.2: phủ kín phần hở dưới ô soạn khi bật bàn phím */ animation: none; }
   .stt-an-dt { display: none !important; }
   .stt-dau { padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
   .stt-dau-nut button span { display: none; }

@@ -433,8 +433,19 @@ export function SieuTriTueHost({ user, tab, chonTab, tabsDuoc, baoToast }) {
       setBanPhim(window.innerHeight - vv.height > 120);
     };
     f();
+    // NEW - 3.160.2: iPhone bật / tắt bàn phím có hiệu ứng → đo lại sau khi bàn phím đứng yên (khỏi hở nền trang phía dưới ô soạn)
+    const hen = [];
+    const doLai = () => { hen.forEach(clearTimeout); hen.length = 0; [80, 320, 700].forEach((ms) => hen.push(setTimeout(f, ms))); };
     vv.addEventListener('resize', f); vv.addEventListener('scroll', f);
-    return () => { vv.removeEventListener('resize', f); vv.removeEventListener('scroll', f); };
+    window.addEventListener('focusin', doLai); window.addEventListener('focusout', doLai);
+    // khoá cuộn trang phía sau khi ngăn mở trên điện thoại
+    const cu = document.body.style.overflow;
+    if (window.matchMedia('(max-width: 900px)').matches) document.body.style.overflow = 'hidden';
+    return () => {
+      vv.removeEventListener('resize', f); vv.removeEventListener('scroll', f);
+      window.removeEventListener('focusin', doLai); window.removeEventListener('focusout', doLai);
+      hen.forEach(clearTimeout); document.body.style.overflow = cu;
+    };
   }, [mo]);
   // NEW - 3.130 ô soạn MỞ khi chạm vào ô / bấm micro; chạm ra ngoài -> THU GỌN 1 hàng (chữ dài chỉ hiện 3 dòng đầu, mờ dần)
   const [soanMo, setSoanMo] = useState(false);

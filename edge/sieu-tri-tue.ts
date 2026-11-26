@@ -624,6 +624,18 @@ function tomTatMan(goi: J[], kq: J): string | null {
 // ---------------------------------------------------------------------------
 type Ctx = { q: J; cfg: J; khoa: string; viec: string; tam: J; gui: (o: J) => void; ghi: (fn: string, b: J) => void; ghiXong: () => Promise<void>; token?: string };
 
+// NEW - 3.160.2: nhận ra câu trả lời bị cắt (chỉ khi KHÔNG gọi công cụ): đậm / ngoặc kép / hình chưa đóng, hoặc quá ngắn mà không có dấu kết câu
+function catDo(kq: KqAI): boolean {
+  if (kq.blocks.some((b) => b.type === "tool_use")) return false;
+  const t = kq.blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+  if (!t) return true;
+  if (String(kq.u?.stop || "") === "max_tokens") return true;
+  if (((t.match(/\*\*/g) || []).length % 2) === 1) return true;
+  if (((t.match(/"/g) || []).length % 2) === 1) return true;
+  if (/!\[[^\]\n]*$|\]\([^)\n]*$/.test(t)) return true;
+  return kq.ra < 40 && !/[.!?…:)\]»"”*]\s*$/.test(t);
+}
+const doDai = (kq: KqAI) => kq.blocks.filter((b) => b.type === "text").map((b) => b.text).join("").length;
 async function chayVong(c: Ctx) {
   const { q, cfg, tam, gui, ghi } = c;
   const maxV = Math.max(2, Math.min(15, Number(cfg.max_vong) || 8));
@@ -649,7 +661,17 @@ async function chayVong(c: Ctx) {
     // câu hỏi số liệu: lượt đầu BẮT BUỘC gọi công cụ (không trả lời suông / không bịa); bị nhắc lại cũng ép
     const ep = (dau && !!tam.ep) || !!tam.nhac_ep;
     tam.nhac_ep = false;
-    const kq = await goiAI(cfg, c.khoa, tam.sys, boCC, tam.msgs, dau ? 900 : 2400, ep);   // NEW - 3.160.1: đủ chỗ cho danh sách hình sản phẩm
+    let kq = await goiAI(cfg, c.khoa, tam.sys, boCC, tam.msgs, dau ? 900 : 2400, ep);   // NEW - 3.160.1: đủ chỗ cho danh sách hình sản phẩm
+    // NEW - 3.160.2 CỔNG AI TRẢ CÂU BỊ ĐỨT (26/11: "Xin", "**Kênh \"Vành", "Để lấy" — báo end_turn dù chưa xong) → gọi lại y hệt, tối đa 2 lần
+    for (let thu = 1; thu <= 2 && catDo(kq); thu++) {
+      ghi("fn_ai_bd_token", { p_nguoi: q.ma, p_mo_hinh: kq.mo_hinh, p_vao: kq.vao, p_ra: kq.ra });
+      tam.vao = (tam.vao || 0) + kq.vao; tam.ra = (tam.ra || 0) + kq.ra;
+      tam.stt = (tam.stt || 0) + 1;
+      ghi("fn_ai_bd_buoc", { p_viec: c.viec, p: { stt: tam.stt, noi: "ai", ten: kq.mo_hinh, nhan: "Trả lời bị đứt giữa chừng — gọi lại lần " + thu, trang_thai: "loi", ms: Date.now() - t0,
+        ket_qua: { vao: kq.vao, ra: kq.ra, u: kq.u ?? null, dut: kq.blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").slice(-160) } } });
+      const k2 = await goiAI(cfg, c.khoa, tam.sys, boCC, tam.msgs, dau ? 900 : 2400, ep);
+      if (!catDo(k2) || doDai(k2) >= doDai(kq)) kq = k2;
+    }
     const ms = Date.now() - t0;
     tam.pt = ptToi;
     let text = kq.blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
@@ -692,13 +714,6 @@ async function chayVong(c: Ctx) {
         return;
       }
     }
-    // NEW - 3.160.2 TRẢ LỜI BỊ ĐỨT (cổng AI có lúc cắt giữa chừng: "Xin", "![XH001-84A-KM4") → bảo viết tiếp 1 lần rồi ghép
-    if (!goi.length && text && !tam.da_noi && (/!\[[^\]\n]*$|\]\([^)\n]*$/.test(text) || (kq.ra <= 8 && text.length < 20))) {
-      tam.da_noi = true; tam.phan_dau = text;
-      tam.msgs.push({ role: "user", content: "Câu trả lời vừa rồi bị đứt ở cuối. Viết tiếp ĐÚNG từ chỗ đang dừng, không lặp lại phần đã viết." });
-      continue;
-    }
-    if (!goi.length && tam.phan_dau) { text = tam.phan_dau + text; tam.phan_dau = ""; }
     // NEW - 285 SOÁT SỐ: số tiền / số lớn trong câu trả lời phải có trong kết quả công cụ hoặc sổ số liệu
     if (!goi.length && text) {
       const sai = soChuaCo(tam, text);
