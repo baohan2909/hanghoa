@@ -14,7 +14,7 @@ const useN = () => useContext(SoNgay);
 // ============================================================================
 // NEW - 3.140 TIKTOK SHOP (SQL 237 · 238 · Edge Function tiktok-shop)
 //   Đơn bán TikTok Shop: số đơn, số lượng, doanh thu theo ngày / giờ, sản phẩm, người bán (ID TikTok), cửa hàng, kênh
-//   LIVE / Video / Thẻ sản phẩm, trạng thái giao, lý do huỷ.
+//   LIVE / Video / Trưng bày, trạng thái giao, lý do huỷ.
 //   Nguồn: (1) nạp file Excel "Tất cả đơn hàng" xuất từ Seller Center — kéo thả; (2) API chính thức (app NS CARE) tự kéo
 //   5 phút/lần khi đã ủy quyền. Chống trùng theo mã đơn; bản mới hơn mới ghi đè; API không có ID người bán thì giữ của Excel.
 //   NEW - 3.158 (SQL 283) MỘT LOẠI DOANH THU DUY NHẤT cho mọi nơi: Doanh thu = giá niêm yết − shop giảm (phần sàn trợ giá vẫn về shop),
@@ -36,7 +36,8 @@ const truNgay = (n, tu = new Date()) => { const d = new Date(tu); d.setDate(d.ge
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
 const pctTxt = (a, b) => pct(a, b).toLocaleString('vi') + '%';
 
-const KENH = { live: ['LIVE', '#D6006C'], video: ['Video', '#3FB6A8'], the: ['Thẻ sản phẩm', '#CBA45A'], khac: ['Không qua người bán', '#A7B0BF'] };
+// NEW - 3.159.9: thẻ sản phẩm → Trưng bày; khác = chưa có dữ liệu nguồn (đơn chưa thanh toán…)
+const KENH = { live: ['LIVE', '#D6006C'], video: ['Video', '#3FB6A8'], the: ['Trưng bày', '#CBA45A'], khac: ['Chưa rõ nguồn', '#A7B0BF'] };
 const TT = {
   cho_tt: ['Chờ thanh toán', 'xam'], cho_gui: ['Chờ gửi hàng', 'vang'], dang_giao: ['Đang giao', 'xanh'],
   da_giao: ['Đã giao', 'ok'], hoan_thanh: ['Hoàn thành', 'ok'], huy: ['Đã huỷ', 'do'], tra_hang: ['Trả hàng', 'do'], khac: ['Khác', 'xam'],
@@ -74,7 +75,7 @@ const NHANH = [
 const Chip = ({ tt }) => { const c = TT[tt] || TT.khac; return <span className={'odn-chip ' + c[1]}>{c[0]}</span>; };
 const KenhChip = ({ k }) => { const c = KENH[k] || KENH.khac; return <span className="tts-kenh" style={{ '--m': c[1] }}><i />{c[0]}</span>; };
 
-// thanh tỉ lệ kênh (LIVE / Video / Thẻ SP)
+// thanh tỉ lệ kênh (LIVE / Video / Trưng bày)
 function ThanhKenh({ r }) {
   const tong = (r.live || 0) + (r.video || 0) + (r.the || 0);
   const khac = Math.max((r.sl || 0) - tong, 0);
@@ -82,7 +83,7 @@ function ThanhKenh({ r }) {
   if (!all) return <span className="odn-phu">—</span>;
   const p = (v) => (v / all) * 100 + '%';
   return (
-    <div className="tts-mix" title={`LIVE ${r.live || 0} · Video ${r.video || 0} · Thẻ sản phẩm ${r.the || 0}${khac ? ' · Khác ' + khac : ''}`}>
+    <div className="tts-mix" title={`LIVE ${r.live || 0} · Video ${r.video || 0} · Trưng bày ${r.the || 0}${khac ? ' · Khác ' + khac : ''}`}>
       <div className="tts-mix-thanh">
         {r.live > 0 && <i style={{ width: p(r.live), background: KENH.live[1] }} />}
         {r.video > 0 && <i style={{ width: p(r.video), background: KENH.video[1] }} />}
@@ -294,7 +295,7 @@ export default function TikTokShop() {
     <>
       <div className="cmdbar">
         <h1>TikTok Shop</h1>
-        <div className="sub">Đơn bán trên TikTok Shop — số đơn, số lượng, doanh thu theo sản phẩm, người bán, cửa hàng và kênh LIVE / Video / Thẻ sản phẩm. Tự lấy qua API mỗi 5 phút; nạp thêm file Excel khi cần.</div>
+        <div className="sub">Đơn bán trên TikTok Shop — số đơn, số lượng, doanh thu theo sản phẩm, người bán, cửa hàng và kênh LIVE / Video / Trưng bày. Tự lấy qua API mỗi 5 phút; nạp thêm file Excel khi cần.</div>
       </div>
       <div className="odn tts">
         {/* Nguồn dữ liệu */}
@@ -595,10 +596,10 @@ function BangSanPham({ ds }) {
 
 // NEW - 3.141: gộp 3 nguồn theo ID người bán — đơn (LIVE gắn theo mã phòng + Excel), thống kê phiên LIVE, thống kê video
 // NEW - 3.149: cột CỬA HÀNG đứng đầu và luôn có chữ — cửa hàng đã gán, hoặc nhóm theo loại (Kênh công ty, Đội sale,
-//   Nhà sáng tạo ngoài, Khác), đơn mua qua thẻ sản phẩm → "Thẻ sản phẩm"; chưa gán → "Chưa gán" + nút Gán
+//   Nhà sáng tạo ngoài, Khác), đơn TikTok không ghi tài khoản nào → "Shop"; chưa gán → "Chưa gán" + nút Gán
 const NHOM_LOAI = { KENH: 'Kênh công ty', DOISALE: 'Đội sale', KOL: 'Nhà sáng tạo ngoài', KHAC: 'Khác', CH: 'Cửa hàng — chưa chọn' };
 function nhomCuaHang(r) {
-  if (r.nb === '') return { ten: 'Thẻ sản phẩm', phu: 'không qua người bán', loai: 'the' };
+  if (r.nb === '') return { ten: 'Shop', phu: 'không qua tài khoản nào', loai: 'the' };   // NEW - 3.159.9
   if (r.ten_ch) return { ten: r.ten_ch, phu: r.ma_ch || '', loai: 'ch' };
   if (r.loai && NHOM_LOAI[r.loai]) return { ten: NHOM_LOAI[r.loai], phu: r.loai === 'CH' ? 'cần chọn cửa hàng' : 'không gắn cửa hàng', loai: r.loai === 'CH' ? 'chua' : 'nhom' };
   return { ten: 'Chưa gán', phu: 'cần gán cửa hàng / loại', loai: 'chua' };
@@ -630,8 +631,8 @@ function BangNguoiBan({ bc, td = [], doiTd, chon, moGan }) {
   return (
     <div className="odn-bang-khung">
       <div className="tts-ghi-nguon">
-        <span><b>Tổng theo đơn</b> (vùng xám): số chuẩn app tính từ chính các mã đơn — mỗi đơn tính cho ID đã bán nó (mua trực tiếp từ LIVE hoặc video của ID đó, đúng cách Seller Center ghi nhận). Đơn: đơn hợp lệ · SL: sản phẩm bán ra sau trả · Doanh thu: tiền shop thu sau giảm giá của shop · Huỷ: số đơn huỷ. Dùng cột này để so doanh thu giữa các ID / cửa hàng.</span>
-        <span><b>Từ LIVE / Từ video</b> (NEW - 3.156.4): phần doanh thu theo đơn khách mua trực tiếp trong LIVE / từ video của ID — có ngay trong ngày; còn lại là thẻ sản phẩm.</span>
+        <span><b>Tổng theo đơn</b> (vùng xám): số chuẩn app tính từ chính các mã đơn — mỗi đơn tính cho đúng ID mà TikTok ghi nhận đã dẫn khách: mua ngay trong LIVE / video, mua từ trưng bày của ID, hoặc gián tiếp (xem LIVE / video của ID rồi mua sau) — khớp file kế toán. Tài khoản đổi tên / chuyển cửa hàng: đơn trước ngày đổi tính cho tên cũ. Đơn: đơn hợp lệ · SL: sản phẩm bán ra sau trả · Doanh thu: tiền shop thu sau giảm giá của shop · Huỷ: số đơn huỷ. Dùng cột này để so doanh thu giữa các ID / cửa hàng.</span>
+        <span><b>Từ LIVE / Từ video</b> (NEW - 3.159.9): phần doanh thu đến từ LIVE / video của ID, gồm cả khách xem rồi mua sau (gián tiếp); còn lại là trưng bày của ID.</span>
         <span><b>LIVE / Video</b> (NEW - 3.158): số phiên, người xem, số video có đơn, lượt xem — chỉ là số hoạt động. Tiền LIVE / video lấy ở cột Từ LIVE / Từ video (tính từ đơn, cùng một loại doanh thu với mọi nơi)
           {tk.live_den || tk.video_den ? ` (đang có tới ${tk.live_den ? 'LIVE ' + ngayVN(tk.live_den) : ''}${tk.video_den ? ' · video ' + ngayVN(tk.video_den) : ''})` : ''}.</span>
       </div>
@@ -674,7 +675,7 @@ function BangNguoiBan({ bc, td = [], doiTd, chon, moGan }) {
                     title={dangTd.has(r.nb) ? 'Đang theo dõi — bấm để bỏ' : 'Thêm vào Theo dõi ★'}
                     onClick={(e) => { e.stopPropagation(); doiTd(r.nb, !dangTd.has(r.nb)); }}>{dangTd.has(r.nb) ? '★' : '☆'}</button>}
                   <div><div className="odn-ten nho">{tenGoi(bc.ten_nb, r.nb)}</div>
-                  <div className="odn-phu">{r.nb ? (bc.ten_nb?.[r.nb] ? '@' + r.nb + ' · ' : '') + (r.loai ? LOAI[r.loai] || r.loai : 'chưa gán loại') : 'mua qua thẻ sản phẩm, không qua LIVE / video'}</div></div>
+                  <div className="odn-phu">{r.nb ? (bc.ten_nb?.[r.nb] ? '@' + r.nb + ' · ' : '') + (r.loai ? LOAI[r.loai] || r.loai : 'chưa gán loại') : 'TikTok không ghi tài khoản nào dẫn khách'}</div></div>
                 </div></td>
                 <td className="so tts-dn"><b>{r.don ? fmt(r.don) : '—'}</b></td>
                 <td className="so tts-dn">{r.sl ? fmt(r.sl) : '—'}</td>
@@ -1395,7 +1396,7 @@ function ChiTietId({ handle, ten, pLoc, tenNb, onDong, onLoc }) {
             <input value={tim} onChange={(e) => setTim(e.target.value)} placeholder={the === 'don' ? 'Tìm mã hàng, tên, tỉnh, mã đơn…' : 'Tìm mã, tên sản phẩm…'} />
             {the === 'don' && (<>
               <div className="tts-ct-loc-kenh">
-                {[['', 'Mọi nguồn'], ['live', 'LIVE'], ['video', 'Video'], ['the', 'Thẻ SP'], ['khac', 'Khác']].filter(([k]) => !k || demKenh[k]).map(([k, nhan]) => (
+                {[['', 'Mọi nguồn'], ['live', 'LIVE'], ['video', 'Video'], ['the', 'Trưng bày'], ['khac', 'Khác']].filter(([k]) => !k || demKenh[k]).map(([k, nhan]) => (
                   <button type="button" key={k || 'tat'} className={kenhLoc === k ? 'on' : ''} style={k ? { '--m': (KENH[k] || KENH.khac)[1] } : undefined} onClick={() => setKenhLoc(k)}>
                     {k ? <i /> : null}{nhan}{k ? <em>{fmt(demKenh[k])}</em> : null}</button>))}
               </div>

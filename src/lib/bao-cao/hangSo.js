@@ -40,6 +40,7 @@ export const LY_DO = { 1: 'Đặt nhầm sản phẩm', 2: 'Phí ship cao', 3: '
   25: 'Hãng làm mất hàng', 26: 'Shop tự giao', 29: 'Shop chưa xử lý đơn', 30: 'Sai giá sản phẩm', 35: 'Khách vắng nhà (hẹn giao lại)' };
 
 // ===== TikTok Shop =====
-export const TT_KENH = { live: ['LIVE', '#D6006C'], video: ['Video', '#3FB6A8'], the: ['Thẻ sản phẩm', '#CBA45A'], khac: ['Không qua người bán', '#A7B0BF'] };
+// NEW - 3.159.9: thẻ sản phẩm → Trưng bày (trưng bày của ID hoặc shop không qua tài khoản); khác = chưa có dữ liệu nguồn
+export const TT_KENH = { live: ['LIVE', '#D6006C'], video: ['Video', '#3FB6A8'], the: ['Trưng bày', '#CBA45A'], khac: ['Chưa rõ nguồn', '#A7B0BF'] };
 export const TT_LOAI = { CH: 'Cửa hàng', DOISALE: 'Đội sale', KENH: 'Kênh công ty', KOL: 'Nhà sáng tạo ngoài', KHAC: 'Khác' };
 export const TT_TRANG_THAI = { cho_tt: 'Chờ thanh toán', cho_gui: 'Chờ gửi hàng', dang_giao: 'Đang giao', da_giao: 'Đã giao', hoan_thanh: 'Hoàn thành', huy: 'Đã huỷ', tra_hang: 'Trả hàng' };
