@@ -388,7 +388,11 @@ function HopOdoo({ opts, user, baoToast, onDong }) {
         </div>
 
         <div className="od-chan">
-          <span className="od-ghi">{xongHet ? 'Đã tạo xong trên Odoo.' : 'Đơn tạo trên Odoo — kiểm tra kỹ trước khi gửi.'}</span>
+          <span className="od-ghi">{xongHet ? 'Đã tạo xong trên Odoo.' : laCH
+            /* NEW - 3.159.8: cửa hàng gửi xong là không tự huỷ / sửa được (kho in phiếu soạn hàng ngay) */
+            ? <>Gửi xong là <b>không tự huỷ / sửa được</b> — cần huỷ liên hệ phòng Điều Phối Hàng Hóa{(cfg?.lien_he_huy || []).length ? ': ' : ''}
+                {(cfg?.lien_he_huy || []).map((x, i) => <span key={x.sdt}>{i ? ' · ' : ''}{x.ten} <a href={'tel:' + String(x.sdt).replace(/\s/g, '')}>{x.sdt}</a></span>)}</>
+            : 'Đơn tạo trên Odoo — kiểm tra kỹ trước khi gửi.'}</span>
           {opts.onExcel && !xongHet && (
             <button className="btn btn-ghost" disabled={dangGui} onClick={() => { const f = opts.onExcel; onDong(); f(); }}>
               <IcDown /> Xuất Excel thay thế</button>)}

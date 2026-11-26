@@ -682,6 +682,13 @@ export function NganChiTiet({ id, dong, odoo, saiXong, moDon }) {
                 {laApp && <button className="odn-nut-phu" onClick={() => setHop({ loai: 'ghi_chu', tieu: 'Ghi chú vào nhật ký', goi_y: 'Ghi chú', xong: 'Đã ghi chú' })}>Ghi chú</button>}
                 <button className="odn-nut-phu" onClick={layTuOdoo} disabled={layMoi}><IcRefresh /> {layMoi ? 'Đang hỏi Odoo…' : 'Lấy mới từ Odoo'}</button>
               </div>
+              {/* NEW - 3.159.8: cửa hàng không tự huỷ / xoá sau khi đẩy đơn — liên hệ phòng Điều Phối Hàng Hóa */}
+              {laApp && user.vai_tro === 'CH' && ct.trang_thai === 'thanh_cong' && ct.buoc >= 3 && ct.buoc <= 5 && (
+                <div className="odn-lien-he">
+                  <b>Đơn đã đẩy lên Odoo — cửa hàng không tự huỷ / xoá được</b> (kho có thể đã in phiếu soạn hàng).
+                  <span>Cần huỷ: liên hệ phòng Điều Phối Hàng Hóa{(ct.lien_he_huy || []).map((x) => (
+                    <a key={x.sdt} href={'tel:' + String(x.sdt).replace(/\s/g, '')}>{x.ten} · {x.sdt}</a>))} hoặc bấm "Yêu cầu huỷ".</span>
+                </div>)}
               {laApp && ct.trang_thai === 'thanh_cong' && ct.buoc >= 6 && <p className="odn-phu">Đơn đã xuất kho trên Odoo — không huỷ / sửa được nữa. Cần trả hàng / điều chỉnh: gửi Yêu cầu điều chỉnh để kho xử lý.</p>}
               {!laApp && <p className="odn-phu">Phiếu tạo thẳng trên Odoo: app chỉ theo dõi, đối soát và ghép vận đơn. Huỷ / sửa thực hiện trên Odoo.</p>}
 
