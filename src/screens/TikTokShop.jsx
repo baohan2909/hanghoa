@@ -1205,19 +1205,79 @@ function BangCuaHang({ ds, chon }) {
    Anh: "bấm chi tiết ra được chi tiết đơn, giao diện OK nhất, đặc biệt không tràn".
    Ngăn kéo bên phải (máy tính) / toàn màn hình (điện thoại). Số tổng lấy fn_tt_bao_cao lọc đúng ID (1 loại doanh thu);
    danh sách đơn lấy fn_tt_don_ds (mới nhất trước, tải thêm 300 / lần); tên người mua đã che (SQL 286). */
-const TT_CHIP = [['', 'Tất cả'], ['cho', 'Chờ xử lý'], ['dang_giao', 'Đang giao'], ['giao', 'Đã giao'], ['huy', 'Huỷ']];
+// NEW - 3.159.7: lọc "Đơn hợp lệ" (= mọi đơn trừ đơn huỷ — đúng cách tính doanh thu)
+const TT_CHIP = [['', 'Tất cả'], ['hop_le', 'Đơn hợp lệ'], ['cho', 'Chờ xử lý'], ['dang_giao', 'Đang giao'], ['giao', 'Đã giao'], ['huy', 'Huỷ']];
+const TT_LOC_CT = { ...TT_LOC, hop_le: ['cho_tt', 'cho_gui', 'dang_giao', 'da_giao', 'hoan_thanh', 'tra_hang', 'khac'] };
+const TT_THU = { cho_tt: 0, cho_gui: 1, dang_giao: 2, da_giao: 3, hoan_thanh: 4, tra_hang: 5, khac: 6, huy: 7 };
+const KENH_THU = { live: 0, video: 1, the: 2, khac: 3 };
+const boDauTt = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+const ngayDm = (s) => { if (!s) return '—'; const d = new Date(s); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); };
+const gioNgan = (s) => (s ? new Date(s).toLocaleTimeString('vi', { hour: '2-digit', minute: '2-digit' }) : '—');
+// màn hẹp (điện thoại): giữ dạng thẻ; màn rộng: dạng cột
+function useHepTt() {
+  const q = '(max-width: 760px)';
+  const [hep, setHep] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q); const f = () => setHep(m.matches);
+    m.addEventListener?.('change', f); return () => m.removeEventListener?.('change', f);
+  }, []);
+  return hep;
+}
+// tiêu đề cột bấm để sắp xếp (bấm lần nữa đảo chiều)
+function ThSx({ k, sx, setSx, children, cls = '', title, dau = -1 }) {
+  const on = sx.k === k;
+  return (
+    <th className={cls + (on ? ' on' : '')} title={title} aria-sort={on ? (sx.ch > 0 ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" onClick={() => setSx(on ? { k, ch: -sx.ch } : { k, ch: dau })}>{children}<i>{on ? (sx.ch > 0 ? '▲' : '▼') : '↕'}</i></button>
+    </th>
+  );
+}
+// chi tiết 1 đơn (dùng chung: bảng / thẻ)
+function DonChiTiet({ d, tenNb }) {
+  return (
+    <div className="tts-ct-don-ct">
+      {(d.dong || []).map((x, i) => (
+        <div key={i} className="tts-ct-dong">
+          <AnhMa ma={x.sku} ten={x.ten} co={40} />
+          <div className="ten"><b>{x.sku || '—'}{x.pl ? ' · ' + x.pl : ''}</b><small>{x.ten}</small>
+            <small>niêm yết {fmt(x.truoc)}{x.shop_giam ? ` − giảm ${fmt(x.shop_giam)}` : ''} = <b className="nho">{fmt((x.truoc || 0) - (x.shop_giam || 0))}</b></small></div>
+          <div className="so"><b>{fmt(x.sl)} cái</b>{x.tra > 0 ? <small className="do">trả {x.tra}</small> : null}</div>
+        </div>))}
+      <dl className="tts-ct-tt-ds">
+        <div><dt>Mã đơn</dt><dd>{d.ma_don}</dd></div>
+        <div><dt>Đặt lúc</dt><dd>{gioNgay(d.tao_luc)}</dd></div>
+        <div><dt>Khách</dt><dd>{d.khach || '—'}{d.tinh ? ' · ' + d.tinh : ''}</dd></div>
+        {d.gui_luc && <div><dt>Gửi hàng</dt><dd>{gioNgay(d.gui_luc)}</dd></div>}
+        {d.giao_luc && <div><dt>Giao xong</dt><dd>{gioNgay(d.giao_luc)}</dd></div>}
+        {d.van_don && <div><dt>Vận đơn</dt><dd>{d.dvvc ? d.dvvc + ' · ' : ''}{d.van_don}</dd></div>}
+        {d.thanh_toan && <div><dt>Thanh toán</dt><dd>{d.thanh_toan}</dd></div>}
+        <div><dt>Người bán</dt><dd>{d.creator ? tenGoi(tenNb, d.creator) : 'Không qua người bán'}{d.ten_ch ? ' · ' + d.ten_ch : ''}</dd></div>
+        {d.tt === 'huy' && <div><dt>Huỷ</dt><dd>{d.ly_do_huy || '—'}{d.huy_boi ? ' · bởi ' + ({ User: 'khách', System: 'hệ thống', Operator: 'shop', Seller: 'shop' }[d.huy_boi] || d.huy_boi) : ''}</dd></div>}
+      </dl>
+    </div>
+  );
+}
+
 function ChiTietId({ handle, ten, pLoc, tenNb, onDong, onLoc }) {
   const { user, baoToast } = useApp();
   const n = useContext(SoNgay);
+  const hep = useHepTt();
   const [the, setThe] = useState('don');
   const [ttLoc, setTtLoc] = useState('');
   const [bcId, setBcId] = useState(null);
   const [kq, setKq] = useState(null);
   const [loi, setLoi] = useState('');
   const [mo, setMo] = useState(null);
+  const [moSp, setMoSp] = useState(null);
   const [dangThem, setDangThem] = useState(false);
+  // NEW - 3.159.7: bộ lọc + sắp xếp ngay trên máy (đơn đã tải)
+  const [tim, setTim] = useState('');
+  const [kenhLoc, setKenhLoc] = useState('');
+  const [tinhLoc, setTinhLoc] = useState('');
+  const [sx, setSx] = useState({ k: 'ngay', ch: -1 });
+  const [sxSp, setSxSp] = useState({ k: 'sl', ch: -1 });
   const locId = useMemo(() => ({ ...pLoc, nb: [handle] }), [pLoc, handle]);
-  const locDon = useMemo(() => (ttLoc ? { ...locId, tt: TT_LOC[ttLoc] } : locId), [locId, ttLoc]);
+  const locDon = useMemo(() => (ttLoc ? { ...locId, tt: TT_LOC_CT[ttLoc] } : locId), [locId, ttLoc]);
   useEffect(() => {
     const f = (e) => { if (e.key === 'Escape') onDong(); };
     window.addEventListener('keydown', f);
@@ -1237,7 +1297,7 @@ function ChiTietId({ handle, ten, pLoc, tenNb, onDong, onLoc }) {
   useEffect(() => {
     let huy = false;
     setKq(null); setMo(null);
-    sb.rpc('fn_tt_don_ds', { p_token: user.token, p_loc: locDon, p_gioi_han: 300 }).then(({ data, error }) => {
+    sb.rpc('fn_tt_don_ds', { p_token: user.token, p_loc: locDon, p_gioi_han: 1000 }).then(({ data, error }) => {
       if (huy) return;
       if (error) { setLoi(error.message); return; }
       setKq(data);
@@ -1247,21 +1307,61 @@ function ChiTietId({ handle, ten, pLoc, tenNb, onDong, onLoc }) {
   const ds = kq?.ds || [];
   const taiThem = async () => {
     setDangThem(true);
-    const { data, error } = await sb.rpc('fn_tt_don_ds', { p_token: user.token, p_loc: { ...locDon, bo_qua: ds.length }, p_gioi_han: 300 });
+    const { data, error } = await sb.rpc('fn_tt_don_ds', { p_token: user.token, p_loc: { ...locDon, bo_qua: ds.length }, p_gioi_han: 1000 });
     setDangThem(false);
     if (error) { baoToast('Chưa tải thêm được: ' + error.message); return; }
     setKq((k) => ({ ...k, ds: [...(k?.ds || []), ...(data?.ds || [])] }));
   };
   const t = bcId?.tong || {};
   const ttDem = bcId?.tt || {};
-  const demChip = (k) => (k === '' ? (t.don || 0) + (t.don_huy || 0) : (TT_LOC[k] || []).reduce((a, x) => a + (ttDem[x] || 0), 0));
+  const demChip = (k) => (k === '' ? (t.don || 0) + (t.don_huy || 0) : k === 'hop_le' ? (t.don || 0) : (TT_LOC_CT[k] || []).reduce((a, x) => a + (ttDem[x] || 0), 0));
   const kenh = Object.fromEntries((bcId?.kenh || []).map((x) => [x.k, x]));
   const sp = bcId?.sp || [];
   const tienDon = (d) => (d.dong || []).reduce((a, x) => a + (x.truoc || 0) - (x.shop_giam || 0), 0);
   const tuDen = pLoc.tu === pLoc.den ? ngayVN(pLoc.tu) : `${ngayVN(pLoc.tu).slice(0, 5)} – ${ngayVN(pLoc.den)}`;
+
+  // ---- đơn: tính sẵn cột, lọc, sắp xếp ----
+  const hang = useMemo(() => ds.map((d) => {
+    const dong = d.dong || [];
+    const tg = d.tao_luc ? new Date(d.tao_luc) : null;
+    return { d, dong, sl: dong.reduce((a, x) => a + (x.sl || 0), 0), tien: tienDon(d), sp: dong[0]?.sku || '', kenh: d.kenh || 'khac',
+      tinh: d.tinh || '', ms: tg ? tg.getTime() : 0, gio: tg ? tg.getHours() * 60 + tg.getMinutes() : 0,
+      tim: boDauTt([d.ma_don, d.tinh, d.khach, d.van_don, ...dong.map((x) => `${x.sku} ${x.pl || ''} ${x.ten || ''}`)].join(' ')) };
+  }), [ds]);   // eslint-disable-line
+  const dsTinh = useMemo(() => [...new Set(hang.map((h) => h.tinh).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi')), [hang]);
+  const demKenh = useMemo(() => { const o = {}; hang.forEach((h) => { o[h.kenh] = (o[h.kenh] || 0) + 1; }); return o; }, [hang]);
+  const hien = useMemo(() => {
+    const q = boDauTt(tim.trim());
+    const r = hang.filter((h) => (!kenhLoc || h.kenh === kenhLoc) && (!tinhLoc || h.tinh === tinhLoc) && (!q || h.tim.includes(q)));
+    const gt = { tt: (h) => TT_THU[h.d.tt] ?? 9, sp: (h) => h.sp, sl: (h) => h.sl, ngay: (h) => h.ms, gio: (h) => h.gio,
+      kenh: (h) => KENH_THU[h.kenh] ?? 9, tinh: (h) => h.tinh, tien: (h) => h.tien }[sx.k] || ((h) => h.ms);
+    return r.sort((a, b) => {
+      const x = gt(a), y = gt(b);
+      const c = typeof x === 'string' ? x.localeCompare(y, 'vi') : x - y;
+      return c !== 0 ? c * sx.ch : b.ms - a.ms;
+    });
+  }, [hang, kenhLoc, tinhLoc, tim, sx]);
+  const tongHien = useMemo(() => ({
+    sl: hien.filter((h) => h.d.tt !== 'huy').reduce((a, h) => a + h.sl, 0),
+    tien: hien.filter((h) => h.d.tt !== 'huy').reduce((a, h) => a + h.tien, 0),
+    huy: hien.filter((h) => h.d.tt === 'huy').length,
+  }), [hien]);
+  const dangLoc = !!(tim.trim() || kenhLoc || tinhLoc);
+
+  // ---- sản phẩm: sắp xếp, lọc theo chữ ----
+  const spHien = useMemo(() => {
+    const q = boDauTt(tim.trim());
+    const r = sp.filter((x) => !q || boDauTt(`${x.ma} ${x.ten || ''} ${x.dm || ''}`).includes(q));
+    const gt = { ma: (x) => x.ma || '', sl: (x) => x.sl || 0, don: (x) => x.don || 0, live: (x) => x.live || 0, video: (x) => x.video || 0,
+      huy: (x) => x.huy || 0, dt: (x) => x.dt || 0 }[sxSp.k] || ((x) => x.sl || 0);
+    return [...r].sort((a, b) => { const x = gt(a), y = gt(b); const c = typeof x === 'string' ? x.localeCompare(y, 'vi') : x - y; return c !== 0 ? c * sxSp.ch : (b.sl || 0) - (a.sl || 0); });
+  }, [sp, tim, sxSp]);
+  const donCuaMa = (ma) => hang.filter((h) => h.dong.some((x) => x.sku === ma)).sort((a, b) => b.ms - a.ms);
+
+  const tienO = (h) => (h.d.tt === 'huy' ? <s>{fmt(h.tien)}</s> : fmt(h.tien));
   return createPortal(
     <div className="tts-ct-nen" onClick={(e) => { if (e.target === e.currentTarget) onDong(); }}>
-      <aside className="tts-ct-ngan" role="dialog" aria-modal="true" aria-label={'Chi tiết đơn ' + ten}>
+      <aside className={'tts-ct-ngan' + (hep ? '' : ' rong')} role="dialog" aria-modal="true" aria-label={'Chi tiết đơn ' + ten}>
         <header className="tts-ct-dau">
           <div className="tts-ct-ten"><b>{handle === '' ? 'Không qua người bán' : tenNb?.[handle] || '@' + handle}</b>
             <small>{handle && tenNb?.[handle] ? '@' + handle + ' · ' : ''}{tuDen}{n > 1 ? ` · ${n} ngày` : ''}</small></div>
@@ -1282,75 +1382,162 @@ function ChiTietId({ handle, ten, pLoc, tenNb, onDong, onLoc }) {
             </div>)}
           <div className="tts-ct-tt" role="tablist" aria-label="Lọc theo tình trạng">
             {TT_CHIP.map(([k, nhan]) => (
-              <button type="button" key={k || 'tat'} role="tab" aria-selected={ttLoc === k} className={(ttLoc === k ? 'on ' : '') + (k === 'huy' ? 'do' : '')}
-                onClick={() => { setTtLoc(k); setThe('don'); }}>{nhan}<i>{bcId ? fmt(demChip(k)) : '·'}</i></button>))}
+              <button type="button" key={k || 'tat'} role="tab" aria-selected={ttLoc === k} className={(ttLoc === k ? 'on ' : '') + (k === 'huy' ? 'do' : k === 'hop_le' ? 'xanh' : '')}
+                onClick={() => setTtLoc(k)}>{nhan}<i>{bcId ? fmt(demChip(k)) : '·'}</i></button>))}
           </div>
           <div className="tts-ct-the">
             <button type="button" className={the === 'don' ? 'on' : ''} onClick={() => setThe('don')}>Đơn hàng{kq ? <i>{fmt(kq.tong)}</i> : null}</button>
-            <button type="button" className={the === 'sp' ? 'on' : ''} onClick={() => setThe('sp')}>Bán gì<i>{fmt(sp.length)}</i></button>
+            <button type="button" className={the === 'sp' ? 'on' : ''} onClick={() => setThe('sp')}>Sản phẩm<i>{fmt(sp.length)}</i></button>
+          </div>
+
+          {/* ===== bộ lọc bên ngoài: tìm · nguồn · khu vực ===== */}
+          <div className="tts-ct-loc">
+            <input value={tim} onChange={(e) => setTim(e.target.value)} placeholder={the === 'don' ? 'Tìm mã hàng, tên, tỉnh, mã đơn…' : 'Tìm mã, tên sản phẩm…'} />
+            {the === 'don' && (<>
+              <div className="tts-ct-loc-kenh">
+                {[['', 'Mọi nguồn'], ['live', 'LIVE'], ['video', 'Video'], ['the', 'Thẻ SP'], ['khac', 'Khác']].filter(([k]) => !k || demKenh[k]).map(([k, nhan]) => (
+                  <button type="button" key={k || 'tat'} className={kenhLoc === k ? 'on' : ''} style={k ? { '--m': (KENH[k] || KENH.khac)[1] } : undefined} onClick={() => setKenhLoc(k)}>
+                    {k ? <i /> : null}{nhan}{k ? <em>{fmt(demKenh[k])}</em> : null}</button>))}
+              </div>
+              <Sel value={tinhLoc} onChange={setTinhLoc} options={[{ value: '', label: 'Mọi khu vực' }, ...dsTinh.map((x) => ({ value: x, label: x }))]} />
+              {dangLoc && <button type="button" className="tts-ct-bo" onClick={() => { setTim(''); setKenhLoc(''); setTinhLoc(''); }}>Bỏ lọc</button>}
+            </>)}
           </div>
 
           {the === 'don' ? (
             <div className="tts-ct-ds">
+              {kq != null && ds.length > 0 && (
+                <div className="tts-ct-tong">
+                  <b>{fmt(hien.length)}</b> đơn{dangLoc ? ` / ${fmt(ds.length)}` : ''} · <b>{fmt(tongHien.sl)}</b> sp · <b>{tien(tongHien.tien)}</b>
+                  {tongHien.huy ? <span className="do"> · {fmt(tongHien.huy)} huỷ (không tính tiền)</span> : null}
+                  {n > 1 ? <span> · TB {tbN(hien.length, n)} đơn · {tbTien(tongHien.tien, n)}/ngày</span> : null}
+                </div>)}
               {kq == null ? <div className="odn-trong">Đang tải đơn…</div>
-                : ds.length === 0 ? <div className="odn-trong">Không có đơn trong khoảng / bộ lọc này.</div>
-                : ds.map((d) => {
-                  const dong = d.dong || [];
-                  const sl = dong.reduce((a, x) => a + (x.sl || 0), 0);
-                  const tienD = tienDon(d);
-                  const moD = mo === d.ma_don;
+                : hien.length === 0 ? <div className="odn-trong">{ds.length ? 'Không có đơn khớp bộ lọc.' : 'Không có đơn trong khoảng / bộ lọc này.'}</div>
+                : hep ? hien.map((h) => {   // điện thoại: dạng thẻ
+                  const d = h.d; const moD = mo === d.ma_don;
                   return (
                     <div key={d.ma_don} className={'tts-ct-don' + (d.tt === 'huy' ? ' huy' : '') + (moD ? ' mo' : '')}>
                       <button type="button" className="tts-ct-don-dau" onClick={() => setMo(moD ? null : d.ma_don)} aria-expanded={moD}>
                         <span className="tts-ct-don-1"><Chip tt={d.tt} />{d.kenh && <KenhChip k={d.kenh} />}<span className="gio">{gioNgay(d.tao_luc)}</span>
-                          <b className="tien">{d.tt === 'huy' ? <s>{fmt(tienD)}</s> : fmt(tienD)}đ</b></span>
-                        <span className="tts-ct-don-2"><AnhMa ma={dong[0]?.sku} ten={dong[0]?.ten} co={34} />
-                          <span className="sp"><b>{dong[0]?.sku || '—'}{dong[0]?.pl ? ' · ' + dong[0].pl : ''}</b>
-                            <small>{fmt(sl)} sp{dong.length > 1 ? ` · +${dong.length - 1} mã khác` : ''}</small></span></span>
+                          <b className="tien">{tienO(h)}đ</b></span>
+                        <span className="tts-ct-don-2"><AnhMa ma={h.dong[0]?.sku} ten={h.dong[0]?.ten} co={34} />
+                          <span className="sp"><b>{h.dong[0]?.sku || '—'}{h.dong[0]?.pl ? ' · ' + h.dong[0].pl : ''}</b>
+                            <small>{fmt(h.sl)} sp{h.dong.length > 1 ? ` · +${h.dong.length - 1} mã khác` : ''}</small></span></span>
                         <span className="tts-ct-don-3">{d.khach ? <>Khách <b>{d.khach}</b> · </> : null}{d.tinh || 'chưa rõ tỉnh'}{d.dvvc ? ' · ' + d.dvvc : ''}
                           {d.tt === 'huy' && d.ly_do_huy ? <em> · huỷ: {d.ly_do_huy}</em> : null}</span>
                       </button>
-                      {moD && (
-                        <div className="tts-ct-don-ct">
-                          {dong.map((x, i) => (
-                            <div key={i} className="tts-ct-dong">
-                              <AnhMa ma={x.sku} ten={x.ten} co={40} />
-                              <div className="ten"><b>{x.sku || '—'}{x.pl ? ' · ' + x.pl : ''}</b><small>{x.ten}</small>
-                                <small>niêm yết {fmt(x.truoc)}{x.shop_giam ? ` − giảm ${fmt(x.shop_giam)}` : ''} = <b className="nho">{fmt((x.truoc || 0) - (x.shop_giam || 0))}</b></small></div>
-                              <div className="so"><b>{fmt(x.sl)} cái</b>{x.tra > 0 ? <small className="do">trả {x.tra}</small> : null}</div>
-                            </div>))}
-                          <dl className="tts-ct-tt-ds">
-                            <div><dt>Mã đơn</dt><dd>{d.ma_don}</dd></div>
-                            <div><dt>Đặt lúc</dt><dd>{gioNgay(d.tao_luc)}</dd></div>
-                            {d.gui_luc && <div><dt>Gửi hàng</dt><dd>{gioNgay(d.gui_luc)}</dd></div>}
-                            {d.giao_luc && <div><dt>Giao xong</dt><dd>{gioNgay(d.giao_luc)}</dd></div>}
-                            {d.van_don && <div><dt>Vận đơn</dt><dd>{d.dvvc ? d.dvvc + ' · ' : ''}{d.van_don}</dd></div>}
-                            {d.thanh_toan && <div><dt>Thanh toán</dt><dd>{d.thanh_toan}</dd></div>}
-                            <div><dt>Người bán</dt><dd>{d.creator ? tenGoi(tenNb, d.creator) : 'Không qua người bán'}{d.ten_ch ? ' · ' + d.ten_ch : ''}</dd></div>
-                            {d.tt === 'huy' && <div><dt>Huỷ</dt><dd>{d.ly_do_huy || '—'}{d.huy_boi ? ' · bởi ' + ({ User: 'khách', System: 'hệ thống', Operator: 'shop', Seller: 'shop' }[d.huy_boi] || d.huy_boi) : ''}</dd></div>}
-                          </dl>
-                        </div>)}
+                      {moD && <DonChiTiet d={d} tenNb={tenNb} />}
                     </div>);
-                })}
+                })
+                : (   // máy tính: dạng cột, bấm tiêu đề để sắp xếp, bấm dòng xem chi tiết
+                  <div className="tts-ct-bang-khung">
+                    <table className="tts-ct-bang">
+                      <thead><tr>
+                        <ThSx k="tt" sx={sx} setSx={setSx} dau={1} cls="c-tt">Tình trạng</ThSx>
+                        <th className="c-anh" aria-label="Ảnh" />
+                        <ThSx k="sp" sx={sx} setSx={setSx} dau={1} cls="l">Sản phẩm</ThSx>
+                        <ThSx k="sl" sx={sx} setSx={setSx} cls="so">SL</ThSx>
+                        <ThSx k="ngay" sx={sx} setSx={setSx} cls="c-ngay">Ngày</ThSx>
+                        <ThSx k="gio" sx={sx} setSx={setSx} cls="c-gio" title="Sắp theo giờ trong ngày">Giờ</ThSx>
+                        <ThSx k="kenh" sx={sx} setSx={setSx} dau={1} cls="c-kenh">Nguồn</ThSx>
+                        <ThSx k="tinh" sx={sx} setSx={setSx} dau={1} cls="l c-tinh">Khu vực</ThSx>
+                        <ThSx k="tien" sx={sx} setSx={setSx} cls="so">Tiền</ThSx>
+                      </tr></thead>
+                      <tbody>
+                        {hien.map((h) => {
+                          const d = h.d; const moD = mo === d.ma_don;
+                          return [
+                            <tr key={d.ma_don} className={(d.tt === 'huy' ? 'huy ' : '') + (moD ? 'mo' : '')} onClick={() => setMo(moD ? null : d.ma_don)} aria-expanded={moD}>
+                              <td className="c-tt"><Chip tt={d.tt} /></td>
+                              <td className="c-anh" onClick={(e) => e.stopPropagation()}><AnhMa ma={h.dong[0]?.sku} ten={h.dong[0]?.ten} co={36} /></td>
+                              <td className="l c-sp"><b>{h.sp || '—'}{h.dong[0]?.pl ? <span> · {h.dong[0].pl}</span> : null}</b>
+                                <small>{h.dong.length > 1 ? `+${h.dong.length - 1} mã khác · ` : ''}{h.dong[0]?.ten || ''}</small></td>
+                              <td className="so">{fmt(h.sl)}</td>
+                              <td className="c-ngay">{ngayDm(d.tao_luc)}</td>
+                              <td className="c-gio">{gioNgan(d.tao_luc)}</td>
+                              <td className="c-kenh">{d.kenh ? <KenhChip k={d.kenh} /> : <span className="nhat">—</span>}</td>
+                              <td className="l c-tinh">{h.tinh || <span className="nhat">chưa rõ</span>}</td>
+                              <td className="so c-tien">{tienO(h)}</td>
+                            </tr>,
+                            moD && <tr key={d.ma_don + '-ct'} className="ct"><td colSpan={9}><DonChiTiet d={d} tenNb={tenNb} /></td></tr>,
+                          ];
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               {kq && kq.tong > ds.length && (
                 <button type="button" className="tts-ct-them" disabled={dangThem} onClick={taiThem}>
-                  {dangThem ? 'Đang tải…' : `Xem thêm ${fmt(Math.min(300, kq.tong - ds.length))} đơn (đang hiện ${fmt(ds.length)}/${fmt(kq.tong)})`}</button>)}
+                  {dangThem ? 'Đang tải…' : `Tải thêm ${fmt(Math.min(1000, kq.tong - ds.length))} đơn (đang có ${fmt(ds.length)}/${fmt(kq.tong)} — lọc / sắp xếp trên số đã tải)`}</button>)}
             </div>
           ) : (
             <div className="tts-ct-ds">
-              {!bcId ? <div className="odn-trong">Đang tải…</div> : sp.length === 0 ? <div className="odn-trong">Chưa bán mã nào trong khoảng này.</div>
-                : sp.map((x) => (
-                  <div key={x.ma} className="tts-ct-sp">
-                    <AnhMa ma={x.ma} ten={x.ten} co={40} />
-                    <div className="ten"><b>{x.ma}</b><small>{x.ten || x.dm || ''}</small>
-                      <small>{fmt(x.don)} đơn{x.live ? ` · LIVE ${fmt(x.live)}` : ''}{x.video ? ` · Video ${fmt(x.video)}` : ''}{x.huy ? ` · huỷ ${fmt(x.huy)}` : ''}</small></div>
-                    <div className="so"><b>{fmt(x.sl)} sp</b><small>{tien(x.dt)}</small>{n > 1 ? <small>TB {tbN(x.sl, n)} sp/ngày</small> : null}</div>
-                  </div>))}
+              {!bcId ? <div className="odn-trong">Đang tải…</div> : spHien.length === 0 ? <div className="odn-trong">{sp.length ? 'Không có mã nào khớp.' : 'Chưa bán mã nào trong khoảng này.'}</div>
+                : (
+                  <div className="tts-ct-bang-khung">
+                    <table className="tts-ct-bang sp">
+                      <thead><tr>
+                        <th className="c-anh" aria-label="Ảnh" />
+                        <ThSx k="ma" sx={sxSp} setSx={setSxSp} dau={1} cls="l">Sản phẩm</ThSx>
+                        <ThSx k="sl" sx={sxSp} setSx={setSxSp} cls="so" title="Số sản phẩm bán (đơn hợp lệ)">SL</ThSx>
+                        {n > 1 && <th className="so c-tb" title="Trung bình sản phẩm / ngày">TB/ngày</th>}
+                        <ThSx k="don" sx={sxSp} setSx={setSxSp} cls="so" title="Số đơn hợp lệ có mã này">Đơn</ThSx>
+                        {!hep && <ThSx k="live" sx={sxSp} setSx={setSxSp} cls="so c-kenhso" title="Sản phẩm bán qua LIVE">LIVE</ThSx>}
+                        {!hep && <ThSx k="video" sx={sxSp} setSx={setSxSp} cls="so c-kenhso" title="Sản phẩm bán qua Video">Video</ThSx>}
+                        <ThSx k="huy" sx={sxSp} setSx={setSxSp} cls="so" title="Số sản phẩm trong đơn huỷ">Huỷ</ThSx>
+                        <ThSx k="dt" sx={sxSp} setSx={setSxSp} cls="so">Doanh thu</ThSx>
+                      </tr></thead>
+                      <tbody>
+                        {spHien.map((x) => {
+                          const moM = moSp === x.ma; const so = 8 + (n > 1 ? 1 : 0) - (hep ? 2 : 0);
+                          return [
+                            <tr key={x.ma} className={moM ? 'mo' : ''} onClick={() => setMoSp(moM ? null : x.ma)} aria-expanded={moM}>
+                              <td className="c-anh" onClick={(e) => e.stopPropagation()}><AnhMa ma={x.ma} ten={x.ten} co={36} /></td>
+                              <td className="l c-sp"><b>{x.ma}</b><small>{x.ten || x.dm || ''}</small></td>
+                              <td className="so"><b>{fmt(x.sl)}</b></td>
+                              {n > 1 && <td className="so c-tb">{tbN(x.sl, n)}</td>}
+                              <td className="so">{fmt(x.don)}</td>
+                              {!hep && <td className="so c-kenhso">{x.live ? fmt(x.live) : <span className="nhat">·</span>}</td>}
+                              {!hep && <td className="so c-kenhso">{x.video ? fmt(x.video) : <span className="nhat">·</span>}</td>}
+                              <td className={'so' + (x.huy ? ' do' : '')}>{x.huy ? fmt(x.huy) : <span className="nhat">·</span>}</td>
+                              <td className="so c-tien">{tien(x.dt)}</td>
+                            </tr>,
+                            moM && (
+                              <tr key={x.ma + '-ct'} className="ct"><td colSpan={so}>
+                                <div className="tts-ct-sp-don">
+                                  {(() => {
+                                    const dd = donCuaMa(x.ma);
+                                    if (!kq) return <p className="nhat">Đang tải đơn…</p>;
+                                    if (!dd.length) return <p className="nhat">Không thấy đơn của mã này trong {fmt(ds.length)} đơn đã tải (bộ lọc tình trạng: {(TT_CHIP.find((c) => c[0] === ttLoc) || [])[1]}).</p>;
+                                    return (<>
+                                      <small>{fmt(dd.length)} đơn có mã này{ttLoc ? ` · lọc: ${(TT_CHIP.find((c) => c[0] === ttLoc) || [])[1]}` : ''}</small>
+                                      {dd.slice(0, 50).map((h) => {
+                                        const l = h.dong.find((y) => y.sku === x.ma) || {};
+                                        return (
+                                          <div key={h.d.ma_don} className={'tts-ct-sp-dong' + (h.d.tt === 'huy' ? ' huy' : '')}>
+                                            <Chip tt={h.d.tt} /><span className="t">{ngayDm(h.d.tao_luc)} {gioNgan(h.d.tao_luc)}</span>
+                                            {h.d.kenh ? <KenhChip k={h.d.kenh} /> : <span className="nhat">—</span>}<span className="k">{h.tinh || 'chưa rõ'}</span>
+                                            <b>{fmt(l.sl)} cái{l.pl ? ' · ' + l.pl : ''}</b><span className="g">{h.d.tt === 'huy' ? <s>{fmt((l.truoc || 0) - (l.shop_giam || 0))}</s> : fmt((l.truoc || 0) - (l.shop_giam || 0))}đ</span>
+                                          </div>);
+                                      })}
+                                      {dd.length > 50 && <small>… còn {fmt(dd.length - 50)} đơn — lọc thêm ở thẻ Đơn hàng (gõ {x.ma})</small>}
+                                    </>);
+                                  })()}
+                                </div>
+                              </td></tr>
+                            ),
+                          ];
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
             </div>
           )}
         </div>
         <footer className="tts-ct-chan">
-          <span>Doanh thu = giá niêm yết − shop giảm, chỉ đơn hợp lệ · tên khách đã che</span>
+          <span>Doanh thu = giá niêm yết − shop giảm, chỉ đơn hợp lệ (không tính đơn huỷ) · tên khách đã che · bấm tiêu đề cột để sắp xếp, bấm dòng xem chi tiết</span>
           <button type="button" className="btn btn-ghost" onClick={onLoc}>Lọc cả báo cáo theo ID này</button>
         </footer>
       </aside>
