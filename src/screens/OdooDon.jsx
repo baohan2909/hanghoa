@@ -4,9 +4,10 @@ import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
 import { Sel, DateBox, isoVN } from '../lib/ui.jsx';
 import { IcRefresh, IcSearch, IcAlert, IcCheck, IcGuiLen, IcClock } from '../lib/icons.jsx';
-import { useOdooCfg, moOdoo, huyOdoo, suaOdoo, layMoiOdoo, nhanOdoo } from '../lib/odoo.js';
+import { useOdooCfg, moOdoo, huyOdoo, suaOdoo, layMoiOdoo } from '../lib/odoo.js';
 
 const TaoDon = lazy(() => import('./TaoDon.jsx'));
+const KiemNhan = lazy(() => import('../lib/KiemNhan.jsx'));   // NEW - 3.164.0: màn kiểm nhận hàng (bắn mã / tick mã)
 
 // ============================================================================
 // QUẢN LÝ ĐƠN ODOO (v3.116.0 — SQL 206)
@@ -865,7 +866,7 @@ export function NganChiTiet({ id, dong, odoo, saiXong, moDon }) {
           </>
         )}
 
-        {nhan && ct && <HopNhan ct={ct} onDong={() => setNhan(false)} onXong={xongNhan} />}
+        {nhan && ct && createPortal(<Suspense fallback={null}><KiemNhan ct={ct} onDong={() => setNhan(false)} onXong={xongNhan} /></Suspense>, document.body)}
         {sua && ct && <HopSua ct={ct} id={id} onDong={() => setSua(false)}
           onXong={(idMoi) => { setSua(false); saiXong(); if (idMoi && moDon) moDon(idMoi); else tai(); }} />}
         {hop && (
@@ -986,93 +987,7 @@ function NhanLan({ l, nh, onXong }) {
   );
 }
 
-/* ================= NEW - 303: Nhận hàng — kho nhận ghi số thực nhận từng mã, máy chủ gửi Odoo complete-incoming ================= */
-//   Mặc định mỗi mã = số kho đã xuất còn chờ nhận. Sửa nhỏ hơn = nhận thiếu (bắt buộc ghi lý do). Không nhận quá số đã xuất.
-function HopNhan({ ct, onDong, onXong }) {
-  const { user, baoToast } = useApp();
-  const ds = useMemo(() => (ct.dong4 || [])
-    .map((d) => ({ ...d, con: Math.max((d.xuat || 0) - (d.nhan || 0), 0) }))
-    .filter((d) => d.con > 0 && d.barcode), [ct.dong4]);
-  const [sl, setSl] = useState(() => Object.fromEntries(ds.map((d) => [d.barcode, String(d.con)])));
-  const [ghi, setGhi] = useState('');
-  const [tim, setTim] = useState('');
-  const [dang, setDang] = useState(false);
-  const [loi, setLoi] = useState('');
-  const [daToi, setDaToi] = useState(false);   // NEW - 305: tick "hàng đã về tới cửa hàng" — chống bấm nhầm khi hàng còn trên đường
-  const vd = ct.nhan_hang?.van_don || {};
-
-  const so = (d) => { const s = String(sl[d.barcode] ?? '').trim(); const n = Number(s); return s !== '' && Number.isInteger(n) && n >= 0 ? n : NaN; };
-  const tongCon = ds.reduce((a, d) => a + d.con, 0);
-  const tong = ds.reduce((a, d) => a + (so(d) || 0), 0);
-  const sai = ds.filter((d) => Number.isNaN(so(d)) || so(d) > d.con);
-  const thieu = ds.filter((d) => !Number.isNaN(so(d)) && so(d) < d.con);
-  const duoc = !dang && daToi && ds.length > 0 && sai.length === 0 && tong > 0 && (thieu.length === 0 || ghi.trim().length >= 3);
-  const q = tim.trim().toLowerCase();
-  const loc = q ? ds.filter((d) => `${d.ma} ${d.ten || ''} ${d.barcode}`.toLowerCase().includes(q)) : ds;
-  const dat = (bc, v) => { setSl((s) => ({ ...s, [bc]: v })); setLoi(''); };
-
-  const lam = async () => {
-    if (!duoc) return;
-    setDang(true); setLoi('');
-    const r = await nhanOdoo({ token: user.token, name: ct.name, ghiChu: ghi.trim(), dong: ds.map((d) => ({ barcode: d.barcode, so_luong: so(d) })) });
-    setDang(false);
-    if (r?.ok) {
-      baoToast(`Odoo đã nhận ${fmt(r.tong ?? tong)} cái — phiếu ${ct.name}${r.thong_bao ? ' · ' + r.thong_bao : ''}`);
-      onXong(); return;
-    }
-    setLoi(r?.loi || 'Odoo chưa nhận phiếu này');
-  };
-
-  return (
-    <div className="odn-hop-nen" onMouseDown={(e) => { if (e.target === e.currentTarget && !dang) onDong(); }}>
-      <div className="odn-hop sd-hop nh-hop" role="dialog" aria-label="Nhận hàng">
-        <b>Nhận hàng · {ct.name}</b>
-        <p>{ct.kho_cung_ung} → <b className="sd-nhan">{ct.kho_yeu_cau}</b>. Đếm hàng thực nhận rồi ghi số từng mã — mặc định bằng số kho đã xuất.
-          Bấm xác nhận là <b className="sd-nhan">nhập kho thẳng trên Odoo</b>, không sửa lại được từ app.</p>
-        {ds.length > 8 && (
-          <label className="odn-tim nh-tim"><IcSearch /><input value={tim} onChange={(e) => setTim(e.target.value)} placeholder="Tìm mã / tên / mã vạch" /></label>)}
-        {ds.length === 0 ? <p className="odn-phu">Không còn mã nào chờ nhận — bấm "Lấy mới từ Odoo".</p> : (
-          <div className="sd-ds nh-ds">
-            <div className="nh-dau"><span>Mã hàng</span><span>Chờ nhận</span><span>Thực nhận</span><span /></div>
-            {loc.map((d) => {
-              const n = so(d); const hong = Number.isNaN(n) || n > d.con; const it = !hong && n < d.con;
-              return (
-                <div key={d.barcode} className={'sd-dong nh-dong' + (it ? ' thieu' : '') + (hong ? ' sai' : '')}>
-                  <div className="sd-ma"><b>{d.ma}</b><span>{d.ten || d.barcode}</span></div>
-                  <span className="sd-cu" title="Kho đã xuất, còn chờ nhận">{fmt(d.con)}</span>
-                  <input type="number" inputMode="numeric" min="0" max={d.con} value={sl[d.barcode]} disabled={dang}
-                    aria-label={'Thực nhận ' + d.ma} onChange={(e) => dat(d.barcode, e.target.value)} />
-                  <button type="button" className="nh-du" disabled={dang || n === d.con} onClick={() => dat(d.barcode, String(d.con))}>Đủ</button>
-                </div>
-              );
-            })}
-            {loc.length === 0 && <p className="odn-phu nh-trong">Không có mã khớp "{tim}".</p>}
-          </div>)}
-        <div className={'sd-tong nh-tong' + (thieu.length ? ' thieu' : '')}>
-          Thực nhận <b>{fmt(tong)}</b> / {fmt(tongCon)} cái · {ds.length} mã
-          {thieu.length > 0 && <> · <b>thiếu {fmt(tongCon - tong)} cái ở {thieu.length} mã</b></>}
-          {sai.length > 0 && <> · {sai.length} ô sai (số nguyên, không quá số đã xuất)</>}
-        </div>
-        {thieu.length > 0 && (
-          <textarea value={ghi} onChange={(e) => setGhi(e.target.value)} rows={2} maxLength={300} disabled={dang}
-            placeholder="Lý do nhận thiếu (bắt buộc) — vd: thùng thiếu 2 cái, 1 cái lỗi…" />)}
-        {/* NEW - 305: GHTK chưa tới bước Đang giao (chỉ Quản trị tới được đây) */}
-        {vd.so > 0 && !vd.toi && <div className="odn-bao do"><IcAlert /><div><b>GHTK chưa báo đang giao / đã giao</b>
-          GHTK báo "{vd.tt || 'chưa giao'}". Chỉ nhận thay khi chắc chắn hàng đã tới cửa hàng.</div></div>}
-        <label className={'nh-toi' + (daToi ? ' on' : '')}>
-          <input type="checkbox" checked={daToi} disabled={dang} onChange={(e) => setDaToi(e.target.checked)} />
-          <span><b>Hàng đã về tới cửa hàng</b> và tôi đã đếm thực tế từng mã{vd.so === 0 ? ' (phiếu này không có vận đơn GHTK để đối chiếu)' : ''}</span>
-        </label>
-        {loi && <div className="odn-bao do"><IcAlert /><div>{loi}</div></div>}
-        <div className="odn-hop-chan">
-          <button className="odn-nut-phu" disabled={dang} onClick={onDong}>Đóng</button>
-          <button className={'btn btn-ai odn-nut-chinh' + (dang ? ' dang-chay' : '')} disabled={!duoc} onClick={lam}>
-            {dang ? 'Đang gửi Odoo…' : `Xác nhận đã nhận ${fmt(tong)} cái`}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+/* NEW - 3.164.0: hộp Nhận hàng cũ (NEW - 303) thay bằng màn Kiểm nhận hàng — src/lib/KiemNhan.jsx */
 
 /* ================= Sửa đơn: huỷ đơn cũ + tạo đơn mới đã sửa (v3.118.0) ================= */
 function HopSua({ ct, id, onDong, onXong }) {
