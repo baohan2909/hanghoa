@@ -7595,3 +7595,4 @@ body.tts-ct-khoa { overflow: hidden; }
 .odn-cg-doi small, .odn-cg-luc small, .odn-cg-so small { display: block; font-size: 11.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .odn-cg-so { text-align: right; } .odn-cg-so b { font-size: 15px; }
 @media (max-width: 900px) { .odn-cg-dong { grid-template-columns: 1fr auto; } .odn-cg-doi, .odn-cg-luc { grid-column: 1; } .odn-cg-so { text-align: left; } }
+.odn-cg-nut { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }   /* NEW - 3.171.0 */

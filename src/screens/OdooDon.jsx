@@ -187,6 +187,17 @@ export default function OdooDon({ nhung = false, locDau = null }) {
   }, [laCH, user.token]);
   useEffect(() => { taiCg(); }, [taiCg]);
   const tai = useCallback(() => { taiTq(); taiDs(); taiCg(); }, [taiTq, taiDs, taiCg]);
+  // NEW - 3.171.0 (SQL 311): Quản trị huỷ phiếu đã chia chưa có đơn Odoo (phiếu cũ đã chia lại, không gửi nữa) — trả tồn đang giữ
+  const [dangHuyCg, setDangHuyCg] = useState(null);
+  const huyChuaGui = async (p) => {
+    if (!window.confirm(`Huỷ phiếu ${p.ma_phieu} (${fmt(p.tong)} cái)?\nPhần tồn đang giữ trả lại kho, phiếu thành "Đã huỷ" và không gửi Odoo được nữa.`)) return;
+    setDangHuyCg(p.id);
+    const { data, error } = await sb.rpc('fn_odoo_chua_gui_huy', { p_token: user.token, p_id: p.id, p_ly_do: null });
+    setDangHuyCg(null);
+    if (error || !data?.ok) { baoToast('Chưa huỷ được: ' + (error?.message || data?.loi || 'lỗi lạ')); return; }
+    baoToast('Đã huỷ phiếu ' + p.ma_phieu + ' — đã trả tồn đang giữ');
+    taiCg();
+  };
   const guiChuaGui = (p) => odooTuPhieu([{ id: p.id, ma_phieu: p.ma_phieu, ghi_chu: p.ghi_chu }], 'Phiếu ' + p.ma_phieu, () => tai(), user.token)
     .catch((e) => baoToast('Chưa mở được hộp Odoo: ' + (e?.message || e)));
 
@@ -298,7 +309,11 @@ export default function OdooDon({ nhung = false, locDau = null }) {
                 <div className="odn-cg-doi"><b>{doi || '—'}</b>{p.ghi_chu && <small title={p.ghi_chu}>{p.ghi_chu}</small>}</div>
                 <div className="odn-cg-luc">{p.ten_nguoi || p.nguoi || '—'}<small>{gioNgay(p.tao_luc)}{ngayTruoc >= 1 ? ` · ${ngayTruoc} ngày trước` : ''}</small></div>
                 <div className="odn-cg-so"><b>{fmt(p.tong)}</b> cái<small>{fmt(p.so_ma)} mã</small></div>
-                <button type="button" className="btn btn-ai odn-nut-chinh" onClick={() => guiChuaGui(p)}><IcGuiLen /> Gửi lên Odoo</button>
+                <div className="odn-cg-nut">
+                  {user.vai_tro === 'ADMIN' && <button type="button" className="odn-nut-phu do" disabled={dangHuyCg === p.id} onClick={() => huyChuaGui(p)}
+                    title="Phiếu không cần gửi nữa (vd đã chia lại bằng phiếu sau) — huỷ và trả tồn đang giữ">{dangHuyCg === p.id ? 'Đang huỷ…' : 'Huỷ phiếu'}</button>}
+                  <button type="button" className="btn btn-ai odn-nut-chinh" onClick={() => guiChuaGui(p)}><IcGuiLen /> Gửi lên Odoo</button>
+                </div>
               </div>
             );
           })}
