@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
-import { IcDown, IcGuiLen } from '../lib/icons.jsx';
+import { IcDown, IcGuiLen, IcAlert } from '../lib/icons.jsx';
 import { useApp } from '../App.jsx';
-import { useOdooCfg, moOdoo, gomDon, odooTheoNguon, luuKemOdoo } from '../lib/odoo.js';
+import { useOdooCfg, moOdoo, gomDon, odooTheoNguon, luuKemOdoo, odooLoiTam } from '../lib/odoo.js';
 
 // Dùng chung cho Chia hàng đội sale + Kho thùng (tách từ DsChiaHang v3.103.0)
 export const fmtN = (n) => (n == null || n === '' ? '—' : Number(n).toLocaleString('vi'));
@@ -239,6 +239,7 @@ export function useHoiGhiChu() {
   const chonOdoo = useRef(false);
   const ask = useCallback((o = {}) => new Promise((resolve) => { chonOdoo.current = false; setHoi({ ...o, resolve }); }), []);
   const el = hoi ? <HopGhiChu key="gc" {...hoi} coOdoo={!!(hoi.odoo && odoo)} batBuoc={!!(hoi.odooBatBuoc && odoo)}
+    odooLoi={!!((hoi.odoo || hoi.odooBatBuoc) && !odoo && odooLoiTam())}
     kemMacDinh={odoo?.kem !== false} onDoiKem={(v) => luuKemOdoo(user?.token, v)}
     onXong={(v, od) => { chonOdoo.current = !!(od && v !== null); hoi.resolve(v); setHoi(null); }} /> : null;
   return [ask, el, chonOdoo];
@@ -287,7 +288,7 @@ export const ghiChuMacDinh = (maDoi, tenDoi) => lsGet('ghi_chu.' + (maDoi || '-'
   ?? `${String(tenDoi || maDoi || '').replace(/^Đội SALE/i, 'Đội Sale')} – `;
 export const nhoGhiChu = (maDoi, v) => { if (maDoi) lsSet('ghi_chu.' + maDoi, v || ''); };
 
-function HopGhiChu({ tieuDe, macDinh, phu, nutXong, coOdoo, batBuoc, kemMacDinh, onDoiKem, onXong }) {
+function HopGhiChu({ tieuDe, macDinh, phu, nutXong, coOdoo, batBuoc, kemMacDinh, onDoiKem, onXong, odooLoi }) {
   const [v, setV] = useState(macDinh || '');
   // NEW - 3.126: lấy theo tài khoản (máy chủ), không theo trình duyệt — máy mới vẫn tick sẵn
   const [od, setOd] = useState(() => kemMacDinh !== false);
@@ -310,6 +311,12 @@ function HopGhiChu({ tieuDe, macDinh, phu, nutXong, coOdoo, batBuoc, kemMacDinh,
           <div className="gc-odoo on co-dinh"><IcGuiLen />
             <span><b>Tạo đơn thẳng trên Odoo</b>
               <small>Xác nhận xong là giữ tồn + gửi Odoo ngay — mỗi kho chuyển × đội = 1 đơn, không cần xuất file</small></span>
+          </div>
+        )}
+        {odooLoi && !coOdoo && !batBuoc && (   // NEW - 3.169.0: không ẩn lặng lẽ khi chưa đọc được cấu hình Odoo
+          <div className="gc-odoo loi"><IcAlert />
+            <span><b>Chưa kết nối được Odoo</b>
+              <small>Mạng / máy chủ đang chập chờn — xác nhận lúc này sẽ CHỈ xuất file, CHƯA tạo đơn Odoo. Đợi vài giây rồi mở lại, hoặc gửi sau bằng nút Odoo ở tab Phiếu đã chia.</small></span>
           </div>
         )}
         {coOdoo && !batBuoc && (

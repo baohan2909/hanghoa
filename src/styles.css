@@ -4353,6 +4353,8 @@ body.ch-khoa-cuon { overflow: hidden; }
 .gc-odoo svg { flex: none; margin-top: 1px; color: var(--teal-deep); }
 .gc-odoo b { display: block; font-size: 13px; color: var(--ink); } .gc-odoo small { display: block; font-size: 11.5px; color: var(--ink-2); line-height: 1.4; }
 .gc-odoo.on { border-color: var(--teal); background: #F1FAF8; }
+.gc-odoo.loi { border-color: rgba(214,0,108,.4); background: #FDEEF5; cursor: default; }   /* NEW - 3.169.0 */
+.gc-odoo.loi svg { color: #D6006C; } .gc-odoo.loi b { color: #B0115C; }
 @media (max-width: 640px) {
   .od-cai { grid-template-columns: 1fr; }
   .od-don-hang { flex-wrap: wrap; }

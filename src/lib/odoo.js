@@ -8,17 +8,32 @@ import { SUPABASE_URL, SUPABASE_ANON } from '../config.js';
 
 const FN = SUPABASE_URL + '/functions/v1/odoo-dieu-chuyen';
 let cache = { token: null, p: null };
+let loiTam = false;   // NEW - 3.169.0: lần đọc cấu hình gần nhất lỗi tạm (để màn hình báo, không ẩn lặng lẽ)
+export const odooLoiTam = () => loiTam;
 
 // Cấu hình + quyền của tài khoản đang đăng nhập (đọc 1 lần / phiên)
+// NEW - 3.169.0: lỗi TẠM (máy chủ báo 521, quá giờ, mất mạng) KHÔNG còn bị nhớ cả phiên.
+//   Trước: 1 lần đọc lỗi -> kết quả rỗng bị giữ tới khi tải lại trang -> MỌI màn ẩn nút / ô "tạo đơn Odoo"
+//   (27/11 14:20 máy chủ báo 521 -> phiếu DS261127-142336-D28 xác nhận xong mà không có đơn Odoo, không báo gì).
+//   Nay: thử 3 lần (ngay · 1,5 giây · 4 giây); vẫn lỗi -> trả undefined (khác null = máy chủ trả "chưa mở")
+//   và xoá nhớ để lần gọi sau thử lại; useOdooCfg tự thử lại 20 giây / lần.
 export function layCfgOdoo(token, moi = false) {
   if (!token) return Promise.resolve(null);
   if (!moi && cache.token === token && cache.p) return cache.p;
-  cache = {
-    token,
-    p: Promise.resolve(sb.rpc('fn_odoo_cfg', { p_token: token }))
-      .then(({ data, error }) => (error ? null : data)).catch(() => null),
-  };
-  return cache.p;
+  const p = (async () => {
+    for (const cho of [0, 1500, 4000]) {
+      if (cho) await new Promise((r) => setTimeout(r, cho));
+      try {
+        const { data, error } = await sb.rpc('fn_odoo_cfg', { p_token: token });
+        if (!error) { loiTam = false; return data; }
+      } catch { /* thử lại */ }
+    }
+    loiTam = true;
+    return undefined;
+  })();
+  cache = { token, p };
+  p.then((c) => { if (c === undefined && cache.p === p) cache = { token: null, p: null }; });
+  return p;
 }
 
 // NEW - 3.126: ô "Đồng thời tạo đơn trên Odoo" nhớ theo TÀI KHOẢN trên máy chủ (cfg.kem, chưa chọn = bật) — đổi máy không mất
@@ -33,9 +48,14 @@ export async function luuKemOdoo(token, bat) {
 export function useOdooCfg(user) {
   const [cfg, setCfg] = useState(null);
   useEffect(() => {
-    let song = true;
-    layCfgOdoo(user?.token).then((c) => { if (song) setCfg(c); });
-    return () => { song = false; };
+    let song = true; let hen = null;
+    const tai = () => layCfgOdoo(user?.token).then((c) => {
+      if (!song) return;
+      if (c === undefined && user?.token) { hen = setTimeout(tai, 20000); return; }   // NEW - 3.169.0: lỗi tạm -> 20 giây thử lại
+      setCfg(c);
+    });
+    tai();
+    return () => { song = false; clearTimeout(hen); };
   }, [user?.token]);
   return cfg?.cho_phep ? cfg : null;
 }
