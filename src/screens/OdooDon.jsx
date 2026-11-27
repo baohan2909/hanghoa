@@ -5,6 +5,7 @@ import { useApp } from '../App.jsx';
 import { Sel, DateBox, isoVN } from '../lib/ui.jsx';
 import { IcRefresh, IcSearch, IcAlert, IcCheck, IcGuiLen, IcClock } from '../lib/icons.jsx';
 import { useOdooCfg, moOdoo, huyOdoo, suaOdoo, layMoiOdoo } from '../lib/odoo.js';
+import { odooTuPhieu } from './dsChung.jsx';   // NEW - 3.170.0: gửi Odoo phiếu đã chia chưa có đơn ngay tại đây
 
 const TaoDon = lazy(() => import('./TaoDon.jsx'));
 const KiemNhan = lazy(() => import('../lib/KiemNhan.jsx'));   // NEW - 3.164.0: màn kiểm nhận hàng (bắn mã / tick mã)
@@ -177,7 +178,17 @@ export default function OdooDon({ nhung = false, locDau = null }) {
   }, [user.token, base, loc.nhom, loc.buoc, loc.dc, loc.vc, loc.hien_huy, qTre, sap.k, cotGui]);
   useEffect(() => { taiTq(); }, [taiTq]);
   useEffect(() => { taiDs(); }, [taiDs]);
-  const tai = useCallback(() => { taiTq(); taiDs(); }, [taiTq, taiDs]);
+  // NEW - 3.170.0 (SQL 310): phiếu đã chia (Đội Sale / Chia hàng mới) đã xác nhận, đang giữ tồn mà CHƯA có đơn Odoo
+  const [chuaGui, setChuaGui] = useState([]);
+  const taiCg = useCallback(async () => {
+    if (laCH) return;
+    const { data, error } = await sb.rpc('fn_odoo_chua_gui', { p_token: user.token });
+    if (!error) setChuaGui(Array.isArray(data) ? data : []);
+  }, [laCH, user.token]);
+  useEffect(() => { taiCg(); }, [taiCg]);
+  const tai = useCallback(() => { taiTq(); taiDs(); taiCg(); }, [taiTq, taiDs, taiCg]);
+  const guiChuaGui = (p) => odooTuPhieu([{ id: p.id, ma_phieu: p.ma_phieu, ghi_chu: p.ghi_chu }], 'Phiếu ' + p.ma_phieu, () => tai(), user.token)
+    .catch((e) => baoToast('Chưa mở được hộp Odoo: ' + (e?.message || e)));
 
   const lamMoi = async () => {
     setDangTai(true);
@@ -270,6 +281,29 @@ export default function OdooDon({ nhung = false, locDau = null }) {
       </div> : null}
 
       {loi && <div className="odn-bao do"><IcAlert /> Không tải được: {loi} <button onClick={tai}>Thử lại</button></div>}
+
+      {/* NEW - 3.170.0: phiếu đã chia chưa có đơn Odoo — gửi ngay tại đây (không phải vào Đội Sale › Phiếu đã chia) */}
+      {chuaGui.length > 0 && (
+        <div className="odn-cg">
+          <div className="odn-cg-dau"><IcAlert />
+            <div><b>{fmt(chuaGui.length)} phiếu đã chia chưa có đơn Odoo</b>
+              <span>Đã xác nhận và đang giữ tồn kho, nhưng kho chưa nhận được đơn. Bấm “Gửi lên Odoo” để tạo đơn.</span></div></div>
+          {chuaGui.map((p) => {
+            const doi = (p.doi || []).map((m) => { const k = /^DOISALE(\d+)$/i.exec(m); return k ? 'Đội Sale ' + k[1] : m; }).join(', ');
+            const ngayTruoc = Math.floor((Date.now() - new Date(p.tao_luc).getTime()) / 86400000);
+            return (
+              <div key={p.id} className="odn-cg-dong">
+                <div className="odn-cg-ma"><b>{p.ma_phieu}</b>
+                  <i className={'odn-cg-ng ' + ({ TK: 'tk', PK: 'pk' }[p.nguon] || 'sa')}>{{ TK: 'Thùng', PK: 'Phụ kiện' }[p.nguon] || 'Sale'}</i></div>
+                <div className="odn-cg-doi"><b>{doi || '—'}</b>{p.ghi_chu && <small title={p.ghi_chu}>{p.ghi_chu}</small>}</div>
+                <div className="odn-cg-luc">{p.ten_nguoi || p.nguoi || '—'}<small>{gioNgay(p.tao_luc)}{ngayTruoc >= 1 ? ` · ${ngayTruoc} ngày trước` : ''}</small></div>
+                <div className="odn-cg-so"><b>{fmt(p.tong)}</b> cái<small>{fmt(p.so_ma)} mã</small></div>
+                <button type="button" className="btn btn-ai odn-nut-chinh" onClick={() => guiChuaGui(p)}><IcGuiLen /> Gửi lên Odoo</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Danh sách — mỗi dòng 6 thông tin */}
       <div className={'odn-bang-khung' + (dangTai && ds ? ' dang' : '')}>
