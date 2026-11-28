@@ -14,13 +14,24 @@
 //     ô Chuyển TRỐNG tới khi bấm "Tự động chia" (cột Gợi ý bấm là lấy) · Điền lại / Xoá số · dòng cuối 1 hàng mỏng · bỏ Lưu nháp (tự lưu trên máy).
 //   Số liệu: fn_ol_du_lieu (SQL 277, tính sẵn ở máy chủ, làm mới nền mỗi lượt kéo Nhanh). Máy tính chạy ngay trên máy:
 //   kéo "Số ngày phủ" / "Mức an toàn" là thấy số mới tức thì.
+//   NEW - 3.172 LỌC HÀNG như Đội Sale — LỌC VÀ SẮP XẾP TUYỆT ĐỐI TUÂN THỦ:
+//     · Tiêu đề cột: bấm tên = sắp xếp (lớn→nhỏ → nhỏ→lớn → bỏ), bấm phễu = lọc (= 0 · ≠ 0 · ≥ · ≤ · khoảng · chọn giá trị) — DsLocCot.jsx
+//     · Hàng ô lọc dưới tiêu đề (gõ 5 · >5 · >=5 · <3 · !=0 · 5-10 · 1;3;5) · ô Sản phẩm lọc mã / tên / màu (không dấu cũng được)
+//     · Bộ lọc mã (dùng chung với Đội Sale) · nhóm kho · nút lọc nhanh — kết hợp được với nhau, NHỚ trên máy
+//     · Tự động chia / Điền lại / Xoá số CHỈ áp cho mã ĐANG HIỆN trên bảng (theo mọi lọc) — mã bị lọc ẩn giữ nguyên số
+//     · Bấm nút thao tác KHÔNG tự đổi lọc / sắp xếp của anh
+//     · Thứ tự bảng = đúng cột đang sắp (trùng số thì xếp theo bán/ngày rồi theo mã) · Excel + đơn Odoo tạo từ màn này xếp đúng thứ tự đó
+//     · Ô Chuyển: gõ xong Enter / ↓ / rời ô mới chốt (bảng không nhảy dòng khi đang gõ) · ↑ lên dòng trên · Esc huỷ · Space / + lấy số gợi ý
 // ============================================================================
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import { useApp } from '../App.jsx';
-import { IcRefresh, IcDown, IcAlert, IcClock, IcSpark, IcGuiLen, IcBox, IcGrid, IcRadar, IcCheck } from '../lib/icons.jsx';
+import { IcRefresh, IcDown, IcAlert, IcClock, IcSpark, IcGuiLen, IcBox, IcGrid, IcRadar, IcCheck, IcLoc } from '../lib/icons.jsx';
 import { useOdooCfg, moOdoo, gomDon } from '../lib/odoo.js';
 import { isoVN } from '../lib/ui.jsx';
+import { boLocSo, boLocChu, ThCot, soSanh } from './DsLocCot.jsx';   // NEW - 3.172
+import { useBoLoc, MenuBoLoc, HopBoLoc } from './DsBoLoc.jsx';     // NEW - 3.172
+import { useTuyChinh } from './DsTuyChinh.jsx';                    // NEW - 3.172: bộ lọc mã đã ẩn (chung với Đội Sale)
 
 const NGANH = { BH: 'Nón bảo hiểm', NV: 'Nón vải', PK: 'Phụ kiện' };
 // NEW - 3.159: nhóm kho giống Đề nghị hàng — mỗi nhóm 1 kho tổng
@@ -56,6 +67,47 @@ const docTs = () => { try { return JSON.parse(localStorage.getItem(LS)) || {}; }
 // NEW - 3.159.4: số anh gõ ở ô Chuyển TỰ LƯU trên máy (thay nút Lưu nháp) — chỉ giữ trong ngày
 const LS_SUA = 'ns_chia_online_sua';
 const docSua = (homNay) => { try { const o = JSON.parse(localStorage.getItem(LS_SUA)); return o && o.ngay === homNay ? o : null; } catch { return null; } };
+// NEW - 3.172: nhớ lọc + sắp xếp trên máy (nhóm · nút lọc nhanh · lọc cột · bộ lọc mã · cột đang sắp)
+const LS_LOC = 'ns_chia_online_loc';
+const docLocOl = () => { try { return JSON.parse(localStorage.getItem(LS_LOC)) || {}; } catch { return {}; } };
+// NEW - 3.172: cột số của bảng — 1 giá trị dùng CHUNG cho sắp xếp + phễu lọc + ô lọc = đúng số lớn đang hiện trong ô
+const COT = {
+  gia: { lay: (m) => m.r.gs || m.r.g || 0 },
+  ban: { lay: (m) => m.banN },
+  ton: { lay: (m) => m.co + m.ve },
+  kd: { lay: (m) => m.kd },
+  gy: { lay: (m) => m.goiY },
+  sl: { lay: (m) => m.sl },
+  sau: { lay: (m) => m.sauSl },
+};
+const COT_K = ['gia', 'ban', 'ton', 'kd', 'gy', 'sl', 'sau'];
+// trùng giá trị: bán/ngày lớn trước, rồi theo mã — thứ tự luôn cố định, không xáo
+const sauCung = (x, y) => y.v - x.v || String(x.r.m || '').localeCompare(String(y.r.m || ''), 'vi', { numeric: true });
+
+// NEW - 3.172: ô Chuyển — gõ thoải mái, Enter / ↓ / ↑ / rời ô mới chốt (lọc + sắp xếp áp ngay sau khi chốt, không nhảy dòng khi đang gõ)
+function OChuyen({ b, gt, goiY, onDat, onDi }) {
+  const [o, setO] = useState(gt ?? '');
+  const go = useRef(false);
+  useEffect(() => { if (!go.current) setO(gt ?? ''); }, [gt]);
+  const chot = () => {
+    if (!go.current) return;
+    go.current = false;
+    const v = String(o).replace(/[^\d]/g, '');
+    if (v !== String(gt ?? '')) onDat(v);
+  };
+  return (
+    <input data-b={b} inputMode="numeric" value={o} className={gt != null ? 'sua' : ''}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => { go.current = true; setO(e.target.value.replace(/[^\d]/g, '')); }}
+      onBlur={chot}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === 'ArrowDown') { e.preventDefault(); chot(); onDi(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); chot(); onDi(-1); }
+        else if (e.key === 'Escape') { go.current = false; setO(gt ?? ''); e.currentTarget.blur(); }
+        else if ((e.key === ' ' || e.key === '+') && goiY > 0) { e.preventDefault(); go.current = false; setO(String(goiY)); onDat(String(goiY)); }
+      }} />
+  );
+}
 
 // ---------------------------------------------------------------------------
 // MÁY TÍNH — 1 mã   (NEW - 3.159.4: cùng cách tính với Chia hàng đội sale)
@@ -149,10 +201,19 @@ export default function ChiaOnline() {
   const ts0 = docTs();
   const [p, setP] = useState({ sb: ts0.sb ?? null, cd: ts0.cd ?? null, tl: ts0.tl ?? null, lamTron: ts0.lamTron ?? null, giuNguon: ts0.giuNguon ?? null });
   const sua0 = useMemo(() => docSua(isoVN()), []);   // NEW - 3.159.4: số đã gõ dở hôm nay
-  const [nhom, setNhom] = useState('');   // NEW - 3.159: '' = xem tất cả
-  const [loc, setLoc] = useState('can');
-  const [q, setQ] = useState('');
-  const [sap, setSap] = useState({ k: '', g: -1 });
+  const loc0 = useMemo(docLocOl, []);   // NEW - 3.172: lọc + sắp xếp lần trước
+  const [nhom, setNhom] = useState(loc0.nhom ?? '');   // NEW - 3.159: '' = xem tất cả
+  const [loc, setLoc] = useState(loc0.loc ?? 'can');
+  const [sap, setSap] = useState(loc0.sap ?? null);   // NEW - 3.172: { k: cột, g: 1 tăng / -1 giảm } · null = mặc định (tình trạng → bán/ngày)
+  const [locCot, setLocCot] = useState(loc0.locCot || {});   // NEW - 3.172: lọc theo cột (chuỗi cùng cú pháp Đội Sale)
+  const [boLocDung, setBoLocDung] = useState(loc0.boLoc ?? null);   // NEW - 3.172: bộ lọc mã đang dùng
+  const [suaBoLoc, setSuaBoLoc] = useState(null);   // null | 'moi' | {bộ lọc}
+  const nguoi = user?.ma_dang_nhap || '';
+  const [dsBoLoc, taiBoLoc] = useBoLoc(nguoi);
+  const [tcBan] = useTuyChinh(nguoi, 'ban_lam_viec');   // chỉ ĐỌC danh sách bộ lọc anh đã ẩn ở Đội Sale
+  useEffect(() => {
+    try { localStorage.setItem(LS_LOC, JSON.stringify({ nhom, loc, sap, locCot, boLoc: boLocDung })); } catch { /* bỏ qua */ }
+  }, [nhom, loc, sap, locCot, boLocDung]);
   const [sua, setSua] = useState(sua0?.sua || {});
   const [moTs, setMoTs] = useState(false);   // NEW - 3.159.4: hộp ⚙ (làm tròn · chừa cho cửa hàng · mặc định)
   const [soHien, setSoHien] = useState(250);
@@ -229,6 +290,36 @@ export default function ChiaOnline() {
 
   // ===== Tổng quan =====
   const theoNganh = useMemo(() => ds.filter((m) => !nhom || m.nh === nhom), [ds, nhom]);
+  // NEW - 3.172: lọc cột (ô dưới tiêu đề + phễu) · bộ lọc mã
+  const locCotFn = useMemo(() => {
+    const fs = [], sai = {};
+    Object.entries(locCot).forEach(([k, chuoi]) => {
+      const t = String(chuoi ?? '').trim();
+      if (!t) return;
+      if (k === 'sp') {
+        if (/^(=|∅)/.test(t)) { const f = boLocChu(t); if (typeof f === 'function') fs.push((m) => f(m.r.m)); return; }   // chọn giá trị: đúng mã
+        const tu = boDau(t).split(/\s+/).filter(Boolean);   // chứa mọi từ — mã, tên, màu, mã vạch, SKU; không dấu cũng được
+        fs.push((m) => { const h = boDau([m.r.m, m.r.t, m.r.b, m.r.sku, m.r.n3].join(' ')); return tu.every((w) => h.includes(w)); });
+        return;
+      }
+      const fn = boLocSo(t);
+      if (fn === 'sai') { sai[k] = true; return; }
+      if (fn && COT[k]) fs.push((m) => fn(COT[k].lay(m)));
+    });
+    return { fs, sai, co: fs.length > 0 || Object.keys(sai).length > 0 };
+  }, [locCot]);
+  const datLocCot = (k, v) => setLocCot((c) => { const o = { ...c }; if (v == null || !String(v).trim()) delete o[k]; else o[k] = v; return o; });
+  const boLoc = dsBoLoc.find((b) => b.id === boLocDung) || null;
+  const boLocSet = useMemo(() => (boLoc ? new Set(boLoc.ma.flatMap((x) => [x.b, x.m])) : null), [boLoc]);
+  // gốc = nhóm + bộ lọc mã + lọc cột (chưa áp nút lọc nhanh) — số trên các nút lọc nhanh đếm từ đây
+  const goc = useMemo(() => theoNganh.filter((m) => (!boLocSet || boLocSet.has(m.r.b) || boLocSet.has(m.r.m))
+    && locCotFn.fs.every((f) => f(m))), [theoNganh, boLocSet, locCotFn]);
+  // NEW - 3.172: thứ tự — cột đang sắp, trùng số thì bán/ngày rồi mã; chưa chọn cột: tình trạng (hết → sắp hết → …) rồi bán/ngày
+  const sapFn = useMemo(() => {
+    if (sap?.k === 'sp') return (x, y) => soSanh(x.r.m, y.r.m, sap.g) || sauCung(x, y);
+    if (sap && COT[sap.k]) { const lay = COT[sap.k].lay; return (x, y) => soSanh(lay(x), lay(y), sap.g) || sauCung(x, y); }
+    return (x, y) => (THU_TT[x.tt] ?? 9) - (THU_TT[y.tt] ?? 9) || sauCung(x, y);
+  }, [sap]);
   const tq = useMemo(() => {   // NEW - 3.159.4: dòng cuối = mọi nhóm (đúng số sẽ tạo đơn)
     const theoNganh = ds;
     const ban = theoNganh.filter((m) => m.v > 0);
@@ -263,24 +354,36 @@ export default function ChiaOnline() {
     ['sua', 'Đã nhập số', (m) => m.daSua],
     ['xem', 'Cần xem', (m) => m.vuot || (m.daSua && m.chuaDu)],
   ];
-  const demLoc = useMemo(() => Object.fromEntries(LOC.map(([k, , f]) => [k, theoNganh.filter(f).length])), [theoNganh]);   // eslint-disable-line
+  const demLoc = useMemo(() => Object.fromEntries(LOC.map(([k, , f]) => [k, goc.filter(f).length])), [goc]);   // eslint-disable-line
 
+  // NEW - 3.172: bảng = gốc + nút lọc nhanh, xếp ĐÚNG sapFn (không còn ô tìm riêng — tìm ở ô Sản phẩm dưới tiêu đề)
   const hien = useMemo(() => {
-    const f = LOC.find((x) => x[0] === loc)?.[2] || (() => true);
-    const tu = boDau(q.trim());
-    let a = theoNganh.filter((m) => f(m) && (!tu || boDau([m.r.m, m.r.t, m.r.b, m.r.sku].join(' ')).includes(tu)));
-    const gt = { v: (m) => m.v, phu: (m) => (m.phuVe === Infinity ? 1e9 : m.phuVe), sl: (m) => m.sl, co: (m) => m.co + m.ve, ve: (m) => m.ve, xh: (m) => m.xh,
-      kd: (m) => m.kd, de: (m) => m.goiY, sau: (m) => (m.sau === Infinity ? 1e9 : m.sau), gia: (m) => m.r.gs || m.r.g || 0 };
-    if (sap.k && gt[sap.k]) a = [...a].sort((x, y) => (gt[sap.k](x) - gt[sap.k](y)) * sap.g);
-    else a = [...a].sort((x, y) => (THU_TT[x.tt] ?? 9) - (THU_TT[y.tt] ?? 9) || y.v - x.v);
-    return a;
-  }, [theoNganh, loc, q, sap]);   // eslint-disable-line
-  useEffect(() => { setSoHien(250); }, [loc, nhom, q]);
+    const f = LOC.find((x) => x[0] === loc)?.[2];
+    return goc.filter((m) => !f || f(m)).sort(sapFn);
+  }, [goc, loc, sapFn]);   // eslint-disable-line
+  useEffect(() => { setSoHien(250); }, [loc, nhom, locCot, boLocDung, sap]);
+  // NEW - 3.172: mã đã nhập số mà đang bị lọc ẩn — vẫn vào đơn khi bấm Tạo đơn Odoo, báo cho anh thấy
+  const anCoSo = useMemo(() => { const h = new Set(hien.map((m) => m.r.b)); return ds.filter((m) => m.sl > 0 && !h.has(m.r.b)); }, [ds, hien]);
+  const moTaLoc = [nhom ? TEN_NHOM[nhom] : null, loc ? LOC.find((x) => x[0] === loc)?.[1] : null, boLoc ? boLoc.ten : null,
+    locCotFn.co ? 'lọc cột' : null].filter(Boolean).join(' · ') || 'tất cả';
+  const boMoiLoc = () => { setLoc(''); setLocCot({}); setBoLocDung(null); };
+  const xemLoc = (k) => { setNhom(''); setLoc(k); setLocCot({}); setBoLocDung(null); };   // nút cảnh báo dưới: bỏ lọc khác để chắc chắn thấy đủ
+  // NEW - 3.172: ô Chuyển — Enter / ↓ xuống dòng dưới, ↑ lên dòng trên (theo đúng thứ tự đang hiện)
+  const diDen = (b, d) => {
+    const i = hien.findIndex((m) => m.r.b === b);
+    const t = hien[i + d];
+    if (!t) return;
+    if (i + d >= soHien) setSoHien((n) => n + 250);
+    const den = t.r.b;
+    setTimeout(() => { const el = document.querySelector(`.co-bang input[data-b="${CSS.escape(den)}"]`); if (el) { el.focus(); el.scrollIntoView({ block: 'nearest' }); } }, 0);
+  };
 
   // ===== Phiếu: dòng chuyển (mỗi mã × kho nguồn) =====
-  const dongChuyen = useMemo(() => ds.filter((m) => m.sl > 0).flatMap((m) => m.chia.filter((c) => c.sl > 0).map((c) => ({
+  // NEW - 3.172: xếp ĐÚNG thứ tự đang sắp trên bảng -> Excel + đơn Odoo cùng thứ tự anh thấy
+  const dsSap = useMemo(() => [...ds].sort(sapFn), [ds, sapFn]);
+  const dongChuyen = useMemo(() => dsSap.filter((m) => m.sl > 0).flatMap((m) => m.chia.filter((c) => c.sl > 0).map((c) => ({
     barcode: m.r.b, sku: m.r.sku, ma: m.r.m, tu: c.k, den: m.den, sl: c.sl, de_xuat: m.goiY, ly_do: m.lyDo, n: m.r.n,
-  }))), [ds]);
+  }))), [dsSap]);
   const tongCap = useMemo(() => {
     const g = new Map();
     dongChuyen.forEach((d) => {
@@ -297,29 +400,29 @@ export default function ChiaOnline() {
     else n[b] = { ...(n[b] || {}), sl: Math.max(0, Math.floor(Number(v) || 0)) };
     return n;
   });
-  // NEW - 3.159.4: như Đội Sale — "Tự động chia" chỉ điền ô CHƯA nhập (nhóm đang chọn), "Điền lại" ghi đè, "Xoá số" xoá nhóm đang chọn
+  // NEW - 3.159.4: như Đội Sale — "Tự động chia" chỉ điền ô CHƯA nhập, "Điền lại" ghi đè, "Xoá số" xoá
+  // NEW - 3.172: CHỈ áp cho mã ĐANG HIỆN trên bảng (nhóm + nút lọc nhanh + bộ lọc mã + lọc cột) — mã bị lọc ẩn giữ nguyên;
+  //   KHÔNG tự đổi lọc / sắp xếp (trước đây tự nhảy về "Cần chuyển")
+  const soSeDien = useMemo(() => hien.filter((m) => m.goiY > 0 && !m.daSua).length, [hien]);
   const tuDong = (ghiDe) => {
     const o = { ...sua }; let dien = 0, xoa = 0;
-    ds.forEach((m) => {
-      if (nhom && m.nh !== nhom) return;
+    hien.forEach((m) => {
       const b = m.r.b, co = o[b]?.sl != null;
       if (co && !ghiDe) return;
       if (m.goiY > 0) { o[b] = { ...(o[b] || {}), sl: m.goiY }; dien += 1; }
       else if (co) { const x = { ...o[b] }; delete x.sl; if (x.nguon) o[b] = x; else delete o[b]; xoa += 1; }
     });
-    setSua(o); setLoc('can');
-    const pv = nhom ? TEN_NHOM[nhom] : 'tất cả nhóm';
-    baoToast(dien || xoa ? `Đã điền ${dien} mã (${pv})${xoa ? ` · bỏ ${xoa} mã không còn cần` : ''} — số anh đã gõ ${ghiDe ? 'đã được ghi đè' : 'giữ nguyên'}` : `Không có mã nào cần chuyển (${pv})`);
+    setSua(o);
+    const pv = `${fmtN(hien.length)} mã đang hiện · ${moTaLoc}`;
+    baoToast(dien || xoa ? `Đã điền ${dien} mã (${pv})${xoa ? ` · bỏ ${xoa} mã không còn cần` : ''} — số anh đã gõ ${ghiDe ? 'đã được ghi đè' : 'giữ nguyên'}; mã bị lọc ẩn không đổi`
+      : `Không có mã nào cần điền trong ${pv}`);
   };
   const xoaSo = () => {
+    const h = new Set(hien.map((m) => m.r.b));
     const o = {}; let xoa = 0;
-    Object.entries(sua).forEach(([b, x]) => {
-      const m = nhom ? ds.find((y) => y.r.b === b) : null;
-      if (!nhom || m?.nh === nhom) { xoa += 1; return; }
-      o[b] = x;
-    });
+    Object.entries(sua).forEach(([b, x]) => { if (h.has(b)) { xoa += 1; return; } o[b] = x; });
     setSua(o); if (!Object.keys(o).length) setPhieuSua(null);
-    baoToast(xoa ? `Đã xoá số ${xoa} mã${nhom ? ' (' + TEN_NHOM[nhom] + ')' : ''}` : 'Chưa có số nào để xoá');
+    baoToast(xoa ? `Đã xoá số ${xoa} mã đang hiện (${moTaLoc}) — mã bị lọc ẩn giữ nguyên` : 'Các mã đang hiện chưa có số nào để xoá');
   };
 
   const luuPhieu = async () => {
@@ -351,7 +454,7 @@ export default function ChiaOnline() {
     guiOdoo(ph, dongChuyen);
   };
 
-  const xuatExcel = async (ma = 'OL-NHAP', dong = dongChuyen, phan = ds.filter((m) => m.sl > 0), dsOdoo = null) => {
+  const xuatExcel = async (ma = 'OL-NHAP', dong = dongChuyen, phan = dsSap.filter((m) => m.sl > 0), dsOdoo = null) => {
     const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
     const h1 = ['Kho nguồn', 'Kho đích', 'SKU/ Barcode', 'Số lượng', 'Mã phiếu'];
@@ -377,10 +480,11 @@ export default function ChiaOnline() {
     XLSX.writeFile(wb, `CHIA_ONLINE_${ma}_${isoVN()}.xlsx`);
   };
 
-  const datSap = (k) => setSap((s) => (s.k === k ? (s.g === -1 ? { k, g: 1 } : { k: '', g: -1 }) : { k, g: -1 }));
-  const Th = ({ k, children, title, className }) => (
-    <th className={(className || '') + (k ? ' sap' : '') + (sap.k === k ? ' on' : '')} title={title} onClick={k ? () => datSap(k) : undefined}>
-      {children}{sap.k === k ? (sap.g > 0 ? ' ↑' : ' ↓') : ''}</th>
+  // NEW - 3.172: tiêu đề cột kiểu Đội Sale — bấm tên sắp xếp, bấm phễu lọc; danh sách giá trị lấy theo nhóm đang xem
+  //   (hàm thường trả về <ThCot> — KHÔNG tạo component mới mỗi lần vẽ, để hộp lọc đang mở không bị đóng khi gõ)
+  const thCot = (k, ten, title, className = '', nhanSo) => (
+    <ThCot key={k} k={k} ten={ten} title={title} className={'so ' + className} sap={sap} onSap={setSap}
+      loc={locCot[k]} onLoc={(v) => datLocCot(k, v)} giaTri={() => theoNganh.map(COT[k].lay)} nhanSo={nhanSo} />
   );
 
   const moc = kq?.moc || {};
@@ -462,21 +566,27 @@ export default function ChiaOnline() {
           </div>
         </div>
 
-        {/* ===== hàng 2 — lọc nhanh · tìm · Tự động chia / Điền lại / Xoá số ===== */}
+        {/* ===== hàng 2 — lọc nhanh · bộ lọc mã · Tự động chia / Điền lại / Xoá số (NEW - 3.172: chỉ áp mã đang hiện) ===== */}
         <div className="co-loc">
           <div className="co-chip">
+            {boLoc && (
+              <button className="on bl-chip" onClick={() => setBoLocDung(null)} title="Đang dùng bộ lọc mã — bấm để bỏ">
+                <IcLoc /> {boLoc.ten}<i>{fmtN(hien.length)}</i><span className="x">×</span></button>
+            )}
             {LOC.map(([k, t]) => (
               <button key={k} className={(loc === k ? 'on ' : '') + ((k === 'het' || k === 'gap' || k === 'xem') && demLoc[k] ? 'nong' : '')} onClick={() => setLoc(loc === k ? '' : k)}>
                 {t}<i>{fmtN(demLoc[k])}</i></button>
             ))}
+            {(loc || boLoc || locCotFn.co) && <button className="bo" onClick={boMoiLoc} title="Bỏ nút lọc nhanh, bộ lọc mã và lọc cột (giữ nhóm kho đang chọn)">Bỏ mọi lọc</button>}
           </div>
-          <input className="co-tim" placeholder="Tìm mã, tên, màu…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <MenuBoLoc ds={dsBoLoc} dangDung={boLocDung} onDung={setBoLocDung} onTao={() => setSuaBoLoc('moi')} onSua={(b) => setSuaBoLoc(b)}
+            an={tcBan.bo_loc_an || []} laAdmin={laAdmin} />
           <div className="co-nut-chia">
             <button className="btn btn-ai" onClick={() => tuDong(false)}
-              title={`Điền số gợi ý vào ô Chuyển CHƯA nhập — ${nhom ? 'chỉ nhóm ' + TEN_NHOM[nhom] : 'mọi nhóm'}; số đã gõ giữ nguyên`}>
-              <IcSpark /> Tự động chia{nhom ? <em>{TEN_NHOM[nhom]}</em> : null}</button>
-            <button className="btn btn-ghost" onClick={() => tuDong(true)} title={`Ghi đè ô Chuyển bằng số gợi ý (${nhom ? TEN_NHOM[nhom] : 'mọi nhóm'})`}>Điền lại</button>
-            <button className="btn btn-ghost" onClick={xoaSo} title={`Xoá số ở ô Chuyển (${nhom ? TEN_NHOM[nhom] : 'mọi nhóm'})`}>Xoá số</button>
+              title={`Điền số gợi ý vào ô Chuyển CHƯA nhập — CHỈ ${fmtN(hien.length)} mã đang hiện trên bảng (${moTaLoc}); số đã gõ giữ nguyên, mã bị lọc ẩn không đổi`}>
+              <IcSpark /> Tự động chia<em>{fmtN(soSeDien)} mã</em></button>
+            <button className="btn btn-ghost" onClick={() => tuDong(true)} title={`Ghi đè ô Chuyển bằng số gợi ý — CHỈ ${fmtN(hien.length)} mã đang hiện (${moTaLoc})`}>Điền lại</button>
+            <button className="btn btn-ghost" onClick={xoaSo} title={`Xoá số ở ô Chuyển — CHỈ ${fmtN(hien.length)} mã đang hiện (${moTaLoc})`}>Xoá số</button>
           </div>
         </div>
 
@@ -484,15 +594,33 @@ export default function ChiaOnline() {
         <div className="card co-bang-khung">
           <table className="co-bang">
             <thead>
-              <tr>
-                <th className="l">Sản phẩm <span className="co-dem2">{fmtN(hien.length)}</span></th>
-                <Th k="gia" title="Giá niêm yết · hàng sale: giá sale (đỏ)">Giá</Th>
-                <Th k="v" title={`Bán ${P.sb} ngày gần nhất (tới hôm qua) · dòng nhỏ: trung bình / ngày`}>Bán {P.sb}n</Th>
-                <Th k="co" title="Tồn online có thể bán (Nhanh) + đang về (phiếu Odoo đã duyệt, chưa nhập Nhanh) = tổng · dòng nhỏ: đủ bán bao nhiêu ngày">Tồn online</Th>
-                <Th k="kd" title="Kho tổng của nhóm (BH / NV chính → TP, sale → SA, phụ kiện → PK05001): số còn khả dụng">Kho tổng</Th>
-                <Th k="de" title={`Gợi ý = bán/ngày × ${P.cd} ngày × ${P.tl}% − tồn − đang về, làm tròn lên, không vượt kho tổng · bấm số để lấy`}>Gợi ý</Th>
-                <Th k="sl" className="c-sl" title="Số chuyển — trống cho tới khi bấm Tự động chia, hoặc anh tự gõ / bấm số gợi ý">Chuyển</Th>
-                <Th k="sau" title={`Sau chuyển = tồn + đang về + chuyển · dòng nhỏ: đủ bán bao nhiêu ngày (xanh: đủ ${P.cd} ngày · đỏ: chưa đủ)`}>Sau chuyển</Th>
+              {/* NEW - 3.172: bấm tên cột = sắp xếp · phễu = lọc · hàng dưới = ô lọc gõ tay (cùng cú pháp Đội Sale) */}
+              <tr className="ten">
+                <ThCot k="sp" loai="chu" className="l" nhan="Sản phẩm (mã)" title="Sản phẩm — sắp theo mã" sap={sap} onSap={setSap}
+                  ten={<>Sản phẩm <span className="co-dem2">{fmtN(hien.length)}/{fmtN(theoNganh.length)}</span></>}
+                  loc={locCot.sp} onLoc={(v) => datLocCot('sp', v)} giaTri={() => theoNganh.map((m) => m.r.m)} />
+                {thCot('gia', 'Giá', 'Giá niêm yết · hàng sale: giá sale (đỏ)', '', kGia)}
+                {thCot('ban', `Bán ${P.sb}n`, `Bán ${P.sb} ngày gần nhất (tới hôm qua) · dòng nhỏ: trung bình / ngày`)}
+                {thCot('ton', 'Tồn online', 'Tồn online có thể bán (Nhanh) + đang về (phiếu Odoo đã duyệt, chưa nhập Nhanh) = tổng · dòng nhỏ: đủ bán bao nhiêu ngày')}
+                {thCot('kd', 'Kho tổng', 'Kho tổng của nhóm (BH / NV chính → TP, sale → SA, phụ kiện → PK05001): số còn khả dụng')}
+                {thCot('gy', 'Gợi ý', `Gợi ý = bán/ngày × ${P.cd} ngày × ${P.tl}% − tồn − đang về, làm tròn lên, không vượt kho tổng · bấm số để lấy`, 'co-gy')}
+                {thCot('sl', 'Chuyển', 'Số chuyển — trống cho tới khi bấm Tự động chia, hoặc anh tự gõ / bấm số gợi ý', 'c-sl')}
+                {thCot('sau', 'Sau chuyển', `Sau chuyển = tồn + đang về + chuyển (cái) · dòng nhỏ: đủ bán bao nhiêu ngày (xanh: đủ ${P.cd} ngày · đỏ: chưa đủ)`)}
+              </tr>
+              <tr className="loc">
+                <th className="l">
+                  <div className="co-loc-sp">
+                    {locCotFn.co ? <button className="ch-loc-xoa" onClick={() => setLocCot({})} title="Xoá các ô lọc cột">×</button> : <IcLoc className="ch-loc-ic" />}
+                    <input value={locCot.sp || ''} placeholder="Lọc mã, tên, màu…" onChange={(e) => datLocCot('sp', e.target.value)} />
+                  </div>
+                </th>
+                {COT_K.map((k) => (
+                  <th key={k} className={k === 'sl' ? 'c-sl' : ''}>
+                    <input className={locCotFn.sai[k] ? 'sai' : locCot[k] ? 'co' : ''} value={locCot[k] || ''} inputMode="text"
+                      title={'Lọc cột: gõ 5 (bằng), >5, >=5, <3, <=3, !=0, khoảng 5-10, hoặc chọn nhiều giá trị 1;3;5 — hoặc bấm phễu trên tiêu đề' + (locCotFn.sai[k] ? '\nChưa hiểu cách gõ này — đang bỏ qua' : '')}
+                      onChange={(e) => datLocCot(k, e.target.value)} />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -505,7 +633,7 @@ export default function ChiaOnline() {
                       <div>
                         <b><i className={'co-cham ' + (m.tt || 'khong')} title={m.tt ? TT[m.tt][0] : 'Không bán, không tồn'} />{r.m}
                           {r.moi && soNgay(r.moi, homNay) <= 45 ? <i className="co-moi">mới</i> : null}
-                          {(!nhom || q.trim()) && <i className={'co-nhom-chip ' + m.nh}>{TEN_NHOM[m.nh]}</i>}</b>
+                          {(!nhom || String(locCot.sp || '').trim()) && <i className={'co-nhom-chip ' + m.nh}>{TEN_NHOM[m.nh]}</i>}</b>
                         <small>{(r.t || '').replace(/-[^-]*$/, '') || r.n3 || ''}</small>
                       </div>
                     </div></td>
@@ -522,8 +650,7 @@ export default function ChiaOnline() {
                       : <span className="nhat">·</span>}
                       {m.thieu > 0 ? <small className="thieu">kho thiếu {fmtN(m.thieu)}</small> : null}</td>
                     <td className="c-sl">
-                      <input inputMode="numeric" value={sua[r.b]?.sl ?? ''} className={m.daSua ? 'sua' : ''}
-                        onChange={(e) => datSo(r.b, e.target.value.replace(/[^\d]/g, ''))} />
+                      <OChuyen b={r.b} gt={sua[r.b]?.sl} goiY={m.goiY} onDat={(v) => datSo(r.b, v)} onDi={(d) => diDen(r.b, d)} />
                     </td>
                     <td className="so co-sau"><b className={m.daSua ? '' : 'nhat2'}>{fmtN(m.sauSl)}</b>
                       {m.v > 0 ? <small className={m.daSua ? (m.chuaDu ? 'thieu' : 'du') : ''}>đủ {fmt1(m.sau)} ngày</small> : null}</td>
@@ -542,7 +669,8 @@ export default function ChiaOnline() {
                   ),
                 ];
               })}
-              {!hien.length && <tr><td colSpan={8} className="co-trong">{loc === 'can' ? 'Không có mã nào cần chuyển với thông số hiện tại 👌' : 'Không có mã nào khớp'}</td></tr>}
+              {!hien.length && <tr><td colSpan={8} className="co-trong">{loc === 'can' && !boLoc && !locCotFn.co ? 'Không có mã nào cần chuyển với thông số hiện tại 👌'
+                : <>Không có mã nào khớp lọc ({moTaLoc}) <button className="co-link" onClick={boMoiLoc}>Bỏ mọi lọc</button></>}</td></tr>}
             </tbody>
           </table>
           {hien.length > soHien && <button className="co-them" onClick={() => setSoHien((n) => n + 250)}>Xem thêm {fmtN(Math.min(250, hien.length - soHien))} mã</button>}
@@ -565,10 +693,14 @@ export default function ChiaOnline() {
             <b className={tq.sl ? (tq.phuSau >= P.cd ? 'du' : 'thieu') : ''}>{fmt1(tq.phuSau)}</b><span>ngày</span>
           </div>
           <div className="ch-t3-canh">
-            {tq.vuot > 0 && <button className="do" onClick={() => { setNhom(''); setLoc('xem'); }}><IcAlert /> {tq.vuot} vượt kho</button>}
-            {tq.chuaDu > 0 && <button onClick={() => { setNhom(''); setLoc('xem'); }}><IcAlert /> {tq.chuaDu} chưa đủ ngày</button>}
-            {tq.sl > 0 && tq.chuaDien > 0 && <button onClick={() => { setNhom(''); setLoc('can'); }} title="Mã có gợi ý mà ô Chuyển còn trống">{tq.chuaDien} mã chưa điền</button>}
-            {tq.sl > 0 && !tq.vuot && !tq.chuaDu && !tq.chuaDien && <span className="ok"><IcCheck /> Ổn</span>}
+            {tq.vuot > 0 && <button className="do" onClick={() => xemLoc('xem')}><IcAlert /> {tq.vuot} vượt kho</button>}
+            {tq.chuaDu > 0 && <button onClick={() => xemLoc('xem')}><IcAlert /> {tq.chuaDu} chưa đủ ngày</button>}
+            {tq.sl > 0 && tq.chuaDien > 0 && <button onClick={() => xemLoc('can')} title="Mã có gợi ý mà ô Chuyển còn trống">{tq.chuaDien} mã chưa điền</button>}
+            {/* NEW - 3.172: số đã nhập nhưng đang bị lọc ẩn — vẫn vào đơn, bấm để xem */}
+            {anCoSo.length > 0 && <button className="an" onClick={() => xemLoc('sua')}
+              title={`${anCoSo.length} mã đã nhập số (${fmtN(tong(anCoSo.map((m) => m.sl)))} cái) đang bị lọc ẩn — VẪN vào đơn khi bấm Tạo đơn Odoo. Bấm để xem hết mã đã nhập số`}>
+              <IcLoc /> {anCoSo.length} mã đã nhập đang ẩn</button>}
+            {tq.sl > 0 && !tq.vuot && !tq.chuaDu && !tq.chuaDien && !anCoSo.length && <span className="ok"><IcCheck /> Ổn</span>}
           </div>
           <div className="ch-t3-nut co-t3-nut">
             {phieuSua && <span className="co-dang-sua">Sửa {phieuSua.ma_phieu} <button className="co-link" onClick={() => { setPhieuSua(null); setSua({}); }}>Bỏ</button></span>}
@@ -579,6 +711,11 @@ export default function ChiaOnline() {
         </div>
       </>)}
 
+      {/* NEW - 3.172: tạo / sửa bộ lọc mã (dùng chung với Đội Sale) */}
+      {suaBoLoc && (
+        <HopBoLoc ban={suaBoLoc === 'moi' ? null : suaBoLoc} onDong={() => setSuaBoLoc(null)}
+          onXong={(id, daXoa) => { const cu = suaBoLoc; setSuaBoLoc(null); taiBoLoc(); if (daXoa) { if (boLocDung === cu.id) setBoLocDung(null); } else if (id) setBoLocDung(id); }} />
+      )}
       {kq && tab === 'kho' && <SucKhoe ds={ds} kq={kq} P={P} />}
       {tab === 'phieu' && <DsPhieu ds={phieuDs} user={user} baoToast={baoToast} taiLai={taiPhieu} odoo={odoo} guiOdoo={guiOdoo} xuatExcel={xuatExcel}
         moSua={async (ph) => {
